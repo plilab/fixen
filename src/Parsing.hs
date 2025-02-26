@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Parsing where
 
 import qualified Data.List as L
 import Data.Void
 import Data.Text (Text)
-import Syntax
+import Syntax 
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec
 import Text.Megaparsec.Char hiding (string, char)
@@ -31,7 +30,7 @@ identifier :: Parser Identifier
 identifier = do
   idx <- lexeme ((:) <$> letterChar <*> many alphaNumChar)
   if idx `elem` reserved
-  then fail $ "'" ++ idx ++ " is a reserved keyword"
+  then fail $ "'" ++ idx ++ "' is a reserved keyword"
   else return idx
 
 string :: Text -> Parser Text
@@ -47,36 +46,37 @@ turnstyle :: Parser ()
 turnstyle = void $ string "|->" <|> string "|-"
 
 typeExpr :: Parser TypeExpr
-typeExpr = (TNat <$ string "Nat") <|> (TDist <$ string "Dist")
+typeExpr = (TNat <$ string "Nat") 
+  <|> (TString <$ string "String") 
+  <|> (TBool <$ string "Bool") 
+  <|> (TVar <$> identifier)
 
--- parse an expression first (head), then check if there are more (it is application) remembering the head
--- if there are more then its app, else return the expr
-expr :: Parser Expr
+expr :: Parser LitExpr
 expr = L.foldl' App <$> expr' <*> many expr'
 
-expr' :: Parser Expr
+expr' :: Parser LitExpr
 expr' = choice [
   try idExpr,
   try intExpr,
   brackExpr]
 
-idExpr :: Parser Expr
+idExpr :: Parser LitExpr
 idExpr = Atom . Id <$> identifier
 
-intExpr :: Parser Expr
-intExpr = Atom . Int <$> number
+intExpr :: Parser LitExpr
+intExpr = Atom . Ground . GroundExpr . LInt <$> number
 
-brackExpr :: Parser Expr
+brackExpr :: Parser LitExpr
 brackExpr = between (char '(') (char ')') expr
 
 -- Parse a proposition (relation applied to expressions)
-proposition :: Parser Proposition
-proposition = (,) <$> identifier <*> many expr'
+proposition :: Parser (Fact LitExpr)
+proposition = Fact <$> identifier <*> many expr'
 
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
 
-ruleDecl :: Parser Declaration
+ruleDecl :: Parser LitDeclaration
 ruleDecl = do
   void $ string "rule"
   name <- optional identifier
@@ -85,10 +85,10 @@ ruleDecl = do
   turnstyle
   RuleDecl name . Rule lhs <$> proposition
 
-latDecl :: Parser Declaration
+latDecl :: Parser LitDeclaration
 latDecl = LatDecl <$> (string "lat" *> identifier)
 
-relDecl :: Parser Declaration
+relDecl :: Parser LitDeclaration
 relDecl = do
   void $ string "rel"
   name <- identifier
@@ -98,7 +98,7 @@ relDecl = do
 typeExprList :: Parser [TypeExpr]
 typeExprList = commaSep typeExpr
 
-ordDecl :: Parser Declaration
+ordDecl :: Parser LitDeclaration
 ordDecl = do
   void $ string "ord"
   void $ char ':'
@@ -108,7 +108,7 @@ ordDecl = do
   void $ string "<="
   OrdDecl lhs instl <$> instantiation
 
-instantiation :: Parser Instantiation
+instantiation :: Parser LitInstantiation
 instantiation = do
   name <- identifier
   let assigned = (,) <$> identifier <* char '=' <*> expr
@@ -117,26 +117,25 @@ instantiation = do
   then fail "empty instantiation"
   else return $ Instantiation name insts
 
-queryDecl :: Parser Declaration
+queryDecl :: Parser LitDeclaration
 queryDecl = do
   name <- string "query" *> identifier <* string "as"
   ruleName <- identifier
   modes <- many $ (True <$ char '+') <|> (False <$ char '-')
   return $ QueryDecl name ruleName modes
 
-topLevel :: Parser Program
-topLevel = do
-  void sc
-  res <- some $ choice [
-    try latDecl,
-    try relDecl,
-    try ruleDecl,
-    try ordDecl,
-    queryDecl]
-  void eof
-  return $ Program res
+declaration :: Parser LitDeclaration
+declaration = choice [
+  try latDecl,
+  try relDecl,
+  try ruleDecl,
+  try ordDecl,
+  queryDecl]
 
-parseTopLevel :: Text -> Either (ParseErrorBundle Text Void) Program
+topLevel :: Parser LitProgram
+topLevel = Program <$> (between sc eof . some) declaration 
+
+parseTopLevel :: Text -> Either (ParseErrorBundle Text Void) LitProgram
 parseTopLevel = parse topLevel "input"
 
 test :: Text -> IO ()

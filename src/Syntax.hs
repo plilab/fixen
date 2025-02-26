@@ -1,45 +1,92 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Syntax where
 
 import Prettyprinter
-import Prettyprinter.Render.Text
-import Data.Text.IO as T
+import Algebra.PartialOrd
+import Data.Bifunctor (Bifunctor, bimap)
 
-newtype Program = Program [Declaration] deriving (Show)
+newtype Program a = Program [Declaration a] deriving (Show)
 
-data Declaration
+data Declaration a
   = LatDecl Identifier
   | RelDecl Identifier [TypeExpr]
-  | RuleDecl (Maybe Identifier) Rule
-  | OrdDecl [Proposition] Instantiation Instantiation
+  | RuleDecl (Maybe Identifier) (Rule (Expr a) (Expr a)) -- should it be from AtomExprs to Expr ??
+  | OrdDecl [Fact (Expr a)] (Instantiation a) (Instantiation a)
   | QueryDecl Identifier Identifier [Mode]
   deriving (Show)
 
-data Rule = Rule [Proposition] Proposition deriving (Show)
+data Rule a b = Rule [Fact a] (Fact b) deriving (Show, Functor)
 
-data TypeExpr = TNat | TDist deriving Show
+-- actually, I want TNat, TString, TBool for raw literals, and TVar String for any imported/defined stuff e.g. Dist
+data TypeExpr = TNat | TString | TBool | TVar Identifier deriving (Show, Eq)
 
-data Instantiation = Instantiation Identifier [(Identifier, Expr)] deriving (Show)
+data Instantiation a = Instantiation Identifier [(Identifier, Expr a)] deriving (Show, Eq, Functor)
 
-data AtomExpr = Id Identifier | Int Int deriving (Show)
+newtype GroundExpr a = GroundExpr a deriving (Show, Eq, Functor)
 
-data Expr = Atom AtomExpr | App Expr Expr deriving (Show)
+data AtomExpr a = Id Identifier | Ground (GroundExpr a) deriving (Show, Eq, Functor)
+
+data Expr a = Atom (AtomExpr a) | App (Expr a) (Expr a) deriving (Show, Eq, Functor)
 
 type Mode = Bool
 
 type Identifier = String
 
-type Proposition = (Identifier, [Expr])
+data Fact a = Fact Identifier [a] deriving (Show, Eq, Functor)
 -- data Premise = Invocation | Let | Exsts Identifer
 -- Invocation = Ident [Ident | Lit]
 
-instance Pretty AtomExpr where
-  pretty (Id name) = pretty name
-  pretty (Int n)   = pretty n
+data Literal = LInt Int | LString String | LBool Bool deriving (Show, Eq)
 
-instance Pretty Expr where
-  pretty (Atom a) = pretty a
+type LitProgram = Program Literal
+type LitDeclaration = Declaration Literal
+type LitExpr = Expr Literal
+type LitInstantiation = Instantiation Literal
+
+instance Bifunctor Rule where
+  bimap f g (Rule lhs rhs) = Rule (map (fmap f) lhs) $ fmap g rhs
+
+{- PartialOrd instances for expressions and proposition -}
+
+instance (PartialOrd a) => PartialOrd (GroundExpr a) where
+  leq (GroundExpr a) (GroundExpr b) = leq a b
+
+instance (PartialOrd a) => PartialOrd (AtomExpr a) where
+  leq (Id x) (Id y) = x == y
+  leq (Ground g) (Ground h) = leq g h
+  leq (Ground _) (Id _) = True
+  leq _ _ = False
+
+instance (PartialOrd a) => PartialOrd (Expr a) where
+  leq (Atom a) (Atom b) = leq a b
+  leq a@(App _ _) b@(App _ _) = a == b
+  leq _ _ = False
+
+  comparable a b = case (a,b) of
+    (Atom _, Atom _) -> True
+    (App _ _, App _ _) -> True
+    _ -> False
+
+instance (PartialOrd a) => PartialOrd (Fact a) where 
+  leq (Fact x es) (Fact y hs) | x == y = and $ zipWith leq es hs
+  leq _ _ = False
+
+{- Pretty instances for syntax -}
+
+instance Pretty Literal where
+  pretty (LInt n) = pretty n
+  pretty (LString s) = pretty s
+  pretty (LBool b) = pretty b 
+
+instance (Pretty a) => Pretty (GroundExpr a) where
+  pretty (GroundExpr a) = pretty a
+
+instance (Pretty a) => Pretty (AtomExpr a) where
+  pretty (Id name)  = pretty name
+  pretty (Ground g) = pretty g
+
+instance (Pretty a) => Pretty (Expr a) where
+  pretty (Atom a)  = pretty a
   pretty (App f x) = "(" <> go f <+> pretty x <> ")"
     where go (App g y) = go g <+> pretty y
           go e         = pretty e
@@ -47,15 +94,15 @@ instance Pretty Expr where
 prettyCommaSep :: [Doc ann] -> Doc ann
 prettyCommaSep = hcat . punctuate ", "
 
-prettyProposition :: Proposition -> Doc ann
-prettyProposition (name, args) =
+prettyProposition :: (Pretty a) => Fact a -> Doc ann
+prettyProposition (Fact name args) =
   pretty name <+> hsep (map pretty args)
 
-prettyInstantiation :: Instantiation -> Doc ann
-prettyInstantiation (Instantiation name insts) = pretty name <+> "{" <+> (prettyCommaSep . map prettyAssgn) insts <+> "}"
-  where prettyAssgn (id_i, expr_i) = pretty id_i <+> "=" <+> pretty expr_i
+instance (Pretty a) => Pretty (Instantiation a) where
+  pretty (Instantiation name insts) = pretty name <+> "{" <+> (prettyCommaSep . map prettyAssgn) insts <+> "}"
+    where prettyAssgn (id_i, expr_i) = pretty id_i <+> "=" <+> pretty expr_i
 
-instance Pretty Declaration where
+instance (Pretty a) => Pretty (Declaration a) where
   pretty (LatDecl name) =
     "lat" <+> pretty name
   pretty (RelDecl name types) =
@@ -71,17 +118,13 @@ instance Pretty Declaration where
             <+> hsep (map (\b -> if b then "+" else "-") modes)
   pretty (OrdDecl premises instl instr) = 
     "ord:" <+> prettyCommaSep (map prettyProposition premises)
-           <+> "|-" <+> prettyInstantiation instl <+> prettyInstantiation instr
+           <+> "|-" <+> pretty instl <+> pretty instr
 
 instance Pretty TypeExpr where
-  pretty :: TypeExpr -> Doc ann
   pretty TNat  = "Nat"
-  pretty TDist = "Dist"
+  pretty TBool = "Bool"
+  pretty TString = "String"
+  pretty (TVar s) = pretty s
 
-instance Pretty Program where
-  pretty :: Program -> Doc ann
+instance (Pretty a) => Pretty (Program a) where
   pretty (Program decls) = vsep $ map pretty decls
-
--- Render a document as Text
-renderPretty :: Doc ann -> IO ()
-renderPretty = T.putStrLn . renderStrict . layoutPretty defaultLayoutOptions
