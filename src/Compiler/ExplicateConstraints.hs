@@ -38,7 +38,7 @@ explicateConstraints program = program
         (Result cs) -> Result <$> mapM explicateConclusion cs
         (Branch p ts) -> do
           (p', seenVars) <- explicateAssumption p
-              ts' <- local (S.insert $ headSymbol p) $ mapM go ts
+          ts' <- local (const seenVars) $ mapM go ts
           return $ Branch p' ts'
       
       -- switch to state to maintain dependency between variables within each proposition
