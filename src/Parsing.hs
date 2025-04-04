@@ -1,15 +1,16 @@
 module Parsing where
 
+import Control.Monad
 import qualified Data.List as L
 import Data.Void
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Syntax 
+import Syntax.Common
+import Syntax.Raw
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec
 import Text.Megaparsec.Char hiding (string, char)
 import qualified Text.Megaparsec.Char as C
-import Data.Maybe (fromMaybe)
-import Control.Monad (void)
 
 type Parser = Parsec Void Text
 
@@ -51,64 +52,80 @@ typeExpr = (TNat <$ string "Nat")
   <|> (TBool <$ string "Bool") 
   <|> (TVar <$> identifier)
 
-expr :: Parser LitExpr
+expr :: Parser RawExpr
 expr = L.foldl' App <$> expr' <*> many expr'
 
-expr' :: Parser LitExpr
+expr' :: Parser RawExpr
 expr' = choice [
-  try idExpr,
-  try intExpr,
+  Atom <$> try idExpr,
+  Atom <$> try intExpr,
   brackExpr]
 
-idExpr :: Parser LitExpr
-idExpr = Atom . Id <$> identifier
+atomicExpr :: Parser RawAtomExpr
+atomicExpr =  try idExpr <|> intExpr
 
-intExpr :: Parser LitExpr
-intExpr = Atom . Ground . GroundExpr . LInt <$> number
+idExpr :: Parser RawAtomExpr
+idExpr = Id <$> identifier
 
-brackExpr :: Parser LitExpr
+intExpr :: Parser RawAtomExpr
+intExpr = Ground . LInt . IntLit <$> number
+
+boolExpr :: Parser RawAtomExpr
+boolExpr = Ground . LBool . BoolLit <$> 
+    ( True  <$ string "True"
+  <|> False <$ string "False")
+
+strExpr :: Parser RawAtomExpr
+strExpr = 
+  Ground . LString . StrLit <$> 
+    between "\"" "\"" (many L.charLiteral)
+
+brackExpr :: Parser RawExpr
 brackExpr = between (char '(') (char ')') expr
 
 -- Parse a proposition (relation applied to expressions)
-proposition :: Parser (Fact LitExpr)
-proposition = Fact <$> identifier <*> many expr'
+proposition :: Parser (Proposition RawExpr)
+proposition = Proposition <$> identifier <*> many expr'
+
+atomicProposition :: Parser (Proposition RawAtomExpr)
+atomicProposition = Proposition <$> identifier <*> many atomicExpr
 
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
 
-ruleDecl :: Parser LitDeclaration
+ruleDecl :: Parser Declaration
 ruleDecl = do
   void $ string "rule"
   name <- optional identifier
   void $ char ':'
-  lhs <- commaSep proposition
+  lhs <- commaSep atomicProposition
   turnstyle
-  RuleDecl name . Rule lhs <$> proposition
+  Rul name . RawRule lhs <$> proposition
 
-latDecl :: Parser LitDeclaration
-latDecl = LatDecl <$> (string "lat" *> identifier)
+latDecl :: Parser Declaration
+latDecl = Def . Foreign <$> (string "lat" *> identifier)
 
-relDecl :: Parser LitDeclaration
+relDecl :: Parser Declaration
 relDecl = do
   void $ string "rel"
   name <- identifier
   relType <- optional (char ':' *> typeExprList)
-  return $ RelDecl name (fromMaybe [] relType)
+  return . Rel $ Signature name (fromMaybe [] relType)
 
 typeExprList :: Parser [TypeExpr]
 typeExprList = commaSep typeExpr
 
-ordDecl :: Parser LitDeclaration
+ordDecl :: Parser Declaration
 ordDecl = do
   void $ string "ord"
   void $ char ':'
-  lhs <- commaSep proposition
+  lhs <- commaSep atomicProposition
   turnstyle
   instl <- instantiation
   void $ string "<="
-  OrdDecl lhs instl <$> instantiation
+  Ord . RawRule lhs . OrdHead instl <$> instantiation
 
-instantiation :: Parser LitInstantiation
+instantiation :: Parser Instantiation
 instantiation = do
   name <- identifier
   let assigned = (,) <$> identifier <* char '=' <*> expr
@@ -117,14 +134,14 @@ instantiation = do
   then fail "empty instantiation"
   else return $ Instantiation name insts
 
-queryDecl :: Parser LitDeclaration
+queryDecl :: Parser Declaration
 queryDecl = do
   name <- string "query" *> identifier <* string "as"
   ruleName <- identifier
   modes <- many $ (True <$ char '+') <|> (False <$ char '-')
-  return $ QueryDecl name ruleName modes
+  return . Qry $ ModalDef name ruleName modes
 
-declaration :: Parser LitDeclaration
+declaration :: Parser Declaration
 declaration = choice [
   try latDecl,
   try relDecl,
@@ -132,11 +149,8 @@ declaration = choice [
   try ordDecl,
   queryDecl]
 
-topLevel :: Parser LitProgram
-topLevel = Program <$> (between sc eof . some) declaration 
+topLevel :: Parser RawProgram
+topLevel = RawProgram <$> (between sc eof . some) declaration 
 
-parseTopLevel :: Text -> Either (ParseErrorBundle Text Void) LitProgram
+parseTopLevel :: Text -> Either (ParseErrorBundle Text Void) RawProgram
 parseTopLevel = parse topLevel "input"
-
-test :: Text -> IO ()
-test = parseTest topLevel

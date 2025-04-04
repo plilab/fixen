@@ -1,6 +1,9 @@
 import Prettyprinter
 import Prettyprinter.Render.Text
+import Syntax.Raw
 import Parsing (parseTopLevel)
+import Data.Maybe (mapMaybe)
+import Compiler.GenerateUniqueNames (makeUniqueNames)
 
 main :: IO ()
 main = do 
@@ -9,9 +12,12 @@ main = do
     \rel edge : Nat, Nat, Dist\n\
     \rel distTo : Nat, Dist\n\
     \rule init: |- distTo start 0\n\
-    \rule addDist: distTo v1 d1, edge v1 v2 d2, leq (add d1 d2) d |- distTo v2 d\n\
+    \rule addDist: distTo v1 d1, edge v1 v2 d2 |- distTo v2 (add d1 d2)\n\
     \ord: leq d11 d12 |- addDist {d1 = d11} <= addDist {d1 = d12}\n\
     \query distTo as distTo - +\n"
   case res of
-    Right prog -> putDoc $ pretty prog
+    Right prog -> do
+      let rules = mapMaybe getRule $ unRawProgram prog
+      putDoc $ pretty (makeUniqueNames rules)
+
     Left err -> print err

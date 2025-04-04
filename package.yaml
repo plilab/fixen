@@ -23,7 +23,13 @@ dependencies:
 - megaparsec
 - prettyprinter
 - text
+- containers
+- pqueue
 - lattices
+- haskell-src-exts
+- unordered-containers
+- hashable
+- mtl
 
 ghc-options:
 - -Wall
@@ -42,6 +48,7 @@ default-extensions:
 library:
   source-dirs: 
   - src
+  - examples
 
 executables:
   fixed-point-lang-exe:
@@ -64,3 +71,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fixed-point-lang
+    - tasty
+    - tasty-hunit

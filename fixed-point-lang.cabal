@@ -17,7 +17,6 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    CHANGELOG.md
 
 source-repository head
   type: git
@@ -25,20 +24,43 @@ source-repository head
 
 library
   exposed-modules:
+      Common.Instances
+      Common.Util
+      Compiler.Compactify
+      Compiler.Compiler
+      Compiler.ExplicateConstraints
+      Compiler.Generate
+      Compiler.GenerateUniqueNames
       Parsing
-      Syntax
+      Syntax.Common
+      Syntax.Compact
+      Syntax.Raw
+      Generated
+      GeneratedData
+      Given
+      ShortestPath
   other-modules:
       Paths_fixed_point_lang
   autogen-modules:
       Paths_fixed_point_lang
   hs-source-dirs:
       src
+      examples
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , containers
+    , hashable
+    , haskell-src-exts
+    , lattices
     , megaparsec
+    , mtl
+    , pqueue
     , prettyprinter
     , text
+    , unordered-containers
   default-language: Haskell2010
 
 executable fixed-point-lang-exe
@@ -49,13 +71,22 @@ executable fixed-point-lang-exe
       Paths_fixed_point_lang
   hs-source-dirs:
       app
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , fixed-point-lang
+    , hashable
+    , haskell-src-exts
+    , lattices
     , megaparsec
+    , mtl
+    , pqueue
     , prettyprinter
     , text
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite fixed-point-lang-test
@@ -67,11 +98,22 @@ test-suite fixed-point-lang-test
       Paths_fixed_point_lang
   hs-source-dirs:
       test
+  default-extensions:
+      OverloadedStrings
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , fixed-point-lang
+    , hashable
+    , haskell-src-exts
+    , lattices
     , megaparsec
+    , mtl
+    , pqueue
     , prettyprinter
+    , tasty
+    , tasty-hunit
     , text
+    , unordered-containers
   default-language: Haskell2010
