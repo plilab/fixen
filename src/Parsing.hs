@@ -84,11 +84,11 @@ brackExpr :: Parser RawExpr
 brackExpr = between (char '(') (char ')') expr
 
 -- Parse a proposition (relation applied to expressions)
-proposition :: Parser (Proposition RawExpr)
-proposition = Proposition <$> identifier <*> many expr'
+proposition :: Parser (Conclusion Identifier)
+proposition = Conclusion <$> identifier <*> many expr'
 
-atomicProposition :: Parser (Proposition RawAtomExpr)
-atomicProposition = Proposition <$> identifier <*> many atomicExpr
+atomicProposition :: Parser (Assumption Identifier)
+atomicProposition = Assumption <$> identifier <*> many atomicExpr
 
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
@@ -100,7 +100,7 @@ ruleDecl = do
   void $ char ':'
   lhs <- commaSep atomicProposition
   turnstyle
-  Rul name . RawRule lhs <$> proposition
+  Rul name . Rule lhs <$> proposition
 
 latDecl :: Parser Declaration
 latDecl = Def . Foreign <$> (string "lat" *> identifier)
@@ -123,7 +123,7 @@ ordDecl = do
   turnstyle
   instl <- instantiation
   void $ string "<="
-  Ord . RawRule lhs . OrdHead instl <$> instantiation
+  Ord . Rule lhs . OrdHead instl <$> instantiation
 
 instantiation :: Parser Instantiation
 instantiation = do

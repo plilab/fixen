@@ -1,7 +1,7 @@
 module Compiler.GenerateUniqueNames where
 
 import Syntax.Common
-import Syntax.Raw (RawAtomExpr, RawExpr, RuleClause)
+import Syntax.Raw (RuleClause)
 import Control.Monad.State.Strict
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -24,17 +24,17 @@ makeUniqueNames rules = evalState (go rules) initState
       incState
       return res
 
-    goAtomProp :: Proposition RawAtomExpr -> Env (Proposition RawAtomExpr)
-    goAtomProp = traverse $ traverse current
+    goAtomProp :: Assumption Identifier -> Env (Assumption Identifier)
+    goAtomProp = traverse current
 
-    goProp :: Proposition RawExpr -> Env (Proposition RawExpr)
-    goProp = traverse (traverse current)
+    goProp :: Conclusion Identifier -> Env (Conclusion Identifier)
+    goProp = traverse current
 
     goRule :: RuleClause -> Env RuleClause
-    goRule (RawRule prems conc) = do
+    goRule (Rule prems conc) = do
       prems' <- mapM goAtomProp prems
       conc'  <- goProp conc
-      return $ RawRule prems' conc'
+      return $ Rule prems' conc'
 
 countOf :: Identifier -> Env Natural
 countOf name = gets (maybe 0 succ . M.lookup name . fst)

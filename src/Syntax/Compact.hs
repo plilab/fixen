@@ -2,7 +2,6 @@
 module Syntax.Compact where
 
 import Common.Util
-import Control.Monad.State (execState, modify)
 import Data.Foldable (Foldable(foldl'))
 import Syntax.Common
 import Prettyprinter
@@ -32,8 +31,8 @@ newtype RuleForest a = RF { getTrees :: [(Assumption a, [RuleTree a])] }
 
 instance Functor RuleTree where
   fmap f rt = RT $ case getCase rt of
-    (Result cs)   -> Result $ map (fmap $ fmap f) cs
-    (Branch p ts) -> Branch (fmap (fmap f) p) $ map (fmap f) ts
+    (Result cs)   -> Result $ map (fmap f) cs
+    (Branch p ts) -> Branch (fmap f p) $ map (fmap f) ts
 
 instance Foldable RuleTree where
   foldr = foldrFromTraversable
@@ -41,10 +40,10 @@ instance Foldable RuleTree where
 
 instance Traversable RuleTree where
   traverse f rt = RT <$> case getCase rt of
-    (Result cs) -> Result <$> (traverse . traverse . traverse $ f) cs
+    (Result cs) -> Result <$> (traverse . traverse $ f) cs
     (Branch p ts) -> 
       Branch 
-        <$> traverse (traverse f) p
+        <$> traverse f p
         <*> traverse (traverse f) ts
 
 instance (Pretty a) => Pretty (RuleTree a) where
@@ -53,7 +52,7 @@ instance (Pretty a) => Pretty (RuleTree a) where
     (Branch p ts) -> pretty p <+> (align . vsep . map pretty $ ts)
 
 instance Functor RuleForest where
-  fmap f (RF trees) = RF $ trees <&> bimap (fmap $ fmap f) (map $ fmap f)
+  fmap f (RF trees) = RF $ trees <&> bimap (fmap f) (map $ fmap f)
 
 instance Foldable RuleForest where
   foldr = foldrFromTraversable
@@ -62,7 +61,7 @@ instance Foldable RuleForest where
 instance Traversable RuleForest where
   traverse f (RF trees) = 
     fmap RF $ for trees $ \(prem, tree) -> do
-      prem' <- traverse (traverse f) prem
+      prem' <- traverse f prem
       tree' <- traverse (traverse f) tree
       pure (prem', tree')
 

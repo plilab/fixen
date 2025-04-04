@@ -11,24 +11,24 @@ import Syntax.Compact
 import Control.Arrow (Arrow(second))
 import Data.Traversable (for)
 
-data Rule = Rule { premises :: S.HashSet (Assumption Identifier), conclusion :: Conclusion Identifier }
+data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), conclusion :: Conclusion Identifier }
 
-unrollRule :: Rule -> RuleTree Identifier
-unrollRule (Rule prems concl) = 
+unrollRule :: UnordRule -> RuleTree Identifier
+unrollRule (UnordRule prems concl) = 
   foldr' 
     (\p rt -> RT $ Branch p [rt]) 
     (RT $ Result [concl])
   prems
 
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
-factorPremise :: Identifier -> [Rule] -> Maybe (Assumption Identifier, [Rule])
+factorPremise :: Identifier -> [UnordRule] -> Maybe (Assumption Identifier, [UnordRule])
 factorPremise name rules = do 
     -- find the first rule that has a `name` premise
-    r0 <- find (any ((name ==) . headSymbol) . premises) rules
+    r0 <- find (any ((name ==) . headSymbolOf) . premises) rules
     -- identify the common premise
-    commonPremise <- find ((name ==) . headSymbol) $ premises r0
+    commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
       -- for every rule
-    factoredRules <- for rules $ \(Rule prems c) -> do
+    factoredRules <- for rules $ \(UnordRule prems c) -> do
       -- find an alpha equivalent premise
       premise' <- find (alphaEq commonPremise) prems 
       let
@@ -36,11 +36,11 @@ factorPremise name rules = do
         prems' = S.delete premise' prems
         -- build a rename mapping:
         renaming = M.fromList $ zip (idArgs commonPremise) (idArgs premise')
-          where idArgs = mapMaybe getId . arguments
+          where idArgs = mapMaybe getId . argumentsOf
         -- rename rule's variables such that the premise becomes equal to `commonPremise`
-        prems'' = S.map (fmap $ substituteAll renaming) prems'
-        c' = fmap (substituteAll renaming) c
-      return $ Rule prems'' c'
+        prems'' = S.map (substituteAll renaming) prems'
+        c' = substituteAll renaming c
+      return $ UnordRule prems'' c'
     
     return (commonPremise, factoredRules)
 
@@ -61,7 +61,7 @@ factorPremise name rules = do
 buildRuleForest :: [Signature] -> [RuleClause] -> RuleForest Identifier
 buildRuleForest signts rules =
   let
-    urules = map (\(RawRule prems c) -> Rule (S.fromList prems) c) rules
+    urules = map (\(Rule prems c) -> UnordRule (S.fromList prems) c) rules
 
     groupings = mapMaybe (\(Signature name _) -> factorPremise name urules) signts
 

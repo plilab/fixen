@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Syntax.Common where
 
 import Algebra.PartialOrd
@@ -8,8 +10,12 @@ import Common.Util (alphaEq, foldrFromTraversable, foldlFromTraversable')
 import Data.Bifunctor (Bifunctor, bimap)
 import Data.Foldable (Foldable(foldl'))
 import Data.Hashable (Hashable(hash))
-import GHC.Generics (Generic)
+import GHC.Generics (Generic, Generic1)
 import Prettyprinter
+import Data.Functor.Compose (Compose (Compose, getCompose))
+import Data.Functor.Classes (Show1 (liftShowsPrec), Eq1 (liftEq))
+import Data.List (intersperse)
+import Data.Hashable.Lifted (Hashable1)
 
 type Identifier = String
 
@@ -35,7 +41,7 @@ data LatticeDef =
 data Signature = Signature Identifier [TypeExpr]
   deriving (Eq, Show)
 
-data RawRule a b = RawRule [Proposition a] b
+data Rule a b = Rule [a] b
   deriving (Show, Functor)
 
 data Instantiation = Instantiation Identifier [(Identifier, Expr Identifier)]
@@ -45,7 +51,7 @@ data ModalDef = ModalDef Identifier Identifier [Mode]
   deriving (Eq, Show)
 
 data AtomExpr v = Id v | Ground Literal
-  deriving (Show, Eq, Functor, Generic)
+  deriving (Show, Eq, Functor, Generic, Generic1)
 
 getId :: AtomExpr a -> Maybe a
 getId (Id v) = Just v
@@ -55,16 +61,29 @@ data Expr v = Atom (AtomExpr v) | App (Expr v) (Expr v)
   deriving (Show, Eq, Functor, Generic)
 
 data Proposition a = Proposition { headSymbol :: Identifier, arguments :: [a] }
-  deriving (Show, Eq, Functor, Generic)
+  deriving (Show, Eq, Functor, Generic, Generic1)
 -- data Premise = Invocation | Let | Exsts Identifer
 -- Invocation = Ident [Ident | Lit]
 
-data Premise a
-  = Assumption (Proposition (AtomExpr a))
-  | Bounded (Proposition (AtomExpr a)) [(a, a)]
+headSymbolOf :: PropositionOf f a -> Identifier
+headSymbolOf = headSymbol . getCompose
 
-type Assumption a = Proposition (AtomExpr a)
-type Conclusion a = Proposition (Expr a)
+argumentsOf :: PropositionOf f a -> [f a]
+argumentsOf = arguments . getCompose
+
+{- data Premise a
+  = Assumption (Proposition (AtomExpr a))
+  | Bounded (Proposition (AtomExpr a)) [(a, a)] -}
+
+type PropositionOf = Compose Proposition
+
+type Assumption = PropositionOf AtomExpr
+pattern Assumption :: Identifier -> [AtomExpr a] -> Assumption a
+pattern Assumption a b = Compose (Proposition a b)
+
+type Conclusion = PropositionOf Expr
+pattern Conclusion :: Identifier -> [Expr a] -> Conclusion a
+pattern Conclusion a b = Compose (Proposition a b)
 
 newtype StrLit = StrLit { unStrLit :: String }
   deriving (Eq, Show, Ord, Generic)
@@ -84,10 +103,10 @@ data CVar = First Identifier | Constrained Identifier
 data OrdHead = OrdHead Instantiation Instantiation
   deriving (Show, Eq)
 
-type OrdClause v = RawRule (AtomExpr v) OrdHead
+type OrdClause v = Rule (Assumption v) OrdHead
 
-instance Bifunctor RawRule where
-  bimap f g (RawRule lhs rhs) = RawRule (map (fmap f) lhs) $ g rhs
+instance Bifunctor Rule where
+  bimap f g (Rule lhs rhs) = Rule (map f lhs) $ g rhs
 
 {- can make them proper traversables later -}
 instance Foldable Proposition where
@@ -171,7 +190,38 @@ instance (PartialOrd a) => PartialOrd (Proposition a) where
   leq (Proposition x es) (Proposition y hs) | x == y = and $ zipWith leq es hs
   leq _ _ = False
 
+instance Show1 Proposition where
+  liftShowsPrec sp _ d (Proposition sym args) = 
+    showString "(" . showString sym . mconcat (intersperse (showString ", ") (map (sp d) args)) . showString ")"
+
+instance Eq1 Proposition where
+  liftEq eq (Proposition name1 args1) (Proposition name2 args2) = name1 == name2 && and (zipWith eq args1 args2)
+
+instance Hashable1 Proposition
+
+instance Show1 AtomExpr where
+  liftShowsPrec sp _ d (Id name) = sp d name
+  liftShowsPrec _ _ _ (Ground lit) = showString $ show lit
+
+instance Eq1 AtomExpr where
+  liftEq eq (Id x) (Id y) = eq x y
+  liftEq _ (Ground l1) (Ground l2) = l1 == l2
+  liftEq _ _ _ = False
+
+instance Hashable1 AtomExpr
+
+instance Show1 Expr where
+  liftShowsPrec sp ss d (Atom a) = liftShowsPrec sp ss d a
+  liftShowsPrec sp ss d (App fun arg) = 
+    showString "(" . 
+    liftShowsPrec sp ss d fun . 
+    showString " " . 
+    liftShowsPrec sp ss d arg . 
+    showString ")"
+
 {- pretty instances for common syntax -}
+instance (Pretty (f (g a))) => Pretty (Compose f g a) where
+  pretty = pretty . getCompose
 
 instance Pretty Literal where
   pretty (LInt n) = pretty . unIntLit $ n
@@ -221,8 +271,8 @@ instance Pretty Signature where
       then mempty 
       else ":" <+> prettyCommaSep (map pretty types)
 
-instance (Pretty a, Pretty b) => Pretty (RawRule a b) where
-  pretty (RawRule lhs rhs) =
+instance (Pretty a, Pretty b) => Pretty (Rule a b) where
+  pretty (Rule lhs rhs) =
     prettyCommaSep (map pretty lhs)
       <> (if null lhs then mempty else space) 
       <> "|-" <+> pretty rhs
