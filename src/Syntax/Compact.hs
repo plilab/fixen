@@ -16,7 +16,7 @@ data CompactProgram a = Compact
   { dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , ruleForest :: RuleForest a
-  , ordClauses :: [OrdClause a]
+  , ordClauses :: [OrdClause Identifier]
   , querries   :: [ModalDef]
   }
 
