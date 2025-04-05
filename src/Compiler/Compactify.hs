@@ -28,21 +28,21 @@ factorPremise name rules = do
     -- identify the common premise
     commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
       -- for every rule
-    factoredRules <- for rules $ \(UnordRule prems c) -> do
+  let 
+    factor = mapMaybe $ \(UnordRule prems c) -> do
       -- find an alpha equivalent premise
       premise' <- find (alphaEq commonPremise) prems 
       let
       -- remove it from the rule
         prems' = S.delete premise' prems
         -- build a rename mapping:
-        renaming = M.fromList $ zip (idArgs commonPremise) (idArgs premise')
+        renaming = M.fromList $ zip (idArgs premise') (idArgs commonPremise)
           where idArgs = mapMaybe getId . argumentsOf
         -- rename rule's variables such that the premise becomes equal to `commonPremise`
         prems'' = S.map (substituteAll renaming) prems'
         c' = substituteAll renaming c
       return $ UnordRule prems'' c'
-    
-    return (commonPremise, factoredRules)
+  return (commonPremise, factor rules)
 
 -- NOTE: we forget any premiseless rules!
 --   => they should be added to the initial DB before computing the fixed point
