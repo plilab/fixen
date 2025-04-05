@@ -9,9 +9,21 @@ import Syntax.Common
 import qualified Syntax.Sorted as P
 import Syntax.Compact
 import Control.Arrow (Arrow(second))
-import Data.Traversable (for)
+import Prettyprinter
 
 data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), conclusion :: Conclusion Identifier }
+
+instance Show UnordRule where
+  show = show . toRuleClause
+
+instance Pretty UnordRule where
+  pretty = pretty . toRuleClause
+
+fromRuleClause :: RuleClause -> UnordRule
+fromRuleClause (Rule prems c) = UnordRule (S.fromList prems) c
+
+toRuleClause :: UnordRule -> RuleClause
+toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
 
 unrollRule :: UnordRule -> RuleTree Identifier
 unrollRule (UnordRule prems concl) = 
@@ -23,11 +35,11 @@ unrollRule (UnordRule prems concl) =
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
 factorPremise :: Identifier -> [UnordRule] -> Maybe (Assumption Identifier, [UnordRule])
 factorPremise name rules = do 
-    -- find the first rule that has a `name` premise
-    r0 <- find (any ((name ==) . headSymbolOf) . premises) rules
-    -- identify the common premise
-    commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
-      -- for every rule
+  -- find the first rule that has a `name` premise
+  r0 <- find (any ((name ==) . headSymbolOf) . premises) rules
+  -- identify the common premise
+  commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
+    -- for every rule
   let 
     factor = mapMaybe $ \(UnordRule prems c) -> do
       -- find an alpha equivalent premise
@@ -61,7 +73,7 @@ factorPremise name rules = do
 buildRuleForest :: [Signature] -> [RuleClause] -> RuleForest Identifier
 buildRuleForest signts rules =
   let
-    urules = map (\(Rule prems c) -> UnordRule (S.fromList prems) c) rules
+    urules = map fromRuleClause rules
 
     groupings = mapMaybe (\(Signature name _) -> factorPremise name urules) signts
 
