@@ -53,7 +53,7 @@ typeExpr = (TNat <$ string "Nat")
   <|> (TVar <$> identifier)
 
 expr :: Parser RawExpr
-expr = L.foldl' App <$> expr' <*> many expr'
+expr = App <$> identifier <*> many expr'
 
 expr' :: Parser RawExpr
 expr' = choice [
