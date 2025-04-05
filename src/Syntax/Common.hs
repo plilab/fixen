@@ -13,7 +13,7 @@ import Data.Hashable (Hashable(hash))
 import GHC.Generics (Generic, Generic1)
 import Prettyprinter
 import Data.Functor.Compose (Compose (Compose, getCompose))
-import Data.Functor.Classes (Show1 (liftShowsPrec), Eq1 (liftEq))
+import Data.Functor.Classes (Show1 (liftShowsPrec, liftShowList), Eq1 (liftEq))
 import Data.List (intersperse)
 import Data.Hashable.Lifted (Hashable1)
 
@@ -59,7 +59,7 @@ getId :: AtomExpr a -> Maybe a
 getId (Id v) = Just v
 getId _      = Nothing
 
-data Expr v = Atom (AtomExpr v) | App (Expr v) (Expr v)
+data Expr v = Atom (AtomExpr v) | App Identifier [Expr v] -- App (Expr v) (Expr v)
   deriving (Show, Eq, Functor, Generic)
 
 data Proposition a = Proposition { headSymbol :: Identifier, arguments :: [a] }
@@ -140,7 +140,7 @@ instance Foldable Expr where
 
 instance Traversable Expr where
   traverse f ex = case ex of
-    (App fun arg) -> App  <$> traverse f fun <*> traverse f arg 
+    (App fun args) -> App fun <$> (traverse . traverse) f args
     (Atom atm)    -> Atom <$> traverse f atm
 
 instance Hashable a => Hashable (Expr a)
@@ -214,11 +214,11 @@ instance Hashable1 AtomExpr
 
 instance Show1 Expr where
   liftShowsPrec sp ss d (Atom a) = liftShowsPrec sp ss d a
-  liftShowsPrec sp ss d (App fun arg) = 
+  liftShowsPrec sp ss _ (App fun args) = 
     showString "(" . 
-    liftShowsPrec sp ss d fun . 
+    showString fun . 
     showString " " . 
-    liftShowsPrec sp ss d arg . 
+    liftShowList sp ss args . 
     showString ")"
 
 {- pretty instances for common syntax -}
@@ -236,9 +236,7 @@ instance (Pretty a) => Pretty (AtomExpr a) where
 
 instance (Pretty a) => Pretty (Expr a) where
   pretty (Atom a)  = pretty a
-  pretty (App f x) = "(" <> go f <+> pretty x <> ")"
-    where go (App g y) = go g <+> pretty y
-          go e         = pretty e
+  pretty (App f args) = "(" <> pretty f <+> hcat (intersperse ", " (pretty <$> args)) <> ")"
 
 instance Pretty CVar where
   pretty (First x) = pretty x
