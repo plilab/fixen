@@ -44,6 +44,8 @@ data Signature = Signature Identifier [TypeExpr]
 data Rule a b = Rule [a] b
   deriving (Show, Functor)
 
+type RuleClause = Rule (Assumption Identifier) (Conclusion Identifier)
+
 data Instantiation = Instantiation Identifier [(Identifier, Expr Identifier)]
   deriving (Show, Eq)
 

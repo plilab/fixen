@@ -1,7 +1,6 @@
 module Compiler.GenerateUniqueNames where
 
 import Syntax.Common
-import Syntax.Raw (RuleClause)
 import Control.Monad.State.Strict
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -15,14 +14,14 @@ type Env = State (Map Identifier Natural, Set Identifier)
 
 initState = (M.empty, S.empty)
 
-makeUniqueNames :: [RuleClause] -> [RuleClause]
+makeUniqueNames :: [(Maybe Identifier, RuleClause)] -> [(Maybe Identifier, RuleClause)]
 makeUniqueNames rules = evalState (go rules) initState
   where
-    go :: [RuleClause] -> Env [RuleClause]
-    go = mapM $ \r -> do
+    go :: [(Maybe Identifier, RuleClause)] -> Env [(Maybe Identifier, RuleClause)]
+    go = mapM $ \(name, r) -> do
       res <- goRule r
       incState
-      return res
+      return (name, res)
 
     goAtomProp :: Assumption Identifier -> Env (Assumption Identifier)
     goAtomProp = traverse current

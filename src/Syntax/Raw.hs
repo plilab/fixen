@@ -21,7 +21,6 @@ data Declaration
 
 type RawExpr = Expr Identifier
 type RawAtomExpr = AtomExpr Identifier
-type RuleClause = Rule (Assumption Identifier) (Conclusion Identifier)
 
 getDataDef :: Declaration -> Maybe DataDef
 getDataDef (Def d) = Just d

@@ -6,7 +6,7 @@ import Data.Maybe (mapMaybe)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
 import Syntax.Common
-import Syntax.Raw
+import qualified Syntax.Sorted as P
 import Syntax.Compact
 import Control.Arrow (Arrow(second))
 import Data.Traversable (for)
@@ -69,13 +69,13 @@ buildRuleForest signts rules =
 
   in RF trees
 
-compactify :: RawProgram -> CompactProgram Identifier
-compactify (RawProgram decls) =
-  let signs = mapMaybe getSignature decls
+compactify :: P.Program -> CompactProgram Identifier
+compactify program =
+  let signs = P.signatures program
   in Compact
-    { dataDefs   = mapMaybe getDataDef decls
+    { dataDefs   = P.dataDefs program
     , signatures = signs
-    , ruleForest = buildRuleForest signs $ mapMaybe getRule decls
-    , ordClauses = mapMaybe getOrd decls
-    , querries   = mapMaybe getQuery decls
+    , ruleForest = buildRuleForest signs $ map snd $ P.rules program
+    , ordClauses = P.ordClauses program
+    , querries   = P.querries program
     }
