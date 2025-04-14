@@ -59,7 +59,7 @@ instance Show1 Ordered where
   liftShowsPrec sp _ d = sp d . getOrdered
 
 instance Show1 Op where
-  liftShowsPrec sp _ d = sp d . getOp 
+  liftShowsPrec sp _ d = sp d . getOp
 
 instance Hashable1 Dropped
 

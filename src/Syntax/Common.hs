@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Syntax.Common where
 
 import Algebra.PartialOrd
@@ -16,13 +17,22 @@ import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Classes (Show1 (liftShowsPrec, liftShowList), Eq1 (liftEq))
 import Data.List (intersperse)
 import Data.Hashable.Lifted (Hashable1)
+import Data.Char (toUpper)
 
 type Identifier = String
+
+type ModuleName = String
 
 type Mode = Bool
 
 data TypeExpr = TNat | TString | TBool | TVar Identifier 
-  deriving (Show, Eq)
+  deriving (Eq)
+
+newtype Module = Module { unModule :: ModuleName }
+  deriving (Eq, Show)
+
+newtype Import = Import { unImport :: ModuleName }
+  deriving (Eq, Show)
 
 {- data Operator = Op | Ordered | AddBot | AddTop -}
 
@@ -38,7 +48,7 @@ data LatticeDef =
   }
 -}
 
-data Signature = Signature Identifier [TypeExpr]
+data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
   deriving (Eq, Show)
 
 data Rule a b = Rule [a] b
@@ -52,6 +62,8 @@ data Instantiation = Instantiation Identifier [(Identifier, Expr Identifier)]
 data ModalDef = ModalDef Identifier Identifier [Mode]
   deriving (Eq, Show)
 
+{- TODO: add constructor case:
+  Ground = Literal | Con Identifier [Ground] -}
 data AtomExpr v = Id v | Ground Literal
   deriving (Show, Eq, Functor, Generic, Generic1)
 
@@ -81,26 +93,29 @@ type PropositionOf = Compose Proposition
 
 type Assumption = PropositionOf AtomExpr
 pattern Assumption :: Identifier -> [AtomExpr a] -> Assumption a
-pattern Assumption a b = Compose (Proposition a b)
+pattern Assumption name args = (Compose (Proposition name args))
 
 type Conclusion = PropositionOf Expr
 pattern Conclusion :: Identifier -> [Expr a] -> Conclusion a
 pattern Conclusion a b = Compose (Proposition a b)
 
-newtype StrLit = StrLit { unStrLit :: String }
-  deriving (Eq, Show, Ord, Generic)
-
-newtype IntLit = IntLit { unIntLit :: Int}
-  deriving (Eq, Show, Ord, Generic)
-
-newtype BoolLit = BoolLit { unBoolLit :: Bool }
-  deriving (Eq, Show, Ord, Generic)
-
-data Literal = LInt IntLit | LString StrLit | LBool BoolLit
+data Literal = LInt Int | LString String | LBool Bool
   deriving (Show, Eq, Generic)
 
 data CVar = First Identifier | Constrained Identifier
   deriving (Show, Eq)
+
+getFirst :: CVar -> Maybe Identifier
+getFirst (First x) = Just x
+getFirst _         = Nothing
+
+getConstrained :: CVar -> Maybe Identifier
+getConstrained (Constrained x) = Just x
+getConstrained _               = Nothing
+
+getCVar :: CVar -> Identifier
+getCVar (First x) = x
+getCVar (Constrained x) = x
 
 data OrdHead = OrdHead Instantiation Instantiation
   deriving (Show, Eq)
@@ -152,24 +167,6 @@ instance Hashable Literal where
 
 {- PartialOrd instances for expressions and propositions -}
 
-instance PartialOrd StrLit where
-  leq = (==)
-
-instance Hashable StrLit where
-  hash = hash . unStrLit
-
-instance PartialOrd IntLit where
-  leq = (==)
-
-instance Hashable IntLit where
-  hash = hash . unIntLit
-
-instance PartialOrd BoolLit where
-  leq = (==)
-
-instance Hashable BoolLit where
-  hash = hash . unBoolLit
-
 {- TBD
 instance (PartialOrd a) => PartialOrd (AtomExpr a) where
   leq (Id x) (Id y) = leq x y
@@ -193,8 +190,11 @@ instance (PartialOrd a) => PartialOrd (Proposition a) where
   leq _ _ = False
 
 instance Show1 Proposition where
-  liftShowsPrec sp _ d (Proposition sym args) = 
-    showString "(" . showString sym . mconcat (intersperse (showString ", ") (map (sp d) args)) . showString ")"
+  liftShowsPrec _ sl d (Proposition sym args) = 
+    showParen (d > 10) $
+      showString sym .
+      showString " " .
+      sl args
 
 instance Eq1 Proposition where
   liftEq eq (Proposition name1 args1) (Proposition name2 args2) = name1 == name2 && and (zipWith eq args1 args2)
@@ -221,14 +221,20 @@ instance Show1 Expr where
     liftShowList sp ss args . 
     showString ")"
 
+instance Show TypeExpr where
+  show TString  = "String"
+  show TBool    = "Bool"
+  show TNat     = "Natural"
+  show (TVar t) = t  
+
 {- pretty instances for common syntax -}
 instance (Pretty (f (g a))) => Pretty (Compose f g a) where
   pretty = pretty . getCompose
 
 instance Pretty Literal where
-  pretty (LInt n) = pretty . unIntLit $ n
-  pretty (LString s) = pretty . unStrLit $ s
-  pretty (LBool b) = pretty . unBoolLit $ b 
+  pretty (LInt n) = pretty n
+  pretty (LString s) = pretty s
+  pretty (LBool b) = pretty b 
 
 instance (Pretty a) => Pretty (AtomExpr a) where
   pretty (Id name)  = pretty name
@@ -240,7 +246,7 @@ instance (Pretty a) => Pretty (Expr a) where
 
 instance Pretty CVar where
   pretty (First x) = pretty x
-  pretty (Constrained x) = pretty x
+  pretty (Constrained x) = pretty x <> "!"
 
 instance (Pretty a) => Pretty (Proposition a) where
 --prettyProposition :: (Pretty a) => Proposition a -> Doc ann
@@ -260,9 +266,17 @@ instance Pretty Instantiation where
   pretty (Instantiation name insts) = pretty name <+> "{" <+> (prettyCommaSep . map prettyAssgn) insts <+> "}"
     where prettyAssgn (id_i, expr_i) = pretty id_i <+> "=" <+> pretty expr_i
 
+instance Pretty Module where
+  pretty (Module modName) = 
+    "module" <+> pretty modName <+> "where"
+
+instance Pretty Import where
+  pretty (Import modName) =
+    "import" <+> pretty modName
+
 instance Pretty DataDef where
   pretty (Foreign name) =
-    "lat" <+> pretty name
+    "data" <+> pretty name
 
 instance Pretty Signature where 
   pretty (Signature name types) =
@@ -309,6 +323,10 @@ instance Hashable a => Eq (AlphaProp a) where
   (AlphaProp x) == (AlphaProp y) = alphaEq x y
 
 instance Hashable a => Hashable (AlphaProp a)
+
+capitalize :: String -> String
+capitalize []     = []
+capitalize (x:xs) = toUpper x : xs
 
 {- class Alpha a where
   type AlphaRep a

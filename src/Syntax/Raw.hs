@@ -8,11 +8,12 @@ module Syntax.Raw (
 import Syntax.Common
 import Prettyprinter
 
-newtype RawProgram = RawProgram { unRawProgram :: [Declaration] }
+data RawProgram = RawProgram { moduleDecl :: Module, unRawProgram :: [Declaration] }
   deriving (Show)
 
 data Declaration
-  = Def DataDef
+  = Imp Import
+  | Def DataDef
   | Rel Signature
   | Rul (Maybe Identifier) RuleClause
   | Ord (OrdClause Identifier)
@@ -45,8 +46,8 @@ getQuery _ = Nothing
 {- Pretty instances for raw syntax -}
 
 instance Pretty Declaration where
-  pretty (Def (Foreign name)) =
-    "lat" <+> pretty name
+  pretty (Imp imp) = pretty imp
+  pretty (Def def) = pretty def
   pretty (Rel signature) =
     "rel" <+> pretty signature
   pretty (Rul name rule) =
@@ -58,4 +59,5 @@ instance Pretty Declaration where
     "ord:" <+> pretty rule
 
 instance Pretty RawProgram where
-  pretty (RawProgram decls) = vsep $ map pretty decls
+  pretty (RawProgram modName decls) = vsep $ 
+    pretty modName : map pretty decls

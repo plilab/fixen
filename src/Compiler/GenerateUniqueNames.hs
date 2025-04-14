@@ -1,4 +1,4 @@
-module Compiler.GenerateUniqueNames where
+module Compiler.GenerateUniqueNames ( generateUniqueNames ) where
 
 import Syntax.Common
 import Control.Monad.State.Strict
@@ -9,13 +9,18 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Bifunctor (Bifunctor(first, second))
 import Data.Foldable (traverse_)
+import Syntax.Sorted (Program (rules))
 
 type Env = State (Map Identifier Natural, Set Identifier)
 
+initState :: (Map k a1, Set a2)
 initState = (M.empty, S.empty)
 
+generateUniqueNames :: Program -> Program
+generateUniqueNames prog = prog { rules = makeUniqueNames $ rules prog  }
+
 makeUniqueNames :: [(Maybe Identifier, RuleClause)] -> [(Maybe Identifier, RuleClause)]
-makeUniqueNames rules = evalState (go rules) initState
+makeUniqueNames ruls = evalState (go ruls) initState
   where
     go :: [(Maybe Identifier, RuleClause)] -> Env [(Maybe Identifier, RuleClause)]
     go = mapM $ \(name, r) -> do

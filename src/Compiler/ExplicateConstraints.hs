@@ -1,6 +1,5 @@
 module Compiler.ExplicateConstraints (
-  explicateConstraints,
-  explicateForest
+  explicateConstraints
 ) where
 
 import Syntax.Compact
@@ -30,7 +29,7 @@ explicateTrees prop =
 
     go :: RuleTree Identifier -> Reader (S.Set Identifier) (RuleTree CVar)
     go (RT tree) = RT <$> case tree of
-      (Result cs) -> Result <$> mapM explicateConclusion cs
+      (Result cs) -> Result <$> explicateConclusion cs
       (Branch p ts) -> do
         (p', seenVars) <- explicateAssumption p
         ts' <- local (const seenVars) $ mapM go ts

@@ -1,14 +1,12 @@
-module Common.Util (
-  subsumes, lt, strictlySubsumes, equiv, alphaEq, substitute, substituteAll, 
-  foldrFromTraversable, foldlFromTraversable'
-) where
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
+module Common.Util where
 
 import Algebra.PartialOrd (PartialOrd, leq)
 import Control.Monad.State
 import Data.Traversable (for)
 import qualified Data.HashMap.Strict as M
 import Numeric.Natural (Natural)
-import Data.Hashable
+import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
 import Data.Foldable (Foldable(foldl'))
 
@@ -16,7 +14,7 @@ subsumes :: (PartialOrd a) => a -> a -> Bool
 subsumes = flip leq
 
 lt :: (PartialOrd a) => a -> a -> Bool
-lt x y = leq x y && not (leq y x) 
+lt x y = leq x y && not (leq y x)
 
 strictlySubsumes :: (PartialOrd a) => a -> a -> Bool
 strictlySubsumes = flip lt

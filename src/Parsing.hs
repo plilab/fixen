@@ -1,21 +1,22 @@
-module Parsing where
+module Parsing ( parseTopLevel ) where
 
 import Control.Monad
-import qualified Data.List as L
-import Data.Void
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Void
 import Syntax.Common
 import Syntax.Raw
+    ( Declaration(..), RawAtomExpr, RawExpr, RawProgram(RawProgram) )
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Megaparsec
 import Text.Megaparsec.Char hiding (string, char)
+import qualified Data.List as L ( intercalate )
 import qualified Text.Megaparsec.Char as C
 
 type Parser = Parsec Void Text
 
 reserved :: [Identifier]
-reserved = ["lat", "rule", "rel", "ord", "query"]
+reserved = ["module", "where", "import", "data", "rule", "rel", "ord", "query"]
 
 -- Lexing rules
 -- Consume spaces and comments
@@ -33,6 +34,10 @@ identifier = do
   if idx `elem` reserved
   then fail $ "'" ++ idx ++ "' is a reserved keyword"
   else return idx
+
+capitalIdentifier :: Parser Identifier
+capitalIdentifier = 
+  lexeme ((:) <$> upperChar <*> many alphaNumChar)
 
 string :: Text -> Parser Text
 string = lexeme . C.string
@@ -62,22 +67,22 @@ expr' = choice [
   brackExpr]
 
 atomicExpr :: Parser RawAtomExpr
-atomicExpr =  try idExpr <|> intExpr
+atomicExpr =  try idExpr <|> intExpr <|> boolExpr <|> strExpr
 
 idExpr :: Parser RawAtomExpr
 idExpr = Id <$> identifier
 
 intExpr :: Parser RawAtomExpr
-intExpr = Ground . LInt . IntLit <$> number
+intExpr = Ground . LInt <$> number
 
 boolExpr :: Parser RawAtomExpr
-boolExpr = Ground . LBool . BoolLit <$> 
+boolExpr = Ground . LBool <$> 
     ( True  <$ string "True"
   <|> False <$ string "False")
 
 strExpr :: Parser RawAtomExpr
 strExpr = 
-  Ground . LString . StrLit <$> 
+  Ground . LString <$> 
     between "\"" "\"" (many L.charLiteral)
 
 brackExpr :: Parser RawExpr
@@ -93,6 +98,19 @@ atomicProposition = Assumption <$> identifier <*> many atomicExpr
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
 
+moduleName :: Parser ModuleName
+moduleName = L.intercalate "." <$> sepBy capitalIdentifier (C.char '.')
+
+moduleDecl :: Parser Module
+moduleDecl = string "module" *> fmap Module moduleName <* string "where"
+
+importDecl :: Parser Declaration
+importDecl = do
+  void $ string "import"
+  modName <- moduleName
+  guard . not . null $ modName
+  return . Imp . Import $ modName
+
 ruleDecl :: Parser Declaration
 ruleDecl = do
   void $ string "rule"
@@ -103,7 +121,7 @@ ruleDecl = do
   Rul name . Rule lhs <$> proposition
 
 latDecl :: Parser Declaration
-latDecl = Def . Foreign <$> (string "lat" *> identifier)
+latDecl = Def . Foreign <$> (string "data" *> identifier)
 
 relDecl :: Parser Declaration
 relDecl = do
@@ -143,6 +161,7 @@ queryDecl = do
 
 declaration :: Parser Declaration
 declaration = choice [
+  try importDecl,
   try latDecl,
   try relDecl,
   try ruleDecl,
@@ -150,7 +169,7 @@ declaration = choice [
   queryDecl]
 
 topLevel :: Parser RawProgram
-topLevel = RawProgram <$> (between sc eof . some) declaration 
+topLevel = RawProgram <$> moduleDecl <*> (between sc eof . some) declaration 
 
 parseTopLevel :: Text -> Either (ParseErrorBundle Text Void) RawProgram
 parseTopLevel = parse topLevel "input"

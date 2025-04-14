@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Syntax.Compact where
 
 import Common.Util
@@ -13,14 +14,16 @@ type CExpr = Expr CVar
 type CAtomExpr = AtomExpr CVar
 
 data CompactProgram a = Compact 
-  { dataDefs   :: [DataDef]
+  { moduleDecl :: Module
+  , imports    :: [Import]
+  , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , ruleForest :: RuleForest a
   , ordClauses :: [OrdClause Identifier]
   , querries   :: [ModalDef]
   }
 
-data Case a b c = Result [a] | Branch b [c]
+data Case a b c = Result a | Branch b [c]
 
 newtype RuleTree a = RT { getCase :: Case (Conclusion a) (Assumption a) (RuleTree a) }
 newtype RuleForest a = RF { getTrees :: [(Assumption a, [RuleTree a])] }
@@ -31,7 +34,7 @@ newtype RuleForest a = RF { getTrees :: [(Assumption a, [RuleTree a])] }
 
 instance Functor RuleTree where
   fmap f rt = RT $ case getCase rt of
-    (Result cs)   -> Result $ map (fmap f) cs
+    (Result cs)   -> Result $ fmap f cs
     (Branch p ts) -> Branch (fmap f p) $ map (fmap f) ts
 
 instance Foldable RuleTree where
@@ -40,7 +43,7 @@ instance Foldable RuleTree where
 
 instance Traversable RuleTree where
   traverse f rt = RT <$> case getCase rt of
-    (Result cs) -> Result <$> (traverse . traverse $ f) cs
+    (Result cs) -> Result <$> traverse f cs
     (Branch p ts) -> 
       Branch 
         <$> traverse f p
@@ -48,7 +51,7 @@ instance Traversable RuleTree where
 
 instance (Pretty a) => Pretty (RuleTree a) where
   pretty t = "|-" <+> case getCase t of
-    (Result cs) -> align . vsep . map pretty $ cs
+    (Result cs) -> align . pretty $ cs
     (Branch p ts) -> pretty p <+> (align . vsep . map pretty $ ts)
 
 instance Functor RuleForest where
@@ -72,7 +75,8 @@ instance (Pretty a) => Pretty (RuleForest a) where
 
 instance (Pretty a) => Pretty (CompactProgram a) where
   pretty prog = vsep [
-    "data:" <+> (align . vsep) (pretty <$> dataDefs prog),
+    vsep (pretty <$> imports prog),
+    vsep (pretty <$> dataDefs prog),
     "rels:" <+> (align . vsep) (pretty <$> signatures prog),
     "tree:" <+> (align . pretty . ruleForest) prog,
     "ords:" <+> (align . vsep) (pretty <$> ordClauses prog),

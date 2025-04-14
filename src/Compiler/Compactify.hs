@@ -1,4 +1,4 @@
-module Compiler.Compactify where
+module Compiler.Compactify ( compactify ) where
 
 import Common.Util
 import Data.Foldable (Foldable(foldr'), find)
@@ -11,7 +11,7 @@ import Syntax.Compact
 import Control.Arrow (Arrow(second))
 import Prettyprinter
 
-data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), conclusion :: Conclusion Identifier }
+data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), __ :: Conclusion Identifier }
 
 instance Show UnordRule where
   show = show . toRuleClause
@@ -26,24 +26,24 @@ toRuleClause :: UnordRule -> RuleClause
 toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
 
 unrollRule :: UnordRule -> RuleTree Identifier
-unrollRule (UnordRule prems concl) = 
-  foldr' 
-    (\p rt -> RT $ Branch p [rt]) 
-    (RT $ Result [concl])
+unrollRule (UnordRule prems concl) =
+  foldr'
+    (\p rt -> RT $ Branch p [rt])
+    (RT $ Result concl)
   prems
 
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
 factorPremise :: Identifier -> [UnordRule] -> Maybe (Assumption Identifier, [UnordRule])
-factorPremise name rules = do 
+factorPremise name rules = do
   -- find the first rule that has a `name` premise
   r0 <- find (any ((name ==) . headSymbolOf) . premises) rules
   -- identify the common premise
   commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
     -- for every rule
-  let 
+  let
     factor = mapMaybe $ \(UnordRule prems c) -> do
       -- find an alpha equivalent premise
-      premise' <- find (alphaEq commonPremise) prems 
+      premise' <- find (alphaEq commonPremise) prems
       let
       -- remove it from the rule
         prems' = S.delete premise' prems
@@ -75,7 +75,7 @@ buildRuleForest signts rules =
   let
     urules = map fromRuleClause rules
 
-    groupings = mapMaybe (\(Signature name _) -> factorPremise name urules) signts
+    groupings = mapMaybe ((`factorPremise` urules) . relName) signts
 
     trees = map (second $ map unrollRule) groupings
 
@@ -85,7 +85,9 @@ compactify :: P.Program -> CompactProgram Identifier
 compactify program =
   let signs = P.signatures program
   in Compact
-    { dataDefs   = P.dataDefs program
+    { moduleDecl = P.moduleDecl program
+    , imports    = P.imports program
+    , dataDefs   = P.dataDefs program
     , signatures = signs
     , ruleForest = buildRuleForest signs $ map snd $ P.rules program
     , ordClauses = P.ordClauses program
