@@ -77,6 +77,7 @@ generateRuleForest :: CodeGen [Decl ()]
 generateRuleForest = do
   (RF trees) <- asks $ ruleForest . program
   qv <- freshQueueVar
+  let defaultAlt = alt pWildCard (var qv)
   sequence [
       return $ typeSig 
         (ident "step") 
@@ -87,9 +88,9 @@ generateRuleForest = do
         (ident "step") 
         [pVar "db", pVar "fact", pVar qv] 
         . caseExp (var "fact") 
+        . (++ [defaultAlt])
         <$> mapM (withQueueVar qv . generateAlt) trees
     ]
-
   where
     generateAlt :: (Assumption CVar, [RuleTree CVar]) -> CodeGen (Alt ())
     generateAlt (assump, trees) = alt (mkPat assump) <$> generateTrees trees
