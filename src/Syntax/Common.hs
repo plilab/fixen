@@ -117,6 +117,13 @@ getCVar :: CVar -> Identifier
 getCVar (First x) = x
 getCVar (Constrained x) = x
 
+liftCVar :: (Identifier -> Identifier) -> CVar -> CVar
+liftCVar f (First x) = First $ f x
+liftCVar f (Constrained x) = Constrained $ f x 
+
+getAtomName :: AtomExpr CVar -> Maybe Identifier
+getAtomName = fmap getCVar . getId
+
 data OrdHead = OrdHead Instantiation Instantiation
   deriving (Show, Eq)
 

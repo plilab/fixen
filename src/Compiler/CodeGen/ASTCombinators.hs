@@ -22,7 +22,7 @@ import Language.Haskell.Exts
       QualConDecl(..),
       Rhs(UnGuardedRhs),
       Sign(Signless),
-      Type(TyCon, TyApp, TyFun, TyTuple), Boxed (Boxed), Binds (BDecls), Alt (Alt), FieldUpdate (FieldUpdate), FieldDecl (FieldDecl) )
+      Type(TyCon, TyApp, TyFun, TyTuple, TyList), Boxed (Boxed), Binds (BDecls), Alt (Alt), FieldUpdate (FieldUpdate), FieldDecl (FieldDecl) )
 import qualified Language.Haskell.Exts as H
 import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString), Expr(..), CVar, AtomExpr(..), getCVar)
 
@@ -55,6 +55,9 @@ tyFuns = flip $ foldr tyFun
 
 tyTuple :: [Type ()] -> Type ()
 tyTuple = TyTuple () Boxed
+
+tyList :: Type () -> Type ()
+tyList = TyList ()
 
 dHead :: String -> DeclHead ()
 dHead = DHead () . ident 
@@ -198,3 +201,7 @@ litToPat :: Literal -> Pat ()
 litToPat (LInt n)    = PLit () (Signless ()) $ H.Int () (toInteger n) (show n)
 litToPat (LBool b)   = pApp (show b) []
 litToPat (LString s) = PLit () (Signless ()) $ H.String () s (show s)
+
+atomExprToPat :: AtomExpr CVar -> Pat ()
+atomExprToPat (Id v) = pVar $ getCVar v
+atomExprToPat (Ground l) = litToPat l

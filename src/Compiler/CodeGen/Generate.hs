@@ -1,8 +1,15 @@
+{-# LANGUAGE LambdaCase #-}
 module Compiler.CodeGen.Generate ( generateProgram ) where
 import Compiler.CodeGen.Util
 import Compiler.CodeGen.ASTCombinators
 import Compiler.CodeGen.Prebaked
 import Control.Monad.Reader
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
+import Data.Maybe (mapMaybe)
+import Data.Functor.Compose (Compose(Compose))
+import Data.Unique (hashUnique, newUnique)
+import Data.Foldable (foldr', Foldable (foldl'))
 import qualified Language.Haskell.Exts as H (Module(Module))
 import Language.Haskell.Exts
     ( Decl,
@@ -12,22 +19,17 @@ import Language.Haskell.Exts
       Name(Ident), Exp, Alt )
 import Syntax.Common
 import Syntax.Compact
-import Data.Map (Map)
-import qualified Data.Map as M
-import Data.Maybe (catMaybes)
-import Data.Functor ((<&>))
-import Data.Functor.Compose (Compose(Compose))
-import Data.Unique (hashUnique, newUnique)
 
 data Env = Env {
   program         :: CompactProgram CVar,
   -- mapping from relation names to their type signature
-  typeMap         :: Map Identifier [TypeExpr],
+  typeMap         :: HashMap Identifier [TypeExpr],
+  currentVarIds    :: HashMap Identifier Identifier,
   currentQueueVar :: Identifier
 }
 
 initEnv :: CompactProgram CVar -> Env
-initEnv p = Env p (toMap $ signatures p) "q"
+initEnv p = Env p (toMap $ signatures p) M.empty "q"
   where
     toMap = M.fromList . map (\s -> (relName s, paramTypes s))
 
@@ -39,39 +41,51 @@ freshQueueVar = liftIO $ ("q" ++) . show . hashUnique <$> newUnique
 withQueueVar :: Identifier -> CodeGen a -> CodeGen a
 withQueueVar v = local (\ nv -> nv { currentQueueVar = v })
 
+withVarIds :: HashMap Identifier Identifier -> CodeGen a -> CodeGen a
+withVarIds vids = local (\ nv -> nv { currentVarIds = vids })
+
 {-
   assumes that the database variable is called "db"
   an element `mid` of `mids` represents
     an input position if `mid == Just ident`
     an output position if `mid == Nothing`
 -}
-mkFilterExp :: Identifier -> [Maybe (Either Literal Identifier)] -> Exp ()
-mkFilterExp relId mids =
+generateFilterExp :: Identifier -> [AtomExpr CVar] -> CodeGen (Exp ())
+generateFilterExp relId patExprs =
   let
-    -- bound names from the surrounding scope
-    bNames = catMaybes mids
-    {- pattern arguments: 
-          Nothings become `_`, 
-          identifiers `name` become `name ++ '\''`, 
-          literals become pattern literals  -}
-    pArgs = mids <&> 
-        either litToPat id
-        . maybe (Right pWildCard) (fmap $ pVar . prime)
-    -- pattern names at input positions
-    pNamesIn = fmap prime <$> bNames
-    predicate = 
-      foldr1Default (infixApp $ sym "&&") (con "True") $
-        zipWith appLeq pNamesIn bNames
-      where
-        appLeq x y = infixApp (ident "leq") (mkExp x) (mkExp y)
-        mkExp = either litToExp var
-    filterExp = app
-      (qvar "S" "filter")
-      (lambda [pApp relId pArgs] predicate)
-  in (if null bNames then id else app filterExp)
-      (app
-        (var $ dbProj relId)
-        (var "db"))
+    enumerate = all isFirst patExprs
+      where isFirst (Id (First _)) = True
+            isFirst _ = False
+  in
+  if enumerate then
+    return $
+      app (qvar "S" "toList")
+          (app (var $ dbProj relId)
+              (var "db"))
+  else do
+    freshNames <- liftIO $ replicateM (length patExprs) gensym
+    let
+      patArgs = map pVar freshNames
+      dbFactExps = map var freshNames
+      applicativeArgs = zipWith mkArg dbFactExps patExprs
+        where
+          mkArg x (Id (First _)) = app (var "pure") x
+          mkArg x e = infixApp (ident "mlbs") x (atomExprToExp e)
+      applicativeExp =
+        foldl'
+          (infixApp $ sym "<*>") (app (var "pure") (con relId))
+          applicativeArgs
+      filterExp = apps
+        (var "foldl'")
+        [ lambda [pVar "rest", pApp relId patArgs] $
+            infixApp (sym "++")
+              (paren applicativeExp)
+              (var "rest"),
+          list [] ]
+    return $
+      app filterExp
+          (app (var $ dbProj relId)
+                (var "db"))
 
 generateRuleForest :: CodeGen [Decl ()]
 generateRuleForest = do
@@ -79,68 +93,88 @@ generateRuleForest = do
   qv <- freshQueueVar
   let defaultAlt = alt pWildCard (var qv)
   sequence [
-      return $ typeSig 
-        (ident "step") 
-        (tyFuns 
-          [tyCon "DataBase", tyCon "Fact", tyCon "Queue"] $ 
+      return $ typeSig
+        (ident "step")
+        (tyFuns
+          [tyCon "DataBase", tyCon "Fact", tyCon "Queue"] $
             tyCon "Queue"),
-      singleFunBind 
-        (ident "step") 
-        [pVar "db", pVar "fact", pVar qv] 
-        . caseExp (var "fact") 
+      singleFunBind
+        (ident "step")
+        [pVar "db", pVar "fact", pVar qv]
+        . caseExp (var "fact")
         . (++ [defaultAlt])
         <$> mapM (withQueueVar qv . generateAlt) trees
     ]
   where
     generateAlt :: (Assumption CVar, [RuleTree CVar]) -> CodeGen (Alt ())
-    generateAlt (assump, trees) = alt (mkPat assump) <$> generateTrees trees
-    
+    generateAlt (assump, trees) = do
+      -- add names from assump to a map
+      let varNames = mapMaybe getAtomName (argumentsOf assump)
+          varIds = M.fromList $ zip varNames varNames
+      -- generate trees _with the new map_
+      alt (mkPat assump) <$> withVarIds varIds (generateTrees trees)
+
     generateTrees :: [RuleTree CVar] -> CodeGen (Exp ())
     generateTrees rts = do
       pqVar <- asks currentQueueVar
-      app (qvar "Q" "unions") 
-        . list . (var pqVar :) 
+      app (qvar "Q" "unions")
+        . list . (var pqVar :)
           <$> mapM (withQueueVar pqVar . generateTree) rts
 
     generateTree :: RuleTree CVar -> CodeGen (Exp ())
-    generateTree (RT (Result cs)) = return $ mkConclusion cs
+    generateTree (RT (Result cs)) = generateConclusion cs
     generateTree (RT (Branch assump rts)) = do
+      currVarIds <- asks currentVarIds
       let Compose (Proposition name args) = assump
+          varNames = mapMaybe getAtomName args
+          newVarIds = foldr' (\vName ->
+            if M.member vName currVarIds then
+              M.insert vName (prime $ currVarIds M.! vName)
+            else
+              M.insert vName vName
+            ) currVarIds varNames
+          -- we use the current identifiers for the filter expression
+          -- since we are filtering with respect to currently bound variables
+          args' = substituteConstrained currVarIds <$> args
+          -- in the pattern we use the new identifiers which used in the body
+          patVars = mapMaybe (
+              fmap (pVar . getCVar)
+              . getId
+              . substituteCVar newVarIds
+            ) args
       qv <- freshQueueVar
-      rtsExp <- (withQueueVar qv . generateTrees) rts
-      return $ 
+      rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
+      filterExp <- generateFilterExp (headSymbolOf assump) args'
+      return $
         apps (var "foldl'") [
-          paren $ lambda 
-            [ pVar qv, 
-              pApp name $ 
-                map (maybe pWildCard pVar . getFirstId) args ]
+          paren $ lambda
+            [ pVar qv,
+              pApp name patVars ]
             rtsExp, --rec call
           qvar "Q" "empty",
-          paren $ mkFilterExp
-            (headSymbolOf assump)
-            (map toMaybeEither args)
+          paren filterExp   -- im also priming here!! thats the issue! -- this still works for querries but now fucks with the rule tree
         ]
 
-    getFirstId = getFirst <=< getId
+    substituteCVar env = fmap (liftCVar (env M.!))
+    substituteConstrained env = fmap $ \case
+      (First v) -> First v
+      (Constrained v) -> Constrained $ env M.! v
 
-    toMaybeEither (Ground l) = Just $ Left l
-    toMaybeEither (Id cvar) = case cvar of
-      (First _) -> Nothing
-      (Constrained v) -> Just $ Right v
-
-    mkConclusion (Compose (Proposition name args)) =
-      app (qvar "Q" "singleton") .
+    generateConclusion :: Conclusion CVar -> CodeGen (Exp ())
+    generateConclusion (Compose (Proposition name args)) = do
+      currVarIds <- asks currentVarIds
+      return $ app (qvar "Q" "singleton") .
         paren . app (var $ factCon name) .
           paren . apps (var name) $
-            map exprToExp args
+            map (exprToExp . substituteCVar currVarIds) args
 
-    mkPat (Compose (Proposition name args)) = 
+    mkPat (Compose (Proposition name args)) =
       pApp (factCon name) [pApp name $ map mkPatArg args]
     mkPatArg (Id v) = pVar (getCVar v)
     mkPatArg (Ground l) = litToPat l
 
 {-
-  assumes that 
+  assumes that
     `lenght modes == length (typeMap ! relId)`
     `typeMap` maps each querried relation to its signature
 -}
@@ -149,30 +183,30 @@ generateQuerries = do
   qrys <- asks $ querries . program
   concatMapM generateQuery qrys
   where
-    mkNames = 
-      let go :: Int -> [Mode] -> [Maybe Identifier]
+    mkNames =
+      let go :: Int -> [Mode] -> [CVar]
           go _ []        = []
-          go n (m:modes) = (
-              if m then Just ("v" ++ show n) else Nothing
-            ) : go (succ n) modes 
+          go n (m:modes) =
+            (if m then Constrained else First) ("v" ++ show n) : go (succ n) modes
       in go 0
 
     generateQuery :: ModalDef -> CodeGen [Decl ()]
-    generateQuery (ModalDef relId name modes) = do 
+    generateQuery (ModalDef relId name modes) = do
       signature <- asks $ (M.! relId) . typeMap
       let
         modes' = not <$> modes
         inTypes = filterBy modes' signature
-        mids = mkNames modes'
-        bNames = catMaybes mids
+        cvars = mkNames modes'
+        bNames = mapMaybe (fmap pVar . getConstrained) cvars
+      filterExp <- generateFilterExp relId $ fmap Id cvars
       return [
           typeSig (ident name) $
             tyFuns (map concrete inTypes) $
               tyFun (tyCon "DataBase") $
-                tyApp (qTyCon "S" "HashSet") (tyCon relId),
-          singleFunBind (ident name) 
-            (map pVar bNames ++ [pVar "db"])
-            (mkFilterExp relId $ map (fmap Right) mids)
+                tyList (tyCon relId),
+          singleFunBind (ident name)
+            (bNames ++ [pVar "db"])
+            filterExp
         ]
 
 generateRelations :: CodeGen [Decl ()]
@@ -208,9 +242,9 @@ generateRelations =  do
           ],
         -- generate smart constructor
         let mkConArg ty = liftPrimitiveOf ty . var
-        in singleFunBind (ident $ "mk" ++ name) (pVar <$> patVars1) $ 
-            app 
-              (con $ factCon name) 
+        in singleFunBind (ident $ "mk" ++ name) (pVar <$> patVars1) $
+            app
+              (con $ factCon name)
               (paren $ apps (con name) (zipWith mkConArg typs patVars1))
         ]
 
@@ -220,14 +254,14 @@ generateFact = do
   return
     -- Fact type declaration
     [ dataDecl "Fact" (map mkConCase names) [derivingList ["Show", "Eq"]]
-    -- instance Ord Fact 
-    , instDecl 
-        (iHApp (iHCon "Ord") "Fact") 
+    -- instance Ord Fact
+    , instDecl
+        (iHApp (iHCon "Ord") "Fact")
         (Just [insDecl . funBind $ (mkLeqCase <$> names) ++ [elseLeqCase]]) ]
   where
     mkConCase name = unqualConDecl (factCon name) [tyCon name]
-    mkLeqCase name = 
-      match (sym "<=") 
+    mkLeqCase name =
+      match (sym "<=")
         [pApp (factCon name) [pVar "x"], pApp (factCon name) [pVar "y"]]
         (apps (var "leq") [var "x", var "y"])
     elseLeqCase = match (sym "<=") [pWildCard, pWildCard] (con "False")
@@ -249,29 +283,29 @@ generateDB = do
       patBind (pVar "emptyDB")
         (apps (con "DataBase") $ replicate (length names) (qvar "S" "empty")),
       -- insertDB definition
-      typeSig (ident "insertDB") 
-        (tyFuns [tyCon "Fact", tyCon "DataBase"] 
+      typeSig (ident "insertDB")
+        (tyFuns [tyCon "Fact", tyCon "DataBase"]
           $ tyTuple [tyCon "DataBase", tyCon "Bool"]),
       singleFunBind (ident "insertDB") [pVar "fact", pVar "db"] $
-        letExp [updateDef] 
+        letExp [updateDef]
         $ caseExp (var "fact") $
           map mkAlt names
     ]
   where
-    mkField name = 
-      fieldDecl 
-        [ident $ dbProj name] 
+    mkField name =
+      fieldDecl
+        [ident $ dbProj name]
         (tyApp (qTyCon "S" "HashSet") (tyCon name))
     mkAlt name = alt (pApp (factCon name) [pVar "v"]) $
       apps (var "first") [
-        lambda [pVar "hset"] $ 
-          recSingleUpdate 
-            (var "db") 
-            (unqual . ident $ dbProj name) 
+        lambda [pVar "hset"] $
+          recSingleUpdate
+            (var "db")
+            (unqual . ident $ dbProj name)
             (var "hset"),
-        paren $ 
+        paren $
           apps (var "update") [
-            app (var $ dbProj name) (var "db"), 
+            app (var $ dbProj name) (var "db"),
             var "v"
           ]
       ]
@@ -292,7 +326,7 @@ generateProgram p = do
           generateRuleForest,
           generateQuerries
         ]
-      
+
       imps <- asks $ imports . program
       modName <- asks $ unModule . moduleDecl . program
       let userImports = map (importDecl . unImport) imps
@@ -302,10 +336,10 @@ generateProgram p = do
           (Just $ ModuleHead () (ModuleName () modName) Nothing Nothing)
           [LanguagePragma () [Ident () "DeriveGeneric"]]
           (userImports ++ defaultImports)
-          $ concat 
+          $ concat
             [ discreteDefs,
               subsumesDef,
-              strictlySubsumesDef, 
+              strictlySubsumesDef,
               decls,
               computeDef ]
 

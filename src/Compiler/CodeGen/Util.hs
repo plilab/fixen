@@ -26,7 +26,7 @@ partitionBy bs =
   . zip bs
 
 gensym :: IO String
-gensym = showString "v" . show . hashUnique <$> newUnique
+gensym = showString "_v" . show . hashUnique <$> newUnique
 
 idsTo :: Int -> [String]
 idsTo = idsFromTo 0
