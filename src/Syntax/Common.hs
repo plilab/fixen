@@ -273,8 +273,12 @@ instance (Pretty a) => Pretty (Proposition a) where
     pretty name <+> hsep (map pretty args)
 
 instance (Pretty a) => Pretty (CAssumption a) where
-  pretty (CAssumption assump eqs) =
-    "(" <> pretty assump <> ")" <> "[" <> prettyCommaSep (prettyEq <$> eqs) <> "]"
+  pretty (CAssumption assump eqs) = 
+    if null eqs then 
+      pretty assump 
+    else
+      "(" <> pretty assump <> ")" 
+      <> "[" <> prettyCommaSep (prettyEq <$> eqs) <> "]"
     where
       prettyEq (id1, id2) = pretty id1 <+> "=" <+> pretty id2
 
