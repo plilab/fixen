@@ -10,6 +10,7 @@ import Parsing (parseTopLevel)
 import Compiler.ExplicateConstraints (explicateConstraints)
 import Compiler.GenerateUniqueNames (generateUniqueNames)
 import Language.Haskell.Exts (prettyPrint)
+import Prettyprinter (Pretty(pretty))
 
 compile :: FilePath -> FilePath -> IO ()
 compile src = compileWith src . writeFile
@@ -27,10 +28,22 @@ compileStrWith programStr out =
   case parseTopLevel (pack programStr) of
     Right raw -> do
       modul <- raw &
-            generateProgram . 
+            generateProgram .
             explicateConstraints .
             compactify .
             generateUniqueNames .
             sortRawProgram
       out $ prettyPrint modul
+    Left err -> print err
+
+generateTree :: FilePath -> IO ()
+generateTree src = do
+  programStr <- readFile src
+  case parseTopLevel (pack programStr) of
+    Right raw -> do
+      let tree = explicateConstraints .
+              compactify .
+              generateUniqueNames .
+              sortRawProgram $ raw
+      print . pretty $ tree
     Left err -> print err
