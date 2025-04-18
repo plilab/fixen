@@ -124,6 +124,11 @@ liftCVar f (Constrained x) = Constrained $ f x
 getAtomName :: AtomExpr CVar -> Maybe Identifier
 getAtomName = fmap getCVar . getId
 
+data CAssumption a = CAssumption { 
+  assumption :: Assumption a,
+  constraints :: [(Identifier, Identifier)]
+  } deriving (Show, Functor)
+
 data OrdHead = OrdHead Instantiation Instantiation
   deriving (Show, Eq)
 
@@ -141,6 +146,13 @@ instance Traversable Proposition where
   traverse f (Proposition name args) = Proposition name <$> traverse f args
 
 instance Hashable a => Hashable (Proposition a)
+
+instance Foldable CAssumption where
+  foldr f z (CAssumption assump _) = foldr f z assump
+
+instance Traversable CAssumption where
+  traverse f (CAssumption assump eqs) =
+    CAssumption <$> traverse f assump <*> pure eqs
 
 instance Foldable AtomExpr where
   foldr f e aex = case aex of
@@ -259,6 +271,12 @@ instance (Pretty a) => Pretty (Proposition a) where
 --prettyProposition :: (Pretty a) => Proposition a -> Doc ann
   pretty (Proposition name args) =
     pretty name <+> hsep (map pretty args)
+
+instance (Pretty a) => Pretty (CAssumption a) where
+  pretty (CAssumption assump eqs) =
+    "(" <> pretty assump <> ")" <> "[" <> prettyCommaSep (prettyEq <$> eqs) <> "]"
+    where
+      prettyEq (id1, id2) = pretty id1 <+> "=" <+> pretty id2
 
 prettyCommaSep :: [Doc ann] -> Doc ann
 prettyCommaSep = hcat . punctuate ", "

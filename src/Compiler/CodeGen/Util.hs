@@ -3,6 +3,7 @@ module Compiler.CodeGen.Util where
 
 import Data.Unique
 import Data.Bifunctor (Bifunctor(first, second))
+import Control.Monad.Cont (MonadIO(liftIO))
 
 concatMapM :: (Monad m, Traversable t) => (a -> m [b]) -> t a -> m [b]
 concatMapM f t = concat <$> mapM f t
@@ -25,8 +26,11 @@ partitionBy bs =
     ([], [])
   . zip bs
 
-gensym :: IO String
-gensym = showString "_v" . show . hashUnique <$> newUnique
+gensym :: (MonadIO m) => m String
+gensym = fresh "v"
+
+fresh :: (MonadIO m) => String -> m String
+fresh v = liftIO $ showString (v ++ "_") . show . hashUnique <$> newUnique
 
 idsTo :: Int -> [String]
 idsTo = idsFromTo 0

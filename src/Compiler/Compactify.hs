@@ -25,7 +25,7 @@ fromRuleClause (Rule prems c) = UnordRule (S.fromList prems) c
 toRuleClause :: UnordRule -> RuleClause
 toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
 
-unrollRule :: UnordRule -> RuleTree Identifier
+unrollRule :: UnordRule -> ImplicitRuleTree
 unrollRule (UnordRule prems concl) =
   foldr'
     (\p rt -> RT $ Branch p [rt])
@@ -70,7 +70,7 @@ factorPremise name rules = do
 
   => keep merging the tree until you cant any more
 -}
-buildRuleForest :: [Signature] -> [RuleClause] -> RuleForest Identifier
+buildRuleForest :: [Signature] -> [RuleClause] -> ImplicitRuleForest
 buildRuleForest signts rules =
   let
     urules = map fromRuleClause rules
@@ -81,7 +81,7 @@ buildRuleForest signts rules =
 
   in RF trees
 
-compactify :: P.Program -> CompactProgram Identifier
+compactify :: P.Program -> ImplicitCompactProgram
 compactify program =
   let signs = P.signatures program
   in Compact

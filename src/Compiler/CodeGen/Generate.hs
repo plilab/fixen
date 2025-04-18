@@ -8,8 +8,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import Data.Maybe (mapMaybe)
 import Data.Functor.Compose (Compose(Compose))
-import Data.Unique (hashUnique, newUnique)
-import Data.Foldable (foldr', Foldable (foldl'))
+import Data.Foldable (Foldable (foldl'))
 import qualified Language.Haskell.Exts as H (Module(Module))
 import Language.Haskell.Exts
     ( Decl,
@@ -21,14 +20,13 @@ import Syntax.Common
 import Syntax.Compact
 
 data Env = Env {
-  program         :: CompactProgram CVar,
-  -- mapping from relation names to their type signature
-  typeMap         :: HashMap Identifier [TypeExpr],
-  currentVarIds    :: HashMap Identifier Identifier,
-  currentQueueVar :: Identifier
+  program         :: ExplicitCompactProgram,          -- the program under compilation
+  typeMap         :: HashMap Identifier [TypeExpr],   -- mapping from relation names to their type signature
+  currentVarIds    :: HashMap Identifier Identifier,  -- locally used names for initial identifiers
+  currentQueueVar :: Identifier                       -- locally used name for the current queue state
 }
 
-initEnv :: CompactProgram CVar -> Env
+initEnv :: ExplicitCompactProgram -> Env
 initEnv p = Env p (toMap $ signatures p) M.empty "q"
   where
     toMap = M.fromList . map (\s -> (relName s, paramTypes s))
@@ -36,7 +34,7 @@ initEnv p = Env p (toMap $ signatures p) M.empty "q"
 type CodeGen = ReaderT Env IO
 
 freshQueueVar :: CodeGen Identifier
-freshQueueVar = liftIO $ ("q" ++) . show . hashUnique <$> newUnique
+freshQueueVar = fresh "q"
 
 withQueueVar :: Identifier -> CodeGen a -> CodeGen a
 withQueueVar v = local (\ nv -> nv { currentQueueVar = v })
@@ -50,8 +48,8 @@ withVarIds vids = local (\ nv -> nv { currentVarIds = vids })
     an input position if `mid == Just ident`
     an output position if `mid == Nothing`
 -}
-generateFilterExp :: Identifier -> [AtomExpr CVar] -> CodeGen (Exp ())
-generateFilterExp relId patExprs =
+generateFilterExp :: Identifier -> [AtomExpr CVar] -> [(Identifier, Identifier)] -> CodeGen (Exp ())
+generateFilterExp relId patExprs eqs =
   let
     enumerate = all isFirst patExprs
       where isFirst (Id (First _)) = True
@@ -106,36 +104,40 @@ generateRuleForest = do
         <$> mapM (withQueueVar qv . generateAlt) trees
     ]
   where
-    generateAlt :: (Assumption CVar, [RuleTree CVar]) -> CodeGen (Alt ())
-    generateAlt (assump, trees) = do
+    generateAlt :: (CAssumption CVar, [ExplicitRuleTree]) -> CodeGen (Alt ())
+    -- TODO: generate side condition from equalities
+    generateAlt (CAssumption assump eqs, trees) = do
       -- add names from assump to a map
       let varNames = mapMaybe getAtomName (argumentsOf assump)
           varIds = M.fromList $ zip varNames varNames
       -- generate trees _with the new map_
       alt (mkPat assump) <$> withVarIds varIds (generateTrees trees)
 
-    generateTrees :: [RuleTree CVar] -> CodeGen (Exp ())
+    generateTrees :: [ExplicitRuleTree] -> CodeGen (Exp ())
     generateTrees rts = do
       pqVar <- asks currentQueueVar
       app (qvar "Q" "unions")
         . list . (var pqVar :)
           <$> mapM (withQueueVar pqVar . generateTree) rts
 
-    generateTree :: RuleTree CVar -> CodeGen (Exp ())
+    generateTree :: ExplicitRuleTree -> CodeGen (Exp ())
     generateTree (RT (Result cs)) = generateConclusion cs
-    generateTree (RT (Branch assump rts)) = do
+    generateTree (RT (Branch cAssump rts)) = do
       currVarIds <- asks currentVarIds
-      let Compose (Proposition name args) = assump
+      let (CAssumption assump eqs) = cAssump
+          name = headSymbolOf assump
+          args = argumentsOf assump
           varNames = mapMaybe getAtomName args
-          newVarIds = foldr' (\vName ->
-            if M.member vName currVarIds then
-              M.insert vName (prime $ currVarIds M.! vName)
-            else
-              M.insert vName vName
-            ) currVarIds varNames
+      newVarIds <- foldM (\rest vName ->
+        if M.member vName currVarIds then do
+          freshName <- fresh (currVarIds M.! vName)
+          return $ M.insert vName freshName rest
+        else
+          return $ M.insert vName vName rest
+        ) currVarIds varNames
           -- we use the current identifiers for the filter expression
           -- since we are filtering with respect to currently bound variables
-          args' = substituteConstrained currVarIds <$> args
+      let args' = substituteConstrained currVarIds <$> args
           -- in the pattern we use the new identifiers which used in the body
           patVars = mapMaybe (
               fmap (pVar . getCVar)
@@ -144,15 +146,15 @@ generateRuleForest = do
             ) args
       qv <- freshQueueVar
       rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
-      filterExp <- generateFilterExp (headSymbolOf assump) args'
+      filterExp <- generateFilterExp (headSymbolOf assump) args' eqs
       return $
         apps (var "foldl'") [
           paren $ lambda
             [ pVar qv,
               pApp name patVars ]
-            rtsExp, --rec call
+            rtsExp,
           qvar "Q" "empty",
-          paren filterExp   -- im also priming here!! thats the issue! -- this still works for querries but now fucks with the rule tree
+          paren filterExp
         ]
 
     substituteCVar env = fmap (liftCVar (env M.!))
@@ -198,7 +200,7 @@ generateQuerries = do
         inTypes = filterBy modes' signature
         cvars = mkNames modes'
         bNames = mapMaybe (fmap pVar . getConstrained) cvars
-      filterExp <- generateFilterExp relId $ fmap Id cvars
+      filterExp <- generateFilterExp relId (fmap Id cvars) []
       return [
           typeSig (ident name) $
             tyFuns (map concrete inTypes) $
@@ -310,7 +312,7 @@ generateDB = do
           ]
       ]
 
-generateProgram :: CompactProgram CVar -> IO (H.Module ())
+generateProgram :: ExplicitCompactProgram -> IO (H.Module ())
 generateProgram p = do
   let nv = initEnv p
   runReaderT go nv
