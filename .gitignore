@@ -1,3 +1,4 @@
 .stack-work/
 examples
 *~
+fixed-point-lang.cabal
