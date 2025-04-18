@@ -249,7 +249,7 @@ instance (Pretty a) => Pretty (AtomExpr a) where
 
 instance (Pretty a) => Pretty (Expr a) where
   pretty (Atom a)  = pretty a
-  pretty (App f args) = "(" <> pretty f <+> hcat (intersperse ", " (pretty <$> args)) <> ")"
+  pretty (App f args) = "(" <> pretty f <+> hsep (pretty <$> args) <> ")"
 
 instance Pretty CVar where
   pretty (First x) = pretty x
