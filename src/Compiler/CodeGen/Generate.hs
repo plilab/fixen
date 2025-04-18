@@ -59,9 +59,9 @@ generateFilterExp relId patExprs eqs =
     return $
       app (qvar "S" "toList")
           (app (var $ dbProj relId)
-              (var "db"))
+               (var "db"))
   else do
-    freshNames <- liftIO $ replicateM (length patExprs) gensym
+    freshNames <- replicateM (length patExprs) gensym
     let
       patArgs = map pVar freshNames
       dbFactExps = map var freshNames
@@ -83,7 +83,7 @@ generateFilterExp relId patExprs eqs =
     return $
       app filterExp
           (app (var $ dbProj relId)
-                (var "db"))
+               (var "db"))
 
 generateRuleForest :: CodeGen [Decl ()]
 generateRuleForest = do
@@ -219,7 +219,7 @@ generateRelations =  do
     parensLeq x y = paren $ infixApp (ident "leq") (var x) (var y)
 
     generateRel :: Signature -> CodeGen [Decl ()]
-    generateRel (Signature name typs) = liftIO $ do
+    generateRel (Signature name typs) = do
       -- vars for each parameter
       let patVars1 = idsTo (length typs)
       let patVars2 = prime <$> patVars1

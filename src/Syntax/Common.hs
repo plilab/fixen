@@ -15,7 +15,6 @@ import GHC.Generics (Generic, Generic1)
 import Prettyprinter
 import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Classes (Show1 (liftShowsPrec, liftShowList), Eq1 (liftEq))
-import Data.List (intersperse)
 import Data.Hashable.Lifted (Hashable1)
 import Data.Char (toUpper)
 
