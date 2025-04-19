@@ -7,7 +7,7 @@
 module Syntax.Common where
 
 import Algebra.PartialOrd
-import Common.Util (alphaEq, foldrFromTraversable, foldlFromTraversable')
+import Common.Util (alphaEq, foldrFromTraversable, foldlFromTraversable', toDBLvl)
 import Data.Bifunctor (Bifunctor, bimap)
 import Data.Foldable (Foldable(foldl'))
 import Data.Hashable (Hashable(hash))
@@ -17,6 +17,7 @@ import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Classes (Show1 (liftShowsPrec, liftShowList), Eq1 (liftEq))
 import Data.Hashable.Lifted (Hashable1)
 import Data.Char (toUpper)
+import GHC.Natural (Natural)
 
 type Identifier = String
 
@@ -328,50 +329,18 @@ instance Pretty ModalDef where
 instance Pretty OrdHead where
   pretty (OrdHead instl instr) = pretty instl <+> "<=" <+> pretty instr
 
-{- newtype AlphaClass a = Alpha a
+{- wrapper mapping constructs to their alpha equivalence class -}
+newtype Alpha f a = Alpha { unAlpha :: f a } deriving (Generic, Functor)
 
-instance (Eq a, Ord a) => Eq (AlphaClass a) where
-  Alpha a1 == Alpha a2 = alphaEq a1 a2 -}
+instance (Traversable f, Eq (f Natural), Hashable a) => Eq (Alpha f a) where
+  (Alpha x) == (Alpha y) = toDBLvl x == toDBLvl y
 
-newtype AlphaExpr a = AlphaExpr { unAlphaExpr :: Expr a } deriving (Functor, Generic)
-newtype AlphaAtomExpr a = AlphaAtomExpr { unAlphaAtomExpr :: AtomExpr a } deriving (Functor, Generic)
-newtype AlphaProp a = AlphaProp { unAlphaProp :: Proposition a } deriving (Functor, Generic)
+instance (Traversable f, Hashable (f a), Hashable (f Natural), Hashable a) => Hashable (Alpha f a) where
+  hash = hash . toDBLvl . unAlpha
 
-instance Hashable a => Eq (AlphaExpr a) where
-  (AlphaExpr x) == (AlphaExpr y) = alphaEq x y
-
-instance (Hashable a) => Hashable (AlphaExpr a)
-
-instance Hashable a => Eq (AlphaAtomExpr a) where
-  (AlphaAtomExpr x) == (AlphaAtomExpr y) = alphaEq x y
-
-instance Hashable a => Hashable (AlphaAtomExpr a)
-
-instance Hashable a => Eq (AlphaProp a) where
-  (AlphaProp x) == (AlphaProp y) = alphaEq x y
-
-instance Hashable a => Hashable (AlphaProp a)
+instance Show (f a) => Show (Alpha f a) where
+  show = show . unAlpha
 
 capitalize :: String -> String
 capitalize []     = []
 capitalize (x:xs) = toUpper x : xs
-
-{- class Alpha a where
-  type AlphaRep a
-  alpha :: a -> AlphaRep a
-  unAlpha :: AlphaRep a -> a
-
-instance Alpha (Expr a) where
-  type AlphaRep (Expr a) = AlphaExpr a
-  alpha = AlphaExpr
-  unAlpha = unAlphaExpr
-
-instance Alpha (AtomExpr a) where
-  type AlphaRep (AtomExpr a) = AlphaAtomExpr a
-  alpha = AlphaAtomExpr
-  unAlpha = unAlphaAtomExpr
-
-instance Alpha (Proposition a) where
-  type AlphaRep (Proposition a) = AlphaProp a
-  alpha = AlphaProp
-  unAlpha = unAlphaProp -}
