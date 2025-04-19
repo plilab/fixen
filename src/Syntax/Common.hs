@@ -17,6 +17,8 @@ import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Classes (Show1 (liftShowsPrec, liftShowList), Eq1 (liftEq))
 import Data.Hashable.Lifted (Hashable1)
 import Data.Char (toUpper)
+import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet as S
 import GHC.Natural (Natural)
 
 type Identifier = String
@@ -124,9 +126,11 @@ liftCVar f (Constrained x) = Constrained $ f x
 getAtomName :: AtomExpr CVar -> Maybe Identifier
 getAtomName = fmap getCVar . getId
 
+type Constraints = M.HashMap Identifier (S.HashSet Identifier)
+
 data CAssumption a = CAssumption { 
   assumption :: Assumption a,
-  constraints :: [(Identifier, Identifier)]
+  constraints :: Constraints
   } deriving (Show, Functor)
 
 data OrdHead = OrdHead Instantiation Instantiation
@@ -274,13 +278,14 @@ instance (Pretty a) => Pretty (Proposition a) where
 
 instance (Pretty a) => Pretty (CAssumption a) where
   pretty (CAssumption assump eqs) = 
-    if null eqs then 
+    if M.null eqs then 
       pretty assump 
     else
       "(" <> pretty assump <> ")" 
-      <> "[" <> prettyCommaSep (prettyEq <$> eqs) <> "]"
+      <> "[" <> prettyEqs eqs <> "]"
     where
-      prettyEq (id1, id2) = pretty id1 <+> "=" <+> pretty id2
+      prettyEqs = 
+        prettyCommaSep . map (hcat . punctuate " = " . map pretty . S.toList) . M.elems
 
 prettyCommaSep :: [Doc ann] -> Doc ann
 prettyCommaSep = hcat . punctuate ", "

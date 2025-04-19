@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 module Compiler.CodeGen.Generate ( generateProgram ) where
 import Compiler.CodeGen.Util
 import Compiler.CodeGen.ASTCombinators
@@ -6,7 +7,9 @@ import Compiler.CodeGen.Prebaked
 import Control.Monad.Reader
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet as S
 import Data.Maybe (mapMaybe, catMaybes, isNothing, fromMaybe)
+import Data.Functor ((<&>))
 import Data.Functor.Compose (Compose(Compose))
 import Data.Foldable (Foldable (foldl'))
 import qualified Language.Haskell.Exts as H (Module(Module))
@@ -22,7 +25,7 @@ import Syntax.Compact
 data Env = Env {
   program         :: ExplicitCompactProgram,          -- the program under compilation
   typeMap         :: HashMap Identifier [TypeExpr],   -- mapping from relation names to their type signature
-  currentVarIds   :: HashMap Identifier Identifier,  -- locally used names for initial identifiers
+  currentVarIds   :: HashMap Identifier Identifier,   -- locally used names for initial identifiers
   currentQueueVar :: Identifier                       -- locally used name for the current queue state
 }
 
@@ -44,40 +47,72 @@ withVarIds vids = local (\ nv -> nv { currentVarIds = vids })
 
 {-
   assumes that the database variable is called "db"
-  an element `mid` of `mids` represents
-    an input position if `mid == Just ident`
-    an output position if `mid == Nothing`
+  an element `p` of `patExprs` represents
+    - an input position if `p == Id (Constrained v)`
+    - an output position if `p == Id (First v)`
+    - a literal value to be matched against if `p == Ground l`
+  `eqSets` maps the original variable name in the `ImplicitRuleTree`
+  to the set of distinct mutually constrained variables in the `ExplicitRuleTree`
 -}
-generateFilterExp :: Identifier -> [AtomExpr CVar] -> [(Identifier, Identifier)] -> Exp () -> CodeGen (Exp ())
-generateFilterExp relId patExprs eqs dataExp =
+generateFilterExp :: Identifier -> [AtomExpr CVar] -> Constraints -> Exp () -> CodeGen (Exp ())
+generateFilterExp relId patExprs eqSets dataExp =
   let
-    enumerate = all isFirst patExprs
+    enumerate = all isFirst patExprs && M.null eqSets
       where isFirst (Id (First _)) = True
             isFirst _ = False
   in
   if enumerate then
-    return $
-      app (qvar "S" "toList") dataExp
+    return dataExp
   else do
+    -- fresh names for the lambda expression
     freshNames <- replicateM (length patExprs) gensym
+    -- a mapping to a fresh name for each key in `eqSets`
+    -- these are bound in the let block to `mlbs` of all the variables in a set
+    eqSetIds <- M.fromList <$> mapM (\k -> fmap (k,) (fresh k)) (M.keys eqSets)
     let
+      -- mapping from `freshNames` to the original variable name in the rule tree
+      localVarIds = M.fromList . mapMaybe identify $ zip freshNames patExprs
+        where identify (vid, Id cv) = Just (getCVar cv, vid)
+              identify _            = Nothing
       patArgs = map pVar freshNames
       dbFactExps = map var freshNames
       applicativeArgs = zipWith mkArg dbFactExps patExprs
         where
+          mkArg _ (Id v)
+            | let name = getCVar v, 
+              M.member name eqSetIds = var (eqSetIds M.! name)
           mkArg x (Id (First _)) = app (var "pure") x
-          mkArg x e = infixApp (ident "mlbs") x (atomExprToExp e)
+          mkArg x e              = apps (var "mlbs") [x, atomExprToExp e]
       applicativeExp =
         foldl'
           (infixApp $ sym "<*>") (app (var "pure") (con relId))
           applicativeArgs
       filterExp = apps
         (var "foldl'")
-        [ lambda [pVar "rest", pApp relId patArgs] $
-            infixApp (sym "++")
-              (paren applicativeExp)
-              (var "rest"),
+        [ lambda [pVar "rest", pApp relId patArgs]
+          . mkDecls $
+              infixApp (sym "++")
+                (paren applicativeExp)
+                (var "rest"),
           list [] ]
+        where
+          mkDecls
+          -- if there are no `eqSets` this is a no-op
+            | M.null eqSets = id
+          -- otherwise a let block binding `mlbs` of all variables in 
+          -- each `eqSet` to their respective fresh variable
+            | otherwise  = letExp $
+              M.toList eqSets <&> 
+                \(k, eqSet) ->
+                  let ids = map (localVarIds M.!) (S.toList eqSet)
+                  in valBind (ident $ eqSetIds M.! k) $
+                    if null ids then
+                      error "constraint set must be nonempty"
+                    else
+                      foldl'
+                        (\rest eid -> infixApp (sym ">>=") rest (app (var "mlbs") (var eid)))
+                        (list [var $ head ids])
+                      (tail ids)
     return $
       app filterExp dataExp
 
@@ -112,9 +147,9 @@ generateRuleForest = do
       else do
         treeExps <- mapM (generateTree (Just . list $ [var currFact])) trees
         qv <- asks currentQueueVar
-        return . Just $ 
+        return . Just $
           alt
-            (pApp (factCon name) [pVar currFact]) 
+            (pApp (factCon name) [pVar currFact])
             (app (qvar "Q" "unions")
                 (list $ var qv : treeExps))
 
@@ -129,7 +164,7 @@ generateRuleForest = do
     generateTree _ (Result cs) = generateConclusion cs
     generateTree dataExp (Branch cAssump rts) = do
       currVarIds <- asks currentVarIds
-      let (CAssumption assump eqs) = cAssump
+      let (CAssumption assump eqSets) = cAssump
           name = headSymbolOf assump
           args = argumentsOf assump
           varNames = mapMaybe getAtomName args
@@ -151,9 +186,10 @@ generateRuleForest = do
             ) args
       qv <- freshQueueVar
       rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
-      filterExp <- fromMaybe . paren
-                    <$> generateFilterExp name args' eqs (dbProj name) 
-                    <*> return dataExp
+      filterExp <- paren <$>
+        generateFilterExp name args' eqSets (
+          fromMaybe (dbProj name) dataExp
+        )
       return $
         apps (var "foldl'") [
           paren $ lambda
@@ -202,7 +238,7 @@ generateQuerries = do
         inTypes = filterBy modes' signature
         cvars = mkNames modes'
         bNames = mapMaybe (fmap pVar . getConstrained) cvars
-      filterExp <- generateFilterExp relId (fmap Id cvars) [] (dbProj relId)
+      filterExp <- generateFilterExp relId (fmap Id cvars) M.empty (dbProj relId)
       return [
           typeSig (ident name) $
             tyFuns (map concrete inTypes) $

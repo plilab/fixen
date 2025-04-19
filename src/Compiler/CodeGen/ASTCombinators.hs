@@ -99,6 +99,9 @@ funBind = FunBind ()
 singleFunBind :: Name () -> [Pat ()] -> Exp () -> Decl ()
 singleFunBind name pats rhs = funBind [match name pats rhs]
 
+valBind :: Name () -> Exp () -> Decl ()
+valBind name = singleFunBind name []
+
 match :: Name () -> [Pat ()] -> Exp () -> Match ()
 match name pats rhs = Match () name pats (UnGuardedRhs () rhs) Nothing
 
@@ -178,7 +181,7 @@ fieldUpdate :: QName () -> Exp () -> FieldUpdate ()
 fieldUpdate = FieldUpdate ()
 
 dbProj :: String -> Exp ()
-dbProj relId = app (var $ dbProjId relId) (var "db")
+dbProj relId = app (qvar "S" "toList") $ app (var $ dbProjId relId) (var "db")
 
 concrete :: TypeExpr -> Type ()
 concrete (TVar v) = tyCon v
