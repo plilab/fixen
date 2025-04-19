@@ -4,7 +4,6 @@ module Compiler.ExplicateConstraints (
 
 import Syntax.Compact
 import Syntax.Common
-import Data.Functor ((<&>))
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 import Control.Monad.Reader (Reader, runReader, local, asks)
@@ -15,13 +14,8 @@ explicateConstraints :: ImplicitCompactProgram -> ExplicitCompactProgram
 explicateConstraints program = program { ruleForest = explicateForest $ ruleForest program }
 
 explicateForest :: ImplicitRuleForest -> ExplicitRuleForest
-explicateForest (RF forest) =
-  let
-    explicatedForest = forest <&>
-      \(prop, trees) ->
-        let (prop', ids) = runState (explicateAssumption prop) S.empty
-        in (prop', runReader (explicateTrees trees) ids)
-  in RF explicatedForest
+explicateForest (RF trees) =
+  RF $ runReader (explicateTrees trees) S.empty
 
 type ReaderIds = Reader (S.Set Identifier)
 type StateIds = State (S.Set Identifier)
@@ -30,7 +24,7 @@ explicateTrees :: [ImplicitRuleTree] -> ReaderIds [ExplicitRuleTree]
 explicateTrees = mapM go
   where
     go :: ImplicitRuleTree -> ReaderIds ExplicitRuleTree
-    go (RT tree) = RT <$> case tree of
+    go tree = case tree of
       (Result cs) -> Result <$> explicateConclusion cs
       (Branch p ts) -> do
         (p', seenVars) <- asks . runState $ explicateAssumption p

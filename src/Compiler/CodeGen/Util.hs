@@ -47,5 +47,5 @@ prime = (++ "'")
 factCon :: String -> String
 factCon = (++ "Fact")
 
-dbProj :: String -> String
-dbProj = ("facts" ++)
+dbProjId :: String -> String
+dbProjId = ("facts" ++)

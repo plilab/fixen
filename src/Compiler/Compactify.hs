@@ -8,7 +8,6 @@ import qualified Data.HashMap.Strict as M
 import Syntax.Common
 import qualified Syntax.Sorted as P
 import Syntax.Compact
-import Control.Arrow (Arrow(second))
 import Prettyprinter
 
 data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), __ :: Conclusion Identifier }
@@ -28,18 +27,13 @@ toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
 unrollRule :: UnordRule -> ImplicitRuleTree
 unrollRule (UnordRule prems concl) =
   foldr'
-    (\p rt -> RT $ Branch p [rt])
-    (RT $ Result concl)
+    (\p rt -> Branch p [rt])
+    (Result concl)
   prems
 
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
-factorPremise :: Identifier -> [UnordRule] -> Maybe (Assumption Identifier, [UnordRule])
-factorPremise name rules = do
-  -- find the first rule that has a `name` premise
-  r0 <- find (any ((name ==) . headSymbolOf) . premises) rules
-  -- identify the common premise
-  commonPremise <- find ((name ==) . headSymbolOf) $ premises r0
-    -- for every rule
+factorPremise :: Assumption Identifier -> [UnordRule] -> (Assumption Identifier, [UnordRule])
+factorPremise commonPremise rules =
   let
     factor = mapMaybe $ \(UnordRule prems c) -> do
       -- find an alpha equivalent premise
@@ -54,42 +48,41 @@ factorPremise name rules = do
         prems'' = S.map (substituteAll renaming) prems'
         c' = substituteAll renaming c
       return $ UnordRule prems'' c'
-  return (commonPremise, factor rules)
+  in (commonPremise, factor rules)
 
--- NOTE: we forget any premiseless rules!
---   => they should be added to the initial DB before computing the fixed point
-{- NOTE: ignoring for now:
-  - internal dependence on the top level
-    e.g. P x x needs to be accounted for on the top level: ```P x x' |- x == x' |- ...``` 
--}
-{- Actually wanna do:
-  - per rule collect all unique premises up to _literal_ equality
-  - then for each signature
-    - factor all the premises with the signature out of each rule
-    - group rules by shared premises up to alpha equivalence (dont forget to rename in the rest of the rule!)
+{-
+  per rule collect all unique premises up to _alpha_ equality
+  then for each signature
+  - factor all the premises with the signature out of each rule
+  - group rules by shared premises up to alpha equivalence
 
+  wanna do
   => keep merging the tree until you cant any more
 -}
-buildRuleForest :: [Signature] -> [RuleClause] -> ImplicitRuleForest
-buildRuleForest signts rules =
+buildRuleForest :: [RuleClause] -> ImplicitRuleForest
+buildRuleForest rules =
   let
     urules = map fromRuleClause rules
-
-    groupings = mapMaybe ((`factorPremise` urules) . relName) signts
-
-    trees = map (second $ map unrollRule) groupings
-
-  in RF trees
+    -- collect all premises up to alpha equivalence
+    prems = S.toList . S.map unAlpha . S.unions . map (S.map Alpha . premises) $ urules
+    -- factor into its own rule tree
+    groupings = map (`factorPremise` urules) prems
+    -- collect all premiseless rules
+    facts = map mkResult . filter (S.null . premises) $ urules
+    trees = map mkBranch groupings
+  in RF (facts ++ trees)
+  where
+    mkBranch (assump, rule) = Branch assump (map unrollRule rule)
+    mkResult (UnordRule _ cs) = Result cs
 
 compactify :: P.Program -> ImplicitCompactProgram
 compactify program =
-  let signs = P.signatures program
-  in Compact
+  Compact
     { moduleDecl = P.moduleDecl program
     , imports    = P.imports program
     , dataDefs   = P.dataDefs program
-    , signatures = signs
-    , ruleForest = buildRuleForest signs $ map snd $ P.rules program
+    , signatures = P.signatures program
+    , ruleForest = buildRuleForest . map snd $ P.rules program
     , ordClauses = P.ordClauses program
     , querries   = P.querries program
     }

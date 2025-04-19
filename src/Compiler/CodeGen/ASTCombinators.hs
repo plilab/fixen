@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 module Compiler.CodeGen.ASTCombinators where
 
+import Compiler.CodeGen.Util
 import Data.Foldable (foldl')
 import Language.Haskell.Exts
     ( ConDecl(ConDecl, RecDecl),
@@ -175,6 +176,9 @@ recSingleUpdate e qname e' = recUpdate e [fieldUpdate qname e']
 
 fieldUpdate :: QName () -> Exp () -> FieldUpdate ()
 fieldUpdate = FieldUpdate ()
+
+dbProj :: String -> Exp ()
+dbProj relId = app (var $ dbProjId relId) (var "db")
 
 concrete :: TypeExpr -> Type ()
 concrete (TVar v) = tyCon v
