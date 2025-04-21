@@ -17,8 +17,8 @@ import Language.Haskell.Exts
     ( Decl,
       ModuleHead(ModuleHead),
       ModuleName(ModuleName),
-      ModulePragma(LanguagePragma),
-      Name(Ident), Exp, Alt )
+      ModulePragma(LanguagePragma, OptionsPragma),
+      Exp, Alt, Tool (GHC) )
 import Syntax.Common
 import Syntax.Compact
 
@@ -372,7 +372,9 @@ generateProgram p = do
       return $
         H.Module ()
           (Just $ ModuleHead () (ModuleName () modName) Nothing Nothing)
-          [LanguagePragma () [Ident () "DeriveGeneric"]]
+          [ LanguagePragma () [ident "DeriveGeneric"],
+            OptionsPragma () (Just GHC) 
+            "-Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists"]
           (userImports ++ defaultImports)
           $ concat
             [ discreteDefs,
