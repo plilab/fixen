@@ -223,30 +223,28 @@ generateQuerries = do
   qrys <- asks $ querries . program
   concatMapM generateQuery qrys
   where
-    mkNames =
-      let go :: Int -> [Mode] -> [CVar]
-          go _ []        = []
-          go n (m:modes) =
-            (if m then Constrained else First) ("v" ++ show n) : go (succ n) modes
-      in go 0
+    mkNames = mapM $ \m -> (if m then Constrained else First) <$> gensym
 
     generateQuery :: ModalDef -> CodeGen [Decl ()]
     generateQuery (ModalDef relId name modes) = do
       signature <- asks $ (M.! relId) . typeMap
-      let
-        modes' = not <$> modes
-        inTypes = filterBy modes' signature
-        cvars = mkNames modes'
-        bNames = mapMaybe (fmap pVar . getConstrained) cvars
-      filterExp <- generateFilterExp relId (fmap Id cvars) M.empty (dbProj relId)
+      let modes'  = not <$> modes
+          inTypes = filterBy modes' signature
+      modalArgs <- mkNames modes'
+      let innerPatNames = mapMaybe (fmap pVar . getConstrained) modalArgs
+      outerPatNames <- replicateM (length innerPatNames) gensym
+      let querryParams = map pVar $ outerPatNames ++ ["db'"]
+          filterArgs   = zipWith (\ typ nm -> liftPrimitiveOf typ (var nm)) inTypes outerPatNames
+      filterExp <- generateFilterExp relId (fmap Id modalArgs) M.empty (dbProj relId)
       return [
           typeSig (ident name) $
-            tyFuns (map concrete inTypes) $
+            tyFuns (map concreteUnlifted inTypes) $
               tyFun (tyCon "DataBase") $
                 tyList (tyCon relId),
-          singleFunBind (ident name)
-            (bNames ++ [pVar "db"])
-            filterExp
+          singleFunBind (ident name) querryParams $
+            letExp
+              [singleFunBind (ident "go") (innerPatNames ++ [pVar "db"]) filterExp]
+              $ apps (var "go") (filterArgs ++ [var "db'"])
         ]
 
 generateRelations :: CodeGen [Decl ()]
