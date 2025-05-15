@@ -18,11 +18,13 @@ data CompactProgram assump a = Compact
   , ruleForest :: RuleForest assump a
   , ordClauses :: [OrdClause Identifier]
   , querries   :: [ModalDef]
-  }
+  } deriving (Show)
 
 data RuleTree assump a = Result (Conclusion a) | Branch (assump a) [RuleTree assump a] --RT { getCase :: Case (Conclusion a) (assump a) (RuleTree assump a) }
+  deriving (Show)
 
 newtype RuleForest assump a = RF { getTrees :: [RuleTree assump a] }
+  deriving (Show)
 
 type ImplicitRuleTree   = RuleTree Assumption Identifier
 type ImplicitRuleForest = RuleForest Assumption Identifier
