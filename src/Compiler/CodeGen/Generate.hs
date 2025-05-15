@@ -231,20 +231,15 @@ generateQuerries = do
       let modes'  = not <$> modes
           inTypes = filterBy modes' signature
       modalArgs <- mkNames modes'
-      let innerPatNames = mapMaybe (fmap pVar . getConstrained) modalArgs
-      outerPatNames <- replicateM (length innerPatNames) gensym
-      let querryParams = map pVar $ outerPatNames ++ ["db'"]
-          filterArgs   = zipWith (\ typ nm -> liftPrimitiveOf typ (var nm)) inTypes outerPatNames
+      let paramNames = mapMaybe getConstrained modalArgs
+          patterns = fmap pVar (paramNames ++ ["db"])
       filterExp <- generateFilterExp relId (fmap Id modalArgs) M.empty (dbProj relId)
       return [
           typeSig (ident name) $
             tyFuns (map concreteUnlifted inTypes) $
               tyFun (tyCon "DataBase") $
                 tyList (tyCon relId),
-          singleFunBind (ident name) querryParams $
-            letExp
-              [singleFunBind (ident "go") (innerPatNames ++ [pVar "db"]) filterExp]
-              $ apps (var "go") (filterArgs ++ [var "db'"])
+          singleFunBind (ident name) patterns filterExp
         ]
 
 generateRelations :: CodeGen [Decl ()]
@@ -279,11 +274,10 @@ generateRelations =  do
                 $ zipWith parensLeq patVars1 patVars2
           ],
         -- generate smart constructor
-        let mkConArg ty = liftPrimitiveOf ty . var
-        in singleFunBind (ident $ "mk" ++ name) (pVar <$> patVars1) $
-            app
-              (con $ factCon name)
-              (paren $ apps (con name) (zipWith mkConArg typs patVars1))
+        singleFunBind (ident $ "mk" ++ name) (pVar <$> patVars1) $
+          app
+            (con $ factCon name)
+            (paren $ apps (con name) (map var patVars1))
         ]
 
 generateFact :: CodeGen [Decl ()]
@@ -377,8 +371,7 @@ generateProgram p = do
             "-Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists"]
           (userImports ++ defaultImports)
           $ concat
-            [ discreteDefs,
-              subsumesDef,
+            [ subsumesDef,
               strictlySubsumesDef,
               decls,
               computeDef ]

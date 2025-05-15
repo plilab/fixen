@@ -185,15 +185,15 @@ dbProj relId = app (qvar "S" "toList") $ app (var $ dbProjId relId) (var "db")
 
 concrete :: TypeExpr -> Type ()
 concrete (TVar v) = tyCon v
-concrete ty       = tyApp (tyCon "D") (tyCon $ show ty)
+concrete ty       = tyCon $ show ty
 
 concreteUnlifted :: TypeExpr -> Type ()
 concreteUnlifted (TVar v) = tyCon v
 concreteUnlifted ty       = tyCon $ show ty
 
-liftPrimitiveOf :: TypeExpr -> Exp () -> Exp ()
+{- liftPrimitiveOf :: TypeExpr -> Exp () -> Exp ()
 liftPrimitiveOf (TVar _) = id
-liftPrimitiveOf _        = app (con "D")
+liftPrimitiveOf _        = app (con "D") -}
 
 exprToExp :: Expr CVar -> Exp ()
 exprToExp (App op args) = apps (var op) $ map exprToExp args
