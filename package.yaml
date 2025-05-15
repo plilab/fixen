@@ -48,7 +48,7 @@ default-extensions:
 library:
   source-dirs: 
   - src
-  - examples
+  - Demos
 
 executables:
   fixed-point-lang-exe:
