@@ -1,14 +1,5 @@
 module Dataflow.SignAnalysis where
 
-{- need:
-  - cfg: node * [node]
-  - state: var -> sign
-  - [|-|]: node -> state  ~  state ^ |node|
-
-  JOIN = fold join bottom . map [|-|] . pred    -- join the abstract states of all immediate predecessors of the given state
-  
-  must define: data State, data Expr, eval
--}
 import Dataflow.Sign
 
 
@@ -29,7 +20,7 @@ rule varInit:
 
 rule assignInit:
   assign l x e
-  |- stateAfter l (empty 0)
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
 
 rule condInit:
   cond l e

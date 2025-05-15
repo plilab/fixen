@@ -51,6 +51,9 @@ insert = M.insert
 singleton :: k -> a -> Map k a
 singleton = M.singleton
 
+-- the spurious argument is a hack to make sure the parser understands that 
+-- `empty` is not a variable but a function, we should come up with a better solution
+-- (at least add support for a unit type and use it as an argument instead of a number)
 empty :: Int -> Map k a
 empty = const M.empty
 
