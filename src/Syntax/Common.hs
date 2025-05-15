@@ -7,10 +7,10 @@
 module Syntax.Common where
 
 import Algebra.PartialOrd
-import Common.Util (alphaEq, foldrFromTraversable, foldlFromTraversable', toDBLvl)
+import Common.Util (foldrFromTraversable, foldlFromTraversable', toDBLvl)
 import Data.Bifunctor (Bifunctor, bimap)
 import Data.Foldable (Foldable(foldl'))
-import Data.Hashable (Hashable(hash))
+import Data.Hashable (Hashable(hash, hashWithSalt))
 import GHC.Generics (Generic, Generic1)
 import Prettyprinter
 import Data.Functor.Compose (Compose (Compose, getCompose))
@@ -101,7 +101,7 @@ type Conclusion = PropositionOf Expr
 pattern Conclusion :: Identifier -> [Expr a] -> Conclusion a
 pattern Conclusion a b = Compose (Proposition a b)
 
-data Literal = LInt Int | LString String | LBool Bool
+data Literal = LInt Int | LString String | LBool Bool | LCons Identifier
   deriving (Show, Eq, Generic)
 
 data CVar = First Identifier | Constrained Identifier
@@ -186,7 +186,8 @@ instance Hashable a => Hashable (Expr a)
 instance Hashable Literal where
   hash (LInt lint) = hash lint
   hash (LBool lbool) = hash lbool
-  hash (LString lstr) = hash lstr 
+  hash (LString lstr) = hash lstr
+  hash (LCons lcons) = hashWithSalt (hash lcons) ("LCons" :: String)
 
 {- PartialOrd instances for expressions and propositions -}
 
@@ -258,6 +259,7 @@ instance Pretty Literal where
   pretty (LInt n) = pretty n
   pretty (LString s) = pretty s
   pretty (LBool b) = pretty b 
+  pretty (LCons c) = pretty c
 
 instance (Pretty a) => Pretty (AtomExpr a) where
   pretty (Id name)  = pretty name

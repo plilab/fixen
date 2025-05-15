@@ -25,7 +25,7 @@ import Language.Haskell.Exts
       Sign(Signless),
       Type(TyCon, TyApp, TyFun, TyTuple, TyList), Boxed (Boxed), Binds (BDecls), Alt (Alt), FieldUpdate (FieldUpdate), FieldDecl (FieldDecl) )
 import qualified Language.Haskell.Exts as H
-import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString), Expr(..), CVar, AtomExpr(..), getCVar)
+import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString, LCons), Expr(..), CVar, AtomExpr(..), getCVar)
 
 ident :: String -> Name ()
 ident = Ident ()
@@ -206,11 +206,13 @@ atomExprToExp (Ground l) = litToExp l
 litToExp :: Literal -> Exp ()
 litToExp (LInt n)    = Lit () $ H.Int () (toInteger n) (show n)
 litToExp (LBool b)   = con $ show b
+litToExp (LCons c)   = con c
 litToExp (LString s) = Lit () $ H.String () s (show s)
 
 litToPat :: Literal -> Pat ()
 litToPat (LInt n)    = PLit () (Signless ()) $ H.Int () (toInteger n) (show n)
 litToPat (LBool b)   = pApp (show b) []
+litToPat (LCons c)   = pApp c []
 litToPat (LString s) = PLit () (Signless ()) $ H.String () s (show s)
 
 atomExprToPat :: AtomExpr CVar -> Pat ()

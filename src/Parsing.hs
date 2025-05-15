@@ -21,7 +21,7 @@ reserved = ["module", "where", "import", "data", "rule", "rel", "ord", "query"]
 -- Lexing rules
 -- Consume spaces and comments
 sc :: Parser ()
-sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
+sc = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
 -- Lexeme parsers
 lexeme :: Parser a -> Parser a
@@ -62,12 +62,12 @@ expr = App <$> identifier <*> many expr'
 
 expr' :: Parser RawExpr
 expr' = choice [
-  Atom <$> try idExpr,
-  Atom <$> try intExpr,
-  brackExpr]
+    Atom <$> atomicExpr,
+    brackExpr
+  ]
 
 atomicExpr :: Parser RawAtomExpr
-atomicExpr =  try idExpr <|> intExpr <|> boolExpr <|> strExpr
+atomicExpr =  try consExpr <|> try idExpr <|> intExpr <|> {- boolExpr <|>  -}strExpr
 
 idExpr :: Parser RawAtomExpr
 idExpr = Id <$> identifier
@@ -75,10 +75,13 @@ idExpr = Id <$> identifier
 intExpr :: Parser RawAtomExpr
 intExpr = Ground . LInt <$> number
 
-boolExpr :: Parser RawAtomExpr
+{- boolExpr :: Parser RawAtomExpr
 boolExpr = Ground . LBool <$> 
     ( True  <$ string "True"
-  <|> False <$ string "False")
+  <|> False <$ string "False") -}
+
+consExpr :: Parser RawAtomExpr
+consExpr = Ground . LCons <$> capitalIdentifier
 
 strExpr :: Parser RawAtomExpr
 strExpr = 
