@@ -17,7 +17,7 @@ import Language.Haskell.Exts
       Match(Match),
       ModuleName(ModuleName),
       Name(..),
-      Pat(PParen, PVar, PApp, PWildCard, PLit),
+      Pat(PParen, PVar, PApp, PWildCard, PLit, PAsPat),
       QName(UnQual, Qual),
       QOp(QVarOp),
       QualConDecl(..),
@@ -132,6 +132,9 @@ pParen = PParen ()
 pWildCard :: Pat ()
 pWildCard = PWildCard ()
 
+pAsPat :: Name () -> Pat () -> Pat ()
+pAsPat = PAsPat ()
+
 var :: String -> Exp ()
 var = Var () . unqual . ident
 
@@ -170,6 +173,9 @@ alt pat rhs = Alt () pat (UnGuardedRhs () rhs) Nothing
 
 lambda :: [Pat ()] -> Exp () -> Exp ()
 lambda = Lambda ()
+
+stringLit :: String -> Exp ()
+stringLit s = Lit () $ H.String () s (show s)
 
 recUpdate :: Exp () -> [FieldUpdate ()] -> Exp ()
 recUpdate = RecUpdate ()

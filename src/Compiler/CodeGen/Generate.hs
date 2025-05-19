@@ -18,7 +18,7 @@ import Language.Haskell.Exts
       ModuleHead(ModuleHead),
       ModuleName(ModuleName),
       ModulePragma(LanguagePragma, OptionsPragma),
-      Exp, Alt, Tool (GHC) )
+      Exp, Alt, Pat, Tool (GHC) )
 import Syntax.Common
 import Syntax.Compact
 
@@ -26,10 +26,11 @@ data Env = Env {
   program         :: ExplicitCompactProgram,          -- the program under compilation
   typeMap         :: HashMap Identifier [TypeExpr],   -- mapping from relation names to their type signature
   currentVarIds   :: HashMap Identifier Identifier,   -- locally used names for initial identifiers
-  currentQueueVar :: Identifier                       -- locally used name for the current queue state
+  currentQueueVar :: Identifier,                      -- locally used name for the current queue state
+  debugMode       :: Bool
 }
 
-initEnv :: ExplicitCompactProgram -> Env
+initEnv :: ExplicitCompactProgram -> Bool -> Env
 initEnv p = Env p (toMap $ signatures p) M.empty "q"
   where
     toMap = M.fromList . map (\s -> (relName s, paramTypes s))
@@ -147,18 +148,25 @@ generateRuleForest = do
       else do
         treeExps <- mapM (generateTree (Just . list $ [var currFact])) trees
         qv <- asks currentQueueVar
+        factPat <- mkFactPat $ pVar currFact
         return . Just $
           alt
-            (pApp (factCon name) [pVar currFact])
+            (pApp (factCon name) [factPat])
             (app (qvar "Q" "unions")
                 (list $ var qv : treeExps))
 
     generateTrees :: [ExplicitRuleTree] -> CodeGen (Exp ())
     generateTrees rts = do
+      dbg <- asks debugMode
       pqVar <- asks currentQueueVar
-      app (qvar "Q" "unions")
-        . list . (var pqVar :)
-          <$> mapM (generateTree Nothing) rts
+      let tracePremise =
+            if dbg 
+            then app (app (var "trace") (paren $ infixApp (sym "++") (stringLit "got: ") (app (var "show") (var "f")))) . paren 
+            else id
+      tracePremise
+        . app (qvar "Q" "unions")
+          . list . (var pqVar :)
+            <$> mapM (generateTree Nothing) rts
 
     generateTree :: Maybe (Exp ()) -> ExplicitRuleTree -> CodeGen (Exp ())
     generateTree _ (Result cs) = generateConclusion cs
@@ -186,6 +194,7 @@ generateRuleForest = do
             ) args
       qv <- freshQueueVar
       rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
+      factPat <- mkFactPat (pApp name patVars)
       filterExp <- paren <$>
         generateFilterExp name args' eqSets (
           fromMaybe (dbProj name) dataExp
@@ -194,7 +203,7 @@ generateRuleForest = do
         apps (var "foldl'") [
           paren $ lambda
             [ pVar qv,
-              pApp name patVars ]
+              factPat ]
             rtsExp,
           qvar "Q" "empty",
           filterExp
@@ -208,10 +217,23 @@ generateRuleForest = do
     generateConclusion :: Conclusion CVar -> CodeGen (Exp ())
     generateConclusion (Compose (Proposition name args)) = do
       currVarIds <- asks currentVarIds
+      dbg <- asks debugMode
+      let traceConclusion = if dbg
+                            then app (var "traceConclusion")
+                            else id
       return $ app (qvar "Q" "singleton") .
-        paren . app (var $ factCon name) .
-          paren . apps (var name) $
-            map (exprToExp . substituteCVar currVarIds) args
+        traceConclusion .
+          paren . app (var $ factCon name) .
+            paren . apps (var name) $
+              map (exprToExp . substituteCVar currVarIds) args
+
+    mkFactPat :: Pat () -> CodeGen (Pat ())
+    mkFactPat p = do
+      dbg <- asks debugMode
+      if dbg then
+        return $ pAsPat (ident "f") p
+      else
+        return p
 
 {-
   assumes that
@@ -342,9 +364,16 @@ generateDB = do
           ]
       ]
 
-generateProgram :: ExplicitCompactProgram -> IO (H.Module ())
-generateProgram p = do
-  let nv = initEnv p
+generateDebugDefs :: CodeGen [Decl ()]
+generateDebugDefs = do
+  dbg <- asks debugMode
+  if dbg then
+    return traceConclusionDef
+  else return []
+
+generateProgram :: Bool -> ExplicitCompactProgram -> IO (H.Module ())
+generateProgram debug p = do
+  let nv = initEnv p debug
   runReaderT go nv
   where
     go :: CodeGen (H.Module ())
@@ -356,25 +385,38 @@ generateProgram p = do
           generateDB,
           generateQueue,
           generateRuleForest,
-          generateQuerries
+          generateQuerries,
+          generateDebugDefs
         ]
 
       imps <- asks $ imports . program
       modName <- asks $ unModule . moduleDecl . program
       let userImports = map (importDecl . unImport) imps
+          debugImps = if debug then debugImports else []
+          debugPragmas = if debug then [
+              {- I am adding these because the documentation of `unsafePerformIO`, which is used in debug mode, advises so.
+                 The same goes for the `NOINLINE` annotation in `compute` -}
+              OptionsPragma () (Just GHC) "-fno-cse -fno-full-laziness",
+              {- Without this pragma some sideffects were still happening out of order -}
+              LanguagePragma () [ident "Strict"]
+            ] else []
+          mainLoop = if debug then computeDefDebug else computeDef
 
       return $
         H.Module ()
           (Just $ ModuleHead () (ModuleName () modName) Nothing Nothing)
-          [ LanguagePragma () [ident "DeriveGeneric"],
-            OptionsPragma () (Just GHC) 
-            "-Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists"]
-          (userImports ++ defaultImports)
+          (
+            [ LanguagePragma () [ident "DeriveGeneric"],
+              OptionsPragma () (Just GHC) 
+              "-Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists" ]
+            ++ debugPragmas
+          )
+          (userImports ++ debugImps ++ defaultImports)
           $ concat
             [ subsumesDef,
               strictlySubsumesDef,
               decls,
-              computeDef ]
+              mainLoop ]
 
     generateQueue = return
       [typeDecl (dHead "Queue") (tyApp (qTyCon "Q" "MaxQueue") (tyCon "Fact"))]

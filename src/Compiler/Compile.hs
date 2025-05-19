@@ -11,6 +11,12 @@ import Compiler.ExplicateConstraints (explicateConstraints)
 import Compiler.GenerateUniqueNames (generateUniqueNames)
 import Language.Haskell.Exts (prettyPrint)
 import Prettyprinter (Pretty(pretty))
+import Control.Exception (throw)
+
+type SourcePath = FilePath
+type DestPath = FilePath
+type GeneratedCode = String
+type Debug = Bool
 
 compile :: FilePath -> FilePath -> IO ()
 compile src = compileWith src . writeFile
@@ -28,13 +34,27 @@ compileStrWith programStr out =
   case parseTopLevel (pack programStr) of
     Right raw -> do
       modul <- raw &
-            generateProgram .
+            generateProgram False .
             explicateConstraints .
             compactify .
             generateUniqueNames .
             sortRawProgram
       out $ prettyPrint modul
     Left err -> print err
+
+compileDebug :: SourcePath -> DestPath -> IO ()
+compileDebug src dest = do
+  programStr <- readFile src
+  case parseTopLevel (pack programStr) of
+    Right raw -> do
+      modul <- raw &
+            generateProgram True .
+            explicateConstraints .
+            compactify .
+            generateUniqueNames .
+            sortRawProgram
+      writeFile dest (prettyPrint modul)
+    Left err -> throw err
 
 generateTree :: FilePath -> IO ()
 generateTree src = do
