@@ -16,7 +16,7 @@ import qualified Text.Megaparsec.Char as C
 type Parser = Parsec Void Text
 
 reserved :: [Identifier]
-reserved = ["module", "where", "import", "data", "rule", "rel", "ord", "query"]
+reserved = ["module", "where", "import", "data", "rule", "rel", "priority", "query"]
 
 -- Lexing rules
 -- Consume spaces and comments
@@ -136,15 +136,15 @@ relDecl = do
 typeExprList :: Parser [TypeExpr]
 typeExprList = commaSep typeExpr
 
-ordDecl :: Parser Declaration
-ordDecl = do
-  void $ string "ord"
+priorityDecl :: Parser Declaration
+priorityDecl = do
+  void $ string "priority"
   void $ char ':'
   lhs <- commaSep atomicProposition
   turnstyle
   instl <- instantiation
   void $ string "<="
-  Ord . Rule lhs . OrdHead instl <$> instantiation
+  Ord . Rule lhs . RuleOrdHead instl <$> instantiation
 
 instantiation :: Parser Instantiation
 instantiation = do
@@ -168,7 +168,7 @@ declaration = choice [
   try latDecl,
   try relDecl,
   try ruleDecl,
-  try ordDecl,
+  try priorityDecl,
   queryDecl]
 
 topLevel :: Parser RawProgram

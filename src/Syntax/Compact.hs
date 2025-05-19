@@ -16,7 +16,7 @@ data CompactProgram assump a = Compact
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , ruleForest :: RuleForest assump a
-  , ordClauses :: [OrdClause Var]
+  , ordClauses :: [PriorityClause Var]
   , querries   :: [ModalDef]
   } deriving (Show)
 

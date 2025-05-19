@@ -143,10 +143,14 @@ data CAssumption a = CAssumption {
   constraints :: Constraints
   } deriving (Show, Functor)
 
-data OrdHead = OrdHead Instantiation Instantiation
+data RuleOrdHead = RuleOrdHead Instantiation Instantiation
   deriving (Show, Eq)
 
-type OrdClause v = Rule (Assumption v) OrdHead
+type PriorityClause v = Rule (Assumption v) RuleOrdHead
+
+data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
+
+type FactOrdClause v = Rule (Assumption v) FactOrdHead
 
 instance Bifunctor Rule where
   bimap f g (Rule lhs rhs) = Rule (map f lhs) $ g rhs
@@ -349,8 +353,8 @@ instance Pretty ModalDef where
     <+> "as" <+> pretty ruleName 
     <+> hsep (map (\b -> if b then "+" else "-") modes)
 
-instance Pretty OrdHead where
-  pretty (OrdHead instl instr) = pretty instl <+> "<=" <+> pretty instr
+instance Pretty RuleOrdHead where
+  pretty (RuleOrdHead instl instr) = pretty instl <+> "<=" <+> pretty instr
 
 {- wrapper mapping constructs to their alpha equivalence class -}
 newtype Alpha f a = Alpha { unAlpha :: f a } deriving (Generic, Functor)

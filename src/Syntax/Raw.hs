@@ -16,7 +16,7 @@ data Declaration
   | Def DataDef
   | Rel Signature
   | Rul (Maybe Identifier) RuleClause
-  | Ord (OrdClause Var)
+  | Ord (PriorityClause Var)
   | Qry ModalDef
   deriving (Show)
 
@@ -35,7 +35,7 @@ getRule :: Declaration -> Maybe RuleClause
 getRule (Rul _ r) = Just r
 getRule _ = Nothing
 
-getOrd :: Declaration -> Maybe (OrdClause Var)
+getOrd :: Declaration -> Maybe (PriorityClause Var)
 getOrd (Ord r) = Just r
 getOrd _ = Nothing
 
