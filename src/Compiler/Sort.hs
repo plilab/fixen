@@ -24,7 +24,7 @@ sortSignature (Signature name typs) = Signature (capitalize name) typs
 sortRule :: RuleClause -> RuleClause
 sortRule (Rule prems concl) = Rule (sortProp <$> prems) (sortProp concl)
 
-sortProp :: PropositionOf e Identifier -> PropositionOf e Identifier
+sortProp :: PropositionOf e Var -> PropositionOf e Var
 sortProp (Compose (Proposition name args)) = 
   Compose (Proposition (capitalize name) args)
 

@@ -56,9 +56,9 @@ data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
 data Rule a b = Rule [a] b
   deriving (Show, Functor)
 
-type RuleClause = Rule (Assumption Identifier) (Conclusion Identifier)
+type RuleClause = Rule (Assumption Var) (Conclusion Var)
 
-data Instantiation = Instantiation Identifier [(Identifier, Expr Identifier)]
+data Instantiation = Instantiation Identifier [(Identifier, Expr Var)]
   deriving (Show, Eq)
 
 data ModalDef = ModalDef Identifier Identifier [Mode]
@@ -104,26 +104,36 @@ pattern Conclusion a b = Compose (Proposition a b)
 data Literal = LInt Int | LString String | LBool Bool | LCons Identifier
   deriving (Show, Eq, Generic)
 
-data CVar = First Identifier | Constrained Identifier
+newtype Variable a = Variable {unVariable :: a}
+  deriving (Show, Eq, Generic, Functor)
+
+type Var = Variable Identifier
+
+data FreezableVar a = Frozen Identifier | Unfrozen a
   deriving (Show, Eq)
 
-getFirst :: CVar -> Maybe Identifier
+data ConstrVar a = First a | Constrained a
+  deriving (Show, Eq)
+
+type CVar = ConstrVar Identifier
+
+getFirst :: ConstrVar a -> Maybe a
 getFirst (First x) = Just x
 getFirst _         = Nothing
 
-getConstrained :: CVar -> Maybe Identifier
+getConstrained :: ConstrVar a -> Maybe a
 getConstrained (Constrained x) = Just x
 getConstrained _               = Nothing
 
-getCVar :: CVar -> Identifier
+getCVar :: ConstrVar a -> a
 getCVar (First x) = x
 getCVar (Constrained x) = x
 
-liftCVar :: (Identifier -> Identifier) -> CVar -> CVar
+liftCVar :: (a -> a) -> ConstrVar a -> ConstrVar a
 liftCVar f (First x) = First $ f x
 liftCVar f (Constrained x) = Constrained $ f x 
 
-getAtomName :: AtomExpr CVar -> Maybe Identifier
+getAtomName :: AtomExpr (ConstrVar a) -> Maybe a
 getAtomName = fmap getCVar . getId
 
 type Constraints = M.HashMap Identifier (S.HashSet Identifier)
@@ -150,6 +160,9 @@ instance Traversable Proposition where
   traverse f (Proposition name args) = Proposition name <$> traverse f args
 
 instance Hashable a => Hashable (Proposition a)
+
+instance Hashable a => Hashable (Variable a) where
+  hash = hash . unVariable
 
 instance Foldable CAssumption where
   foldr f z (CAssumption assump _) = foldr f z assump
@@ -269,7 +282,10 @@ instance (Pretty a) => Pretty (Expr a) where
   pretty (Atom a)  = pretty a
   pretty (App f args) = "(" <> pretty f <+> hsep (pretty <$> args) <> ")"
 
-instance Pretty CVar where
+instance (Pretty a) => Pretty (Variable a) where
+  pretty (Variable x) = pretty x
+
+instance (Pretty a) => Pretty (ConstrVar a) where
   pretty (First x) = pretty x
   pretty (Constrained x) = pretty x <> "!"
 

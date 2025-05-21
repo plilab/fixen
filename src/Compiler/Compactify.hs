@@ -10,7 +10,7 @@ import qualified Syntax.Sorted as P
 import Syntax.Compact
 import Prettyprinter
 
-data UnordRule = UnordRule { premises :: S.HashSet (Assumption Identifier), __ :: Conclusion Identifier }
+data UnordRule = UnordRule { premises :: S.HashSet (Assumption Var), __ :: Conclusion Var }
 
 instance Show UnordRule where
   show = show . toRuleClause
@@ -30,9 +30,14 @@ unrollRule (UnordRule prems concl) =
     (\p rt -> Branch p [rt])
     (Result concl)
   prems
+{-
+type Assump' = Compose Assumption FreezableVar
 
+t :: Assump'
+traverse f t 
+-}
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
-factorPremise :: Assumption Identifier -> [UnordRule] -> (Assumption Identifier, [UnordRule])
+factorPremise :: Assumption Var -> [UnordRule] -> (Assumption Var, [UnordRule])
 factorPremise commonPremise rules =
   let
     factored = rules >>= \(UnordRule prems c) -> do

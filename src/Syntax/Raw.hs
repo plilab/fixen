@@ -16,12 +16,12 @@ data Declaration
   | Def DataDef
   | Rel Signature
   | Rul (Maybe Identifier) RuleClause
-  | Ord (OrdClause Identifier)
+  | Ord (OrdClause Var)
   | Qry ModalDef
   deriving (Show)
 
-type RawExpr = Expr Identifier
-type RawAtomExpr = AtomExpr Identifier
+type RawExpr = Expr Var
+type RawAtomExpr = AtomExpr Var
 
 getDataDef :: Declaration -> Maybe DataDef
 getDataDef (Def d) = Just d
@@ -35,7 +35,7 @@ getRule :: Declaration -> Maybe RuleClause
 getRule (Rul _ r) = Just r
 getRule _ = Nothing
 
-getOrd :: Declaration -> Maybe (OrdClause Identifier)
+getOrd :: Declaration -> Maybe (OrdClause Var)
 getOrd (Ord r) = Just r
 getOrd _ = Nothing
 

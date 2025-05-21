@@ -70,7 +70,7 @@ atomicExpr :: Parser RawAtomExpr
 atomicExpr =  try consExpr <|> try idExpr <|> intExpr <|> {- boolExpr <|>  -}strExpr
 
 idExpr :: Parser RawAtomExpr
-idExpr = Id <$> identifier
+idExpr = Id . Variable <$> identifier
 
 intExpr :: Parser RawAtomExpr
 intExpr = Ground . LInt <$> number
@@ -92,10 +92,10 @@ brackExpr :: Parser RawExpr
 brackExpr = between (char '(') (char ')') expr
 
 -- Parse a proposition (relation applied to expressions)
-proposition :: Parser (Conclusion Identifier)
+proposition :: Parser (Conclusion Var)
 proposition = Conclusion <$> identifier <*> many expr'
 
-atomicProposition :: Parser (Assumption Identifier)
+atomicProposition :: Parser (Assumption Var)
 atomicProposition = Assumption <$> identifier <*> many atomicExpr
 
 commaSep :: Parser a -> Parser [a]

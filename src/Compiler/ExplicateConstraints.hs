@@ -16,8 +16,8 @@ explicateForest :: ImplicitRuleForest -> ExplicitRuleForest
 explicateForest (RF trees) =
   RF $ runReader (explicateTrees trees) S.empty
 
-type ReaderIds = Reader (S.HashSet Identifier)
-type StateIds = State (S.HashSet Identifier)
+type ReaderIds = Reader (S.HashSet Var)
+type StateIds = State (S.HashSet Var)
 
 explicateTrees :: [ImplicitRuleTree] -> ReaderIds [ExplicitRuleTree]
 explicateTrees = mapM go
@@ -34,7 +34,7 @@ explicateTrees = mapM go
     explicateConclusion = asks . evalState . mapM explicateId
 
 --    explicateAssumption = asks . runState . mapM explicateId
-explicateAssumption :: Assumption Identifier -> StateIds (CAssumption CVar)
+explicateAssumption :: Assumption Var -> StateIds (CAssumption CVar)
 explicateAssumption assump = do
   -- explicate external dependencies
   assump' <- mapM explicateId assump
@@ -44,12 +44,12 @@ explicateAssumption assump = do
       eqs' = M.filter ((> 1) . S.size) eqs
   return $ CAssumption assump'' eqs'
 
-explicateId :: Identifier -> StateIds CVar
+explicateId :: Var -> StateIds CVar
 explicateId name = do
   seen <- gets (S.member name)
   unless seen $ modify (S.insert name)
   return $
-    (if seen then Constrained else First) name
+    (if seen then Constrained else First) (unVariable name)
 
 -- only matters for variables which occur First in current premise!!
 explicateEqualities :: CVar -> State Constraints CVar

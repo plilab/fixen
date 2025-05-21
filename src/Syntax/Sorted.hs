@@ -11,7 +11,7 @@ data Program = Program
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , rules      :: [(Maybe Identifier, RuleClause)]
-  , ordClauses :: [OrdClause Identifier]
+  , ordClauses :: [OrdClause Var]
   , querries   :: [ModalDef]
   } deriving (Show)
 

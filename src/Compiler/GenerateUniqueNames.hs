@@ -2,18 +2,20 @@ module Compiler.GenerateUniqueNames ( generateUniqueNames ) where
 
 import Syntax.Common
 import Control.Monad.State.Strict
-import Data.Map (Map)
-import qualified Data.Map as M
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
 import Numeric.Natural (Natural)
-import Data.Set (Set)
-import qualified Data.Set as S
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as S
 import Data.Bifunctor (Bifunctor(first, second))
 import Data.Foldable (traverse_)
 import Syntax.Sorted (Program (rules))
 
-type Env = State (Map Identifier Natural, Set Identifier)
+type Count = Natural
 
-initState :: (Map k a1, Set a2)
+type Env = State (HashMap Var Count, HashSet Var)
+
+initState :: (HashMap k a1, HashSet a2)
 initState = (M.empty, S.empty)
 
 generateUniqueNames :: Program -> Program
@@ -28,10 +30,10 @@ makeUniqueNames ruls = evalState (go ruls) initState
       incState
       return (name, res)
 
-    goAtomProp :: Assumption Identifier -> Env (Assumption Identifier)
+    goAtomProp :: Assumption Var -> Env (Assumption Var)
     goAtomProp = traverse current
 
-    goProp :: Conclusion Identifier -> Env (Conclusion Identifier)
+    goProp :: Conclusion Var -> Env (Conclusion Var)
     goProp = traverse current
 
     goRule :: RuleClause -> Env RuleClause
@@ -40,16 +42,17 @@ makeUniqueNames ruls = evalState (go ruls) initState
       conc'  <- goProp conc
       return $ Rule prems' conc'
 
-countOf :: Identifier -> Env Natural
+countOf :: Var -> Env Count
 countOf name = gets (maybe 0 succ . M.lookup name . fst)
 
-incCount :: Identifier -> Env ()
+incCount :: Var -> Env ()
 incCount name = modify (first $ M.alter (Just . maybe 0 succ) name)
 
-current :: Identifier -> Env Identifier
+current :: Var -> Env Var
 current name = do
   modify (second $ S.insert name)
-  (name ++) . show <$> countOf name
+  count <- countOf name
+  return $ Variable (unVariable name ++ show count)
 
 incState :: Env ()
 incState = do
