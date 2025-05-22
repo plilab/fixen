@@ -9,9 +9,11 @@ import Data.Text (pack)
 import Parsing (parseTopLevel)
 import Compiler.ExplicateConstraints (explicateConstraints)
 import Compiler.GenerateUniqueNames (generateUniqueNames)
-import Language.Haskell.Exts (prettyPrint)
+import Language.Haskell.Exts (prettyPrint, Module)
 import Prettyprinter (Pretty(pretty))
 import Control.Exception (throw)
+import Compiler.CompilePriorities (compilePriorities)
+import Syntax.Raw (RawProgram)
 
 type SourcePath = FilePath
 type DestPath = FilePath
@@ -29,16 +31,20 @@ compileWith src out = do
 compileStr :: String -> FilePath -> IO ()
 compileStr programStr = compileStrWith programStr . writeFile
 
+runPipeline :: Debug -> RawProgram -> IO (Module ())
+runPipeline dbg =
+  generateProgram dbg .
+  explicateConstraints .
+  compactify .
+  compilePriorities .
+  generateUniqueNames .
+  sortRawProgram
+
 compileStrWith :: String -> (String -> IO ()) -> IO ()
 compileStrWith programStr out =
   case parseTopLevel (pack programStr) of
     Right raw -> do
-      modul <- raw &
-            generateProgram False .
-            explicateConstraints .
-            compactify .
-            generateUniqueNames .
-            sortRawProgram
+      modul <- runPipeline False raw
       out $ prettyPrint modul
     Left err -> print err
 
@@ -47,12 +53,7 @@ compileDebug src dest = do
   programStr <- readFile src
   case parseTopLevel (pack programStr) of
     Right raw -> do
-      modul <- raw &
-            generateProgram True .
-            explicateConstraints .
-            compactify .
-            generateUniqueNames .
-            sortRawProgram
+      modul <- runPipeline True raw
       writeFile dest (prettyPrint modul)
     Left err -> throw err
 
@@ -63,6 +64,7 @@ generateTree src = do
     Right raw -> do
       let tree = explicateConstraints .
               compactify .
+              compilePriorities .
               generateUniqueNames .
               sortRawProgram $ raw
       print . pretty $ tree

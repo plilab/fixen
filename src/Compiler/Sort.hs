@@ -5,7 +5,7 @@ import Syntax.Common
 import Syntax.Raw
 import Syntax.Sorted
 
-sortRawProgram :: RawProgram -> Program
+sortRawProgram :: RawProgram -> PriorityProgram
 sortRawProgram (RawProgram modName decls) = foldl sortDecl (Program modName [] [] [] [] [] []) decls
   where
     sortDecl prog decl = case decl of

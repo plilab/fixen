@@ -4,6 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
+{-# LANGUAGE InstanceSigs #-}
 module Syntax.Common where
 
 import Algebra.PartialOrd
@@ -49,11 +50,12 @@ data LatticeDef =
   , bottom :: LitExpr
   }
 -}
-
+{- rel distTo: Ver, Dist
+    Signature "distTo" ["Ver", "Dist"] -}
 data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
   deriving (Eq, Show)
 
-data Rule a b = Rule [a] b
+data Rule prem concl = Rule [prem] concl
   deriving (Show, Functor)
 
 type RuleClause = Rule (Assumption Var) (Conclusion Var)
@@ -75,6 +77,12 @@ getId _      = Nothing
 
 data Expr v = Atom (AtomExpr v) | App Identifier [Expr v] -- App (Expr v) (Expr v)
   deriving (Show, Eq, Functor, Generic)
+
+{-
+  Assumption a <=> Proposition (AtomExpr a)
+
+  Assumption = Compose Propositon AtomExpr
+-}
 
 data Proposition a = Proposition { headSymbol :: Identifier, arguments :: [a] }
   deriving (Show, Eq, Functor, Generic, Generic1)
@@ -143,12 +151,18 @@ data CAssumption a = CAssumption {
   constraints :: Constraints
   } deriving (Show, Functor)
 
-data RuleOrdHead = RuleOrdHead Instantiation Instantiation
+data OrdHead e = OrdHead { getLeft :: e, getRight :: e }
   deriving (Show, Eq)
+
+type RuleOrdHead = OrdHead Instantiation
+{- data RuleOrdHead = RuleOrdHead Instantiation Instantiation
+  deriving (Show, Eq) -}
 
 type PriorityClause v = Rule (Assumption v) RuleOrdHead
 
-data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
+type FactOrdHead = OrdHead (Proposition Identifier)
+{- data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
+  deriving (Show, Eq) -}
 
 type FactOrdClause v = Rule (Assumption v) FactOrdHead
 
@@ -160,7 +174,6 @@ instance Foldable Proposition where
   foldr f e (Proposition _ args) = foldr f e args
 
 instance Traversable Proposition where
-  --traverse :: (Monad m) => (a -> m b) -> Proposition a -> m (Proposition b)
   traverse f (Proposition name args) = Proposition name <$> traverse f args
 
 instance Hashable a => Hashable (Proposition a)
@@ -353,8 +366,8 @@ instance Pretty ModalDef where
     <+> "as" <+> pretty ruleName 
     <+> hsep (map (\b -> if b then "+" else "-") modes)
 
-instance Pretty RuleOrdHead where
-  pretty (RuleOrdHead instl instr) = pretty instl <+> "<=" <+> pretty instr
+instance (Pretty e) => Pretty (OrdHead e) where
+  pretty (OrdHead instl instr) = pretty instl <+> "<" <+> pretty instr
 
 {- wrapper mapping constructs to their alpha equivalence class -}
 newtype Alpha f a = Alpha { unAlpha :: f a } deriving (Generic, Functor)

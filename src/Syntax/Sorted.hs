@@ -1,21 +1,26 @@
 module Syntax.Sorted (
-  Program(..)
+  Program(..),
+  PriorityProgram,
+  OrderingProgram
 ) where
 
 import Syntax.Common
 import Prettyprinter
 
-data Program = Program 
+data Program ord = Program 
   { moduleDecl :: Module
   , imports    :: [Import]
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , rules      :: [(Maybe Identifier, RuleClause)]
-  , ordClauses :: [PriorityClause Var]
+  , ordClauses :: [ord]
   , querries   :: [ModalDef]
   } deriving (Show)
 
-instance Pretty Program where
+type PriorityProgram = Program (PriorityClause Var)
+type OrderingProgram = Program (FactOrdClause Var)
+
+instance (Pretty ord) => Pretty (Program ord) where
   pretty program = vsep
     [ pretty (moduleDecl program)
     , vsep . map pretty $ imports program

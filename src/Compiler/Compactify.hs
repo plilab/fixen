@@ -97,7 +97,7 @@ buildRuleForest rules =
     mkBranch (assump, rule) = Branch assump (map unrollRule rule)
     mkResult (UnordRule _ cs) = Result cs
 
-compactify :: P.Program -> ImplicitCompactProgram
+compactify :: P.OrderingProgram -> ImplicitCompactProgram
 compactify program =
   Compact
     { moduleDecl = P.moduleDecl program
@@ -105,6 +105,6 @@ compactify program =
     , dataDefs   = P.dataDefs program
     , signatures = P.signatures program
     , ruleForest = buildRuleForest . map snd $ P.rules program
-    , ordClauses = P.ordClauses program
+    , factOrds =   P.ordClauses program
     , querries   = P.querries program
     }

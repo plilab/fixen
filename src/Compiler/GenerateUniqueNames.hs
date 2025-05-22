@@ -9,7 +9,7 @@ import Data.HashSet (HashSet)
 import qualified Data.HashSet as S
 import Data.Bifunctor (Bifunctor(first, second))
 import Data.Foldable (traverse_)
-import Syntax.Sorted (Program (rules))
+import Syntax.Sorted (Program (rules), PriorityProgram)
 
 type Count = Natural
 
@@ -18,7 +18,7 @@ type Env = State (HashMap Var Count, HashSet Var)
 initState :: (HashMap k a1, HashSet a2)
 initState = (M.empty, S.empty)
 
-generateUniqueNames :: Program -> Program
+generateUniqueNames :: PriorityProgram -> PriorityProgram
 generateUniqueNames prog = prog { rules = makeUniqueNames $ rules prog  }
 
 makeUniqueNames :: [(Maybe Identifier, RuleClause)] -> [(Maybe Identifier, RuleClause)]

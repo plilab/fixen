@@ -16,7 +16,7 @@ data CompactProgram assump a = Compact
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , ruleForest :: RuleForest assump a
-  , ordClauses :: [PriorityClause Var]
+  , factOrds :: [FactOrdClause Var]
   , querries   :: [ModalDef]
   } deriving (Show)
 
@@ -79,6 +79,6 @@ instance (Pretty a, Pretty (assump a)) => Pretty (CompactProgram assump a) where
     vsep (pretty <$> dataDefs prog),
     "rels:" <+> (align . vsep) (pretty <$> signatures prog),
     "tree:" <+> (align . pretty . ruleForest) prog,
-    "ords:" <+> (align . vsep) (pretty <$> ordClauses prog),
+    "ords:" <+> (align . vsep) (pretty <$> factOrds prog),
     "qrys:" <+> (align . vsep) (pretty <$> querries prog)
     ]

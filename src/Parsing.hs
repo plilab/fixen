@@ -143,8 +143,8 @@ priorityDecl = do
   lhs <- commaSep atomicProposition
   turnstyle
   instl <- instantiation
-  void $ string "<="
-  Ord . Rule lhs . RuleOrdHead instl <$> instantiation
+  void $ string "<"
+  Ord . Rule lhs . OrdHead instl <$> instantiation
 
 instantiation :: Parser Instantiation
 instantiation = do
