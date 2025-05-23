@@ -160,7 +160,7 @@ type RuleOrdHead = OrdHead Instantiation
 
 type PriorityClause v = Rule (Assumption v) RuleOrdHead
 
-type FactOrdHead = OrdHead (Proposition Identifier)
+type FactOrdHead = OrdHead (PropositionOf AtomExpr Var)
 {- data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
   deriving (Show, Eq) -}
 

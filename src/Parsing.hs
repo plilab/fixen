@@ -16,7 +16,7 @@ import qualified Text.Megaparsec.Char as C
 type Parser = Parsec Void Text
 
 reserved :: [Identifier]
-reserved = ["module", "where", "import", "data", "rule", "rel", "priority", "query"]
+reserved = ["module", "where", "import", "data", "rule", "rel", "priority", "ord", "query"]
 
 -- Lexing rules
 -- Consume spaces and comments
@@ -114,14 +114,19 @@ importDecl = do
   guard . not . null $ modName
   return . Imp . Import $ modName
 
+parseRule :: Parser prem -> Parser concl -> Parser (Rule prem concl)
+parseRule pprems pconcl = do
+  lhs <- commaSep pprems
+  turnstyle
+  Rule lhs <$> pconcl
+
 ruleDecl :: Parser Declaration
 ruleDecl = do
   void $ string "rule"
   name <- optional identifier
   void $ char ':'
-  lhs <- commaSep atomicProposition
-  turnstyle
-  Rul name . Rule lhs <$> proposition
+  body <- parseRule atomicProposition proposition
+  return $ Rul name body
 
 latDecl :: Parser Declaration
 latDecl = Def . Foreign <$> (string "data" *> identifier)
@@ -136,15 +141,29 @@ relDecl = do
 typeExprList :: Parser [TypeExpr]
 typeExprList = commaSep typeExpr
 
+factOrdDecl :: Parser Declaration
+factOrdDecl = let
+  parseHead = do
+    instl <- atomicProposition
+    void $ char '<'
+    OrdHead instl <$> atomicProposition
+  in do
+    void $ string "ord"
+    void $ char ':'
+    body <- parseRule atomicProposition parseHead
+    return . Ord $ Left body
+
 priorityDecl :: Parser Declaration
-priorityDecl = do
-  void $ string "priority"
-  void $ char ':'
-  lhs <- commaSep atomicProposition
-  turnstyle
-  instl <- instantiation
-  void $ string "<"
-  Ord . Rule lhs . OrdHead instl <$> instantiation
+priorityDecl = let
+  parseHead = do
+    instl <- instantiation
+    void $ char '<'
+    OrdHead instl <$> instantiation
+  in do
+    void $ string "priority"
+    void $ char ':'
+    body <- parseRule atomicProposition parseHead
+    return . Ord . Right $ body
 
 instantiation :: Parser Instantiation
 instantiation = do
@@ -169,6 +188,7 @@ declaration = choice [
   try relDecl,
   try ruleDecl,
   try priorityDecl,
+  try factOrdDecl,
   queryDecl]
 
 topLevel :: Parser RawProgram

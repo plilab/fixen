@@ -1,14 +1,16 @@
 module Compiler.CompilePriorities where
 
-import Syntax.Common
 import Syntax.Sorted
+import Data.Maybe (mapMaybe)
 
 compilePriorities :: PriorityProgram -> OrderingProgram
 compilePriorities prog = let
   
   (rules', factOrds) = undefined
 
-  in prog { ordClauses = factOrds }
+  in prog { ordClauses = mapMaybe getFactOrd (ordClauses prog) }
+    where getFactOrd (Left clause) = Just clause
+          getFactOrd _ = Nothing
 
 {- 
   rules = { (P_i)* |- C_i } for i

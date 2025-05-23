@@ -17,7 +17,7 @@ data Program ord = Program
   , querries   :: [ModalDef]
   } deriving (Show)
 
-type PriorityProgram = Program (PriorityClause Var)
+type PriorityProgram = Program (Either (FactOrdClause Var) (PriorityClause Var))
 type OrderingProgram = Program (FactOrdClause Var)
 
 instance (Pretty ord) => Pretty (Program ord) where
