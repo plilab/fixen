@@ -67,7 +67,7 @@ expr' = choice [
   ]
 
 atomicExpr :: Parser RawAtomExpr
-atomicExpr =  try consExpr <|> try idExpr <|> intExpr <|> {- boolExpr <|>  -}strExpr
+atomicExpr =  try consExpr <|> try idExpr <|> try intExpr <|> strExpr{- boolExpr <|>  -}
 
 idExpr :: Parser RawAtomExpr
 idExpr = Id . Variable <$> identifier
@@ -86,7 +86,7 @@ consExpr = Ground . LCons <$> capitalIdentifier
 strExpr :: Parser RawAtomExpr
 strExpr = 
   Ground . LString <$> 
-    between "\"" "\"" (many L.charLiteral)
+    between (char '"') (char '"') (many C.letterChar)
 
 brackExpr :: Parser RawExpr
 brackExpr = between (char '(') (char ')') expr
