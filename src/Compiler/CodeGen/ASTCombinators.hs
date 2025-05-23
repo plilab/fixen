@@ -25,7 +25,7 @@ import Language.Haskell.Exts
       Sign(Signless),
       Type(TyCon, TyApp, TyFun, TyTuple, TyList), Boxed (Boxed), Binds (BDecls), Alt (Alt), FieldUpdate (FieldUpdate), FieldDecl (FieldDecl) )
 import qualified Language.Haskell.Exts as H
-import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString, LCons), Expr(..), CVar, AtomExpr(..), getCVar)
+import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString, LCons), Expr(..), AtomExpr(..), NamedVariable (getName))
 
 ident :: String -> Name ()
 ident = Ident ()
@@ -201,12 +201,12 @@ concreteUnlifted ty       = tyCon $ show ty
 liftPrimitiveOf (TVar _) = id
 liftPrimitiveOf _        = app (con "D") -}
 
-exprToExp :: Expr CVar -> Exp ()
+exprToExp :: (NamedVariable v) => Expr v -> Exp ()
 exprToExp (App op args) = apps (var op) $ map exprToExp args
 exprToExp (Atom at)     = atomExprToExp at
 
-atomExprToExp :: AtomExpr CVar -> Exp ()
-atomExprToExp (Id v)     = var $ getCVar v
+atomExprToExp :: (NamedVariable v) => AtomExpr v -> Exp ()
+atomExprToExp (Id v)     = var $ getName v
 atomExprToExp (Ground l) = litToExp l
 
 litToExp :: Literal -> Exp ()
@@ -221,6 +221,6 @@ litToPat (LBool b)   = pApp (show b) []
 litToPat (LCons c)   = pApp c []
 litToPat (LString s) = PLit () (Signless ()) $ H.String () s (show s)
 
-atomExprToPat :: AtomExpr CVar -> Pat ()
-atomExprToPat (Id v) = pVar $ getCVar v
+atomExprToPat :: (NamedVariable v) => AtomExpr v -> Pat ()
+atomExprToPat (Id v) = pVar $ getName v
 atomExprToPat (Ground l) = litToPat l

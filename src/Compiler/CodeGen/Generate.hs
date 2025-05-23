@@ -305,19 +305,31 @@ generateRelations =  do
 generateFact :: CodeGen [Decl ()]
 generateFact = do
   names <- asks $ map relName . signatures . program
+  ords  <- asks $ factOrds . program
   return
     -- Fact type declaration
     [ dataDecl "Fact" (map mkConCase names) [derivingList ["Show", "Eq"]]
     -- instance Ord Fact
     , instDecl
         (iHApp (iHCon "Ord") "Fact")
-        (Just [insDecl . funBind $ (mkLeqCase <$> names) ++ [elseLeqCase]]) ]
+        --(Just [insDecl . funBind $ (mkLeqCase <$> names) ++ [elseLeqCase]])
+        (Just [insDecl . funBind $ (mkLeqCase <$> ords) ++ [elseLeqCase]])
+    ]
   where
     mkConCase name = unqualConDecl (factCon name) [tyCon name]
-    mkLeqCase name =
+    mkLeqCase (Rule assumps (OrdHead f1 f2)) = match (sym "<=")
+      [ pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)
+      , pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)
+      ] (
+        foldr1Default (infixApp (sym "&&")) (con "True") (map exprToExp assumps)
+      )
+    {- NOTE: 
+      this would generate a default where facts of the same predicate are compared by subsumption, do we want this?  
+      
+      mkLeqCase name =
       match (sym "<=")
         [pApp (factCon name) [pVar "x"], pApp (factCon name) [pVar "y"]]
-        (apps (var "leq") [var "x", var "y"])
+        (apps (var "leq") [var "x", var "y"]) -}
     elseLeqCase = match (sym "<=") [pWildCard, pWildCard] (con "False")
 
 generateDataDefs :: CodeGen [Decl ()]

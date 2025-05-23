@@ -150,7 +150,7 @@ factOrdDecl = let
   in do
     void $ string "ord"
     void $ char ':'
-    body <- parseRule atomicProposition parseHead
+    body <- parseRule expr parseHead
     return . Ord $ Left body
 
 priorityDecl :: Parser Declaration
@@ -162,7 +162,7 @@ priorityDecl = let
   in do
     void $ string "priority"
     void $ char ':'
-    body <- parseRule atomicProposition parseHead
+    body <- parseRule expr parseHead
     return . Ord . Right $ body
 
 instantiation :: Parser Instantiation

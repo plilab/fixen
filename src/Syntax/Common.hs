@@ -4,7 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Syntax.Common where
 
 import Algebra.PartialOrd
@@ -112,6 +112,9 @@ pattern Conclusion a b = Compose (Proposition a b)
 data Literal = LInt Int | LString String | LBool Bool | LCons Identifier
   deriving (Show, Eq, Generic)
 
+class NamedVariable v where
+  getName :: v -> Identifier
+
 newtype Variable a = Variable {unVariable :: a}
   deriving (Show, Eq, Generic, Functor)
 
@@ -120,28 +123,30 @@ type Var = Variable Identifier
 data FreezableVar a = Frozen Identifier | Unfrozen a
   deriving (Show, Eq)
 
-data ConstrVar a = First a | Constrained a
+type FVar = FreezableVar Identifier
+
+data ConstrainedVar a = First a | Constrained a
   deriving (Show, Eq)
 
-type CVar = ConstrVar Identifier
+type CVar = ConstrainedVar Identifier
 
-getFirst :: ConstrVar a -> Maybe a
+getFirst :: ConstrainedVar a -> Maybe a
 getFirst (First x) = Just x
 getFirst _         = Nothing
 
-getConstrained :: ConstrVar a -> Maybe a
+getConstrained :: ConstrainedVar a -> Maybe a
 getConstrained (Constrained x) = Just x
 getConstrained _               = Nothing
 
-getCVar :: ConstrVar a -> a
+getCVar :: ConstrainedVar a -> a
 getCVar (First x) = x
 getCVar (Constrained x) = x
 
-liftCVar :: (a -> a) -> ConstrVar a -> ConstrVar a
+liftCVar :: (a -> a) -> ConstrainedVar a -> ConstrainedVar a
 liftCVar f (First x) = First $ f x
 liftCVar f (Constrained x) = Constrained $ f x 
 
-getAtomName :: AtomExpr (ConstrVar a) -> Maybe a
+getAtomName :: AtomExpr (ConstrainedVar a) -> Maybe a
 getAtomName = fmap getCVar . getId
 
 type Constraints = M.HashMap Identifier (S.HashSet Identifier)
@@ -158,13 +163,13 @@ type RuleOrdHead = OrdHead Instantiation
 {- data RuleOrdHead = RuleOrdHead Instantiation Instantiation
   deriving (Show, Eq) -}
 
-type PriorityClause v = Rule (Assumption v) RuleOrdHead
+type PriorityClause v = Rule (Expr Var) RuleOrdHead
 
 type FactOrdHead = OrdHead (PropositionOf AtomExpr Var)
 {- data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
   deriving (Show, Eq) -}
 
-type FactOrdClause v = Rule (Assumption v) FactOrdHead
+type FactOrdClause v = Rule (Expr Var) FactOrdHead
 
 instance Bifunctor Rule where
   bimap f g (Rule lhs rhs) = Rule (map f lhs) $ g rhs
@@ -177,6 +182,16 @@ instance Traversable Proposition where
   traverse f (Proposition name args) = Proposition name <$> traverse f args
 
 instance Hashable a => Hashable (Proposition a)
+
+instance NamedVariable Var where
+  getName = unVariable
+
+instance NamedVariable CVar where
+  getName = getCVar
+
+instance NamedVariable FVar where
+  getName (Frozen name) = name
+  getName (Unfrozen name) = name
 
 instance Hashable a => Hashable (Variable a) where
   hash = hash . unVariable
@@ -302,7 +317,7 @@ instance (Pretty a) => Pretty (Expr a) where
 instance (Pretty a) => Pretty (Variable a) where
   pretty (Variable x) = pretty x
 
-instance (Pretty a) => Pretty (ConstrVar a) where
+instance (Pretty a) => Pretty (ConstrainedVar a) where
   pretty (First x) = pretty x
   pretty (Constrained x) = pretty x <> "!"
 
