@@ -4,7 +4,6 @@ module Compiler.Compile where
 import Compiler.CodeGen.Generate ( generateProgram )
 import Compiler.Compactify ( compactify )
 import Compiler.Sort (sortRawProgram)
-import Data.Function ((&))
 import Data.Text (pack)
 import Parsing (parseTopLevel)
 import Compiler.ExplicateConstraints (explicateConstraints)

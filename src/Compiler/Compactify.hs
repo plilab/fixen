@@ -1,7 +1,7 @@
 module Compiler.Compactify ( compactify ) where
 
 import Common.Util
-import Data.Foldable (Foldable(foldr'), find)
+import Data.Foldable (Foldable(foldr'))
 import Data.Maybe (mapMaybe)
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
