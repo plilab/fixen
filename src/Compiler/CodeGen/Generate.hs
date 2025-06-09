@@ -305,24 +305,38 @@ generateRelations =  do
 generateFact :: CodeGen [Decl ()]
 generateFact = do
   names <- asks $ map relName . signatures . program
-  ords  <- asks $ factOrds . program
+  --rulConts <- asks $ continuations . program
+  ords  <- asks $ priorities . program
   return
     -- Fact type declaration
-    [ dataDecl "Fact" (map mkConCase names) [derivingList ["Show", "Eq"]]
+    [ dataDecl "Fact" (map mkFactCase names) [derivingList ["Show", "Eq"]]
+    , dataDecl "Continuation"
+        ( unqualConDecl "Initial" [tyCon "Fact"] :
+          -- TODO: declare continuations
+          undefined )
+        [derivingList ["Show", "Eq"]]
+    -- TODO: declare continuation evaluation function
     -- instance Ord Fact
     , instDecl
-        (iHApp (iHCon "Ord") "Fact")
-        --(Just [insDecl . funBind $ (mkLeqCase <$> names) ++ [elseLeqCase]])
-        (Just [insDecl . funBind $ (mkLeqCase <$> ords) ++ [elseLeqCase]])
+        (iHApp (iHCon "Ord") "Continuation")
+        -- TODO
+        (Just [insDecl . funBind
+            $  (mkLeqCase <$> ords) -- TODO: add the initial and the continuation cases
+            ++ match (sym "<=") [pWildCard, pApp "Initial" [pWildCard]] (con "True")
+            :  [elseLeqCase]
+          ]
+        )
     ]
   where
-    mkConCase name = unqualConDecl (factCon name) [tyCon name]
-    mkLeqCase (Rule assumps (OrdHead f1 f2)) = match (sym "<=")
-      [ pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)
-      , pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)
+    mkFactCase name = unqualConDecl (factCon name) [tyCon name]
+    mkLeqCase (FactPriority (Rule assumps (OrdHead f1 f2))) = match (sym "<=")
+      [ pApp "Initial" [pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)]
+      , pApp "Initial" [pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)]
       ] (
         foldr1Default (infixApp (sym "&&")) (con "True") (map exprToExp assumps)
       )
+    mkLeqCase (RulePriority (Rule assumps (OrdHead inst1 inst2))) = match (sym "<=")
+      undefined undefined
     {- NOTE: 
       this would generate a default where facts of the same predicate are compared by subsumption, do we want this?  
       

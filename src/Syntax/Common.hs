@@ -160,16 +160,18 @@ data OrdHead e = OrdHead { getLeft :: e, getRight :: e }
   deriving (Show, Eq)
 
 type RuleOrdHead = OrdHead Instantiation
-{- data RuleOrdHead = RuleOrdHead Instantiation Instantiation
-  deriving (Show, Eq) -}
-
-type PriorityClause v = Rule (Expr Var) RuleOrdHead
-
 type FactOrdHead = OrdHead (PropositionOf AtomExpr Var)
-{- data FactOrdHead = FactOrdHead (Proposition Identifier) (Proposition Identifier)
-  deriving (Show, Eq) -}
 
-type FactOrdClause v = Rule (Expr Var) FactOrdHead
+type RulePriority v = Rule (Expr v) RuleOrdHead
+
+type FactPriority v = Rule (Expr v) FactOrdHead
+
+data Priority v
+  = RulePriority (RulePriority v)
+  | FactPriority (FactPriority v)
+  deriving (Show)
+
+type PriorityClause = Priority Var
 
 instance Bifunctor Rule where
   bimap f g (Rule lhs rhs) = Rule (map f lhs) $ g rhs
@@ -383,6 +385,10 @@ instance Pretty ModalDef where
 
 instance (Pretty e) => Pretty (OrdHead e) where
   pretty (OrdHead instl instr) = pretty instl <+> "<" <+> pretty instr
+
+instance (Pretty v) => Pretty (Priority v) where
+  pretty (RulePriority p) = pretty p
+  pretty (FactPriority p) = pretty p
 
 {- wrapper mapping constructs to their alpha equivalence class -}
 newtype Alpha f a = Alpha { unAlpha :: f a } deriving (Generic, Functor)

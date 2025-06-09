@@ -1,33 +1,31 @@
 module Syntax.Sorted (
-  Program(..),
-  PriorityProgram,
-  OrderingProgram
+  Program(..)
 ) where
 
 import Syntax.Common
 import Prettyprinter
 
-data Program ord = Program 
+data Program = Program 
   { moduleDecl :: Module
   , imports    :: [Import]
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
   , rules      :: [(Maybe Identifier, RuleClause)]
-  , ordClauses :: [ord]
+  , priorities :: [PriorityClause]
   , querries   :: [ModalDef]
   } deriving (Show)
 
-type PriorityProgram = Program (Either (FactOrdClause Var) (PriorityClause Var))
-type OrderingProgram = Program (FactOrdClause Var)
+{- type PriorityProgram = Program (Either (FactOrdClause Var) (PriorityClause Var))
+type OrderingProgram = Program (FactOrdClause Var) -}
 
-instance (Pretty ord) => Pretty (Program ord) where
+instance Pretty Program where
   pretty program = vsep
     [ pretty (moduleDecl program)
     , vsep . map pretty $ imports program
     , vsep . map pretty $ dataDefs program
     , "rels" <+> align (vsep . map pretty $ signatures program)
     , "rules" <+> align (vsep . map prettyPair $ rules program)
-    , "ords" <+> align (vsep . map pretty $ ordClauses program)
+    , "ords" <+> align (vsep . map pretty $ priorities program)
     , "queries" <+> align (vsep . map pretty $ querries program)
     ]
     where prettyPair (name, rule) = maybe "_" pretty name <+> "=" <+> pretty rule

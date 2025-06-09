@@ -5,7 +5,7 @@ import Syntax.Common
 import Syntax.Raw
 import Syntax.Sorted
 
-sortRawProgram :: RawProgram -> PriorityProgram
+sortRawProgram :: RawProgram -> Program
 sortRawProgram (RawProgram modName decls) = foldl sortDecl (Program modName [] [] [] [] [] []) decls
   where
     sortDecl prog decl = case decl of
@@ -13,7 +13,7 @@ sortRawProgram (RawProgram modName decls) = foldl sortDecl (Program modName [] [
       (Def d) -> prog { dataDefs = d : dataDefs prog }
       (Rel r) -> prog { signatures = sortSignature r : signatures prog }
       (Rul name r) -> prog { rules = (name, sortRule r) : rules prog }
-      (Ord r) -> prog { ordClauses = r : ordClauses prog }
+      (Ord r) -> prog { priorities = r : priorities prog }
       (Qry q) -> prog { querries = sortQry q : querries prog }
 
 sortSignature :: Signature -> Signature

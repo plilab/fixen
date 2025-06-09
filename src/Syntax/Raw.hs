@@ -16,11 +16,10 @@ data Declaration
   | Def DataDef
   | Rel Signature
   | Rul (Maybe Identifier) RuleClause
-  | Ord OrdClause
+  | Ord PriorityClause
   | Qry ModalDef
   deriving (Show)
 
-type OrdClause = Either (FactOrdClause Var) (PriorityClause Var)
 type RawExpr = Expr Var
 type RawAtomExpr = AtomExpr Var
 
@@ -36,7 +35,7 @@ getRule :: Declaration -> Maybe RuleClause
 getRule (Rul _ r) = Just r
 getRule _ = Nothing
 
-getOrd :: Declaration -> Maybe OrdClause
+getOrd :: Declaration -> Maybe PriorityClause
 getOrd (Ord r) = Just r
 getOrd _ = Nothing
 
@@ -57,8 +56,8 @@ instance Pretty Declaration where
   pretty (Qry modDef) =
     "query" <+> pretty modDef
   pretty (Ord clause) = case clause of
-    (Right prior) -> "priority:" <+> pretty prior
-    (Left factOrd) -> "ord:" <+> pretty factOrd
+    (RulePriority prior) -> "priority:" <+> pretty prior
+    (FactPriority factOrd) -> "priority:" <+> pretty factOrd
 
 instance Pretty RawProgram where
   pretty (RawProgram modName decls) = vsep $ 
