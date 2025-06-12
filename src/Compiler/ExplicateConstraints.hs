@@ -6,35 +6,38 @@ import Syntax.Compact
 import Syntax.Common
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as M
-import Control.Monad.Reader (Reader, runReader, local, asks)
-import Control.Monad.State (State, evalState, modify, gets, unless, runState)
+import Control.Monad.Reader (Reader, runReader, local, asks, MonadReader (ask))
+import Control.Monad.State (State, modify, gets, unless, runState)
 
 explicateConstraints :: ImplicitCompactProgram -> ExplicitCompactProgram
-explicateConstraints program = program { ruleForest = explicateForest $ ruleForest program }
+explicateConstraints program = 
+  program { ruleForest = explicateForest $ ruleForest program }
 
 explicateForest :: ImplicitRuleForest -> ExplicitRuleForest
 explicateForest (RF trees) =
   RF $ runReader (explicateTrees trees) S.empty
 
-type ReaderIds = Reader (S.HashSet Var)
-type StateIds = State (S.HashSet Var)
+type ExplicationReader = Reader (S.HashSet Var)
+type ExplicationState = State (S.HashSet Var)
 
-explicateTrees :: [ImplicitRuleTree] -> ReaderIds [ExplicitRuleTree]
+explicateTrees :: [ImplicitRuleTree] -> ExplicationReader [ExplicitRuleTree]
 explicateTrees = mapM go
   where
-    go :: ImplicitRuleTree -> ReaderIds ExplicitRuleTree
+    go :: ImplicitRuleTree -> ExplicationReader ExplicitRuleTree
     go tree = case tree of
-      (Result cs) -> Result <$> explicateConclusion cs
+      (Result cs) -> do
+        bound <- ask
+        let unbound = filter (not . (`S.member` bound)) (arguments cs)
+        if null unbound
+        then return $ Result cs
+        else error ("some variables are unbound: " ++ show unbound)
       (Branch p ts) -> do
+        -- switch to state to maintain dependency between variables within each proposition
         (p', seenVars) <- asks . runState $ explicateAssumption p
         ts' <- local (const seenVars) $ mapM go ts
         return $ Branch p' ts'
 
-    -- switch to state to maintain dependency between variables within each proposition
-    explicateConclusion = asks . evalState . mapM explicateId
-
---    explicateAssumption = asks . runState . mapM explicateId
-explicateAssumption :: Assumption Var -> StateIds (CAssumption CVar)
+explicateAssumption :: Assumption Var -> ExplicationState (CAssumption CVar)
 explicateAssumption assump = do
   -- explicate external dependencies
   assump' <- mapM explicateId assump
@@ -44,7 +47,7 @@ explicateAssumption assump = do
       eqs' = M.filter ((> 1) . S.size) eqs
   return $ CAssumption assump'' eqs'
 
-explicateId :: Var -> StateIds CVar
+explicateId :: Var -> ExplicationState CVar
 explicateId name = do
   seen <- gets (S.member name)
   unless seen $ modify (S.insert name)

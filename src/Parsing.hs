@@ -168,7 +168,7 @@ priorityDecl = let
 instantiation :: Parser Instantiation
 instantiation = do
   name <- identifier
-  let assigned = (,) <$> identifier <* char '=' <*> expr
+  let assigned = (,) <$> identifier <* char '=' <*> identifier
   insts <- between (char '{') (char '}') (commaSep assigned)
   if null insts
   then fail "empty instantiation"

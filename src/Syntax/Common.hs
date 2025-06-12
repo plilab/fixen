@@ -55,19 +55,23 @@ data LatticeDef =
 data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
   deriving (Eq, Show)
 
+lookupSignature :: Identifier -> [Signature] -> [TypeExpr]
+lookupSignature name = foldr
+  (\sign other -> if relName sign == name then paramTypes sign else other)
+  (error $ "signature lookup failed for " ++ name)
+
 data Rule prem concl = Rule [prem] concl
   deriving (Show, Functor)
 
 type RuleClause = Rule (Assumption Var) (Conclusion Var)
 
-data Instantiation = Instantiation Identifier [(Identifier, Expr Var)]
+data Instantiation = Instantiation Identifier [(Identifier, Identifier)]
   deriving (Show, Eq)
 
 data ModalDef = ModalDef Identifier Identifier [Mode]
   deriving (Eq, Show)
 
-{- TODO: add constructor case:
-  Ground = Literal | Con Identifier [Ground] -}
+{- Ground = Literal | Con Identifier [Ground] -}
 data AtomExpr v = Id v | Ground Literal
   deriving (Show, Eq, Functor, Generic, Generic1)
 
@@ -126,7 +130,7 @@ data FreezableVar a = Frozen Identifier | Unfrozen a
 type FVar = FreezableVar Identifier
 
 data ConstrainedVar a = First a | Constrained a
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor)
 
 type CVar = ConstrainedVar Identifier
 
@@ -157,7 +161,7 @@ data CAssumption a = CAssumption {
   } deriving (Show, Functor)
 
 data OrdHead e = OrdHead { getLeft :: e, getRight :: e }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Functor)
 
 type RuleOrdHead = OrdHead Instantiation
 type FactOrdHead = OrdHead (PropositionOf AtomExpr Var)

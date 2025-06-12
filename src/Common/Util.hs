@@ -37,10 +37,13 @@ toDBLvl t = evalState go M.empty
 alphaEq :: (Hashable a, Traversable t, Eq (t Natural)) => t a -> t a -> Bool
 alphaEq e1 e2 = toDBLvl e1 == toDBLvl e2
 
-substitute :: (Traversable t, Eq a) => a -> a -> t a -> t a
+lookupWithDefault :: Eq a => b -> [(a, b)] -> a -> b
+lookupWithDefault def env x = fromMaybe def (lookup x env)
+
+substitute :: (Functor t, Eq a) => a -> a -> t a -> t a
 substitute x y = fmap $ \a -> if x == a then y else a
 
-substituteAll :: (Traversable t, Hashable a) => M.HashMap a a -> t a -> t a
+substituteAll :: (Functor t, Hashable a) => M.HashMap a a -> t a -> t a
 substituteAll env = fmap $ \a -> fromMaybe a (M.lookup a env)
 
 foldrFromTraversable :: (Traversable t) => (a -> b -> b) -> b -> t a -> b

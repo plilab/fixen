@@ -10,7 +10,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import Data.Maybe (mapMaybe, catMaybes, isNothing, fromMaybe)
 import Data.Functor ((<&>))
-import Data.Functor.Compose (Compose(Compose))
+import Data.Functor.Compose (Compose(Compose, getCompose))
 import Data.Foldable (Foldable (foldl'))
 import qualified Language.Haskell.Exts as H (Module(Module))
 import Language.Haskell.Exts
@@ -21,6 +21,7 @@ import Language.Haskell.Exts
       Exp, Alt, Pat, Tool (GHC) )
 import Syntax.Common
 import Syntax.Compact
+import Common.Util (substituteAll)
 
 data Env = Env {
   program         :: ExplicitCompactProgram,          -- the program under compilation
@@ -208,14 +209,14 @@ generateRuleForest = do
           qvar "Q" "empty",
           filterExp
         ]
-
-    substituteCVar env = fmap (liftCVar (env M.!))
+    --substituteCVar :: (Functor f, Hashable a) => M.HashMap a a -> f (ConstrainedVar a) -> f (ConstrainedVar a)
+    substituteCVar env = getCompose . substituteAll env . Compose --fmap (liftCVar (env M.!))
     substituteConstrained env = fmap $ \case
       (First v) -> First v
       (Constrained v) -> Constrained $ env M.! v
 
-    generateConclusion :: Conclusion CVar -> CodeGen (Exp ())
-    generateConclusion (Compose (Proposition name args)) = do
+    generateConclusion :: ContinuationFact -> CodeGen (Exp ())
+    generateConclusion (Proposition name args) = do
       currVarIds <- asks currentVarIds
       dbg <- asks debugMode
       let traceConclusion = if dbg
@@ -223,9 +224,8 @@ generateRuleForest = do
                             else id
       return $ app (qvar "Q" "singleton") .
         traceConclusion .
-          paren . app (var $ factCon name) .
-            paren . apps (var name) $
-              map (exprToExp . substituteCVar currVarIds) args
+            paren . apps (var $ contCon name) $
+              map (var . getName . substituteAll currVarIds) args
 
     mkFactPat :: Pat () -> CodeGen (Pat ())
     mkFactPat p = do
@@ -258,7 +258,7 @@ generateQuerries = do
       filterExp <- generateFilterExp relId (fmap Id modalArgs) M.empty (dbProj relId)
       return [
           typeSig (ident name) $
-            tyFuns (map concreteUnlifted inTypes) $
+            tyFuns (map concrete inTypes) $
               tyFun (tyCon "DataBase") $
                 tyList (tyCon relId),
           singleFunBind (ident name) patterns filterExp
@@ -305,45 +305,60 @@ generateRelations =  do
 generateFact :: CodeGen [Decl ()]
 generateFact = do
   names <- asks $ map relName . signatures . program
-  --rulConts <- asks $ continuations . program
+  conts <- asks $ continuations . program
   ords  <- asks $ priorities . program
   return
     -- Fact type declaration
     [ dataDecl "Fact" (map mkFactCase names) [derivingList ["Show", "Eq"]]
     , dataDecl "Continuation"
         ( unqualConDecl "Initial" [tyCon "Fact"] :
-          -- TODO: declare continuations
-          undefined )
+          -- declare continuations
+          map mkContFactDecl (M.toList conts) )
         [derivingList ["Show", "Eq"]]
-    -- TODO: declare continuation evaluation function
-    -- instance Ord Fact
+    -- declare continuation evaluation function
+    , typeSig (ident "evaluate") (tyFun (tyCon "Continuation") (tyCon "Fact"))
+    , funBind
+        $ match (ident "evaluate") [pApp "Initial" [pVar "f"]] (var "f")
+        : map mkEvalCase (M.toList conts)
+    -- instance Ord Continuation
     , instDecl
         (iHApp (iHCon "Ord") "Continuation")
-        -- TODO
-        (Just [insDecl . funBind
-            $  (mkLeqCase <$> ords) -- TODO: add the initial and the continuation cases
-            ++ match (sym "<=") [pWildCard, pApp "Initial" [pWildCard]] (con "True")
-            :  [elseLeqCase]
+        (Just [
+          insDecl . funBind
+            $  (mkLeqCase conts <$> ords)
+            ++ [ match (sym "<=") [pWildCard, pApp "Initial" [pWildCard]] (con "True")
+               , elseLeqCase
+               ]
           ]
         )
     ]
   where
+    mkEvalCase (rulName, Cont ctx (Compose (Proposition pName args))) =
+      match (ident "evaluate")
+        [pApp (contCon rulName) (map (pVar . fst) ctx)]
+        . app (var $ factCon pName)
+          $ apps (var pName) (exprToExp <$> args)
+    mkContFactDecl (name, Cont ctx _) = unqualConDecl (contCon name) (map (concrete . snd) ctx)
     mkFactCase name = unqualConDecl (factCon name) [tyCon name]
-    mkLeqCase (FactPriority (Rule assumps (OrdHead f1 f2))) = match (sym "<=")
-      [ pApp "Initial" [pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)]
-      , pApp "Initial" [pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)]
-      ] (
-        foldr1Default (infixApp (sym "&&")) (con "True") (map exprToExp assumps)
-      )
-    mkLeqCase (RulePriority (Rule assumps (OrdHead inst1 inst2))) = match (sym "<=")
-      undefined undefined
-    {- NOTE: 
-      this would generate a default where facts of the same predicate are compared by subsumption, do we want this?  
-      
-      mkLeqCase name =
+    mkLeqCase _ (FactPriority (Rule assumps (OrdHead f1 f2))) =
       match (sym "<=")
-        [pApp (factCon name) [pVar "x"], pApp (factCon name) [pVar "y"]]
-        (apps (var "leq") [var "x", var "y"]) -}
+        [ pApp "Initial" [pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)]
+        , pApp "Initial" [pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)]
+        ]
+        (mkAssumps assumps)
+    mkLeqCase conts (RulePriority (Rule assumps (OrdHead inst1 inst2))) =
+      match (sym "<=")
+        [ mkInstantiation conts inst1
+        , mkInstantiation conts inst2 ] 
+        (mkAssumps assumps)
+    mkInstantiation conts (Instantiation name binds) =
+      let
+        cont = M.lookupDefault (error $ "no continuation for " ++ name) name conts
+        vars = map fst (context cont)
+      in pApp
+        (contCon name)
+        (map (maybe pWildCard pVar . (`lookup` binds)) vars)
+    mkAssumps assumps = foldr1Default (infixApp (sym "&&")) (con "True") (map exprToExp assumps)
     elseLeqCase = match (sym "<=") [pWildCard, pWildCard] (con "False")
 
 generateDataDefs :: CodeGen [Decl ()]
@@ -445,4 +460,4 @@ generateProgram debug p = do
               mainLoop ]
 
     generateQueue = return
-      [typeDecl (dHead "Queue") (tyApp (qTyCon "Q" "MaxQueue") (tyCon "Fact"))]
+      [typeDecl (dHead "Queue") (tyApp (qTyCon "Q" "MaxQueue") (tyCon "Continuation"))]

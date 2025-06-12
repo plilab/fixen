@@ -10,7 +10,7 @@ data Program = Program
   , imports    :: [Import]
   , dataDefs   :: [DataDef]
   , signatures :: [Signature]
-  , rules      :: [(Maybe Identifier, RuleClause)]
+  , rules      :: [(Identifier, RuleClause)]
   , priorities :: [PriorityClause]
   , querries   :: [ModalDef]
   } deriving (Show)
@@ -28,4 +28,4 @@ instance Pretty Program where
     , "ords" <+> align (vsep . map pretty $ priorities program)
     , "queries" <+> align (vsep . map pretty $ querries program)
     ]
-    where prettyPair (name, rule) = maybe "_" pretty name <+> "=" <+> pretty rule
+    where prettyPair (name, rule) = pretty name <+> "=" <+> pretty rule

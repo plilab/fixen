@@ -21,10 +21,10 @@ initState = (M.empty, S.empty)
 generateUniqueNames :: Program -> Program
 generateUniqueNames prog = prog { rules = makeUniqueNames $ rules prog  }
 
-makeUniqueNames :: [(Maybe Identifier, RuleClause)] -> [(Maybe Identifier, RuleClause)]
+makeUniqueNames :: [(Identifier, RuleClause)] -> [(Identifier, RuleClause)]
 makeUniqueNames ruls = evalState (go ruls) initState
   where
-    go :: [(Maybe Identifier, RuleClause)] -> Env [(Maybe Identifier, RuleClause)]
+    go :: [(Identifier, RuleClause)] -> Env [(Identifier, RuleClause)]
     go = mapM $ \(name, r) -> do
       res <- goRule r
       incState

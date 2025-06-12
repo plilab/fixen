@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# LANGUAGE TupleSections #-}
 module Compiler.Compactify ( compactify ) where
 
 import Common.Util
@@ -9,8 +11,11 @@ import Syntax.Common
 import qualified Syntax.Sorted as P
 import Syntax.Compact
 import Prettyprinter
+import Data.Functor.Compose (Compose(Compose))
+import Data.List (nub)
 
-data UnordRule = UnordRule { premises :: S.HashSet (Assumption Var), __ :: Conclusion Var }
+type ContRuleClause = Rule (Assumption Var) ContinuationFact
+data UnordRule = UnordRule { premises :: S.HashSet (Assumption Var), __ :: ContinuationFact }
 
 instance Show UnordRule where
   show = show . toRuleClause
@@ -18,10 +23,10 @@ instance Show UnordRule where
 instance Pretty UnordRule where
   pretty = pretty . toRuleClause
 
-fromRuleClause :: RuleClause -> UnordRule
+fromRuleClause :: ContRuleClause -> UnordRule
 fromRuleClause (Rule prems c) = UnordRule (S.fromList prems) c
 
-toRuleClause :: UnordRule -> RuleClause
+toRuleClause :: UnordRule -> ContRuleClause
 toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
 
 unrollRule :: UnordRule -> ImplicitRuleTree
@@ -30,12 +35,7 @@ unrollRule (UnordRule prems concl) =
     (\p rt -> Branch p [rt])
     (Result concl)
   prems
-{-
-type Assump' = Compose Assumption FreezableVar
 
-t :: Assump'
-traverse f t 
--}
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
 factorPremise :: Assumption Var -> [UnordRule] -> (Assumption Var, [UnordRule])
 factorPremise commonPremise rules =
@@ -81,7 +81,7 @@ factorPremise commonPremise rules =
   wanna do
   => keep merging the tree until you cant any more
 -}
-buildRuleForest :: [RuleClause] -> ImplicitRuleForest
+buildRuleForest :: [ContRuleClause] -> ImplicitRuleForest
 buildRuleForest rules =
   let
     urules = map fromRuleClause rules
@@ -97,14 +97,28 @@ buildRuleForest rules =
     mkBranch (assump, rule) = Branch assump (map unrollRule rule)
     mkResult (UnordRule _ cs) = Result cs
 
+continuationalize :: [Signature] -> (Identifier, RuleClause) -> ((Identifier, Continuation Var), ContRuleClause)
+continuationalize signs (name, Rule prems concl) = let
+  ctx  = nub $ concatMap collectBindings prems
+  cont = Cont ctx concl
+  rul' = Rule prems $ Proposition name (Variable . fst <$> ctx)
+  in ((name, cont), rul')
+  where
+    collectBindings (Compose (Proposition p args)) = 
+      mapMaybe
+        (\(arg, typ) -> (,typ) . getName <$> getId arg) 
+        (zip args $ lookupSignature p signs)
+
 compactify :: P.Program -> ImplicitCompactProgram
 compactify program =
-  Compact
-    { moduleDecl = P.moduleDecl program
-    , imports    = P.imports program
-    , dataDefs   = P.dataDefs program
-    , signatures = P.signatures program
-    , ruleForest = buildRuleForest . map snd $ P.rules program
-    , priorities =   P.priorities program
-    , querries   = P.querries program
+  let continuationalized = continuationalize (P.signatures program) <$> P.rules program
+  in Compact
+    { moduleDecl    = P.moduleDecl program
+    , imports       = P.imports program
+    , dataDefs      = P.dataDefs program
+    , signatures    = P.signatures program
+    , ruleForest    = buildRuleForest . map snd $ continuationalized
+    , continuations = M.fromList . map fst $ continuationalized
+    , priorities    = P.priorities program
+    , querries      = P.querries program
     }
