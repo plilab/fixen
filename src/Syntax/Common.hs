@@ -65,7 +65,7 @@ data Rule prem concl = Rule [prem] concl
 
 type RuleClause = Rule (Assumption Var) (Conclusion Var)
 
-data Instantiation = Instantiation Identifier [(Identifier, Identifier)]
+data Instantiation = Instantiation Identifier [(Var, Var)]
   deriving (Show, Eq)
 
 data ModalDef = ModalDef Identifier Identifier [Mode]

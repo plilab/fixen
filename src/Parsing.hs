@@ -69,8 +69,11 @@ expr' = choice [
 atomicExpr :: Parser RawAtomExpr
 atomicExpr =  try consExpr <|> try idExpr <|> try intExpr <|> strExpr{- boolExpr <|>  -}
 
+variable :: Parser Var
+variable = Variable <$> identifier
+
 idExpr :: Parser RawAtomExpr
-idExpr = Id . Variable <$> identifier
+idExpr = Id <$> variable
 
 intExpr :: Parser RawAtomExpr
 intExpr = Ground . LInt <$> number
@@ -168,11 +171,9 @@ priorityDecl = let
 instantiation :: Parser Instantiation
 instantiation = do
   name <- identifier
-  let assigned = (,) <$> identifier <* char '=' <*> identifier
+  let assigned = (,) <$> variable <* char '=' <*> variable
   insts <- between (char '{') (char '}') (commaSep assigned)
-  if null insts
-  then fail "empty instantiation"
-  else return $ Instantiation name insts
+  return $ Instantiation name insts
 
 queryDecl :: Parser Declaration
 queryDecl = do

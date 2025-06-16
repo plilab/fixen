@@ -220,3 +220,6 @@ litToPat (LString s) = PLit () (Signless ()) $ H.String () s (show s)
 atomExprToPat :: (NamedVariable v) => AtomExpr v -> Pat ()
 atomExprToPat (Id v) = pVar $ getName v
 atomExprToPat (Ground l) = litToPat l
+
+varToPVar :: NamedVariable v => v -> Pat ()
+varToPVar = pVar . getName

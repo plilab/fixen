@@ -57,7 +57,7 @@ factorPremise commonPremise rules =
                   factoring (correct):
                     Q a |- P a b |- Q b |- R b
                         |- P b a |- Q a |- R a
-                  without the wapping the factoring would become:
+                  without the swapping the factoring would become:
                     Q a |- P a b |- Q b |- R b
                         |- P a a |- Q a |- R a
             -}
@@ -101,12 +101,12 @@ continuationalize :: [Signature] -> (Identifier, RuleClause) -> ((Identifier, Co
 continuationalize signs (name, Rule prems concl) = let
   ctx  = nub $ concatMap collectBindings prems
   cont = Cont ctx concl
-  rul' = Rule prems $ Proposition name (Variable . fst <$> ctx)
+  rul' = Rule prems $ Proposition name (fst <$> ctx)
   in ((name, cont), rul')
   where
     collectBindings (Compose (Proposition p args)) = 
       mapMaybe
-        (\(arg, typ) -> (,typ) . getName <$> getId arg) 
+        (\(arg, typ) -> (,typ) <$> getId arg) 
         (zip args $ lookupSignature p signs)
 
 compactify :: P.Program -> ImplicitCompactProgram

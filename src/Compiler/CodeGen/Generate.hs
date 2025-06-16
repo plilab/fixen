@@ -335,15 +335,17 @@ generateFact = do
   where
     mkEvalCase (rulName, Cont ctx (Compose (Proposition pName args))) =
       match (ident "evaluate")
-        [pApp (contCon rulName) (map (pVar . fst) ctx)]
+        [pApp (contCon rulName) (map (varToPVar . fst) ctx)]
         . app (var $ factCon pName)
           $ apps (var pName) (exprToExp <$> args)
     mkContFactDecl (name, Cont ctx _) = unqualConDecl (contCon name) (map (concrete . snd) ctx)
     mkFactCase name = unqualConDecl (factCon name) [tyCon name]
-    mkLeqCase _ (FactPriority (Rule assumps (OrdHead f1 f2))) =
-      match (sym "<=")
-        [ pApp "Initial" [pApp (factCon $ headSymbolOf f1) (map atomExprToPat $ argumentsOf f1)]
-        , pApp "Initial" [pApp (factCon $ headSymbolOf f2) (map atomExprToPat $ argumentsOf f2)]
+    mkLeqCase _ (FactPriority (Rule assumps (OrdHead f1 f2))) = let
+        (Compose (Proposition name1 args1)) = f1
+        (Compose (Proposition name2 args2)) = f2
+      in match (sym "<=")
+        [ pApp "Initial" [pApp (factCon name1) [pApp name1 (map atomExprToPat args1)]]
+        , pApp "Initial" [pApp (factCon name1) [pApp name2 (map atomExprToPat args2)]]
         ]
         (mkAssumps assumps)
     mkLeqCase conts (RulePriority (Rule assumps (OrdHead inst1 inst2))) =
@@ -357,7 +359,7 @@ generateFact = do
         vars = map fst (context cont)
       in pApp
         (contCon name)
-        (map (maybe pWildCard pVar . (`lookup` binds)) vars)
+        (map (maybe pWildCard varToPVar . (`lookup` binds)) vars)
     mkAssumps assumps = foldr1Default (infixApp (sym "&&")) (con "True") (map exprToExp assumps)
     elseLeqCase = match (sym "<=") [pWildCard, pWildCard] (con "False")
 

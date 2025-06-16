@@ -39,7 +39,7 @@ type ExplicitRuleForest = RuleForest CAssumption CVar
 type ExplicitCompactProgram = CompactProgram CAssumption CVar
 
 data Continuation v = Cont
-  { context    :: [(Identifier, TypeExpr)]
+  { context    :: [(Var, TypeExpr)]
   , conclusion :: Conclusion v
   } deriving (Show)
 
