@@ -106,10 +106,12 @@ argumentsOf = arguments . getCompose
 type PropositionOf = Compose Proposition
 
 type Assumption = PropositionOf AtomExpr
+{-# COMPLETE Assumption #-}
 pattern Assumption :: Identifier -> [AtomExpr a] -> Assumption a
 pattern Assumption name args = (Compose (Proposition name args))
 
 type Conclusion = PropositionOf Expr
+{-# COMPLETE Conclusion #-}
 pattern Conclusion :: Identifier -> [Expr a] -> Conclusion a
 pattern Conclusion a b = Compose (Proposition a b)
 

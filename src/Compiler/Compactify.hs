@@ -11,7 +11,6 @@ import Syntax.Common
 import qualified Syntax.Sorted as P
 import Syntax.Compact
 import Prettyprinter
-import Data.Functor.Compose (Compose(Compose))
 import Data.List (nub)
 
 type ContRuleClause = Rule (Assumption Var) ContinuationFact
@@ -104,7 +103,7 @@ continuationalize signs (name, Rule prems concl) = let
   rul' = Rule prems $ Proposition name (fst <$> ctx)
   in ((name, cont), rul')
   where
-    collectBindings (Compose (Proposition p args)) = 
+    collectBindings (Assumption p args) = 
       mapMaybe
         (\(arg, typ) -> (,typ) <$> getId arg) 
         (zip args $ lookupSignature p signs)

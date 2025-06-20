@@ -333,7 +333,7 @@ generateFact = do
         )
     ]
   where
-    mkEvalCase (rulName, Cont ctx (Compose (Proposition pName args))) =
+    mkEvalCase (rulName, Cont ctx (Conclusion pName args)) =
       match (ident "evaluate")
         [pApp (contCon rulName) (map (varToPVar . fst) ctx)]
         . app (var $ factCon pName)
@@ -341,8 +341,8 @@ generateFact = do
     mkContFactDecl (name, Cont ctx _) = unqualConDecl (contCon name) (map (concrete . snd) ctx)
     mkFactCase name = unqualConDecl (factCon name) [tyCon name]
     mkLeqCase _ (FactPriority (Rule assumps (OrdHead f1 f2))) = let
-        (Compose (Proposition name1 args1)) = f1
-        (Compose (Proposition name2 args2)) = f2
+        (Assumption name1 args1) = f1
+        (Assumption name2 args2) = f2
       in match (sym "<=")
         [ pApp "Initial" [pApp (factCon name1) [pApp name1 (map atomExprToPat args1)]]
         , pApp "Initial" [pApp (factCon name1) [pApp name2 (map atomExprToPat args2)]]
