@@ -1,5 +1,9 @@
-{-# OPTIONS_GHC -Wno-missing-export-lists #-}
-module Compiler.Compile where
+module Compiler.Compile (
+  compile, compileWith,
+  compileStr, compileStrWith,
+  compileDebug,
+  generateTree
+) where
 
 import Compiler.CodeGen.Generate ( generateProgram )
 import Compiler.Compactify ( compactify )
@@ -16,7 +20,6 @@ import Syntax.Raw (RawProgram)
 
 type SourcePath = FilePath
 type DestPath = FilePath
-type GeneratedCode = String
 type Debug = Bool
 
 compile :: FilePath -> FilePath -> IO ()
