@@ -30,7 +30,7 @@ sortRawProgram (RawProgram modName decls) =
         (Qry q) -> return prog { querries = sortQry q : querries prog }
 
 sortSignature :: Signature -> Signature
-sortSignature (Signature name typs) = Signature (capitalize name) typs
+sortSignature (Signature name typs compl) = Signature (capitalize name) typs compl
 
 {- we wanna sort out whats a rel and whats a function, 
     probably move this to a later pass -}

@@ -138,8 +138,11 @@ relDecl :: Parser Declaration
 relDecl = do
   void $ string "rel"
   name <- identifier
-  relType <- optional (char ':' *> typeExprList)
-  return . Rel $ Signature name (fromMaybe [] relType)
+  sign <- optional $ do
+    typ <- char ':' *> typeExprList
+    compl <- optional (between (char '[') (char ']') identifier)
+    return (typ, compl)
+  return . Rel $ uncurry (Signature name) (fromMaybe ([], Nothing) sign)
 
 typeExprList :: Parser [TypeExpr]
 typeExprList = commaSep typeExpr

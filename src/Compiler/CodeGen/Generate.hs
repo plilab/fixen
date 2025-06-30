@@ -22,7 +22,7 @@ import Language.Haskell.Exts
       ModuleHead(ModuleHead),
       ModuleName(ModuleName),
       ModulePragma(LanguagePragma, OptionsPragma),
-      Exp, Alt, Pat, Tool (GHC) )
+      Exp, Alt, Pat, Tool (GHC), Match () )
 import Syntax.Common
 import Syntax.Compact
 import Common.Util (substituteAll)
@@ -33,6 +33,7 @@ data Env = Env {
   currentVarIds   :: HashMap Identifier Identifier,   -- locally used names for initial identifiers
   currentQueueVar :: Identifier,                      -- locally used name for the current queue state
   indexedSigns    :: HashMap Identifier IndexedSign,  -- explicit partitioning relations' arguments into discrete and ordered ones
+  completions     :: HashMap Identifier Identifier,
   debugMode       :: Bool
 }
 
@@ -40,17 +41,26 @@ data IndexedSign
   = Indexed (NonEmpty TypeExpr) (NonEmpty TypeExpr)
   | Ordered (NonEmpty TypeExpr)
   | Discrete [TypeExpr]
+  deriving Show
+
+partitionByIndex :: IndexedSign -> [a] -> ([a], [a])
+partitionByIndex (Indexed is _) as = splitAt (length is) as
+partitionByIndex (Ordered _)    as = ([], as)
+partitionByIndex (Discrete _)   as = (as, [])
 
 initEnv :: ExplicitCompactProgram -> Bool -> Env
-initEnv p@Compact { signatures } = Env p (toMap signatures) M.empty "q" (computeIndexed signatures)
+initEnv p@Compact { signatures } =
+    Env p (toMap signatures) M.empty "q" indexedSigns completions
   where
     toMap = M.fromList . map (\s -> (relName s, paramTypes s))
-    computeIndexed = M.fromList . map (\s -> (relName s, toIndexedSign . span isDiscrete $ paramTypes s))
+    indexedSigns = M.fromList $
+      map (\s -> (relName s, toIndexedSign . span isDiscrete $ paramTypes s)) signatures
     isDiscrete (TVar _) = False
     isDiscrete _        = True
     toIndexedSign (ts, [])   = Discrete ts
     toIndexedSign ([], t:ts) = Ordered $ t :| ts
     toIndexedSign (t:ts, u:us) = Indexed (t :| ts) (u :| us)
+    completions = M.fromList $ mapMaybe (\s -> (relName s,) <$> completion s) signatures
 
 type CodeGen = ReaderT Env IO
 
@@ -62,6 +72,11 @@ withQueueVar v = local (\ nv -> nv { currentQueueVar = v })
 
 withVarIds :: HashMap Identifier Identifier -> CodeGen a -> CodeGen a
 withVarIds vids = local (\ nv -> nv { currentVarIds = vids })
+
+packedValues :: [Exp ()] -> Exp ()
+packedValues []  = unit
+packedValues [x] = x
+packedValues xs  = tuple xs
 
 {-
   assumes that the database variable is called "db"
@@ -352,7 +367,7 @@ generateRelations =  do
     parensLeq x y = paren $ infixApp (ident "leq") (var x) (var y)
 
     generateRel :: Signature -> CodeGen [Decl ()]
-    generateRel (Signature name typs) = do
+    generateRel (Signature name typs _) = do
       -- vars for each parameter
       let patVars1 = idsTo (length typs)
       let patVars2 = prime <$> patVars1
@@ -387,6 +402,7 @@ generateFact = do
   names <- asks $ map relName . signatures . program
   conts <- asks $ continuations . program
   ords  <- asks $ priorities . program
+  evalCases <- mapM mkEvalCase (M.toList conts)
   return
     -- Fact type declaration
     [ dataDecl "Fact" (map mkFactCase names) [derivingList ["Show", "Eq"]]
@@ -396,10 +412,10 @@ generateFact = do
           map mkContFactDecl (M.toList conts) )
         [derivingList ["Show", "Eq"]]
     -- declare continuation evaluation function
-    , typeSig (ident "evaluate") (tyFun (tyCon "Continuation") (tyCon "Fact"))
+    , typeSig (ident "evaluate") (tyFuns [tyCon "DataBase", tyCon "Continuation"] (tyList $ tyCon "Fact"))
     , funBind
-        $ match (ident "evaluate") [pApp "Initial" [pVar "f"]] (var "f")
-        : map mkEvalCase (M.toList conts)
+        $ match (ident "evaluate") [pWildCard, pApp "Initial" [pVar "f"]] (list [var "f"])
+        : evalCases
     -- instance Ord Continuation
     , instDecl
         (iHApp (iHCon "Ord") "Continuation")
@@ -413,11 +429,32 @@ generateFact = do
         )
     ]
   where
-    mkEvalCase (rulName, Cont ctx (Conclusion pName args)) =
-      match (ident "evaluate")
-        [pApp (contCon rulName) (map (varToPVar . fst) ctx)]
-        . app (var $ factCon pName)
-          $ apps (var pName) (exprToExp <$> args)
+    mkEvalCase :: NamedVariable v => (Identifier, Continuation v) -> CodeGen (Match ()) 
+    mkEvalCase (rulName, Cont ctx (Conclusion pName args)) = do
+      maybeCompletionName <- asks $ M.lookup pName . completions
+      indexSign           <- asks $ (M.! pName) . indexedSigns
+      return .
+        match (ident "evaluate")
+          [pVar "db", pApp (contCon rulName) (map (varToPVar . fst) ctx)] $
+            case maybeCompletionName of
+              Just completionName ->
+                let
+                  (discreteArgs, orderedArgs) =
+                    partitionByIndex indexSign (exprToExp <$> args)
+                in apps (var completionName)
+                    [ infixApp (sym ".")
+                        (var $ factCon pName)
+                        (apps (var pName) discreteArgs)
+                    , packedValues orderedArgs
+                    , apps (qvar "M" "lookupDefault")
+                      [ qvar "S" "empty"
+                      , packedValues discreteArgs
+                      , dbProj pName
+                      ]
+                    ]
+              Nothing -> 
+                list [app (var $ factCon pName)
+                        $ apps (var pName) (exprToExp <$> args)]
     mkContFactDecl (name, Cont ctx _) = unqualConDecl (contCon name) (map (concrete . snd) ctx)
     mkFactCase name = unqualConDecl (factCon name) [tyCon name]
     mkLeqCase _ (FactPriority (Rule assumps (OrdHead f1 f2))) = let
@@ -473,9 +510,6 @@ generateDB = do
     mkType [t] = concrete t
     mkType ts  = tyTuple . map concrete $ ts
     mkType' = mkType . NE.toList
-    mkValue []  = unit
-    mkValue [x] = x
-    mkValue xs  = tuple xs
     -- different DB representations depending on the kind of predicate
     -- the goal is to index on discrete fields
     --mkEmpty Nullary   = con "False"
@@ -509,10 +543,10 @@ generateDB = do
           (map var args)
     mkAlt (name, Indexed ds cs) =
       let discNames = idsTo $ length ds
-          discKey  = mkValue $ map var discNames
+          discKey  = packedValues $ map var discNames
           ordNames = idsFromToCount (length ds) (length cs)
           ordVars  = map var ordNames
-          ordVal   = mkValue ordVars
+          ordVal   = packedValues ordVars
       in mkCasePattern name (discNames ++ ordNames) $
         ifThenElse
           (apps (qvar "M" "member") [discKey, dbProj name])
@@ -536,7 +570,7 @@ generateDB = do
     mkAlt (name, Discrete ts) =
       let varNames = idsTo $ length ts
           vars = map var varNames
-          rowVal = mkValue vars
+          rowVal = packedValues vars
       in mkCasePattern name varNames $
         ifThenElse
           (apps (qvar "S" "member") [rowVal, dbProj name])
@@ -575,7 +609,7 @@ generateDB = do
           paren $
             apps (var "update") [
               proj,
-              mkValue ordVars
+              packedValues ordVars
             ]
         ]
 
@@ -583,7 +617,7 @@ generateDebugDefs :: CodeGen [Decl ()]
 generateDebugDefs = do
   dbg <- asks debugMode
   if dbg then
-    return traceConclusionDef
+    return $ traceConclusionDef ++ tracePoppedDef
   else return []
 
 generateProgram :: Bool -> ExplicitCompactProgram -> IO (H.Module ())

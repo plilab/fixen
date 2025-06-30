@@ -52,8 +52,11 @@ data LatticeDef =
 -}
 {- rel distTo: Ver, Dist
     Signature "distTo" ["Ver", "Dist"] -}
-data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
-  deriving (Eq, Show)
+data Signature = Signature 
+  { relName :: Identifier
+  , paramTypes :: [TypeExpr]
+  , completion :: Maybe Identifier
+  } deriving (Eq, Show)
 
 lookupSignature :: Identifier -> [Signature] -> [TypeExpr]
 lookupSignature name = foldr
@@ -371,11 +374,12 @@ instance Pretty DataDef where
     "data" <+> pretty name
 
 instance Pretty Signature where 
-  pretty (Signature name types) =
-    pretty name <> 
-      if null types 
-      then mempty 
-      else ":" <+> prettyCommaSep (map pretty types)
+  pretty (Signature name types compl) =
+    pretty name 
+    <> if null types 
+       then mempty 
+       else ":" <+> prettyCommaSep (map pretty types)
+    <> maybe mempty (enclose "[" "]" . pretty) compl
 
 instance (Pretty a, Pretty b) => Pretty (Rule a b) where
   pretty (Rule lhs rhs) =
