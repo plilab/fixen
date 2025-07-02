@@ -286,8 +286,8 @@ generateRuleForest = do
           -- since we are filtering with respect to currently bound variables
       let args' = substituteConstrained currVarIds <$> args
           -- in the pattern we use the new identifiers which used in the body
-          patVars = mapMaybe (
-              fmap (pVar . getCVar)
+          patVars = map (
+              maybe pWildCard (pVar . getCVar)
               . getId
               . substituteCVar newVarIds
             ) args
