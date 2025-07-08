@@ -30,13 +30,13 @@ data RuleTree assump a
 newtype RuleForest assump a = RF { getTrees :: [RuleTree assump a] }
   deriving (Show)
 
-type ImplicitRuleTree   = RuleTree Assumption Var
-type ImplicitRuleForest = RuleForest Assumption Var
-type ImplicitCompactProgram = CompactProgram Assumption Var
+type ImplicitRuleTree   = RuleTree Premise Var
+type ImplicitRuleForest = RuleForest Premise Var
+type ImplicitCompactProgram = CompactProgram Premise Var
 
-type ExplicitRuleTree   = RuleTree CAssumption CVar
-type ExplicitRuleForest = RuleForest CAssumption CVar
-type ExplicitCompactProgram = CompactProgram CAssumption CVar
+type ExplicitRuleTree   = RuleTree CPremise CVar
+type ExplicitRuleForest = RuleForest CPremise CVar
+type ExplicitCompactProgram = CompactProgram CPremise CVar
 
 data Continuation v = Cont
   { context    :: [(Var, TypeExpr)]

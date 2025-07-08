@@ -1,0 +1,8 @@
+module BooleanCondition.BooleanCondition where
+
+rel my_relation: Int
+rel testing_relation: String
+
+rule test_rule: my_relation n1, if (n1 > 5) |- testing_relation "Success"
+
+query testing_relation as testing_relation +

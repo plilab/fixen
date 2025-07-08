@@ -37,15 +37,19 @@ explicateTrees = mapM go
         ts' <- local (const seenVars) $ mapM go ts
         return $ Branch p' ts'
 
-explicateAssumption :: Assumption Var -> ExplicationState (CAssumption CVar)
-explicateAssumption assump = do
+explicateAssumption :: Premise Var -> ExplicationState (CPremise CVar)
+explicateAssumption (PremiseAssumption assump) = do
   -- explicate external dependencies
   assump' <- mapM explicateId assump
   -- explicate internal dependencies
   let (assump'', eqs) = runState (mapM explicateEqualities assump') M.empty
   -- clean up the eqs: remove singleton mappings
       eqs' = M.filter ((> 1) . S.size) eqs
-  return $ CAssumption assump'' eqs'
+  return $ CPremiseAssumption (CAssumption assump'' eqs')
+explicateAssumption (PremiseCondition cond) = do
+  cond' <- mapM explicateId cond
+  return $ CPremiseCondition (CCondition cond')
+
 
 explicateId :: Var -> ExplicationState CVar
 explicateId name = do

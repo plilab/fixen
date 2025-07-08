@@ -5,6 +5,8 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE GADTs #-}
 module Syntax.Common where
 
 import Algebra.PartialOrd
@@ -60,10 +62,19 @@ lookupSignature name = foldr
   (\sign other -> if relName sign == name then paramTypes sign else other)
   (error $ "signature lookup failed for " ++ name)
 
+newtype Condition v = Condition (Expr v)
+  deriving (Show, Eq, Functor, Generic)
+
+data Premise v = PremiseAssumption (Assumption v)
+  | PremiseCondition (Condition v)
+  deriving (Show, Eq, Functor, Generic)
+
+-- data Premise v = Either (Assumption v) (Condition v)
+
 data Rule prem concl = Rule [prem] concl
   deriving (Show, Functor)
 
-type RuleClause = Rule (Assumption Var) (Conclusion Var)
+type RuleClause = Rule (Premise Var) (Conclusion Var)
 
 data Instantiation = Instantiation Identifier [(Var, Var)]
   deriving (Show, Eq)
@@ -155,6 +166,14 @@ getAtomName = fmap getCVar . getId
 
 type Constraints = M.HashMap Identifier (S.HashSet Identifier)
 
+data CPremise a = CPremiseAssumption (CAssumption a)
+  | CPremiseCondition (CCondition a)
+  deriving (Show, Functor)
+
+newtype CCondition a = CCondition {
+  condition :: Condition a
+} deriving (Show, Functor)
+
 data CAssumption a = CAssumption { 
   assumption :: Assumption a,
   constraints :: Constraints
@@ -209,6 +228,21 @@ instance Traversable CAssumption where
   traverse f (CAssumption assump eqs) =
     CAssumption <$> traverse f assump <*> pure eqs
 
+instance Foldable Condition where
+  foldr f z (Condition expr) = foldr f z expr
+
+instance Traversable Condition where
+  traverse f (Condition expr) = Condition <$> traverse f expr
+
+instance Foldable Premise where
+  foldr f z (PremiseAssumption assump) = foldr f z assump
+  foldr f z (PremiseCondition cond) = foldr f z cond 
+
+instance Traversable Premise where
+  traverse :: Applicative f => (a -> f b) -> Premise a -> f (Premise b)
+  traverse f (PremiseAssumption assump) = PremiseAssumption <$> traverse f assump
+  traverse f (PremiseCondition cond) = PremiseCondition <$> traverse f cond
+
 instance Foldable AtomExpr where
   foldr f e aex = case aex of
     (Id a) -> f a e
@@ -221,6 +255,13 @@ instance Traversable AtomExpr where
     (Ground l) -> pure $ Ground l
 
 instance Hashable a => Hashable (AtomExpr a)
+
+instance Hashable v => Hashable (Condition v) where
+  hash (Condition expr) = hash expr
+
+instance Hashable v => Hashable (Premise v) where
+  hash (PremiseAssumption assump) = hash assump
+  hash (PremiseCondition cond)    = hash cond
 
 instance Foldable Expr where
   -- collects variables left to right into a list and folds over it
@@ -305,6 +346,15 @@ instance Show TypeExpr where
 {- pretty instances for common syntax -}
 instance (Pretty (f (g a))) => Pretty (Compose f g a) where
   pretty = pretty . getCompose
+
+instance (Pretty a) => Pretty (Condition a) where
+  pretty (Condition expr) = "if (" <> pretty expr <> ")"
+
+instance (Pretty a) => Pretty (Premise a) where
+  pretty (PremiseAssumption assump) =
+    pretty assump
+  pretty (PremiseCondition cond) =
+    pretty cond
 
 instance Pretty Literal where
   pretty (LInt n) = pretty n

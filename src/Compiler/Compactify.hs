@@ -14,8 +14,8 @@ import Prettyprinter
 import Data.Functor.Compose (Compose(Compose))
 import Data.List (nub)
 
-type ContRuleClause = Rule (Assumption Var) ContinuationFact
-data UnordRule = UnordRule { premises :: S.HashSet (Assumption Var), __ :: ContinuationFact }
+type ContRuleClause = Rule (Premise Var) ContinuationFact
+data UnordRule = UnordRule { premises :: S.HashSet (Premise Var), __ :: ContinuationFact }
 
 instance Show UnordRule where
   show = show . toRuleClause
@@ -37,7 +37,7 @@ unrollRule (UnordRule prems concl) =
   prems
 
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
-factorPremise :: Assumption Var -> [UnordRule] -> (Assumption Var, [UnordRule])
+factorPremise :: Premise Var -> [UnordRule] -> (Premise Var, [UnordRule])
 factorPremise commonPremise rules =
   let
     factored = rules >>= \(UnordRule prems c) -> do
@@ -65,7 +65,8 @@ factorPremise commonPremise rules =
           where
             oldNames = idArgs premise'
             newNames = idArgs commonPremise
-            idArgs = mapMaybe getId . argumentsOf
+            idArgs (PremiseAssumption assump) = (mapMaybe getId . argumentsOf) assump
+            idArgs (PremiseCondition _) = []
         -- rename rule's variables such that the premise becomes equal to `commonPremise`
         prems'' = S.map (substituteAll renaming) prems'
         c' = substituteAll renaming c
@@ -104,10 +105,13 @@ continuationalize signs (name, Rule prems concl) = let
   rul' = Rule prems $ Proposition name (fst <$> ctx)
   in ((name, cont), rul')
   where
-    collectBindings (Compose (Proposition p args)) = 
+    -- | (id, type)
+    collectBindings (PremiseAssumption (Compose (Proposition p args))) = 
       mapMaybe
         (\(arg, typ) -> (,typ) <$> getId arg) 
         (zip args $ lookupSignature p signs)
+    collectBindings (PremiseCondition _) = []
+    
 
 compactify :: P.Program -> ImplicitCompactProgram
 compactify program =

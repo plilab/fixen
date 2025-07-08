@@ -171,44 +171,49 @@ generateRuleForest = do
 
     generateTree :: Maybe (Exp ()) -> ExplicitRuleTree -> CodeGen (Exp ())
     generateTree _ (Result cs) = generateConclusion cs
-    generateTree dataExp (Branch cAssump rts) = do
+    generateTree dataExp (Branch cPrem rts) = do
       currVarIds <- asks currentVarIds
-      let (CAssumption assump eqSets) = cAssump
-          name = headSymbolOf assump
-          args = argumentsOf assump
-          varNames = mapMaybe getAtomName args
-      newVarIds <- foldM (\rest vName ->
-        if M.member vName currVarIds then do
-          freshName <- fresh (currVarIds M.! vName)
-          return $ M.insert vName freshName rest
-        else
-          return $ M.insert vName vName rest
-        ) currVarIds varNames
-          -- we use the current identifiers for the filter expression
-          -- since we are filtering with respect to currently bound variables
-      let args' = substituteConstrained currVarIds <$> args
-          -- in the pattern we use the new identifiers which used in the body
-          patVars = mapMaybe (
-              fmap (pVar . getCVar)
-              . getId
-              . substituteCVar newVarIds
-            ) args
-      qv <- freshQueueVar
-      rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
-      factPat <- mkFactPat (pApp name patVars)
-      filterExp <- paren <$>
-        generateFilterExp name args' eqSets (
-          fromMaybe (dbProj name) dataExp
-        )
-      return $
-        apps (var "foldl'") [
-          paren $ lambda
-            [ pVar qv,
-              factPat ]
-            rtsExp,
-          qvar "Q" "empty",
-          filterExp
-        ]
+      case cPrem of
+        CPremiseAssumption (CAssumption assump eqSets) -> do
+          let name = headSymbolOf assump
+              args = argumentsOf assump
+              varNames = mapMaybe getAtomName args
+          newVarIds <- foldM (\rest vName ->
+            if M.member vName currVarIds then do
+              freshName <- fresh (currVarIds M.! vName)
+              return $ M.insert vName freshName rest
+            else
+              return $ M.insert vName vName rest
+            ) currVarIds varNames
+              -- we use the current identifiers for the filter expression
+              -- since we are filtering with respect to currently bound variables
+          let args' = substituteConstrained currVarIds <$> args
+              -- in the pattern we use the new identifiers which used in the body
+              patVars = mapMaybe (
+                  fmap (pVar . getCVar)
+                  . getId
+                  . substituteCVar newVarIds
+                ) args
+          qv <- freshQueueVar
+          rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
+          factPat <- mkFactPat (pApp name patVars)
+          filterExp <- paren <$>
+            generateFilterExp name args' eqSets (
+              fromMaybe (dbProj name) dataExp
+            )
+          return $
+            apps (var "foldl'") [
+              paren $ lambda
+                [ pVar qv,
+                  factPat ]
+                rtsExp,
+              qvar "Q" "empty",
+              filterExp
+            ]
+        CPremiseCondition (CCondition cond) -> do
+          rtsExp <- generateTrees rts
+          return $ app (var "guard") (paren (exprToExp)) `infixApp` (sym ">>") rtsExp
+
     --substituteCVar :: (Functor f, Hashable a) => M.HashMap a a -> f (ConstrainedVar a) -> f (ConstrainedVar a)
     substituteCVar env = getCompose . substituteAll env . Compose --fmap (liftCVar (env M.!))
     substituteConstrained env = fmap $ \case

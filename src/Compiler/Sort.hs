@@ -34,13 +34,17 @@ sortSignature (Signature name typs) = Signature (capitalize name) typs
 
 {- we wanna sort out whats a rel and whats a function, 
     probably move this to a later pass -}
-sortRule :: Rule (PropositionOf e1 Var) (PropositionOf e2 Var)
-         -> Rule (PropositionOf e1 Var) (PropositionOf e2 Var)
-sortRule (Rule prems concl) = Rule (sortProp <$> prems) (sortProp concl)
+sortRule :: Rule (Premise Var) (PropositionOf e2 Var)
+         -> Rule (Premise Var) (PropositionOf e2 Var)
+sortRule (Rule prems concl) = Rule (sortPremise <$> prems) (sortProp concl)
 
 sortPriority :: PriorityClause -> PriorityClause
 sortPriority (RulePriority r) = RulePriority $ second (fmap sortInstantiation) r
 sortPriority (FactPriority r) = FactPriority $ second (fmap sortProp) r
+
+sortPremise :: Premise Var -> Premise Var
+sortPremise (PremiseAssumption assump) = PremiseAssumption (sortProp assump)
+sortPremise premiseCondition = premiseCondition
 
 sortProp :: PropositionOf e Var -> PropositionOf e Var
 sortProp (Compose (Proposition name args)) = 

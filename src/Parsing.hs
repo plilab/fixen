@@ -94,12 +94,15 @@ strExpr =
 brackExpr :: Parser RawExpr
 brackExpr = between (char '(') (char ')') expr
 
--- Parse a proposition (relation applied to expressions)
+-- | Parse a proposition (relation applied to expressions)
 proposition :: Parser (Conclusion Var)
 proposition = Conclusion <$> identifier <*> many expr'
 
 atomicProposition :: Parser (Assumption Var)
 atomicProposition = Assumption <$> identifier <*> many atomicExpr
+
+atomicBooleanCondition :: Parser (Condition Var)
+atomicBooleanCondition = Condition <$> brackExpr
 
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
@@ -123,12 +126,20 @@ parseRule pprems pconcl = do
   turnstyle
   Rule lhs <$> pconcl
 
+-- | Parse premises of a rule
+-- | Premises can either be atomic propositions or boolean conditions
+atomicPremise :: Parser (Premise Var)
+atomicPremise =
+  (PremiseAssumption <$> atomicProposition)
+  <|> (PremiseCondition <$> atomicBooleanCondition)
+
+-- | Parse a rule declaration 
 ruleDecl :: Parser Declaration
 ruleDecl = do
   void $ string "rule"
   name <- optional identifier
   void $ char ':'
-  body <- parseRule atomicProposition proposition
+  body <- parseRule atomicPremise proposition
   return $ Rul name body
 
 latDecl :: Parser Declaration
