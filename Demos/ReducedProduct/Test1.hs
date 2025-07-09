@@ -23,12 +23,10 @@ test :: [Fact]
 test = [
   -- V = 1
   mkVar 0 "V",
-  mkVar 1 "COND", mkSeq 0 1,
-  mkAssign 2 "V" (Num 1), mkSeq 1 2,
-  mkAssign 3 "COND" (Num 10), mkSeq 2 3,
+  mkAssign 1 "V" (Num 1), mkSeq 0 1,
   -- while V <= 10
-  mkCond 4 (Leq (Id "V") (Num 10)), 5, 6
-  mkAssign 5 "V" (Plus (Id "V") (Num 2)), mkSeq 4 5, mkSeq 5 4
+  mkCond 2 (Leq (Id "V") (Num 10)) 3 100, mkSeq 1 2,
+  mkAssign 3 "V" (Plus (Id "V") (Num 2)), mkSeq 3 2,
   -- end
-  mkVar 6 "END"
+  mkVar 100 "END"
   ]

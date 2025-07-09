@@ -38,6 +38,10 @@ instance MLB Interval where
     (Pair (a, b), Pair (c, d)) -> [if max a c <= min c d then Pair (max a c, min c d) else Bot]
     (_, _) -> [Bot]
 
+instance MLB Bool where
+  mlbs s1 s2  = [s1 && s2]
+
+
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr deriving (Eq, Show, Generic)
 
 instance Hashable Expr
@@ -73,10 +77,7 @@ eval e st = case e of
   -- Times e1 e2 -> case (eval e1 st, eval e2 st) of
   --   (Pair (a, b), Pair (c, d)) -> Pair (min ( a c) (a * d) (b * c) (b * d),  max(a * c) (a * d) (b * c) (b * d))
   --   (_, _) -> Bot
-  Leq e1 e2 -> case (eval e1 st, eval e2 st) of
-    -- Only handle the trivial case, it's enough for our demo.
-    (Pair (_, b), Pair (c, d)) -> Pair (c, min b d)
-    (_, _) -> Bot
+  Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
 
 evaluateConditional :: Expr -> State -> Bool
 evaluateConditional e st = case e of
@@ -84,4 +85,4 @@ evaluateConditional e st = case e of
     -- Only handle the trivial case, it's enough for our demo.
     (Pair (a, b), Pair (c, d)) -> a <= c && b <= d
     (_, _) -> False
-  _ -> False
+  _ -> error "Unexpected case"
