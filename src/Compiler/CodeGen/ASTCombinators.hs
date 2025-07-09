@@ -4,12 +4,17 @@ module Compiler.CodeGen.ASTCombinators where
 import Compiler.CodeGen.Util
 import Data.Foldable (foldl')
 import Language.Haskell.Exts
-    ( ConDecl(ConDecl, RecDecl),
+    ( Alt (Alt), 
+      Boxed (Boxed), 
+      Binds (BDecls), 
+      ConDecl(ConDecl, RecDecl),
       DataOrNew(DataType),
       Decl(FunBind, DataDecl, TypeDecl, InstDecl, PatBind, TypeSig),
       DeclHead(DHead),
       Deriving(..),
-      Exp(Paren, Var, Con, InfixApp, Tuple, Let, Case, Lambda, RecUpdate, List, Lit),
+      Exp(Paren, Var, Con, InfixApp, Tuple, Let, Case, Lambda, RecUpdate, List, Lit, If),
+      FieldDecl (FieldDecl),
+      FieldUpdate (FieldUpdate), 
       ImportDecl(ImportDecl),
       InstDecl(InsDecl),
       InstHead(IHApp, IHCon, IHParen),
@@ -17,13 +22,14 @@ import Language.Haskell.Exts
       Match(Match),
       ModuleName(ModuleName),
       Name(..),
-      Pat(PParen, PVar, PApp, PWildCard, PLit, PAsPat),
-      QName(UnQual, Qual),
+      Pat(PParen, PVar, PApp, PWildCard, PLit, PAsPat, PTuple),
+      QName(UnQual, Qual, Special),
       QOp(QVarOp),
       QualConDecl(..),
       Rhs(UnGuardedRhs),
       Sign(Signless),
-      Type(TyCon, TyApp, TyFun, TyTuple, TyList), Boxed (Boxed), Binds (BDecls), Alt (Alt), FieldUpdate (FieldUpdate), FieldDecl (FieldDecl) )
+      SpecialCon (UnitCon),
+      Type(TyCon, TyApp, TyFun, TyTuple, TyList) )
 import qualified Language.Haskell.Exts as H
 import Syntax.Common (TypeExpr(..), Literal (LInt, LBool, LString, LCons), Expr(..), AtomExpr(..), NamedVariable (getName))
 
@@ -48,6 +54,9 @@ qTyCon modname = TyCon () . qual modname . ident
 tyApp :: Type () -> Type () -> Type ()
 tyApp = TyApp ()
 
+tyApps :: Type () -> [Type ()] -> Type ()
+tyApps = foldl tyApp
+
 tyFun :: Type () -> Type () -> Type ()
 tyFun = TyFun ()
 
@@ -59,6 +68,9 @@ tyTuple = TyTuple () Boxed
 
 tyList :: Type () -> Type ()
 tyList = TyList ()
+
+tyUnit :: Type ()
+tyUnit = TyCon () . Special () $ UnitCon ()
 
 dHead :: String -> DeclHead ()
 dHead = DHead () . ident 
@@ -135,11 +147,20 @@ pWildCard = PWildCard ()
 pAsPat :: Name () -> Pat () -> Pat ()
 pAsPat = PAsPat ()
 
+pUnit :: Pat ()
+pUnit = PApp () (Special () $ UnitCon ()) []
+
+pTuple :: [Pat ()] -> Pat ()
+pTuple = PTuple () Boxed
+
 var :: String -> Exp ()
 var = Var () . unqual . ident
 
 qvar :: String -> String -> Exp ()
 qvar modul name = Var () (qual modul $ ident name)
+
+qsym :: String -> String -> Exp ()
+qsym modul name = Var () (qual modul $ sym name)
 
 con :: String -> Exp ()
 con = Con () . unqual . ident
@@ -168,6 +189,9 @@ letExp = Let () . BDecls ()
 caseExp :: Exp () -> [Alt ()] -> Exp ()
 caseExp = Case () 
 
+ifThenElse :: Exp () -> Exp () -> Exp () -> Exp ()
+ifThenElse = If ()
+
 alt :: Pat () -> Exp () -> Alt ()
 alt pat rhs = Alt () pat (UnGuardedRhs () rhs) Nothing
 
@@ -176,6 +200,9 @@ lambda = Lambda ()
 
 stringLit :: String -> Exp ()
 stringLit s = Lit () $ H.String () s (show s)
+
+unit :: Exp ()
+unit = Con () . Special () $ UnitCon ()
 
 recUpdate :: Exp () -> [FieldUpdate ()] -> Exp ()
 recUpdate = RecUpdate ()
@@ -187,15 +214,11 @@ fieldUpdate :: QName () -> Exp () -> FieldUpdate ()
 fieldUpdate = FieldUpdate ()
 
 dbProj :: String -> Exp ()
-dbProj relId = app (qvar "S" "toList") $ app (var $ dbProjId relId) (var "db")
+dbProj relId = app (var $ dbProjId relId) (var "db")
 
 concrete :: TypeExpr -> Type ()
 concrete (TVar v) = tyCon v
 concrete ty       = tyCon $ show ty
-
-{- liftPrimitiveOf :: TypeExpr -> Exp () -> Exp ()
-liftPrimitiveOf (TVar _) = id
-liftPrimitiveOf _        = app (con "D") -}
 
 exprToExp :: (NamedVariable v) => Expr v -> Exp ()
 exprToExp (App op args) = apps (var op) $ map exprToExp args

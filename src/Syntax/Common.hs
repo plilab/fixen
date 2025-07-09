@@ -52,8 +52,11 @@ data LatticeDef =
 -}
 {- rel distTo: Ver, Dist
     Signature "distTo" ["Ver", "Dist"] -}
-data Signature = Signature { relName :: Identifier, paramTypes :: [TypeExpr] }
-  deriving (Eq, Show)
+data Signature = Signature 
+  { relName :: Identifier
+  , paramTypes :: [TypeExpr]
+  , completion :: Maybe Identifier
+  } deriving (Eq, Show)
 
 lookupSignature :: Identifier -> [Signature] -> [TypeExpr]
 lookupSignature name = foldr
@@ -106,10 +109,12 @@ argumentsOf = arguments . getCompose
 type PropositionOf = Compose Proposition
 
 type Assumption = PropositionOf AtomExpr
+{-# COMPLETE Assumption #-}
 pattern Assumption :: Identifier -> [AtomExpr a] -> Assumption a
 pattern Assumption name args = (Compose (Proposition name args))
 
 type Conclusion = PropositionOf Expr
+{-# COMPLETE Conclusion #-}
 pattern Conclusion :: Identifier -> [Expr a] -> Conclusion a
 pattern Conclusion a b = Compose (Proposition a b)
 
@@ -369,11 +374,12 @@ instance Pretty DataDef where
     "data" <+> pretty name
 
 instance Pretty Signature where 
-  pretty (Signature name types) =
-    pretty name <> 
-      if null types 
-      then mempty 
-      else ":" <+> prettyCommaSep (map pretty types)
+  pretty (Signature name types compl) =
+    pretty name 
+    <> if null types 
+       then mempty 
+       else ":" <+> prettyCommaSep (map pretty types)
+    <> maybe mempty (enclose "[" "]" . pretty) compl
 
 instance (Pretty a, Pretty b) => Pretty (Rule a b) where
   pretty (Rule lhs rhs) =
