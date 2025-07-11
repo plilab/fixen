@@ -15,7 +15,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.HashSet as S
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NE
-import Data.Maybe (mapMaybe, catMaybes, isNothing)
+import Data.Maybe (mapMaybe, catMaybes, isNothing, fromMaybe)
 import qualified Language.Haskell.Exts as H (Module(Module))
 import Language.Haskell.Exts
     ( Decl,
@@ -88,7 +88,7 @@ packedValues xs  = tuple xs
   to the set of distinct mutually constrained variables in the `ExplicitRuleTree`
 -}
 generateFilterExp :: Identifier -> [AtomExpr CVar] -> Constraints -> Maybe (Exp ()) -> CodeGen (Exp ())
-generateFilterExp relId patExprs eqSets dataExp =
+generateFilterExp relId patExprs eqSets mbyDataExp =
   let
     enumerate = all isFirst patExprs && M.null eqSets
       where isFirst (Id (First _)) = True
@@ -98,11 +98,8 @@ generateFilterExp relId patExprs eqSets dataExp =
     mkPat []  = pUnit
     mkPat [x] = pVar x
     mkPat xs  = pTuple $ map pVar xs
-  in
-  case dataExp of
-    Just e  -> return e
-    Nothing ->
-      if enumerate then do
+    dataExp = fromMaybe (dbProj relId) mbyDataExp
+  in if enumerate then do
         indexSign <- asks $ (M.! relId) . indexedSigns
         let
           handleUnindexed params = do
@@ -114,7 +111,7 @@ generateFilterExp relId patExprs eqSets dataExp =
                       (apps (con relId) (var <$> vs))
                       (var "rest"))
                 , list []
-                , dbProj relId
+            , dataExp
                 ]
         (case indexSign of
           Discrete vs   -> handleUnindexed vs
@@ -143,7 +140,7 @@ generateFilterExp relId patExprs eqSets dataExp =
                     (var "rest")
                   )
               , list []
-              , dbProj relId 
+          , dataExp 
               ])
       else do
         -- fresh names for the lambda expression
@@ -216,7 +213,7 @@ generateFilterExp relId patExprs eqSets dataExp =
                             (list [var $ head ids])
                           (tail ids)
         return $
-          app filterExp (dbProj relId)
+      app filterExp dataExp
 
 generateRuleForest :: CodeGen [Decl ()]
 generateRuleForest = do
@@ -247,9 +244,23 @@ generateRuleForest = do
       if null trees then
         return Nothing
       else do
-        treeExps <- mapM (generateTree (Just . list $ [var currFact])) trees
-        qv <- asks currentQueueVar
-        factPat <- mkFactPat $ pVar currFact
+        {- TODO: fix up the dataExp -}
+        qv      <- asks currentQueueVar
+        types   <- asks $ (M.! name) . typeMap
+        patIds  <- mapM (const gensym) types
+        idxSign <- asks $ (M.! name) . indexedSigns
+        let
+          dataExp = case partitionByIndex idxSign patIds of
+            (keyIds, valIds) 
+              | null keyIds || null valIds -> 
+                app (qvar "S" "singleton") (packedValues $ var <$> patIds)
+              | otherwise -> 
+                apps (qvar "M" "singleton")
+                [ packedValues $ var <$> keyIds
+                , app (qvar "S" "singleton") (packedValues $ var <$> valIds)
+                ]
+        factPat <- mkFactPat (pApp name (pVar <$> patIds))
+        treeExps <- mapM (generateTree $ Just dataExp) trees
         return . Just $
           alt
             (pApp (factCon name) [factPat])
