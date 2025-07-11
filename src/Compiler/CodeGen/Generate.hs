@@ -33,7 +33,7 @@ data Env = Env {
   currentVarIds   :: HashMap Identifier Identifier,   -- locally used names for initial identifiers
   currentQueueVar :: Identifier,                      -- locally used name for the current queue state
   indexedSigns    :: HashMap Identifier IndexedSign,  -- explicit partitioning relations' arguments into discrete and ordered ones
-  completions     :: HashMap Identifier Identifier,
+  completions     :: HashMap Identifier Identifier,   -- mapping of relation names to the name of their completion
   debugMode       :: Bool
 }
 
@@ -100,119 +100,119 @@ generateFilterExp relId patExprs eqSets mbyDataExp =
     mkPat xs  = pTuple $ map pVar xs
     dataExp = fromMaybe (dbProj relId) mbyDataExp
   in if enumerate then do
-        indexSign <- asks $ (M.! relId) . indexedSigns
-        let
-          handleUnindexed params = do
-            vs <- mkVars params
-            return $
-              apps (qvar "S" "foldl'")
-                [ lambda [pVar "rest", mkPat vs]
-                    (infixApp (sym ":")
-                      (apps (con relId) (var <$> vs))
-                      (var "rest"))
-                , list []
-            , dataExp
-                ]
-        (case indexSign of
-          Discrete vs   -> handleUnindexed vs
-          Ordered  vs   -> handleUnindexed vs
-          Indexed ks vs -> do
-            keyNames <- mkVars ks
-            valNames <- mkVars vs
-            return $
-              apps (qvar "M" "foldlWithKey'") 
-              [ lambda
-                  [pVar "rest", mkPat keyNames, pVar "vals"] 
-                  (infixApp (sym "++")
-                    (apps (qvar "S" "foldl'")
-                      [ lambda
-                          [pVar "acc", mkPat valNames]
-                          (infixApp (sym ":")
-                            (apps
-                              (con relId) 
-                              (map var keyNames ++ map var valNames)) 
-                            (var "acc")
-                          )
-                      , list []
-                      , var "vals"
-                      ]
-                    )
-                    (var "rest")
-                  )
-              , list []
-          , dataExp 
-              ])
-      else do
-        -- fresh names for the lambda expression
-        freshNames <- replicateM (length patExprs) gensym
-        indexSign <- asks $ (M.! relId) . indexedSigns
-        -- a mapping to a fresh name for each key in `eqSets`
-        -- these are bound in the let block to `mlbs` of all the variables in a set
-        eqSetIds <- M.fromList <$> mapM (\k -> fmap (k,) (fresh k)) (M.keys eqSets)
-        let
-          -- mapping from `freshNames` to the original variable name in the rule tree
-          localVarIds = M.fromList . mapMaybe identify $ zip freshNames patExprs
-            where identify (vid, Id cv) = Just (getCVar cv, vid)
-                  identify _            = Nothing
-          --patArgs = map pVar freshNames
-          dbFactExps = map var freshNames
-          applicativeArgs = zipWith mkArg dbFactExps patExprs
-            where
-              mkArg _ (Id v)
-                | let name = getCVar v, 
-                  M.member name eqSetIds = var (eqSetIds M.! name)
-              mkArg x (Id (First _)) = app (var "pure") x
-              mkArg x e              = apps (var "mlbs") [x, atomExprToExp e]
-          applicativeExp =
-            foldl'
-              (infixApp $ sym "<*>") (app (var "pure") (con relId))
-              applicativeArgs
-          filterExp = case indexSign of
-            (Indexed keys _) -> let
-                (keyNames, valNames) = splitAt (length keys) freshNames
-              in apps
-                (qvar "M" "foldlWithKey'")
-                [ lambda
-                    [pVar "rest", mkPat keyNames, pVar "vals"]
-                    (infixApp (sym "++")
-                      (apps (var "concatMap")
-                        [ lambda
-                            [mkPat valNames]
-                            (mkDeclsBefore applicativeExp)
-                        , var "vals"
-                        ]
-                      )
-                      (var "rest")
-                    )
-                , list []
-                ]
-            _ -> apps
-              (var "foldl'")
-              [ lambda [pVar "rest", mkPat freshNames]
-                . mkDeclsBefore $
-                    infixApp (sym "++")
-                      (paren applicativeExp)
-                      (var "rest"),
-                list [] ]
-            where
-              mkDeclsBefore
-              -- if there are no `eqSets` this is a no-op
-                | M.null eqSets = id
-              -- otherwise a let block binding `mlbs` of all variables in 
-              -- each `eqSet` to their respective fresh variable
-                | otherwise  = letExp $
-                  M.toList eqSets <&> 
-                    \(k, eqSet) ->
-                      let ids = map (localVarIds M.!) (S.toList eqSet)
-                      in valBind (ident $ eqSetIds M.! k) $
-                        if null ids then
-                          error "constraint set must be nonempty"
-                        else
-                          foldl'
-                            (\rest eid -> infixApp (sym ">>=") rest (app (var "mlbs") (var eid)))
-                            (list [var $ head ids])
-                          (tail ids)
+    indexSign <- asks $ (M.! relId) . indexedSigns
+    let
+      handleUnindexed params = do
+        vs <- mkVars params
         return $
+          apps (qvar "S" "foldl'")
+            [ lambda [pVar "rest", mkPat vs]
+                (infixApp (sym ":")
+                  (apps (con relId) (var <$> vs))
+                  (var "rest"))
+            , list []
+            , dataExp
+            ]
+    (case indexSign of
+      Discrete vs   -> handleUnindexed vs
+      Ordered  vs   -> handleUnindexed vs
+      Indexed ks vs -> do
+        keyNames <- mkVars ks
+        valNames <- mkVars vs
+        return $
+          apps (qvar "M" "foldlWithKey'") 
+          [ lambda
+              [pVar "rest", mkPat keyNames, pVar "vals"] 
+              (infixApp (sym "++")
+                (apps (qvar "S" "foldl'")
+                  [ lambda
+                      [pVar "acc", mkPat valNames]
+                      (infixApp (sym ":")
+                        (apps
+                          (con relId) 
+                          (map var keyNames ++ map var valNames)) 
+                        (var "acc")
+                      )
+                  , list []
+                  , var "vals"
+                  ]
+                )
+                (var "rest")
+              )
+          , list []
+          , dataExp 
+          ])
+  else do
+    -- fresh names for the lambda expression
+    freshNames <- replicateM (length patExprs) gensym
+    indexSign <- asks $ (M.! relId) . indexedSigns
+    -- a mapping to a fresh name for each key in `eqSets`
+    -- these are bound in the let block to `mlbs` of all the variables in a set
+    eqSetIds <- M.fromList <$> mapM (\k -> fmap (k,) (fresh k)) (M.keys eqSets)
+    let
+      -- mapping from `freshNames` to the original variable name in the rule tree
+      localVarIds = M.fromList . mapMaybe identify $ zip freshNames patExprs
+        where identify (vid, Id cv) = Just (getCVar cv, vid)
+              identify _            = Nothing
+      --patArgs = map pVar freshNames
+      dbFactExps = map var freshNames
+      applicativeArgs = zipWith mkArg dbFactExps patExprs
+        where
+          mkArg _ (Id v)
+            | let name = getCVar v, 
+              M.member name eqSetIds = var (eqSetIds M.! name)
+          mkArg x (Id (First _)) = app (var "pure") x
+          mkArg x e              = apps (var "mlbs") [x, atomExprToExp e]
+      applicativeExp =
+        foldl'
+          (infixApp $ sym "<*>") (app (var "pure") (con relId))
+          applicativeArgs
+      filterExp = case indexSign of
+        (Indexed keys _) -> let
+            (keyNames, valNames) = splitAt (length keys) freshNames
+          in apps
+            (qvar "M" "foldlWithKey'")
+            [ lambda
+                [pVar "rest", mkPat keyNames, pVar "vals"]
+                (infixApp (sym "++")
+                  (apps (var "concatMap")
+                    [ lambda
+                        [mkPat valNames]
+                        (mkDeclsBefore applicativeExp)
+                    , var "vals"
+                    ]
+                  )
+                  (var "rest")
+                )
+            , list []
+            ]
+        _ -> apps
+          (var "foldl'")
+          [ lambda [pVar "rest", mkPat freshNames]
+            . mkDeclsBefore $
+                infixApp (sym "++")
+                  (paren applicativeExp)
+                  (var "rest"),
+            list [] ]
+        where
+          mkDeclsBefore
+          -- if there are no `eqSets` this is a no-op
+            | M.null eqSets = id
+          -- otherwise a let block binding `mlbs` of all variables in 
+          -- each `eqSet` to their respective fresh variable
+            | otherwise  = letExp $
+              M.toList eqSets <&> 
+                \(k, eqSet) ->
+                  let ids = map (localVarIds M.!) (S.toList eqSet)
+                  in valBind (ident $ eqSetIds M.! k) $
+                    if null ids then
+                      error "constraint set must be nonempty"
+                    else
+                      foldl'
+                        (\rest eid -> infixApp (sym ">>=") rest (app (var "mlbs") (var eid)))
+                        (list [var $ head ids])
+                      (tail ids)
+    return $
       app filterExp dataExp
 
 generateRuleForest :: CodeGen [Decl ()]
@@ -237,8 +237,7 @@ generateRuleForest = do
   where
     generateAlt :: Identifier -> CodeGen (Maybe (Alt ()))
     generateAlt name = do
-      currFact <- gensym
-      let hasRoot p (Branch cAssump _) = p == (headSymbolOf . assumption $ cAssump)
+      let hasRoot p (Branch (CAssumption (Assumption q _) _) _) = p == q
           hasRoot _ _ = False
       trees <- asks $ filter (hasRoot name) . getTrees . ruleForest . program
       if null trees then
@@ -272,8 +271,8 @@ generateRuleForest = do
       dbg <- asks debugMode
       pqVar <- asks currentQueueVar
       let tracePremise =
-            if dbg 
-            then app (app (var "trace") (paren $ infixApp (sym "++") (stringLit "got: ") (app (var "show") (var "f")))) . paren 
+            if dbg
+            then app (app (var "trace") (paren $ infixApp (sym "++") (stringLit "got: ") (app (var "show") (var "f")))) . paren
             else id
       tracePremise
         . app (qvar "Q" "unions")

@@ -33,6 +33,13 @@ rule assignStep:
   ------------------------------------------
   |- stateAfter l (insert x (eval e st) st)
 
+{- I believe the premises can be simplified to:
+    `stateAfter lcond st, cond lcond e jlt jlf`
+  This is because:
+    1) condInit initializes `st`
+    2) seqStep propagates the incoming states into `st`
+  thus we do not need to explicitly do that propagation in this rule
+ -}
 rule evalCond:
   seq l0 lcond, stateAfter l0 st, cond lcond e jlt jlf
   ----------------------------------------------------
@@ -47,6 +54,31 @@ rule condStepFalse:
   stateAfter l st, stateAfter jlf stf, cond l e jlt jlf, condVal l False
   ----------------------------------------------------------------------
   |- stateAfter jlf (join st stf)
+
+{-
+  Assuming the flat lattice of booleans:
+
+          BTop
+          /  \
+      False  True
+          \  /
+          BBot
+
+  I believe the following is the correct implementation.
+
+rule condStepTrue:
+  cond lcond e jlt jlf, stateAfter jlt stt, if leq True (evaluateConditional e st)
+  --------------------------------------------------------------------------------
+  |- stateAfter jlt (join st stt)
+
+rule condStepFalse:
+  cond lcond e jlt jlf, stateAfter jlf stf, if leq False (evaluateConditional e st)
+  ---------------------------------------------------------------------------------
+  |- stateAfter jlf (join st stf)
+
+  Furthermore, the workaround above whould exhibit the same behavior once the 
+  type is changed from current Bool to the flat lattice.
+-}
 
 rule seqStep: 
   seq l1 l2, stateAfter l1 st1, stateAfter l2 st2 

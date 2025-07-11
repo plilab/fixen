@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module ReducedProduct.Interval where
 
 import Algebra.PartialOrd
 import Data.Map ( Map, unionWith ) 
-import qualified Data.Map as M (insert, singleton, lookup, empty, insertWith)
+import qualified Data.Map as M (singleton, lookup, empty, insertWith)
 import Common.Definitions
 import GHC.Generics (Generic)
 import Data.Hashable (Hashable)
@@ -40,7 +41,6 @@ instance MLB Interval where
 
 instance MLB Bool where
   mlbs s1 s2  = [s1 && s2]
-
 
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr deriving (Eq, Show, Generic)
 
