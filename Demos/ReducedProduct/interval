@@ -10,7 +10,7 @@ rel stateAfter: Nat, State
 rel var:    Nat, String             -- variable declaration:   (var X)^l
 rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
 rel cond:   Nat, Expr, Nat, Nat          -- conditional expression  (E_{consequent;alternative})^l
-rel condVal: Nat, Bool              -- conditional value
+rel condVal: Nat, BBool              -- conditional value
 
 -- cfg
 rel seq:    Nat, Nat            -- edge in the cfg
@@ -46,12 +46,12 @@ rule evalCond:
   |- condVal lcond (evaluateConditional e st)
 
 rule condStepTrue:
-  stateAfter l st, stateAfter jlt stt, cond l e jlt jlf, condVal l True
+  stateAfter l st, stateAfter jlt stt, cond l e jlt jlf, condVal l BTrue
   ---------------------------------------------------------------------
   |- stateAfter jlt (join st stt)
 
 rule condStepFalse:
-  stateAfter l st, stateAfter jlf stf, cond l e jlt jlf, condVal l False
+  stateAfter l st, stateAfter jlf stf, cond l e jlt jlf, condVal l BFalse
   ----------------------------------------------------------------------
   |- stateAfter jlf (join st stf)
 
@@ -83,7 +83,7 @@ rule condStepFalse:
 rule seqStep: 
   seq l1 l2, stateAfter l1 st1, stateAfter l2 st2 
   -----------------------------------------------
-  |- stateAfter l2 (join st1 st2)
+  |- stateAfter l2 (join st2 st1)
 
 
 query stateAfter as stateAfter - +

@@ -18,29 +18,48 @@ import Numeric.Natural
 data Interval = Pair (Natural, Natural) | Top | Bot
   deriving (Eq, Show, Generic)
 
+data BBool = BTop | BFalse | BTrue | BBot
+  deriving (Eq, Show, Generic)
+
 instance Hashable Interval
+
+instance Hashable BBool
 
 joinSign :: Interval -> Interval -> Interval
 joinSign Top _ = Top
 joinSign _ Top = Top
 joinSign Bot s = s
 joinSign s Bot = s
-joinSign s1 s2 = case (s1, s2) of
-  (Pair (a, b), Pair (c, d)) -> Pair (min a c, max b d)
+joinSign (Pair (a, b)) (Pair (c, d)) = Pair (min a c, max b d)
 
 
 instance PartialOrd Interval where
   leq Bot _ = True
   leq _ Top = True
-  leq s1 s2 = s1 == s2
+  leq Top _ = False
+  leq _ Bot = False
+  leq (Pair (a, b)) (Pair (c, d)) = a >= c && b <= d
 
 instance MLB Interval where
   mlbs s1 s2  = case (s1, s2) of
-    (Pair (a, b), Pair (c, d)) -> [if max a c <= min c d then Pair (max a c, min c d) else Bot]
+    (Pair (a, b), Pair (c, d)) -> [if max a c <= min b d then Pair (max a c, min b d) else Bot]
     (_, _) -> [Bot]
 
-instance MLB Bool where
-  mlbs s1 s2  = [s1 && s2]
+instance PartialOrd BBool where
+  leq BBot _ = True
+  leq _ BTop = True
+  leq s1 s2 = s1 == s2
+
+instance MLB BBool where
+  mlbs s1 s2  = case (s1, s2) of
+    (BTrue, BTrue) -> [BTrue]
+    (BFalse, BFalse) -> [BFalse]
+    (BFalse, BTrue) -> [BTop]
+    (BTrue, BFalse) -> [BTop]
+    (BTop, _) -> [BTop]
+    (_, BTop) -> [BTop]
+    (rest, BBot) -> [rest]
+    (BBot, rest) -> [rest]
 
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr deriving (Eq, Show, Generic)
 
@@ -79,10 +98,10 @@ eval e st = case e of
   --   (_, _) -> Bot
   Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
 
-evaluateConditional :: Expr -> State -> Bool
+evaluateConditional :: Expr -> State -> BBool
 evaluateConditional e st = case e of
   Leq e1 e2 -> case (eval e1 st, eval e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
-    (Pair (a, b), Pair (c, d)) -> a <= c && b <= d
-    (_, _) -> False
+    (Pair (a, b), Pair (c, d)) -> if a <= c && b <= d then BTrue else BFalse
+    (_, _) -> BBot
   _ -> error "Unexpected case"
