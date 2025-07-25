@@ -2,15 +2,14 @@ module ReducedProduct.IntervalAnalysis where
 
 import ReducedProduct.Interval
 
-
 -- rel state: Nat, String, Sign, or
 -- type State = Map String Sign
-rel stateAfter: Nat, State
+rel stateAfter: Nat, State [widenState] -- after with 30 go to Top
 -- statement
 rel var:    Nat, String             -- variable declaration:   (var X)^l
 rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
-rel cond:   Nat, Expr, Nat, Nat          -- conditional expression  (E_{consequent;alternative})^l
-rel condVal: Nat, BBool              -- conditional value
+rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
+rel condVal: Nat, BBool [joinBool]  -- conditional value
 
 -- cfg
 rel seq:    Nat, Nat            -- edge in the cfg
@@ -45,24 +44,37 @@ rule evalCond:
   ----------------------------------------------------
   |- condVal lcond (evaluateConditional e st)
 
+{-
+rule r: A..., if Cond |- Concl
+=================================
+rel flagCondTrue
+rule r1: A..., ___if Cond__ |- flagCondTrue
+
+
+rule r: A..., if Cond |- Concl
+==============================
+rel flagCond: Bool
+rule r1: A... |- flagCond (Cond)
+rule r2: flagCond True |- Concl
+
+-}
+
 rule condStepTrue:
   stateAfter l st, stateAfter jlt stt, cond l e jlt jlf, condVal l BTrue
-  ---------------------------------------------------------------------
+  ----------------------------------------------------------------------
   |- stateAfter jlt (join st stt)
 
 rule condStepFalse:
   stateAfter l st, stateAfter jlf stf, cond l e jlt jlf, condVal l BFalse
-  ----------------------------------------------------------------------
+  -----------------------------------------------------------------------
   |- stateAfter jlf (join st stf)
 
 {-
-  Assuming the flat lattice of booleans:
+  Assuming the flat semilattice of booleans:
 
           BTop
           /  \
-      False  True
-          \  /
-          BBot
+      BFalse  BTrue
 
   I believe the following is the correct implementation.
 
@@ -77,7 +89,7 @@ rule condStepFalse:
   |- stateAfter jlf (join st stf)
 
   Furthermore, the workaround above whould exhibit the same behavior once the 
-  type is changed from current Bool to the flat lattice.
+  type is changed from current Bool to the flat semilattice.
 -}
 
 rule seqStep: 

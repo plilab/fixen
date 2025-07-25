@@ -4,11 +4,12 @@ module ReducedProduct.Interval where
 
 import Algebra.PartialOrd
 import Data.Map ( Map, unionWith ) 
-import qualified Data.Map as M (singleton, lookup, empty, insertWith)
+import qualified Data.Map as M (singleton, lookup, empty, insertWith, map)
 import Common.Definitions
 import GHC.Generics (Generic)
 import Data.Hashable (Hashable)
 import Data.Maybe (fromMaybe)
+import Data.Foldable
 
 import Numeric.Natural
 
@@ -18,7 +19,7 @@ import Numeric.Natural
 data Interval = Pair (Natural, Natural) | Top | Bot
   deriving (Eq, Show, Generic)
 
-data BBool = BTop | BFalse | BTrue | BBot
+data BBool = BTop | BFalse | BTrue
   deriving (Eq, Show, Generic)
 
 instance Hashable Interval
@@ -31,7 +32,6 @@ joinSign _ Top = Top
 joinSign Bot s = s
 joinSign s Bot = s
 joinSign (Pair (a, b)) (Pair (c, d)) = Pair (min a c, max b d)
-
 
 instance PartialOrd Interval where
   leq Bot _ = True
@@ -46,7 +46,7 @@ instance MLB Interval where
     (_, _) -> [Bot]
 
 instance PartialOrd BBool where
-  leq BBot _ = True
+  -- leq BBot _ = True
   leq _ BTop = True
   leq s1 s2 = s1 == s2
 
@@ -54,12 +54,32 @@ instance MLB BBool where
   mlbs s1 s2  = case (s1, s2) of
     (BTrue, BTrue) -> [BTrue]
     (BFalse, BFalse) -> [BFalse]
-    (BFalse, BTrue) -> [BTop]
-    (BTrue, BFalse) -> [BTop]
-    (BTop, _) -> [BTop]
-    (_, BTop) -> [BTop]
-    (rest, BBot) -> [rest]
-    (BBot, rest) -> [rest]
+    (BFalse, BTrue) -> []
+    (BTrue, BFalse) -> []
+    (BTop, rest) -> [rest]
+    (rest, BTop) -> [rest]
+    -- (_, BBot) -> [BBot]
+    -- (BBot, _) -> [BBot]
+
+joinBool :: (Foldable db) => (BBool -> f) -> BBool -> db BBool -> [f]
+joinBool k b db = [k $ foldl' localJoin b db]
+  where
+  localJoin s1 s2 = case (s1, s2) of
+    (BTrue, BTrue) -> BTrue
+    (BFalse, BFalse) -> BFalse
+    (BFalse, BTrue) -> BTop
+    (BTrue, BFalse) -> BTop
+    -- (rest, BBot) -> rest
+    -- (BBot, rest) -> rest
+    (BTop, _) -> BTop
+    (_, BTop) -> BTop
+
+widenState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
+widenState k s db = map (k . widen) (s : toList db)
+  where
+    widen = M.map widenInterval
+    widenInterval p@(Pair (m, n)) = if n - m > 30 then Top else p
+    widenInterval other = other
 
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr deriving (Eq, Show, Generic)
 
@@ -103,5 +123,6 @@ evaluateConditional e st = case e of
   Leq e1 e2 -> case (eval e1 st, eval e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
     (Pair (a, b), Pair (c, d)) -> if a <= c && b <= d then BTrue else BFalse
-    (_, _) -> BBot
+    --(Top, _) -> BTop
+    (_, _) -> BFalse
   _ -> error "Unexpected case"
