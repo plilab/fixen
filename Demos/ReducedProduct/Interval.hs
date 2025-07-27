@@ -39,9 +39,6 @@ instance MLB Interval where
     (Pair (a, b), Pair (c, d)) -> [if max a c <= min c d then Pair (max a c, min c d) else Bot]
     (_, _) -> [Bot]
 
-instance MLB Bool where
-  mlbs s1 s2  = [s1 && s2]
-
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr deriving (Eq, Show, Generic)
 
 instance Hashable Expr
