@@ -101,6 +101,12 @@ proposition = Conclusion <$> identifier <*> many expr'
 atomicProposition :: Parser (Assumption Var)
 atomicProposition = Assumption <$> identifier <*> many atomicExpr
 
+premise :: Parser (Premise Var)
+premise = 
+  let condition = string "if" *> expr
+  in Condition <$> condition <|>
+     Assumed <$> atomicProposition
+
 commaSep :: Parser a -> Parser [a]
 commaSep = flip sepBy (char ',')
 
@@ -128,7 +134,7 @@ ruleDecl = do
   void $ string "rule"
   name <- optional identifier
   void $ char ':'
-  body <- parseRule atomicProposition proposition
+  body <- parseRule premise proposition
   return $ Rul name body
 
 latDecl :: Parser Declaration

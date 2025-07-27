@@ -16,6 +16,9 @@ instance MLB Natural
 
 instance MLB String
 
+instance MLB Bool where
+  mlbs p q = [p && q]
+
 instance PartialOrd Natural where
   leq = (==)
 

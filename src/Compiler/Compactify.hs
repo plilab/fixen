@@ -13,8 +13,13 @@ import Syntax.Compact
 import Prettyprinter
 import Data.List (nub)
 
-type ContRuleClause = Rule (Assumption Var) ContinuationFact
-data UnordRule = UnordRule { premises :: S.HashSet (Assumption Var), __ :: ContinuationFact }
+type ContRuleClause = Rule (Premise Var) ContinuationFact
+data UnordRule 
+  = UnordRule 
+  { assumptions :: S.HashSet (Assumption Var)
+  , _conditions  :: S.HashSet (Expr Var)
+  , _conts :: ContinuationFact
+  }
 
 instance Show UnordRule where
   show = show . toRuleClause
@@ -23,23 +28,31 @@ instance Pretty UnordRule where
   pretty = pretty . toRuleClause
 
 fromRuleClause :: ContRuleClause -> UnordRule
-fromRuleClause (Rule prems c) = UnordRule (S.fromList prems) c
+fromRuleClause (Rule prems c) =
+  UnordRule
+    (S.fromList $ mapMaybe getAssumption prems)
+    (S.fromList $ mapMaybe getCondition prems)
+    c
 
 toRuleClause :: UnordRule -> ContRuleClause
-toRuleClause (UnordRule prems c) = Rule (S.toList prems) c
+toRuleClause (UnordRule assumps conds c) =
+  Rule ((Assumed <$> S.toList assumps) ++ (Condition <$> S.toList conds)) c
 
 unrollRule :: UnordRule -> ImplicitRuleTree
-unrollRule (UnordRule prems concl) =
+unrollRule (UnordRule assumps conds concl) =
   foldr'
-    (\p rt -> Branch p [rt])
-    (Result concl)
-  prems
+    (\a rt -> Branch (Assumed a) [rt])
+    (foldr' 
+      (\c rt -> Branch (Condition c) [rt])
+      (Result concl)
+    conds)
+  assumps
 
 {- filter out rules with the proposition as their premise, then filter it from propositions -}
-factorPremise :: Assumption Var -> [UnordRule] -> (Assumption Var, [UnordRule])
+factorPremise :: Assumption Var -> [UnordRule] -> (Premise Var, [UnordRule])
 factorPremise commonPremise rules =
   let
-    factored = rules >>= \(UnordRule prems c) -> do
+    factored = rules >>= \(UnordRule prems conds c) -> do
       -- find all alpha equivalent premises
       premise' <- filter (alphaEq commonPremise) . S.toList $ prems
       let
@@ -68,8 +81,9 @@ factorPremise commonPremise rules =
         -- rename rule's variables such that the premise becomes equal to `commonPremise`
         prems'' = S.map (substituteAll renaming) prems'
         c' = substituteAll renaming c
-      return $ UnordRule prems'' c'
-  in (commonPremise, factored)
+        conds' = S.map (substituteAll renaming) conds
+      return $ UnordRule prems'' conds' c'
+  in (Assumed commonPremise, factored)
 
 {-
   per rule collect all unique premises up to _alpha_ equality
@@ -85,16 +99,16 @@ buildRuleForest rules =
   let
     urules = map fromRuleClause rules
     -- collect all premises up to alpha equivalence
-    prems = S.toList . S.map unAlpha . S.unions . map (S.map Alpha . premises) $ urules
+    prems = S.toList . S.map unAlpha . S.unions . map (S.map Alpha . assumptions) $ urules
     -- factor into its own rule tree
     groupings = map (`factorPremise` urules) prems
     -- collect all premiseless rules
-    facts = map mkResult . filter (S.null . premises) $ urules
+    facts = map mkResult . filter (S.null . assumptions) $ urules
     trees = map mkBranch groupings
   in RF (facts ++ trees)
   where
     mkBranch (assump, rule) = Branch assump (map unrollRule rule)
-    mkResult (UnordRule _ cs) = Result cs
+    mkResult (UnordRule _ _ cs) = Result cs
 
 continuationalize :: [Signature] -> (Identifier, RuleClause) -> ((Identifier, Continuation Var), ContRuleClause)
 continuationalize signs (name, Rule prems concl) = let
@@ -103,7 +117,12 @@ continuationalize signs (name, Rule prems concl) = let
   rul' = Rule prems $ Proposition name (fst <$> ctx)
   in ((name, cont), rul')
   where
-    collectBindings (Assumption p args) = 
+    {- collects all the variables bound in the rule and their type.
+      since variables must occur in at least one assumption 
+      (as we do no constraint solving), there is nothing to
+      collect in `Condition` case -}
+    collectBindings (Condition _) = []
+    collectBindings (Assumed (Assumption p args)) = 
       mapMaybe
         (\(arg, typ) -> (,typ) <$> getId arg) 
         (zip args $ lookupSignature p signs)

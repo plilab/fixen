@@ -38,16 +38,10 @@ makeUniqueNames =
     incState
     return (name, res)
   where
-    goAtomProp :: Assumption Var -> Env (Assumption Var)
-    goAtomProp = traverse current
-
-    goProp :: Conclusion Var -> Env (Conclusion Var)
-    goProp = traverse current
-
     goRule :: RuleClause -> Env RuleClause
     goRule (Rule prems conc) = do
-      prems' <- mapM goAtomProp prems
-      conc'  <- goProp conc
+      prems' <- mapM (traverse current) prems
+      conc'  <- traverse current conc
       let varMap = M.fromList $ zip
             (concatMap toList prems  ++ toList conc)
             (concatMap toList prems' ++ toList conc')
