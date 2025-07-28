@@ -1,12 +1,12 @@
-module ReducedProduct.Test1 where
+module ReducedProduct.CongruenceTest where
 
 {-
   use this file, invoke `Compiler.Compile.compile` on "Demos/Dataflow/sign" and 
   "Demos/Dataflow/SignAnalysis.hs" in order to produce the module `Dataflow.SignAnalysis`
 -}
 
-import ReducedProduct.IntervalAnalysis
-import ReducedProduct.Interval
+import ReducedProduct.CongruenceAnalysis
+import ReducedProduct.Congruence
 
 {- the program:
 Example 6.3 from Tutorial on Static Inference of Numeric Invariants by
@@ -14,7 +14,7 @@ Abstract Interpretation
 by Antoine Miné
 1 : V ← 1;                                              -- [1, 1]
 2 : while V ≤ 9 do V ← V + 2 done;                      -- [1, 11]
-3 : if V == 10 then                                     -- [10, 11]
+3 : if V == 11 then                                     -- [10, 11]
 4 :     V ← 0
 5 : endif
 -}

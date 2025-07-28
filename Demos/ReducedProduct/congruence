@@ -1,0 +1,88 @@
+module ReducedProduct.CongruenceAnalysis where
+
+import ReducedProduct.Congruence
+
+rel stateBefore: Nat, State
+rel stateAfter: Nat, State
+
+-- statement
+rel var:    Nat, String             -- variable declaration:   (var X)^l
+rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
+rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
+rel phi:    Nat                     -- a phi node (see static single assignment form)
+
+-- other cfg edges
+rel seq:    Nat, Nat
+
+-- Initial facts (just intializing our DB)
+
+rule assignInit:
+  assign l x e
+  |- stateBefore l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule condInit:
+  cond l e jlt jlf
+  |- stateBefore l (empty 0)
+
+rule phiInit:
+  phi l
+  |- stateBefore l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule varInitAfter:
+  var l x
+  ---------------------------------
+  |- stateAfter l (singleton x Bot)
+
+rule assignInitAfter:
+  assign l x e
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule condInitAfter:
+  cond l e jlt jlf
+  |- stateAfter l (empty 0)
+
+rule phiInitAfter:
+  phi l
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+
+-- Actual transfer functions.
+
+rule assignStep:
+  assign lAssign x e, stateBefore lAssign stBefore
+  --------------------------------------------------------------------------------------------
+  |- stateAfter lAssign (insert x (eval e stBefore) stBefore)
+
+
+rule evalCondTrue:
+  stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlt stt
+  ----------------------------------------------------------------
+  |- stateBefore jlt (join (narrowConditional e stc) stt)
+
+rule evalCondFalse:
+  stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlf stf
+  ----------------------------------------------------------------
+  |- stateBefore jlf (join (narrowConditionalFalse e stc) stf)
+
+rule phiStep:
+  phi l, stateBefore l st
+  -----------------------
+  |- stateAfter l st
+
+
+rule seqStepBefore: 
+  seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
+  -----------------------------------------------
+  |- stateBefore l2 (join st2 st1)
+
+rule seqStepAfter:
+  seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
+  -----------------------------------------------
+  |- stateBefore l2 (join st2 st1)
+
+rule varStepAfter:
+  var l x, stateBefore l st
+  ---------------------------------
+  |- stateAfter l (insert x Bot st) 
+
+query stateAfter as stateAfter - +
