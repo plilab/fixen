@@ -4,7 +4,7 @@ module ReducedProduct.Interval where
 
 import Algebra.PartialOrd
 import Data.Map ( Map, unionWith ) 
-import qualified Data.Map as M (singleton, lookup, empty, insertWith, map)
+import qualified Data.Map as M (singleton, lookup, empty, insertWith, map, fromList)
 import Common.Definitions
 import GHC.Generics (Generic)
 import Data.Hashable (Hashable)
@@ -19,12 +19,7 @@ import Numeric.Natural
 data Interval = Pair (Natural, Natural) | Top | Bot
   deriving (Eq, Show, Generic)
 
-data BBool = BTop | BFalse | BTrue
-  deriving (Eq, Show, Generic)
-
 instance Hashable Interval
-
-instance Hashable BBool
 
 joinSign :: Interval -> Interval -> Interval
 joinSign Top _ = Top
@@ -45,34 +40,11 @@ instance MLB Interval where
     (Pair (a, b), Pair (c, d)) -> [if max a c <= min b d then Pair (max a c, min b d) else Bot]
     (_, _) -> [Bot]
 
-instance PartialOrd BBool where
-  -- leq BBot _ = True
-  leq _ BTop = True
-  leq s1 s2 = s1 == s2
-
-instance MLB BBool where
-  mlbs s1 s2  = case (s1, s2) of
-    (BTrue, BTrue) -> [BTrue]
-    (BFalse, BFalse) -> [BFalse]
-    (BFalse, BTrue) -> []
-    (BTrue, BFalse) -> []
-    (BTop, rest) -> [rest]
-    (rest, BTop) -> [rest]
-    -- (_, BBot) -> [BBot]
-    -- (BBot, _) -> [BBot]
-
-joinBool :: (Foldable db) => (BBool -> f) -> BBool -> db BBool -> [f]
-joinBool k b db = [k $ foldl' localJoin b db]
+joinState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
+joinState k s db = map (k . joinState) (s : toList db)
   where
-  localJoin s1 s2 = case (s1, s2) of
-    (BTrue, BTrue) -> BTrue
-    (BFalse, BFalse) -> BFalse
-    (BFalse, BTrue) -> BTop
-    (BTrue, BFalse) -> BTop
-    -- (rest, BBot) -> rest
-    -- (BBot, rest) -> rest
-    (BTop, _) -> BTop
-    (_, BTop) -> BTop
+    joinState = join s
+
 
 widenState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
 widenState k s db = map (k . widen) (s : toList db)
@@ -118,11 +90,37 @@ eval e st = case e of
   --   (_, _) -> Bot
   Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
 
-evaluateConditional :: Expr -> State -> BBool
+evaluateConditional :: Expr -> State -> Bool
 evaluateConditional e st = case e of
   Leq e1 e2 -> case (eval e1 st, eval e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
-    (Pair (a, b), Pair (c, d)) -> if a <= c && b <= d then BTrue else BFalse
+    (Pair (a, b), Pair (c, d)) -> a <= c && b <= d
     --(Top, _) -> BTop
-    (_, _) -> BFalse
+    (_, Top) -> True
+    (Bot, _) -> True
+    (_, _) -> error "Unexpected conditional"
   _ -> error "Unexpected case"
+
+
+narrowConditional :: Expr -> State -> State
+narrowConditional e st = case e of
+  Leq e1 e2 -> case (e1, eval e2 st) of
+    -- Only handle the trivial case, it's enough for our demo.
+    (Id id, Pair (c, d)) -> case eval e1 st of
+      Pair (a, b) -> M.fromList [(id, Pair (min a c, d))]
+      _ -> M.fromList [(id, Bot)]
+    (_, _) -> error "Unexpected conditional"
+  _ -> error "Unexpected case"
+
+narrowConditionalFalse :: Expr -> State -> State
+narrowConditionalFalse e st = case e of
+  Leq e1 e2 -> case (e1, eval e2 st) of
+    -- Only handle the trivial case, it's enough for our demo.
+    (Id id, Pair (c, d)) -> case eval e1 st of
+      Pair (a, b) -> M.fromList [(id, Pair (d+1, max (d+1) b))]
+      _ -> M.fromList [(id, Bot)]
+    (_, _) -> error "Unexpected conditional"
+  _ -> error "Unexpected case"
+
+eq :: Bool -> Bool -> Bool
+eq = (==)

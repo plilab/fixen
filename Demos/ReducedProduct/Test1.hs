@@ -22,11 +22,12 @@ by Antoine Miné
 test :: [Fact]
 test = [
   -- V = 1
-  mkVar 0 "V",
-  mkAssign 1 "V" (Num 1), mkSeq 0 1,
+  mkVar 0 "V", mkSeq 0 1,
+  mkAssign 1 "V" (Num 1), mkSeq 1 2,
+  mkPhi 2, mkSeq 2 3,
   -- while V <= 10
-  mkCond 2 (Leq (Id "V") (Num 10)) 3 100, mkSeq 1 2,
-  mkAssign 3 "V" (Plus (Id "V") (Num 2)), mkSeq 3 2,
+  mkCond 3 (Leq (Id "V") (Num 10)) 4 100,
+  mkAssign 4 "V" (Plus (Id "V") (Num 2)), mkSeq 4 2,
   -- end
   mkVar 100 "END"
   ]
