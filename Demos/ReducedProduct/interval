@@ -2,18 +2,16 @@ module ReducedProduct.IntervalAnalysis where
 
 import ReducedProduct.Interval
 
--- rel state: Nat, String, Sign, or
--- type State = Map String Sign
-rel stateBefore: Nat, State --[joinState] -- after with 30 go to Top
+rel stateBefore: Nat, State
 
 -- statement
 rel var:    Nat, String             -- variable declaration:   (var X)^l
 rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
 rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
-rel phi:    Nat                     -- a phi node (see SSA definitions)
+rel phi:    Nat                     -- a phi node (see static single assignment form)
 
--- cfg
-rel seq:    Nat, Nat            -- edge in the cfg
+-- other cfg edges
+rel seq:    Nat, Nat
 
 -- Initial facts (just intializing our DB)
 rule varInit:

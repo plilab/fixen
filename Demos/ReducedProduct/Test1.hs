@@ -26,8 +26,11 @@ test = [
   mkAssign 1 "V" (Num 1), mkSeq 1 2,
   mkPhi 2, mkSeq 2 3,
   -- while V <= 10
-  mkCond 3 (Leq (Id "V") (Num 10)) 4 100,
+  mkCond 3 (Leq (Id "V") (Num 10)) 4 5,
   mkAssign 4 "V" (Plus (Id "V") (Num 2)), mkSeq 4 2,
+  -- if V >= 12 then:
+  mkCond 5 (Gte (Id "V") (Num 12)) 6 100,
+  mkAssign 6 "V" (Num 0), mkSeq 6 100,
   -- end
   mkVar 100 "END"
   ]
