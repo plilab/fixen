@@ -105,35 +105,35 @@ evaluateConditional e st = case e of
   _ -> error "Unexpected case"
 
 
-narrowConditional :: Expr -> State -> State
-narrowConditional e st = case e of
-  Leq e1 e2 -> case (e1, eval e2 st) of
-    -- Only handle the trivial case, it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, Pair (min a c, min b d))]
-      _ -> M.fromList [(id, Bot)]
-    (_, _) -> error "Unexpected conditional"
-  Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.union (M.fromList [(id, Pair (max a c,  max b d))]) st
-      _ -> M.union (M.fromList [(id, Bot)]) st
-    (_, _) -> error "Unexpected conditional"    
-  _ -> error "Unexpected case"
+-- narrowConditional :: Expr -> State -> State
+-- narrowConditional e st = case e of
+--   Leq e1 e2 -> case (e1, eval e2 st) of
+--     -- Only handle the trivial case, it's enough for our demo.
+--     (Id id, Pair (c, d)) -> case eval e1 st of
+--       Pair (a, b) -> M.fromList [(id, Pair (min a c, min b d))]
+--       _ -> M.fromList [(id, Bot)]
+--     (_, _) -> error "Unexpected conditional"
+--   Gte e1 e2 -> case (e1, eval e2 st) of
+--     (Id id, Pair (c, d)) -> case eval e1 st of
+--       Pair (a, b) -> M.union (M.fromList [(id, Pair (max a c,  max b d))]) st
+--       _ -> M.union (M.fromList [(id, Bot)]) st
+--     (_, _) -> error "Unexpected conditional"    
+--   _ -> error "Unexpected case"
 
-narrowConditionalFalse :: Expr -> State -> State
-narrowConditionalFalse e st = case e of
-  Leq e1 e2 -> case (e1, eval e2 st) of
-    -- Only handle the trivial case, it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.union (M.fromList [(id, Pair (d+1, max (d+1) b))]) st
-      _ -> M.union (M.fromList [(id, Bot)]) st
-    (_, _) -> error "Unexpected conditional"
-  Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.union (M.fromList [(id, Pair (min (c-1) a,  c-1))]) st
-      _ -> M.union (M.fromList [(id, Bot)]) st
-    (_, _) -> error "Unexpected conditional"
-  _ -> error "Unexpected case"
+-- narrowConditionalFalse :: Expr -> State -> State
+-- narrowConditionalFalse e st = case e of
+--   Leq e1 e2 -> case (e1, eval e2 st) of
+--     -- Only handle the trivial case, it's enough for our demo.
+--     (Id id, Pair (c, d)) -> case eval e1 st of
+--       Pair (a, b) -> M.union (M.fromList [(id, Pair (d+1, max (d+1) b))]) st
+--       _ -> M.union (M.fromList [(id, Bot)]) st
+--     (_, _) -> error "Unexpected conditional"
+--   Gte e1 e2 -> case (e1, eval e2 st) of
+--     (Id id, Pair (c, d)) -> case eval e1 st of
+--       Pair (a, b) -> M.union (M.fromList [(id, Pair (min (c-1) a,  c-1))]) st
+--       _ -> M.union (M.fromList [(id, Bot)]) st
+--     (_, _) -> error "Unexpected conditional"
+--   _ -> error "Unexpected case"
 
 eq :: Bool -> Bool -> Bool
 eq = (==)

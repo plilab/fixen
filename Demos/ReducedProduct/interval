@@ -3,6 +3,7 @@ module ReducedProduct.IntervalAnalysis where
 import ReducedProduct.Interval
 
 rel stateBefore: Nat, State
+rel stateAfter: Nat, State
 
 -- statement
 rel var:    Nat, String             -- variable declaration:   (var X)^l
@@ -14,10 +15,6 @@ rel phi:    Nat                     -- a phi node (see static single assignment 
 rel seq:    Nat, Nat
 
 -- Initial facts (just intializing our DB)
-rule varInit:
-  var l x
-  ---------------------------------
-  |- stateBefore l (singleton x Bot)
 
 rule assignInit:
   assign l x e
@@ -31,29 +28,57 @@ rule phiInit:
   phi l
   |- stateBefore l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
 
+rule varInitAfter:
+  var l x
+  ---------------------------------
+  |- stateAfter l (singleton x Bot)
+
+rule assignInitAfter:
+  assign l x e
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule condInitAfter:
+  cond l e jlt jlf
+  |- stateAfter l (empty 0)
+
+rule phiInitAfter:
+  phi l
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+
 -- Actual transfer functions.
 
 rule assignStep:
-  seq lAssign lAfter, assign lAssign x e, stateBefore lAfter stA, stateBefore lAssign stBefore
+  assign lAssign x e, stateBefore lAssign stBefore
   --------------------------------------------------------------------------------------------
-  |- stateBefore lAfter (join (insert x (eval e stBefore) stBefore) stA)
+  |- stateAfter lAssign (insert x (eval e stBefore) stBefore)
 
 
 rule evalCondTrue:
   stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlt stt, if eq (evaluateConditional e stc) True
   -----------------------------------------------------------------------------------------------------
-  |- stateBefore jlt (join (narrowConditional e stc) stt)
+  |- stateBefore jlt (join stc stt)
 
 rule evalCondFalse:
   stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlf stf, if eq (evaluateConditional e stc) False
   -----------------------------------------------------------------------------------------------------
-  |- stateBefore jlf (join (narrowConditionalFalse e stc) stf)
+  |- stateBefore jlf (join stc stf)
+
+
+rule phiStep:
+  phi l, stateBefore l st
+  --------------------------------------------------------------------------------------------
+  |- stateAfter l st
 
 
 rule seqStep: 
-  seq l1 l2, stateBefore l1 st1, stateBefore l2 st2 
+  seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
   -----------------------------------------------
   |- stateBefore l2 (join st2 st1)
 
+rule seqStepState:
+  seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
+  -----------------------------------------------
+  |- stateBefore l2 (join st2 st1)
 
-query stateBefore as stateBefore - +
+query stateAfter as stateAfter - +
