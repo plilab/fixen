@@ -1,20 +1,21 @@
-module ReducedProduct.CongruenceTest where
+module ReducedProduct.IsEvenTest where
 
 {-
   use this file, invoke `Compiler.Compile.compile` on "Demos/Dataflow/sign" and 
   "Demos/Dataflow/SignAnalysis.hs" in order to produce the module `Dataflow.SignAnalysis`
 -}
 
-import ReducedProduct.CongruenceAnalysis
-import ReducedProduct.Congruence
+import ReducedProduct.IsEvenAnalysis
+import ReducedProduct.IsEven
 
 {- the program:
 Example 6.3 from Tutorial on Static Inference of Numeric Invariants by
 Abstract Interpretation
 by Antoine Miné
-1 : V ← 1;                                              -- [1, 1]
-2 : while V ≤ 9 do V ← V + 2 done;                      -- [1, 11]
-3 : if V == 11 then                                     -- [10, 11]
+my number = nZ + y (Z is integer)                       -- [n, y]
+1 : V ← 1;                                              -- [0, 1]
+2 : while V ≤ 9 do V ← V + 2 done;                      -- [2, 1]   [10, 11] -> [11, 11]
+3 : if V == 11 then                                     -- [1, 0]
 4 :     V ← 0
 5 : endif
 -}
@@ -31,7 +32,8 @@ test = [
   mkAssign 5 "V" (Plus (Id "V") (Num 2)), mkSeq 5 3,
   -- if V == 11 then:
   mkCond 6 (Eq (Id "V") (Num 11)) 7 100,
-  mkAssign 7 "V" (Num 0), mkSeq 7 100,
+  mkAssign 7 "V" (Num 0), mkSeq 7 8,
+  mkPhi 8, mkSeq 8 100,
   -- end
   mkPhi 100, mkSeq 100 101,
   mkVar 101 "END"

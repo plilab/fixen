@@ -1,6 +1,7 @@
-module ReducedProduct.CongruenceAnalysis where
+module ReducedProduct.IsEvenAnalysis where
 
-import ReducedProduct.Congruence
+import ReducedProduct.IsEven
+
 
 rel stateBefore: Nat, State
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE InstanceSigs #-}
-module ReducedProduct.Congruence where
+module ReducedProduct.IsEven where
 
 import Algebra.PartialOrd
 import Data.Map ( Map, unionWith ) 
@@ -21,39 +21,34 @@ import ReducedProduct.Bezout
 -- transfer functions sourced from Tutorial on Static Inference of Numeric Invariants by
 -- Abstract Interpretation by Antoine Miné
 
-data Congruence = Pair (Natural, Natural) | Top | Bot
+data Evenness = IsEven | IsOdd | Top | Bot
   deriving (Eq, Show, Generic)
 
-instance Hashable Congruence
+instance Hashable Evenness
 
-joinSign :: Congruence -> Congruence -> Congruence
+joinSign :: Evenness -> Evenness -> Evenness
 joinSign Top _ = Top
 joinSign _ Top = Top
 joinSign Bot s = s
 joinSign s Bot = s
-joinSign (Pair (a, b)) (Pair (a', b')) = Pair (gcd (gcd a a') (abs (if b >= b' then b-b' else b'-b)), b) 
+joinSign s1 s2 = if s1 == s2 then s1 else Top 
 
 
-divides :: Natural -> Natural -> Bool
-divides y y' = y == 0 || (rem y' y) == 0 
-
-congruence :: Natural -> Natural -> Natural -> Bool
-congruence x x' y = divides y (abs (x - x'))
-
-instance PartialOrd Congruence where
-  leq :: Congruence -> Congruence -> Bool
+instance PartialOrd Evenness where
+  leq :: Evenness -> Evenness -> Bool
   leq Bot _ = True
   leq _ Top = True
   leq Top _ = False
   leq _ Bot = False
-  leq (Pair (a, b)) (Pair (a', b')) = divides a' a && congruence b b' a'
+  leq s1 s2 = s1 == s2
 
 
-instance MLB Congruence where
+instance MLB Evenness where
   mlbs s1 s2  = case (s1, s2) of
-    (Pair (a, b), Pair (a', b'))
-      | congruence b b' (gcd a a') -> [Pair (lcm a a', fromInteger (inverseMod (toInteger b') (toInteger (gcd a a'))))]
-      | otherwise -> []
+    (Top, s) -> [s]
+    (Bot, _) -> [Bot]
+    (st1, st2)
+      | st1 == st2 -> [st1]
     (_, _) -> []
 
 joinState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
@@ -70,12 +65,12 @@ instance Hashable Expr
 instance PartialOrd Expr where
   leq = (==)
 
-type State = Map String Congruence
+type State = Map String Evenness
 
 join :: State -> State -> State
 join = unionWith joinSign
 
-insert :: String -> Congruence -> Map String Congruence -> Map String Congruence
+insert :: String -> Evenness -> Map String Evenness -> Map String Evenness
 insert = M.insertWith joinSign
 
 singleton :: k -> a -> Map k a
@@ -84,14 +79,14 @@ singleton = M.singleton
 empty :: Int -> Map k a
 empty = const M.empty
 
-eval :: Expr -> State -> Congruence
+eval :: Expr -> State -> Evenness
 eval e st = case e of
-  Num n -> Pair (0, fromIntegral n)
+  Num n -> if even n then IsEven else IsOdd
   Id x -> fromMaybe Bot (M.lookup x st)
   InputE -> Top
   Plus e1 e2 -> case (eval e1 st, eval e2 st) of
-    (Pair (a, b), Pair (c, d)) -> if c /= 0 then Pair (gcd a c, b + d) else Pair (1, 0) 
-    (_, _) -> Bot
+    (s1, s2) | s1 == s2 -> IsEven
+             | otherwise -> IsOdd 
   -- Times e1 e2 -> case (eval e1 st, eval e2 st) of
   --   (Pair (a, b), Pair (c, d)) -> Pair (min ( a c) (a * d) (b * c) (b * d),  max(a * c) (a * d) (b * c) (b * d))
   --   (_, _) -> Bot
@@ -101,39 +96,22 @@ eval e st = case e of
 
 narrowConditional :: Expr -> State -> State
 narrowConditional e st = case e of
-  Leq e1 e2 -> case (e1, eval e2 st) of
-    -- Only handle the trivial case or X < Z (where Z is integer), it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, if (gcd a c) /= 0 then Pair (gcd a c, rem b (gcd a c)) else Bot)]
-      _ -> M.fromList [(id, Bot)]
-    (_, _) -> error "Unexpected conditional"
-  Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, if (gcd a c) /= 0 then Pair (gcd a c, rem b (gcd a c)) else Bot)]
-      _ -> M.fromList [(id, Bot)]
-    (_, _) -> error "Unexpected conditional"
+  Leq e1 e2 -> st
+  Gte e1 e2 -> st
   Eq e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> M.union (M.fromList [(id, Pair (c, d))]) st
+    (Id id, evenness) -> insert id evenness st
     (_, _) -> error "Unexpected conditional"    
   _ -> error "Unexpected case"
 
 narrowConditionalFalse :: Expr -> State -> State
 narrowConditionalFalse e st = case e of
   Leq e1 e2 -> case (e1, eval e2 st) of
-    -- Only handle the trivial case, it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, Pair (1, 0))]
-      _ -> M.union (M.fromList [(id, Bot)]) st
-    (_, _) -> error "Unexpected conditional"
+    (Id id, evenness) -> insert id Bot st
+    (_, _) -> error "Unexpected conditional"    
   Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, Pair (1, 0))]
-      _ -> M.union (M.fromList [(id, Bot)]) st
-    (_, _) -> error "Unexpected conditional"
+    (Id id, evenness) -> insert id Bot st
+    (_, _) -> error "Unexpected conditional"    
   Eq e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> M.fromList [(id, Pair (1, 0))]
-    (_, _) -> error "Unexpected conditional"        
+    (Id id, evenness) -> insert id Bot st
+    (_, _) -> error "Unexpected conditional"    
   _ -> error "Unexpected case"
-
-eq :: Bool -> Bool -> Bool
-eq = (==)
