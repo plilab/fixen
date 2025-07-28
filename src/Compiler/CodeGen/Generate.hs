@@ -237,7 +237,9 @@ generateRuleForest = do
   where
     generateAlt :: Identifier -> CodeGen (Maybe (Alt ()))
     generateAlt name = do
-      let hasRoot p (Branch (CAssumption (Assumption q _) _) _) = p == q
+      {- NOTE: this might prevent conditions from becoming the root element in the tree.
+          at the moment that's fine since that wouldn't make sense to begin with. -}
+      let hasRoot p (Branch (CAssump q _ _) _) = p == q
           hasRoot _ _ = False
       trees <- asks $ filter (hasRoot name) . getTrees . ruleForest . program
       if null trees then
@@ -281,44 +283,51 @@ generateRuleForest = do
 
     generateTree :: Maybe (Exp ()) -> ExplicitRuleTree -> CodeGen (Exp ())
     generateTree _ (Result cs) = generateConclusion cs
-    generateTree dataExp (Branch cAssump rts) = do
-      currVarIds <- asks currentVarIds
-      let (CAssumption (Assumption name args) eqSets) = cAssump
-          varNames = mapMaybe getAtomName args
-      newVarIds <- foldM (\rest vName ->
-        if M.member vName currVarIds then do
-          freshName <- fresh (currVarIds M.! vName)
-          return $ M.insert vName freshName rest
-        else
-          return $ M.insert vName vName rest
-        ) currVarIds varNames
-          -- we use the current identifiers for the filter expression
-          -- since we are filtering with respect to currently bound variables
-      let args' = substituteConstrained currVarIds <$> args
-          -- in the pattern we use the new identifiers which used in the body
-          patVars = map (
-              maybe pWildCard (pVar . getCVar)
-              . getId
-              . substituteCVar newVarIds
-            ) args
-      qv <- freshQueueVar
-      rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
-      factPat <- mkFactPat (pApp name patVars)
-      filterExp <- paren <$>
-        generateFilterExp name args' eqSets dataExp
-      return $
-        apps (var "foldl'") [
-          paren $ lambda
-            [ pVar qv,
-              factPat ]
-            rtsExp,
-          qvar "Q" "empty",
-          filterExp
-        ]
-    substituteCVar env = getCompose . substituteAll env . Compose
-    substituteConstrained env = fmap $ \case
-      (First v) -> First v
-      (Constrained v) -> Constrained $ env M.! v
+    generateTree dataExp (Branch cPrem rts) = case cPrem of
+
+      CAssump name args eqSets -> do
+        currVarIds <- asks currentVarIds
+        let varNames = mapMaybe getAtomName args
+        newVarIds <- foldM (\rest vName ->
+          if M.member vName currVarIds then do
+            freshName <- fresh (currVarIds M.! vName)
+            return $ M.insert vName freshName rest
+          else
+            return $ M.insert vName vName rest
+          ) currVarIds varNames
+            -- we use the current identifiers for the filter expression
+            -- since we are filtering with respect to currently bound variables
+        let args' = substituteConstrained currVarIds <$> args
+            -- in the pattern we use the new identifiers which used in the body
+            patVars = map (
+                maybe pWildCard (pVar . getCVar)
+                . getId
+                . substituteCVar newVarIds
+              ) args
+        qv <- freshQueueVar
+        rtsExp  <- (withVarIds newVarIds . withQueueVar qv . generateTrees) rts
+        factPat <- mkFactPat (pApp name patVars)
+        filterExp <- paren <$>
+          generateFilterExp name args' eqSets dataExp
+        return $
+          apps (var "foldl'") [
+            paren $ lambda
+              [ pVar qv,
+                factPat ]
+              rtsExp,
+            qvar "Q" "empty",
+            filterExp
+          ]
+        where
+          substituteCVar env = getCompose . substituteAll env . Compose
+          substituteConstrained env = fmap $ \case
+            (First v) -> First v
+            (Constrained v) -> Constrained $ env M.! v
+
+      (CCondition cond) -> do
+        rtsExp <- generateTrees rts
+        return $ 
+          ifThenElse (exprToExp cond) rtsExp (qvar "Q" "empty")
 
     generateConclusion :: ContinuationFact -> CodeGen (Exp ())
     generateConclusion (Proposition name args) = do

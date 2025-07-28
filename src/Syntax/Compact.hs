@@ -11,32 +11,32 @@ import Prettyprinter
 type CExpr = Expr CVar
 type CAtomExpr = AtomExpr CVar
 
-data CompactProgram assump a = Compact
+data CompactProgram prem a = Compact
   { moduleDecl    :: Module
   , imports       :: [Import]
   , dataDefs      :: [DataDef]
   , signatures    :: [Signature]
-  , ruleForest    :: RuleForest assump a
+  , ruleForest    :: RuleForest prem a
   , continuations :: M.HashMap Identifier (Continuation Var)
   , priorities    :: [PriorityClause]
   , querries      :: [ModalDef]
   } deriving (Show)
 
-data RuleTree assump a 
+data RuleTree prem a 
   = Result ContinuationFact 
-  | Branch (assump a) [RuleTree assump a]
+  | Branch (prem a) [RuleTree prem a]
   deriving (Show)
 
-newtype RuleForest assump a = RF { getTrees :: [RuleTree assump a] }
+newtype RuleForest prem a = RF { getTrees :: [RuleTree prem a] }
   deriving (Show)
 
-type ImplicitRuleTree   = RuleTree Assumption Var
-type ImplicitRuleForest = RuleForest Assumption Var
-type ImplicitCompactProgram = CompactProgram Assumption Var
+type ImplicitRuleTree   = RuleTree Premise Var
+type ImplicitRuleForest = RuleForest Premise Var
+type ImplicitCompactProgram = CompactProgram Premise Var
 
-type ExplicitRuleTree   = RuleTree CAssumption CVar
-type ExplicitRuleForest = RuleForest CAssumption CVar
-type ExplicitCompactProgram = CompactProgram CAssumption CVar
+type ExplicitRuleTree   = RuleTree CPremise CVar
+type ExplicitRuleForest = RuleForest CPremise CVar
+type ExplicitCompactProgram = CompactProgram CPremise CVar
 
 data Continuation v = Cont
   { context    :: [(Var, TypeExpr)]
@@ -86,7 +86,7 @@ instance (Pretty (f a), Pretty a) => Pretty (RuleForest f a) where
 instance (Pretty v) => Pretty (Continuation v) where
   pretty (Cont ctx concl) = pretty ctx <+> "->" <+> pretty concl
 
-instance (Pretty a, Pretty (assump a)) => Pretty (CompactProgram assump a) where
+instance (Pretty a, Pretty (prem a)) => Pretty (CompactProgram prem a) where
   pretty prog = vsep [
     vsep (pretty <$> imports prog),
     vsep (pretty <$> dataDefs prog),

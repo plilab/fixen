@@ -37,15 +37,18 @@ explicateTrees = mapM go
         ts' <- local (const seenVars) $ mapM go ts
         return $ Branch p' ts'
 
-explicateAssumption :: Assumption Var -> ExplicationState (CAssumption CVar)
-explicateAssumption assump = do
+explicateAssumption :: Premise Var -> ExplicationState (CPremise CVar)
+explicateAssumption (Assumed assump) = do
   -- explicate external dependencies
   assump' <- mapM explicateId assump
   -- explicate internal dependencies
   let (assump'', eqs) = runState (mapM explicateEqualities assump') M.empty
   -- clean up the eqs: remove singleton mappings
       eqs' = M.filter ((> 1) . S.size) eqs
-  return $ CAssumption assump'' eqs'
+  return (CAssumed $ CAssumption assump'' eqs')
+explicateAssumption (Condition cond) = do
+  cond' <- mapM explicateId cond
+  return (CCondition cond')
 
 explicateId :: Var -> ExplicationState CVar
 explicateId name = do
@@ -54,7 +57,8 @@ explicateId name = do
   return $
     (if seen then Constrained else First) (unVariable name)
 
--- only matters for variables which occur First in current premise!!
+{- only matters for variables which occur First in current premise (!)
+    because later occurrences are anyway already bound -}
 explicateEqualities :: CVar -> State Constraints CVar
 explicateEqualities (First v) = do
   modify $ M.insert v (S.singleton v)

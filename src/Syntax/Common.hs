@@ -66,7 +66,7 @@ lookupSignature name = foldr
 data Rule prem concl = Rule [prem] concl
   deriving (Show, Functor)
 
-type RuleClause = Rule (Assumption Var) (Conclusion Var)
+type RuleClause = Rule (Premise Var) (Conclusion Var)
 
 data Instantiation = Instantiation Identifier [(Var, Var)]
   deriving (Show, Eq)
@@ -82,31 +82,30 @@ getId :: AtomExpr a -> Maybe a
 getId (Id v) = Just v
 getId _      = Nothing
 
-data Expr v = Atom (AtomExpr v) | App Identifier [Expr v] -- App (Expr v) (Expr v)
+data Expr v = Atom (AtomExpr v) | App Identifier [Expr v]
   deriving (Show, Eq, Functor, Generic)
-
-{-
-  Assumption a <=> Proposition (AtomExpr a)
-
-  Assumption = Compose Propositon AtomExpr
--}
 
 data Proposition a = Proposition { headSymbol :: Identifier, arguments :: [a] }
   deriving (Show, Eq, Functor, Generic, Generic1)
--- data Premise = Invocation | Let | Exsts Identifer
--- Invocation = Ident [Ident | Lit]
+
+data Premise a = Assumed (Assumption a) | Condition (Expr a)
+  deriving (Show, Eq, Functor)
+
+getAssumption :: Premise a -> Maybe (Assumption a)
+getAssumption (Assumed a) = Just a
+getAssumption _ = Nothing
+
+getCondition :: Premise a -> Maybe (Expr a)
+getCondition (Condition e) = Just e
+getCondition _ = Nothing
+
+type PropositionOf = Compose Proposition
 
 headSymbolOf :: PropositionOf f a -> Identifier
 headSymbolOf = headSymbol . getCompose
 
 argumentsOf :: PropositionOf f a -> [f a]
 argumentsOf = arguments . getCompose
-
-{- data Premise a
-  = Assumption (Proposition (AtomExpr a))
-  | Bounded (Proposition (AtomExpr a)) [(a, a)] -}
-
-type PropositionOf = Compose Proposition
 
 type Assumption = PropositionOf AtomExpr
 {-# COMPLETE Assumption #-}
@@ -160,10 +159,19 @@ getAtomName = fmap getCVar . getId
 
 type Constraints = M.HashMap Identifier (S.HashSet Identifier)
 
+data CPremise a
+  = CAssumed (CAssumption a)
+  | CCondition (Expr a)
+  deriving (Show, Functor)
+
 data CAssumption a = CAssumption { 
   assumption :: Assumption a,
   constraints :: Constraints
   } deriving (Show, Functor)
+
+{-# COMPLETE CAssump, CCondition #-}
+pattern CAssump :: Identifier -> [AtomExpr a] -> Constraints -> CPremise a
+pattern CAssump name args constrs = CAssumed (CAssumption (Assumption name args) constrs)
 
 data OrdHead e = OrdHead { getLeft :: e, getRight :: e }
   deriving (Show, Eq, Functor)
@@ -206,6 +214,14 @@ instance NamedVariable FVar where
 
 instance Hashable a => Hashable (Variable a) where
   hash = hash . unVariable
+
+instance Foldable Premise where
+  foldr f z (Assumed a) = foldr f z a
+  foldr f z (Condition e) = foldr f z e
+
+instance Traversable Premise where
+  traverse f (Assumed a) = Assumed <$> traverse f a
+  traverse f (Condition e) = Condition <$> traverse f e
 
 instance Foldable CAssumption where
   foldr f z (CAssumption assump _) = foldr f z assump
@@ -337,6 +353,10 @@ instance (Pretty a) => Pretty (Proposition a) where
   pretty (Proposition name args) =
     pretty name <+> hsep (map pretty args)
 
+instance (Pretty a) => Pretty (Premise a) where
+  pretty (Assumed a)   = pretty a
+  pretty (Condition e) = "if" <+> pretty e
+
 instance (Pretty a) => Pretty (CAssumption a) where
   pretty (CAssumption assump eqs) = 
     if M.null eqs then 
@@ -347,6 +367,10 @@ instance (Pretty a) => Pretty (CAssumption a) where
     where
       prettyEqs = 
         prettyCommaSep . map (hcat . punctuate " = " . map pretty . S.toList) . M.elems
+
+instance (Pretty a) => Pretty (CPremise a) where
+  pretty (CAssumed a) = pretty a
+  pretty (CCondition c) = "if" <+> pretty c
 
 prettyCommaSep :: [Doc ann] -> Doc ann
 prettyCommaSep = hcat . punctuate ", "
