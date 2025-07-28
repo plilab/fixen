@@ -56,10 +56,31 @@ widenState k s db = map (k . widen) (s : toList db)
 data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr | Gte Expr Expr | Eq Expr Expr
   deriving (Eq, Show, Generic)
 
+data BBool = BTop | BFalse | BTrue | BBot
+  deriving (Eq, Show, Generic)
+
 instance Hashable Expr
+
+instance Hashable BBool
 
 instance PartialOrd Expr where
   leq = (==)
+
+instance PartialOrd BBool where
+  leq BBot _ = True
+  leq _ BTop = True
+  leq s1 s2 = s1 == s2
+
+instance MLB BBool where
+  mlbs s1 s2  = case (s1, s2) of
+    (BTrue, BTrue) -> [BTrue]
+    (BFalse, BFalse) -> [BFalse]
+    (BFalse, BTrue) -> [BTop]
+    (BTrue, BFalse) -> [BTop]
+    (BTop, _) -> [BTop]
+    (_, BTop) -> [BTop]
+    (rest, BBot) -> [rest]
+    (BBot, rest) -> [rest]
 
 type State = Map String Interval
 
@@ -90,22 +111,26 @@ eval e st = case e of
   Gte _ _ -> error "Encounted gte" -- this should never happen, and be always handled by evaluateConditional
   Eq _ _ -> error "Encountered eq" -- this should never happen, ...
 
-evaluateConditional :: Expr -> State -> Bool
+evaluateConditional :: Expr -> State -> BBool
 evaluateConditional e st = case e of
   Leq e1 e2 -> case (eval e1 st, eval e2 st) of
-    (Pair (a, b), Pair (c, d)) -> a <= c && b <= d
-    (_, Top) -> True
-    (Bot, _) -> True
-    (_, _) -> error "Unexpected conditional"
+    (Pair (a, b), Pair (c, d)) -> if b <= c then BTrue else if a > d then BFalse else BTop
+    (Bot, _) -> BBot
+    (_, Bot) -> BBot
+    (_, Top) -> BTop
+    (Top, _) -> BTop
   Gte e1 e2 -> case (eval e1 st, eval e2 st) of
-    (Pair (a, b), Pair (c, d)) -> a >= c && b >= d
-    (Top, _) -> True
-    (_, Bot) -> True
-    (Bot, _) -> False -- Technically not true, but it doesn't matter, as bottom will be overrided later.
-    (_, _) -> error "Unexpected conditional"
+    (Pair (a, b), Pair (c, d)) -> if a >= d then BTrue else if b < c then BFalse else BTop
+    (Bot, _) -> BBot
+    (_, Bot) -> BBot
+    (_, Top) -> BTop
+    (Top, _) -> BTop
   Eq e1 e2 -> case (eval e1 st, eval e2 st) of
-    (Pair (a, b), Pair (c, d)) -> a == c && b == d
-    (d, s) -> d == s
+    (Pair (a, b), Pair (c, d)) -> if a == c && b == d && a == b && c == d then BTrue else if b < c || d < a then BFalse else BTop
+    (Bot, _) -> BBot
+    (_, Bot) -> BBot
+    (_, Top) -> BTop
+    (Top, _) -> BTop
   _ -> error "Unexpected case"
 
 
@@ -144,6 +169,3 @@ narrowConditionalFalse e st = case e of
     (Id id, Pair (c, d)) -> M.union (M.fromList [(id, Pair (c, d))]) st
     (_, _) -> error "Unexpected conditional"        
   _ -> error "Unexpected case"
-
-eq :: Bool -> Bool -> Bool
-eq = (==)
