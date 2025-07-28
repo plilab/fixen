@@ -57,13 +57,12 @@ rule assignStep:
 rule evalCondTrue:
   stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlt stt, if eq (evaluateConditional e stc) True
   -----------------------------------------------------------------------------------------------------
-  |- stateBefore jlt (join stc stt)
+  |- stateBefore jlt (join (narrowConditional e stc) stt)
 
 rule evalCondFalse:
   stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlf stf, if eq (evaluateConditional e stc) False
   -----------------------------------------------------------------------------------------------------
-  |- stateBefore jlf (join stc stf)
-
+  |- stateBefore jlf (join (narrowConditionalFalse e stc) stf)
 
 rule phiStep:
   phi l, stateBefore l st
@@ -71,14 +70,19 @@ rule phiStep:
   |- stateAfter l st
 
 
-rule seqStep: 
+rule seqStepBefore: 
   seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
   -----------------------------------------------
   |- stateBefore l2 (join st2 st1)
 
-rule seqStepState:
+rule seqStepAfter:
   seq l1 l2, stateAfter l1 st1, stateBefore l2 st2 
   -----------------------------------------------
   |- stateBefore l2 (join st2 st1)
+
+rule varStepAfter:
+  var l x, stateBefore l st
+  ---------------------------------
+  |- stateAfter l (insert x Bot st) 
 
 query stateAfter as stateAfter - +
