@@ -4,7 +4,7 @@ module ReducedProduct.Interval where
 
 import Algebra.PartialOrd
 import Data.Map ( Map, unionWith ) 
-import qualified Data.Map as M (singleton, lookup, empty, insertWith, map, fromList)
+import qualified Data.Map as M (singleton, lookup, empty, insertWith, map, fromList, union)
 import Common.Definitions
 import GHC.Generics (Generic)
 import Data.Hashable (Hashable)
@@ -117,8 +117,8 @@ narrowConditionalFalse e st = case e of
   Leq e1 e2 -> case (e1, eval e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
     (Id id, Pair (c, d)) -> case eval e1 st of
-      Pair (a, b) -> M.fromList [(id, Pair (d+1, max (d+1) b))]
-      _ -> M.fromList [(id, Bot)]
+      Pair (a, b) -> M.union (M.fromList [(id, Pair (d+1, max (d+1) b))]) st
+      _ -> M.union (M.fromList [(id, Pair (d+1, 1000000))]) st
     (_, _) -> error "Unexpected conditional"
   _ -> error "Unexpected case"
 

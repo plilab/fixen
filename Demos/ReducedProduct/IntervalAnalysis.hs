@@ -198,989 +198,417 @@ insertDB fact db
 type Queue = Q.MaxQueue Continuation
 
 step :: DataBase -> Fact -> Queue -> Queue
-step db fact q_8988
+step db fact q_10178
   = case fact of
-        SeqFact f@(Seq v_8989 v_8990) -> Q.unions
-                                           [q_8988,
-                                            foldl'
-                                              (\ q_8991 f@(Seq l10 l20) ->
-                                                 trace ("got: " ++ show f)
-                                                   (Q.unions
-                                                      [q_8991,
-                                                       foldl'
-                                                         (\ q_8993 f@(StateBefore l10_8992 st10) ->
-                                                            trace ("got: " ++ show f)
-                                                              (Q.unions
-                                                                 [q_8993,
-                                                                  foldl'
-                                                                    (\ q_8995
-                                                                       f@(StateBefore l20_8994 st20)
-                                                                       ->
-                                                                       trace ("got: " ++ show f)
-                                                                         (Q.unions
-                                                                            [q_8995,
-                                                                             Q.singleton
-                                                                               (traceConclusion
-                                                                                  (SeqStepCont
-                                                                                     l10_8992
-                                                                                     l20_8994
-                                                                                     st10
-                                                                                     st20))]))
-                                                                    Q.empty
-                                                                    (M.foldlWithKey'
-                                                                       (\ rest v_8996 vals ->
-                                                                          concatMap
-                                                                            (\ v_8997 ->
-                                                                               pure StateBefore <*>
-                                                                                 mlbs v_8996 l20
-                                                                                 <*> pure v_8997)
-                                                                            vals
-                                                                            ++ rest)
-                                                                       []
-                                                                       (factsStateBefore db))]))
-                                                         Q.empty
-                                                         (M.foldlWithKey'
-                                                            (\ rest v_8998 vals ->
-                                                               concatMap
-                                                                 (\ v_8999 ->
-                                                                    pure StateBefore <*>
-                                                                      mlbs v_8998 l10
-                                                                      <*> pure v_8999)
-                                                                 vals
-                                                                 ++ rest)
-                                                            []
-                                                            (factsStateBefore db)),
-                                                       foldl'
-                                                         (\ q_9001
-                                                            f@(StateBefore l10_9000 stBefore0) ->
-                                                            trace ("got: " ++ show f)
-                                                              (Q.unions
-                                                                 [q_9001,
-                                                                  foldl'
-                                                                    (\ q_9003
-                                                                       f@(StateBefore l20_9002 stA0)
-                                                                       ->
-                                                                       trace ("got: " ++ show f)
-                                                                         (Q.unions
-                                                                            [q_9003,
-                                                                             foldl'
-                                                                               (\ q_9005
-                                                                                  f@(Assign
-                                                                                       l10_9000_9004
-                                                                                       x0 e2)
-                                                                                  ->
-                                                                                  trace
-                                                                                    ("got: " ++
-                                                                                       show f)
-                                                                                    (Q.unions
-                                                                                       [q_9005,
-                                                                                        Q.singleton
-                                                                                          (traceConclusion
-                                                                                             (AssignStepCont
-                                                                                                l10_9000_9004
-                                                                                                l20_9002
-                                                                                                x0
-                                                                                                e2
-                                                                                                stA0
-                                                                                                stBefore0))]))
-                                                                               Q.empty
-                                                                               (M.foldlWithKey'
-                                                                                  (\ rest
-                                                                                     (v_9006,
-                                                                                      v_9007)
-                                                                                     vals ->
-                                                                                     concatMap
-                                                                                       (\ v_9008 ->
-                                                                                          pure
-                                                                                            Assign
-                                                                                            <*>
-                                                                                            mlbs
-                                                                                              v_9006
-                                                                                              l10_9000
-                                                                                            <*>
-                                                                                            pure
-                                                                                              v_9007
-                                                                                            <*>
-                                                                                            pure
-                                                                                              v_9008)
-                                                                                       vals
-                                                                                       ++ rest)
-                                                                                  []
-                                                                                  (factsAssign
-                                                                                     db))]))
-                                                                    Q.empty
-                                                                    (M.foldlWithKey'
-                                                                       (\ rest v_9009 vals ->
-                                                                          concatMap
-                                                                            (\ v_9010 ->
-                                                                               pure StateBefore <*>
-                                                                                 mlbs v_9009 l20
-                                                                                 <*> pure v_9010)
-                                                                            vals
-                                                                            ++ rest)
-                                                                       []
-                                                                       (factsStateBefore db))]))
-                                                         Q.empty
-                                                         (M.foldlWithKey'
-                                                            (\ rest v_9011 vals ->
-                                                               concatMap
-                                                                 (\ v_9012 ->
-                                                                    pure StateBefore <*>
-                                                                      mlbs v_9011 l10
-                                                                      <*> pure v_9012)
-                                                                 vals
-                                                                 ++ rest)
-                                                            []
-                                                            (factsStateBefore db))]))
-                                              Q.empty
-                                              (S.foldl'
-                                                 (\ rest (v_9013, v_9014) ->
-                                                    Seq v_9013 v_9014 : rest)
-                                                 []
-                                                 (S.singleton (v_8989, v_8990)))]
-        PhiFact f@(Phi v_9015) -> Q.unions
-                                    [q_8988,
-                                     foldl'
-                                       (\ q_9016 f@(Phi l0) ->
-                                          trace ("got: " ++ show f)
-                                            (Q.unions
-                                               [q_9016,
-                                                Q.singleton (traceConclusion (PhiInitCont l0))]))
-                                       Q.empty
-                                       (S.foldl' (\ rest v_9017 -> Phi v_9017 : rest) []
-                                          (S.singleton v_9015))]
-        CondFact f@(Cond v_9018 v_9019 v_9020 v_9021) -> Q.unions
-                                                           [q_8988,
-                                                            foldl'
-                                                              (\ q_9022 f@(Cond lcond0 e0 jlt0 jlf0)
-                                                                 ->
-                                                                 trace ("got: " ++ show f)
-                                                                   (Q.unions
-                                                                      [q_9022,
-                                                                       foldl'
-                                                                         (\ q_9024
-                                                                            f@(StateBefore jlf0_9023
-                                                                                 stf0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9024,
-                                                                                  foldl'
-                                                                                    (\ q_9026
-                                                                                       f@(StateBefore
-                                                                                            lcond0_9025
-                                                                                            stc0)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9026,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e0
-                                                                                                    stc0)
-                                                                                                 False
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9026,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondFalseCont
-                                                                                                             lcond0_9025
-                                                                                                             stc0
-                                                                                                             e0
-                                                                                                             jlt0
-                                                                                                             jlf0_9023
-                                                                                                             stf0))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9027
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9028
-                                                                                               ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9027
-                                                                                                   lcond0
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9028)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsStateBefore
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9029 vals ->
-                                                                               concatMap
-                                                                                 (\ v_9030 ->
-                                                                                    pure StateBefore
-                                                                                      <*>
-                                                                                      mlbs v_9029
-                                                                                        jlf0
-                                                                                      <*>
-                                                                                      pure v_9030)
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsStateBefore db)),
-                                                                       foldl'
-                                                                         (\ q_9032
-                                                                            f@(StateBefore jlt0_9031
-                                                                                 stt0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9032,
-                                                                                  foldl'
-                                                                                    (\ q_9034
-                                                                                       f@(StateBefore
-                                                                                            lcond0_9033
-                                                                                            stc1)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9034,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e0
-                                                                                                    stc1)
-                                                                                                 True
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9034,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondTrueCont
-                                                                                                             lcond0_9033
-                                                                                                             stc1
-                                                                                                             e0
-                                                                                                             jlt0_9031
-                                                                                                             jlf0
-                                                                                                             stt0))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9035
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9036
-                                                                                               ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9035
-                                                                                                   lcond0
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9036)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsStateBefore
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9037 vals ->
-                                                                               concatMap
-                                                                                 (\ v_9038 ->
-                                                                                    pure StateBefore
-                                                                                      <*>
-                                                                                      mlbs v_9037
-                                                                                        jlt0
-                                                                                      <*>
-                                                                                      pure v_9038)
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsStateBefore db)),
-                                                                       Q.singleton
-                                                                         (traceConclusion
-                                                                            (CondInitCont lcond0 e0
-                                                                               jlt0
-                                                                               jlf0))]))
-                                                              Q.empty
-                                                              (M.foldlWithKey'
-                                                                 (\ rest v_9039 vals ->
-                                                                    S.foldl'
-                                                                      (\ acc
-                                                                         (v_9040, v_9041, v_9042) ->
-                                                                         Cond v_9039 v_9040 v_9041
-                                                                           v_9042
-                                                                           : acc)
-                                                                      []
-                                                                      vals
-                                                                      ++ rest)
-                                                                 []
-                                                                 (M.singleton v_9018
-                                                                    (S.singleton
-                                                                       (v_9019, v_9020, v_9021))))]
-        AssignFact f@(Assign v_9043 v_9044 v_9045) -> Q.unions
-                                                        [q_8988,
+        SeqFact f@(Seq v_10179 v_10180) -> Q.unions
+                                             [q_10178,
+                                              foldl'
+                                                (\ q_10181 f@(Seq l10 l20) ->
+                                                   trace ("got: " ++ show f)
+                                                     (Q.unions
+                                                        [q_10181,
                                                          foldl'
-                                                           (\ q_9046 f@(Assign lAssign0 x0 e2) ->
+                                                           (\ q_10183 f@(StateBefore l10_10182 st10)
+                                                              ->
                                                               trace ("got: " ++ show f)
                                                                 (Q.unions
-                                                                   [q_9046,
+                                                                   [q_10183,
                                                                     foldl'
-                                                                      (\ q_9048
-                                                                         f@(StateBefore
-                                                                              lAssign0_9047
-                                                                              stBefore0)
+                                                                      (\ q_10185
+                                                                         f@(StateBefore l20_10184
+                                                                              st20)
                                                                          ->
                                                                          trace ("got: " ++ show f)
                                                                            (Q.unions
-                                                                              [q_9048,
+                                                                              [q_10185,
+                                                                               Q.singleton
+                                                                                 (traceConclusion
+                                                                                    (SeqStepCont
+                                                                                       l10_10182
+                                                                                       l20_10184
+                                                                                       st10
+                                                                                       st20))]))
+                                                                      Q.empty
+                                                                      (M.foldlWithKey'
+                                                                         (\ rest v_10186 vals ->
+                                                                            concatMap
+                                                                              (\ v_10187 ->
+                                                                                 pure StateBefore
+                                                                                   <*>
+                                                                                   mlbs v_10186 l20
+                                                                                   <*> pure v_10187)
+                                                                              vals
+                                                                              ++ rest)
+                                                                         []
+                                                                         (factsStateBefore db))]))
+                                                           Q.empty
+                                                           (M.foldlWithKey'
+                                                              (\ rest v_10188 vals ->
+                                                                 concatMap
+                                                                   (\ v_10189 ->
+                                                                      pure StateBefore <*>
+                                                                        mlbs v_10188 l10
+                                                                        <*> pure v_10189)
+                                                                   vals
+                                                                   ++ rest)
+                                                              []
+                                                              (factsStateBefore db)),
+                                                         foldl'
+                                                           (\ q_10191
+                                                              f@(StateBefore l10_10190 stBefore0) ->
+                                                              trace ("got: " ++ show f)
+                                                                (Q.unions
+                                                                   [q_10191,
+                                                                    foldl'
+                                                                      (\ q_10193
+                                                                         f@(StateBefore l20_10192
+                                                                              stA0)
+                                                                         ->
+                                                                         trace ("got: " ++ show f)
+                                                                           (Q.unions
+                                                                              [q_10193,
                                                                                foldl'
-                                                                                 (\ q_9049
-                                                                                    f@(StateBefore
-                                                                                         lAfter0
-                                                                                         stA0)
+                                                                                 (\ q_10195
+                                                                                    f@(Assign
+                                                                                         l10_10190_10194
+                                                                                         x0 e2)
                                                                                     ->
                                                                                     trace
                                                                                       ("got: " ++
                                                                                          show f)
                                                                                       (Q.unions
-                                                                                         [q_9049,
-                                                                                          foldl'
-                                                                                            (\ q_9052
-                                                                                               f@(Seq
-                                                                                                    lAssign0_9047_9050
-                                                                                                    lAfter0_9051)
-                                                                                               ->
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9052,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (AssignStepCont
-                                                                                                             lAssign0_9047_9050
-                                                                                                             lAfter0_9051
-                                                                                                             x0
-                                                                                                             e2
-                                                                                                             stA0
-                                                                                                             stBefore0))]))
-                                                                                            Q.empty
-                                                                                            (foldl'
-                                                                                               (\ rest
-                                                                                                  (v_9053,
-                                                                                                   v_9054)
-                                                                                                  ->
-                                                                                                  (pure
-                                                                                                     Seq
-                                                                                                     <*>
-                                                                                                     mlbs
-                                                                                                       v_9053
-                                                                                                       lAssign0_9047
-                                                                                                     <*>
-                                                                                                     mlbs
-                                                                                                       v_9054
-                                                                                                       lAfter0)
-                                                                                                    ++
-                                                                                                    rest)
-                                                                                               []
-                                                                                               (factsSeq
-                                                                                                  db))]))
+                                                                                         [q_10195,
+                                                                                          Q.singleton
+                                                                                            (traceConclusion
+                                                                                               (AssignStepCont
+                                                                                                  l10_10190_10194
+                                                                                                  l20_10192
+                                                                                                  x0
+                                                                                                  e2
+                                                                                                  stA0
+                                                                                                  stBefore0))]))
                                                                                  Q.empty
                                                                                  (M.foldlWithKey'
-                                                                                    (\ rest v_9055
+                                                                                    (\ rest
+                                                                                       (v_10196,
+                                                                                        v_10197)
                                                                                        vals ->
-                                                                                       S.foldl'
-                                                                                         (\ acc
-                                                                                            v_9056
+                                                                                       concatMap
+                                                                                         (\ v_10198
                                                                                             ->
-                                                                                            StateBefore
-                                                                                              v_9055
-                                                                                              v_9056
-                                                                                              : acc)
-                                                                                         []
+                                                                                            pure
+                                                                                              Assign
+                                                                                              <*>
+                                                                                              mlbs
+                                                                                                v_10196
+                                                                                                l10_10190
+                                                                                              <*>
+                                                                                              pure
+                                                                                                v_10197
+                                                                                              <*>
+                                                                                              pure
+                                                                                                v_10198)
                                                                                          vals
                                                                                          ++ rest)
                                                                                     []
-                                                                                    (factsStateBefore
+                                                                                    (factsAssign
                                                                                        db))]))
                                                                       Q.empty
                                                                       (M.foldlWithKey'
-                                                                         (\ rest v_9057 vals ->
+                                                                         (\ rest v_10199 vals ->
                                                                             concatMap
-                                                                              (\ v_9058 ->
+                                                                              (\ v_10200 ->
                                                                                  pure StateBefore
                                                                                    <*>
-                                                                                   mlbs v_9057
-                                                                                     lAssign0
-                                                                                   <*> pure v_9058)
+                                                                                   mlbs v_10199 l20
+                                                                                   <*> pure v_10200)
                                                                               vals
                                                                               ++ rest)
                                                                          []
-                                                                         (factsStateBefore db)),
-                                                                    Q.singleton
-                                                                      (traceConclusion
-                                                                         (AssignInitCont lAssign0 x0
-                                                                            e2))]))
+                                                                         (factsStateBefore db))]))
                                                            Q.empty
                                                            (M.foldlWithKey'
-                                                              (\ rest (v_9059, v_9060) vals ->
-                                                                 S.foldl'
-                                                                   (\ acc v_9061 ->
-                                                                      Assign v_9059 v_9060 v_9061 :
-                                                                        acc)
-                                                                   []
+                                                              (\ rest v_10201 vals ->
+                                                                 concatMap
+                                                                   (\ v_10202 ->
+                                                                      pure StateBefore <*>
+                                                                        mlbs v_10201 l10
+                                                                        <*> pure v_10202)
                                                                    vals
                                                                    ++ rest)
                                                               []
-                                                              (M.singleton (v_9043, v_9044)
-                                                                 (S.singleton v_9045)))]
-        VarFact f@(Var v_9062 v_9063) -> Q.unions
-                                           [q_8988,
-                                            foldl'
-                                              (\ q_9064 f@(Var l3 x2) ->
-                                                 trace ("got: " ++ show f)
-                                                   (Q.unions
-                                                      [q_9064,
-                                                       Q.singleton
-                                                         (traceConclusion (VarInitCont l3 x2))]))
-                                              Q.empty
-                                              (S.foldl'
-                                                 (\ rest (v_9065, v_9066) ->
-                                                    Var v_9065 v_9066 : rest)
-                                                 []
-                                                 (S.singleton (v_9062, v_9063)))]
-        StateBeforeFact f@(StateBefore v_9067 v_9068) -> Q.unions
-                                                           [q_8988,
+                                                              (factsStateBefore db))]))
+                                                Q.empty
+                                                (S.foldl'
+                                                   (\ rest (v_10203, v_10204) ->
+                                                      Seq v_10203 v_10204 : rest)
+                                                   []
+                                                   (S.singleton (v_10179, v_10180)))]
+        PhiFact f@(Phi v_10205) -> Q.unions
+                                     [q_10178,
+                                      foldl'
+                                        (\ q_10206 f@(Phi l0) ->
+                                           trace ("got: " ++ show f)
+                                             (Q.unions
+                                                [q_10206,
+                                                 Q.singleton (traceConclusion (PhiInitCont l0))]))
+                                        Q.empty
+                                        (S.foldl' (\ rest v_10207 -> Phi v_10207 : rest) []
+                                           (S.singleton v_10205))]
+        CondFact f@(Cond v_10208 v_10209 v_10210 v_10211) -> Q.unions
+                                                               [q_10178,
+                                                                foldl'
+                                                                  (\ q_10212
+                                                                     f@(Cond lcond0 e0 jlt0 jlf0) ->
+                                                                     trace ("got: " ++ show f)
+                                                                       (Q.unions
+                                                                          [q_10212,
+                                                                           foldl'
+                                                                             (\ q_10214
+                                                                                f@(StateBefore
+                                                                                     jlf0_10213
+                                                                                     stf0)
+                                                                                ->
+                                                                                trace
+                                                                                  ("got: " ++
+                                                                                     show f)
+                                                                                  (Q.unions
+                                                                                     [q_10214,
+                                                                                      foldl'
+                                                                                        (\ q_10216
+                                                                                           f@(StateBefore
+                                                                                                lcond0_10215
+                                                                                                stc0)
+                                                                                           ->
+                                                                                           trace
+                                                                                             ("got: "
+                                                                                                ++
+                                                                                                show
+                                                                                                  f)
+                                                                                             (Q.unions
+                                                                                                [q_10216,
+                                                                                                 if
+                                                                                                   eq
+                                                                                                     (evaluateConditional
+                                                                                                        e0
+                                                                                                        stc0)
+                                                                                                     False
+                                                                                                   then
+                                                                                                   trace
+                                                                                                     ("got: "
+                                                                                                        ++
+                                                                                                        show
+                                                                                                          f)
+                                                                                                     (Q.unions
+                                                                                                        [q_10216,
+                                                                                                         Q.singleton
+                                                                                                           (traceConclusion
+                                                                                                              (EvalCondFalseCont
+                                                                                                                 lcond0_10215
+                                                                                                                 stc0
+                                                                                                                 e0
+                                                                                                                 jlt0
+                                                                                                                 jlf0_10213
+                                                                                                                 stf0))])
+                                                                                                   else
+                                                                                                   Q.empty]))
+                                                                                        Q.empty
+                                                                                        (M.foldlWithKey'
+                                                                                           (\ rest
+                                                                                              v_10217
+                                                                                              vals
+                                                                                              ->
+                                                                                              concatMap
+                                                                                                (\ v_10218
+                                                                                                   ->
+                                                                                                   pure
+                                                                                                     StateBefore
+                                                                                                     <*>
+                                                                                                     mlbs
+                                                                                                       v_10217
+                                                                                                       lcond0
+                                                                                                     <*>
+                                                                                                     pure
+                                                                                                       v_10218)
+                                                                                                vals
+                                                                                                ++
+                                                                                                rest)
+                                                                                           []
+                                                                                           (factsStateBefore
+                                                                                              db))]))
+                                                                             Q.empty
+                                                                             (M.foldlWithKey'
+                                                                                (\ rest v_10219 vals
+                                                                                   ->
+                                                                                   concatMap
+                                                                                     (\ v_10220 ->
+                                                                                        pure
+                                                                                          StateBefore
+                                                                                          <*>
+                                                                                          mlbs
+                                                                                            v_10219
+                                                                                            jlf0
+                                                                                          <*>
+                                                                                          pure
+                                                                                            v_10220)
+                                                                                     vals
+                                                                                     ++ rest)
+                                                                                []
+                                                                                (factsStateBefore
+                                                                                   db)),
+                                                                           foldl'
+                                                                             (\ q_10222
+                                                                                f@(StateBefore
+                                                                                     jlt0_10221
+                                                                                     stt0)
+                                                                                ->
+                                                                                trace
+                                                                                  ("got: " ++
+                                                                                     show f)
+                                                                                  (Q.unions
+                                                                                     [q_10222,
+                                                                                      foldl'
+                                                                                        (\ q_10224
+                                                                                           f@(StateBefore
+                                                                                                lcond0_10223
+                                                                                                stc1)
+                                                                                           ->
+                                                                                           trace
+                                                                                             ("got: "
+                                                                                                ++
+                                                                                                show
+                                                                                                  f)
+                                                                                             (Q.unions
+                                                                                                [q_10224,
+                                                                                                 if
+                                                                                                   eq
+                                                                                                     (evaluateConditional
+                                                                                                        e0
+                                                                                                        stc1)
+                                                                                                     True
+                                                                                                   then
+                                                                                                   trace
+                                                                                                     ("got: "
+                                                                                                        ++
+                                                                                                        show
+                                                                                                          f)
+                                                                                                     (Q.unions
+                                                                                                        [q_10224,
+                                                                                                         Q.singleton
+                                                                                                           (traceConclusion
+                                                                                                              (EvalCondTrueCont
+                                                                                                                 lcond0_10223
+                                                                                                                 stc1
+                                                                                                                 e0
+                                                                                                                 jlt0_10221
+                                                                                                                 jlf0
+                                                                                                                 stt0))])
+                                                                                                   else
+                                                                                                   Q.empty]))
+                                                                                        Q.empty
+                                                                                        (M.foldlWithKey'
+                                                                                           (\ rest
+                                                                                              v_10225
+                                                                                              vals
+                                                                                              ->
+                                                                                              concatMap
+                                                                                                (\ v_10226
+                                                                                                   ->
+                                                                                                   pure
+                                                                                                     StateBefore
+                                                                                                     <*>
+                                                                                                     mlbs
+                                                                                                       v_10225
+                                                                                                       lcond0
+                                                                                                     <*>
+                                                                                                     pure
+                                                                                                       v_10226)
+                                                                                                vals
+                                                                                                ++
+                                                                                                rest)
+                                                                                           []
+                                                                                           (factsStateBefore
+                                                                                              db))]))
+                                                                             Q.empty
+                                                                             (M.foldlWithKey'
+                                                                                (\ rest v_10227 vals
+                                                                                   ->
+                                                                                   concatMap
+                                                                                     (\ v_10228 ->
+                                                                                        pure
+                                                                                          StateBefore
+                                                                                          <*>
+                                                                                          mlbs
+                                                                                            v_10227
+                                                                                            jlt0
+                                                                                          <*>
+                                                                                          pure
+                                                                                            v_10228)
+                                                                                     vals
+                                                                                     ++ rest)
+                                                                                []
+                                                                                (factsStateBefore
+                                                                                   db)),
+                                                                           Q.singleton
+                                                                             (traceConclusion
+                                                                                (CondInitCont lcond0
+                                                                                   e0
+                                                                                   jlt0
+                                                                                   jlf0))]))
+                                                                  Q.empty
+                                                                  (M.foldlWithKey'
+                                                                     (\ rest v_10229 vals ->
+                                                                        S.foldl'
+                                                                          (\ acc
+                                                                             (v_10230, v_10231,
+                                                                              v_10232)
+                                                                             ->
+                                                                             Cond v_10229 v_10230
+                                                                               v_10231
+                                                                               v_10232
+                                                                               : acc)
+                                                                          []
+                                                                          vals
+                                                                          ++ rest)
+                                                                     []
+                                                                     (M.singleton v_10208
+                                                                        (S.singleton
+                                                                           (v_10209, v_10210,
+                                                                            v_10211))))]
+        AssignFact f@(Assign v_10233 v_10234 v_10235) -> Q.unions
+                                                           [q_10178,
                                                             foldl'
-                                                              (\ q_9069 f@(StateBefore l10 st10) ->
+                                                              (\ q_10236 f@(Assign lAssign0 x0 e2)
+                                                                 ->
                                                                  trace ("got: " ++ show f)
                                                                    (Q.unions
-                                                                      [q_9069,
+                                                                      [q_10236,
                                                                        foldl'
-                                                                         (\ q_9071
-                                                                            f@(Seq l10_9070 l20) ->
+                                                                         (\ q_10238
+                                                                            f@(StateBefore
+                                                                                 lAssign0_10237
+                                                                                 stBefore0)
+                                                                            ->
                                                                             trace
                                                                               ("got: " ++ show f)
                                                                               (Q.unions
-                                                                                 [q_9071,
+                                                                                 [q_10238,
                                                                                   foldl'
-                                                                                    (\ q_9073
+                                                                                    (\ q_10239
                                                                                        f@(StateBefore
-                                                                                            l20_9072
-                                                                                            st20)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9073,
-                                                                                             Q.singleton
-                                                                                               (traceConclusion
-                                                                                                  (SeqStepCont
-                                                                                                     l10_9070
-                                                                                                     l20_9072
-                                                                                                     st10
-                                                                                                     st20))]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9074
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9075
-                                                                                               ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9074
-                                                                                                   l20
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9075)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsStateBefore
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (foldl'
-                                                                            (\ rest (v_9076, v_9077)
-                                                                               ->
-                                                                               (pure Seq <*>
-                                                                                  mlbs v_9076 l10
-                                                                                  <*> pure v_9077)
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsSeq db)),
-                                                                       foldl'
-                                                                         (\ q_9078
-                                                                            f@(StateBefore l20 st20)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9078,
-                                                                                  foldl'
-                                                                                    (\ q_9081
-                                                                                       f@(Seq
-                                                                                            l20_9079
-                                                                                            l10_9080)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9081,
-                                                                                             Q.singleton
-                                                                                               (traceConclusion
-                                                                                                  (SeqStepCont
-                                                                                                     l20_9079
-                                                                                                     l10_9080
-                                                                                                     st20
-                                                                                                     st10))]))
-                                                                                    Q.empty
-                                                                                    (foldl'
-                                                                                       (\ rest
-                                                                                          (v_9082,
-                                                                                           v_9083)
-                                                                                          ->
-                                                                                          (pure Seq
-                                                                                             <*>
-                                                                                             mlbs
-                                                                                               v_9082
-                                                                                               l20
-                                                                                             <*>
-                                                                                             mlbs
-                                                                                               v_9083
-                                                                                               l10)
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsSeq
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9084 vals ->
-                                                                               S.foldl'
-                                                                                 (\ acc v_9085 ->
-                                                                                    StateBefore
-                                                                                      v_9084
-                                                                                      v_9085
-                                                                                      : acc)
-                                                                                 []
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsStateBefore db)),
-                                                                       foldl'
-                                                                         (\ q_9087
-                                                                            f@(Cond lcond0 e0 jlt0
-                                                                                 l10_9086)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9087,
-                                                                                  foldl'
-                                                                                    (\ q_9089
-                                                                                       f@(StateBefore
-                                                                                            lcond0_9088
-                                                                                            stc0)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9089,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e0
-                                                                                                    stc0)
-                                                                                                 False
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9089,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondFalseCont
-                                                                                                             lcond0_9088
-                                                                                                             stc0
-                                                                                                             e0
-                                                                                                             jlt0
-                                                                                                             l10_9086
-                                                                                                             st10))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9090
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9091
-                                                                                               ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9090
-                                                                                                   lcond0
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9091)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsStateBefore
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9092 vals ->
-                                                                               concatMap
-                                                                                 (\ (v_9093, v_9094,
-                                                                                     v_9095)
-                                                                                    ->
-                                                                                    pure Cond <*>
-                                                                                      pure v_9092
-                                                                                      <*>
-                                                                                      pure v_9093
-                                                                                      <*>
-                                                                                      pure v_9094
-                                                                                      <*>
-                                                                                      mlbs v_9095
-                                                                                        l10)
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsCond db)),
-                                                                       foldl'
-                                                                         (\ q_9096
-                                                                            f@(StateBefore jlf0
-                                                                                 stf0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9096,
-                                                                                  foldl'
-                                                                                    (\ q_9099
-                                                                                       f@(Cond
-                                                                                            l10_9097
-                                                                                            e0 jlt0
-                                                                                            jlf0_9098)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9099,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e0
-                                                                                                    st10)
-                                                                                                 False
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9099,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondFalseCont
-                                                                                                             l10_9097
-                                                                                                             st10
-                                                                                                             e0
-                                                                                                             jlt0
-                                                                                                             jlf0_9098
-                                                                                                             stf0))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9100
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ (v_9101,
-                                                                                                v_9102,
-                                                                                                v_9103)
-                                                                                               ->
-                                                                                               pure
-                                                                                                 Cond
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9100
-                                                                                                   l10
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9101
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9102
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9103
-                                                                                                   jlf0)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsCond
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9104 vals ->
-                                                                               S.foldl'
-                                                                                 (\ acc v_9105 ->
-                                                                                    StateBefore
-                                                                                      v_9104
-                                                                                      v_9105
-                                                                                      : acc)
-                                                                                 []
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsStateBefore db)),
-                                                                       foldl'
-                                                                         (\ q_9107
-                                                                            f@(Cond lcond1 e1
-                                                                                 l10_9106 jlf1)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9107,
-                                                                                  foldl'
-                                                                                    (\ q_9109
-                                                                                       f@(StateBefore
-                                                                                            lcond1_9108
-                                                                                            stc1)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9109,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e1
-                                                                                                    stc1)
-                                                                                                 True
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9109,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondTrueCont
-                                                                                                             lcond1_9108
-                                                                                                             stc1
-                                                                                                             e1
-                                                                                                             l10_9106
-                                                                                                             jlf1
-                                                                                                             st10))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9110
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9111
-                                                                                               ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9110
-                                                                                                   lcond1
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9111)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsStateBefore
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9112 vals ->
-                                                                               concatMap
-                                                                                 (\ (v_9113, v_9114,
-                                                                                     v_9115)
-                                                                                    ->
-                                                                                    pure Cond <*>
-                                                                                      pure v_9112
-                                                                                      <*>
-                                                                                      pure v_9113
-                                                                                      <*>
-                                                                                      mlbs v_9114
-                                                                                        l10
-                                                                                      <*>
-                                                                                      pure v_9115)
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsCond db)),
-                                                                       foldl'
-                                                                         (\ q_9116
-                                                                            f@(StateBefore jlt1
-                                                                                 stt0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9116,
-                                                                                  foldl'
-                                                                                    (\ q_9119
-                                                                                       f@(Cond
-                                                                                            l10_9117
-                                                                                            e1
-                                                                                            jlt1_9118
-                                                                                            jlf1)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9119,
-                                                                                             if
-                                                                                               eq
-                                                                                                 (evaluateConditional
-                                                                                                    e1
-                                                                                                    st10)
-                                                                                                 True
-                                                                                               then
-                                                                                               trace
-                                                                                                 ("got: "
-                                                                                                    ++
-                                                                                                    show
-                                                                                                      f)
-                                                                                                 (Q.unions
-                                                                                                    [q_9119,
-                                                                                                     Q.singleton
-                                                                                                       (traceConclusion
-                                                                                                          (EvalCondTrueCont
-                                                                                                             l10_9117
-                                                                                                             st10
-                                                                                                             e1
-                                                                                                             jlt1_9118
-                                                                                                             jlf1
-                                                                                                             stt0))])
-                                                                                               else
-                                                                                               Q.empty]))
-                                                                                    Q.empty
-                                                                                    (M.foldlWithKey'
-                                                                                       (\ rest
-                                                                                          v_9120
-                                                                                          vals ->
-                                                                                          concatMap
-                                                                                            (\ (v_9121,
-                                                                                                v_9122,
-                                                                                                v_9123)
-                                                                                               ->
-                                                                                               pure
-                                                                                                 Cond
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9120
-                                                                                                   l10
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9121
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9122
-                                                                                                   jlt1
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9123)
-                                                                                            vals
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsCond
-                                                                                          db))]))
-                                                                         Q.empty
-                                                                         (M.foldlWithKey'
-                                                                            (\ rest v_9124 vals ->
-                                                                               S.foldl'
-                                                                                 (\ acc v_9125 ->
-                                                                                    StateBefore
-                                                                                      v_9124
-                                                                                      v_9125
-                                                                                      : acc)
-                                                                                 []
-                                                                                 vals
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsStateBefore db)),
-                                                                       foldl'
-                                                                         (\ q_9127
-                                                                            f@(Seq l10_9126 lAfter0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9127,
-                                                                                  foldl'
-                                                                                    (\ q_9129
-                                                                                       f@(StateBefore
-                                                                                            lAfter0_9128
+                                                                                            lAfter0
                                                                                             stA0)
                                                                                        ->
                                                                                        trace
                                                                                          ("got: " ++
                                                                                             show f)
                                                                                          (Q.unions
-                                                                                            [q_9129,
+                                                                                            [q_10239,
                                                                                              foldl'
-                                                                                               (\ q_9131
-                                                                                                  f@(Assign
-                                                                                                       l10_9126_9130
-                                                                                                       x0
-                                                                                                       e2)
+                                                                                               (\ q_10242
+                                                                                                  f@(Seq
+                                                                                                       lAssign0_10237_10240
+                                                                                                       lAfter0_10241)
                                                                                                   ->
                                                                                                   trace
                                                                                                     ("got: "
@@ -1188,202 +616,863 @@ step db fact q_8988
                                                                                                        show
                                                                                                          f)
                                                                                                     (Q.unions
-                                                                                                       [q_9131,
+                                                                                                       [q_10242,
                                                                                                         Q.singleton
                                                                                                           (traceConclusion
                                                                                                              (AssignStepCont
-                                                                                                                l10_9126_9130
-                                                                                                                lAfter0_9128
+                                                                                                                lAssign0_10237_10240
+                                                                                                                lAfter0_10241
                                                                                                                 x0
                                                                                                                 e2
                                                                                                                 stA0
-                                                                                                                st10))]))
+                                                                                                                stBefore0))]))
                                                                                                Q.empty
-                                                                                               (M.foldlWithKey'
+                                                                                               (foldl'
                                                                                                   (\ rest
-                                                                                                     (v_9132,
-                                                                                                      v_9133)
-                                                                                                     vals
+                                                                                                     (v_10243,
+                                                                                                      v_10244)
                                                                                                      ->
-                                                                                                     concatMap
-                                                                                                       (\ v_9134
-                                                                                                          ->
-                                                                                                          pure
-                                                                                                            Assign
-                                                                                                            <*>
-                                                                                                            mlbs
-                                                                                                              v_9132
-                                                                                                              l10_9126
-                                                                                                            <*>
-                                                                                                            pure
-                                                                                                              v_9133
-                                                                                                            <*>
-                                                                                                            pure
-                                                                                                              v_9134)
-                                                                                                       vals
+                                                                                                     (pure
+                                                                                                        Seq
+                                                                                                        <*>
+                                                                                                        mlbs
+                                                                                                          v_10243
+                                                                                                          lAssign0_10237
+                                                                                                        <*>
+                                                                                                        mlbs
+                                                                                                          v_10244
+                                                                                                          lAfter0)
                                                                                                        ++
                                                                                                        rest)
                                                                                                   []
-                                                                                                  (factsAssign
+                                                                                                  (factsSeq
                                                                                                      db))]))
                                                                                     Q.empty
                                                                                     (M.foldlWithKey'
                                                                                        (\ rest
-                                                                                          v_9135
+                                                                                          v_10245
                                                                                           vals ->
-                                                                                          concatMap
-                                                                                            (\ v_9136
+                                                                                          S.foldl'
+                                                                                            (\ acc
+                                                                                               v_10246
                                                                                                ->
-                                                                                               pure
-                                                                                                 StateBefore
-                                                                                                 <*>
-                                                                                                 mlbs
-                                                                                                   v_9135
-                                                                                                   lAfter0
-                                                                                                 <*>
-                                                                                                 pure
-                                                                                                   v_9136)
+                                                                                               StateBefore
+                                                                                                 v_10245
+                                                                                                 v_10246
+                                                                                                 :
+                                                                                                 acc)
+                                                                                            []
                                                                                             vals
                                                                                             ++ rest)
                                                                                        []
                                                                                        (factsStateBefore
                                                                                           db))]))
                                                                          Q.empty
-                                                                         (foldl'
-                                                                            (\ rest (v_9137, v_9138)
-                                                                               ->
-                                                                               (pure Seq <*>
-                                                                                  mlbs v_9137 l10
-                                                                                  <*> pure v_9138)
-                                                                                 ++ rest)
-                                                                            []
-                                                                            (factsSeq db)),
-                                                                       foldl'
-                                                                         (\ q_9139
-                                                                            f@(StateBefore lAssign0
-                                                                                 stBefore0)
-                                                                            ->
-                                                                            trace
-                                                                              ("got: " ++ show f)
-                                                                              (Q.unions
-                                                                                 [q_9139,
-                                                                                  foldl'
-                                                                                    (\ q_9142
-                                                                                       f@(Seq
-                                                                                            lAssign0_9140
-                                                                                            l10_9141)
-                                                                                       ->
-                                                                                       trace
-                                                                                         ("got: " ++
-                                                                                            show f)
-                                                                                         (Q.unions
-                                                                                            [q_9142,
-                                                                                             foldl'
-                                                                                               (\ q_9144
-                                                                                                  f@(Assign
-                                                                                                       lAssign0_9140_9143
-                                                                                                       x0
-                                                                                                       e2)
-                                                                                                  ->
-                                                                                                  trace
-                                                                                                    ("got: "
-                                                                                                       ++
-                                                                                                       show
-                                                                                                         f)
-                                                                                                    (Q.unions
-                                                                                                       [q_9144,
-                                                                                                        Q.singleton
-                                                                                                          (traceConclusion
-                                                                                                             (AssignStepCont
-                                                                                                                lAssign0_9140_9143
-                                                                                                                l10_9141
-                                                                                                                x0
-                                                                                                                e2
-                                                                                                                st10
-                                                                                                                stBefore0))]))
-                                                                                               Q.empty
-                                                                                               (M.foldlWithKey'
-                                                                                                  (\ rest
-                                                                                                     (v_9145,
-                                                                                                      v_9146)
-                                                                                                     vals
-                                                                                                     ->
-                                                                                                     concatMap
-                                                                                                       (\ v_9147
-                                                                                                          ->
-                                                                                                          pure
-                                                                                                            Assign
-                                                                                                            <*>
-                                                                                                            mlbs
-                                                                                                              v_9145
-                                                                                                              lAssign0_9140
-                                                                                                            <*>
-                                                                                                            pure
-                                                                                                              v_9146
-                                                                                                            <*>
-                                                                                                            pure
-                                                                                                              v_9147)
-                                                                                                       vals
-                                                                                                       ++
-                                                                                                       rest)
-                                                                                                  []
-                                                                                                  (factsAssign
-                                                                                                     db))]))
-                                                                                    Q.empty
-                                                                                    (foldl'
-                                                                                       (\ rest
-                                                                                          (v_9148,
-                                                                                           v_9149)
-                                                                                          ->
-                                                                                          (pure Seq
-                                                                                             <*>
-                                                                                             mlbs
-                                                                                               v_9148
-                                                                                               lAssign0
-                                                                                             <*>
-                                                                                             mlbs
-                                                                                               v_9149
-                                                                                               l10)
-                                                                                            ++ rest)
-                                                                                       []
-                                                                                       (factsSeq
-                                                                                          db))]))
-                                                                         Q.empty
                                                                          (M.foldlWithKey'
-                                                                            (\ rest v_9150 vals ->
-                                                                               S.foldl'
-                                                                                 (\ acc v_9151 ->
-                                                                                    StateBefore
-                                                                                      v_9150
-                                                                                      v_9151
-                                                                                      : acc)
-                                                                                 []
+                                                                            (\ rest v_10247 vals ->
+                                                                               concatMap
+                                                                                 (\ v_10248 ->
+                                                                                    pure StateBefore
+                                                                                      <*>
+                                                                                      mlbs v_10247
+                                                                                        lAssign0
+                                                                                      <*>
+                                                                                      pure v_10248)
                                                                                  vals
                                                                                  ++ rest)
                                                                             []
-                                                                            (factsStateBefore
-                                                                               db))]))
+                                                                            (factsStateBefore db)),
+                                                                       Q.singleton
+                                                                         (traceConclusion
+                                                                            (AssignInitCont lAssign0
+                                                                               x0
+                                                                               e2))]))
                                                               Q.empty
                                                               (M.foldlWithKey'
-                                                                 (\ rest v_9152 vals ->
+                                                                 (\ rest (v_10249, v_10250) vals ->
                                                                     S.foldl'
-                                                                      (\ acc v_9153 ->
-                                                                         StateBefore v_9152 v_9153 :
-                                                                           acc)
+                                                                      (\ acc v_10251 ->
+                                                                         Assign v_10249 v_10250
+                                                                           v_10251
+                                                                           : acc)
                                                                       []
                                                                       vals
                                                                       ++ rest)
                                                                  []
-                                                                 (M.singleton v_9067
-                                                                    (S.singleton v_9068)))]
+                                                                 (M.singleton (v_10233, v_10234)
+                                                                    (S.singleton v_10235)))]
+        VarFact f@(Var v_10252 v_10253) -> Q.unions
+                                             [q_10178,
+                                              foldl'
+                                                (\ q_10254 f@(Var l3 x2) ->
+                                                   trace ("got: " ++ show f)
+                                                     (Q.unions
+                                                        [q_10254,
+                                                         Q.singleton
+                                                           (traceConclusion (VarInitCont l3 x2))]))
+                                                Q.empty
+                                                (S.foldl'
+                                                   (\ rest (v_10255, v_10256) ->
+                                                      Var v_10255 v_10256 : rest)
+                                                   []
+                                                   (S.singleton (v_10252, v_10253)))]
+        StateBeforeFact f@(StateBefore v_10257 v_10258) -> Q.unions
+                                                             [q_10178,
+                                                              foldl'
+                                                                (\ q_10259 f@(StateBefore l10 st10)
+                                                                   ->
+                                                                   trace ("got: " ++ show f)
+                                                                     (Q.unions
+                                                                        [q_10259,
+                                                                         foldl'
+                                                                           (\ q_10261
+                                                                              f@(Seq l10_10260 l20)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10261,
+                                                                                    foldl'
+                                                                                      (\ q_10263
+                                                                                         f@(StateBefore
+                                                                                              l20_10262
+                                                                                              st20)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10263,
+                                                                                               Q.singleton
+                                                                                                 (traceConclusion
+                                                                                                    (SeqStepCont
+                                                                                                       l10_10260
+                                                                                                       l20_10262
+                                                                                                       st10
+                                                                                                       st20))]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10264
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ v_10265
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   StateBefore
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10264
+                                                                                                     l20
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10265)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsStateBefore
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (foldl'
+                                                                              (\ rest
+                                                                                 (v_10266, v_10267)
+                                                                                 ->
+                                                                                 (pure Seq <*>
+                                                                                    mlbs v_10266 l10
+                                                                                    <*>
+                                                                                    pure v_10267)
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsSeq db)),
+                                                                         foldl'
+                                                                           (\ q_10268
+                                                                              f@(StateBefore l20
+                                                                                   st20)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10268,
+                                                                                    foldl'
+                                                                                      (\ q_10271
+                                                                                         f@(Seq
+                                                                                              l20_10269
+                                                                                              l10_10270)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10271,
+                                                                                               Q.singleton
+                                                                                                 (traceConclusion
+                                                                                                    (SeqStepCont
+                                                                                                       l20_10269
+                                                                                                       l10_10270
+                                                                                                       st20
+                                                                                                       st10))]))
+                                                                                      Q.empty
+                                                                                      (foldl'
+                                                                                         (\ rest
+                                                                                            (v_10272,
+                                                                                             v_10273)
+                                                                                            ->
+                                                                                            (pure
+                                                                                               Seq
+                                                                                               <*>
+                                                                                               mlbs
+                                                                                                 v_10272
+                                                                                                 l20
+                                                                                               <*>
+                                                                                               mlbs
+                                                                                                 v_10273
+                                                                                                 l10)
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsSeq
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10274 vals
+                                                                                 ->
+                                                                                 S.foldl'
+                                                                                   (\ acc v_10275 ->
+                                                                                      StateBefore
+                                                                                        v_10274
+                                                                                        v_10275
+                                                                                        : acc)
+                                                                                   []
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsStateBefore
+                                                                                 db)),
+                                                                         foldl'
+                                                                           (\ q_10277
+                                                                              f@(Cond lcond0 e0 jlt0
+                                                                                   l10_10276)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10277,
+                                                                                    foldl'
+                                                                                      (\ q_10279
+                                                                                         f@(StateBefore
+                                                                                              lcond0_10278
+                                                                                              stc0)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10279,
+                                                                                               if
+                                                                                                 eq
+                                                                                                   (evaluateConditional
+                                                                                                      e0
+                                                                                                      stc0)
+                                                                                                   False
+                                                                                                 then
+                                                                                                 trace
+                                                                                                   ("got: "
+                                                                                                      ++
+                                                                                                      show
+                                                                                                        f)
+                                                                                                   (Q.unions
+                                                                                                      [q_10279,
+                                                                                                       Q.singleton
+                                                                                                         (traceConclusion
+                                                                                                            (EvalCondFalseCont
+                                                                                                               lcond0_10278
+                                                                                                               stc0
+                                                                                                               e0
+                                                                                                               jlt0
+                                                                                                               l10_10276
+                                                                                                               st10))])
+                                                                                                 else
+                                                                                                 Q.empty]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10280
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ v_10281
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   StateBefore
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10280
+                                                                                                     lcond0
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10281)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsStateBefore
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10282 vals
+                                                                                 ->
+                                                                                 concatMap
+                                                                                   (\ (v_10283,
+                                                                                       v_10284,
+                                                                                       v_10285)
+                                                                                      ->
+                                                                                      pure Cond <*>
+                                                                                        pure v_10282
+                                                                                        <*>
+                                                                                        pure v_10283
+                                                                                        <*>
+                                                                                        pure v_10284
+                                                                                        <*>
+                                                                                        mlbs v_10285
+                                                                                          l10)
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsCond db)),
+                                                                         foldl'
+                                                                           (\ q_10286
+                                                                              f@(StateBefore jlf0
+                                                                                   stf0)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10286,
+                                                                                    foldl'
+                                                                                      (\ q_10289
+                                                                                         f@(Cond
+                                                                                              l10_10287
+                                                                                              e0
+                                                                                              jlt0
+                                                                                              jlf0_10288)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10289,
+                                                                                               if
+                                                                                                 eq
+                                                                                                   (evaluateConditional
+                                                                                                      e0
+                                                                                                      st10)
+                                                                                                   False
+                                                                                                 then
+                                                                                                 trace
+                                                                                                   ("got: "
+                                                                                                      ++
+                                                                                                      show
+                                                                                                        f)
+                                                                                                   (Q.unions
+                                                                                                      [q_10289,
+                                                                                                       Q.singleton
+                                                                                                         (traceConclusion
+                                                                                                            (EvalCondFalseCont
+                                                                                                               l10_10287
+                                                                                                               st10
+                                                                                                               e0
+                                                                                                               jlt0
+                                                                                                               jlf0_10288
+                                                                                                               stf0))])
+                                                                                                 else
+                                                                                                 Q.empty]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10290
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ (v_10291,
+                                                                                                  v_10292,
+                                                                                                  v_10293)
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   Cond
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10290
+                                                                                                     l10
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10291
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10292
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10293
+                                                                                                     jlf0)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsCond
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10294 vals
+                                                                                 ->
+                                                                                 S.foldl'
+                                                                                   (\ acc v_10295 ->
+                                                                                      StateBefore
+                                                                                        v_10294
+                                                                                        v_10295
+                                                                                        : acc)
+                                                                                   []
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsStateBefore
+                                                                                 db)),
+                                                                         foldl'
+                                                                           (\ q_10297
+                                                                              f@(Cond lcond1 e1
+                                                                                   l10_10296 jlf1)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10297,
+                                                                                    foldl'
+                                                                                      (\ q_10299
+                                                                                         f@(StateBefore
+                                                                                              lcond1_10298
+                                                                                              stc1)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10299,
+                                                                                               if
+                                                                                                 eq
+                                                                                                   (evaluateConditional
+                                                                                                      e1
+                                                                                                      stc1)
+                                                                                                   True
+                                                                                                 then
+                                                                                                 trace
+                                                                                                   ("got: "
+                                                                                                      ++
+                                                                                                      show
+                                                                                                        f)
+                                                                                                   (Q.unions
+                                                                                                      [q_10299,
+                                                                                                       Q.singleton
+                                                                                                         (traceConclusion
+                                                                                                            (EvalCondTrueCont
+                                                                                                               lcond1_10298
+                                                                                                               stc1
+                                                                                                               e1
+                                                                                                               l10_10296
+                                                                                                               jlf1
+                                                                                                               st10))])
+                                                                                                 else
+                                                                                                 Q.empty]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10300
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ v_10301
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   StateBefore
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10300
+                                                                                                     lcond1
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10301)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsStateBefore
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10302 vals
+                                                                                 ->
+                                                                                 concatMap
+                                                                                   (\ (v_10303,
+                                                                                       v_10304,
+                                                                                       v_10305)
+                                                                                      ->
+                                                                                      pure Cond <*>
+                                                                                        pure v_10302
+                                                                                        <*>
+                                                                                        pure v_10303
+                                                                                        <*>
+                                                                                        mlbs v_10304
+                                                                                          l10
+                                                                                        <*>
+                                                                                        pure
+                                                                                          v_10305)
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsCond db)),
+                                                                         foldl'
+                                                                           (\ q_10306
+                                                                              f@(StateBefore jlt1
+                                                                                   stt0)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10306,
+                                                                                    foldl'
+                                                                                      (\ q_10309
+                                                                                         f@(Cond
+                                                                                              l10_10307
+                                                                                              e1
+                                                                                              jlt1_10308
+                                                                                              jlf1)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10309,
+                                                                                               if
+                                                                                                 eq
+                                                                                                   (evaluateConditional
+                                                                                                      e1
+                                                                                                      st10)
+                                                                                                   True
+                                                                                                 then
+                                                                                                 trace
+                                                                                                   ("got: "
+                                                                                                      ++
+                                                                                                      show
+                                                                                                        f)
+                                                                                                   (Q.unions
+                                                                                                      [q_10309,
+                                                                                                       Q.singleton
+                                                                                                         (traceConclusion
+                                                                                                            (EvalCondTrueCont
+                                                                                                               l10_10307
+                                                                                                               st10
+                                                                                                               e1
+                                                                                                               jlt1_10308
+                                                                                                               jlf1
+                                                                                                               stt0))])
+                                                                                                 else
+                                                                                                 Q.empty]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10310
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ (v_10311,
+                                                                                                  v_10312,
+                                                                                                  v_10313)
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   Cond
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10310
+                                                                                                     l10
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10311
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10312
+                                                                                                     jlt1
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10313)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsCond
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10314 vals
+                                                                                 ->
+                                                                                 S.foldl'
+                                                                                   (\ acc v_10315 ->
+                                                                                      StateBefore
+                                                                                        v_10314
+                                                                                        v_10315
+                                                                                        : acc)
+                                                                                   []
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsStateBefore
+                                                                                 db)),
+                                                                         foldl'
+                                                                           (\ q_10317
+                                                                              f@(Seq l10_10316
+                                                                                   lAfter0)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10317,
+                                                                                    foldl'
+                                                                                      (\ q_10319
+                                                                                         f@(StateBefore
+                                                                                              lAfter0_10318
+                                                                                              stA0)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10319,
+                                                                                               foldl'
+                                                                                                 (\ q_10321
+                                                                                                    f@(Assign
+                                                                                                         l10_10316_10320
+                                                                                                         x0
+                                                                                                         e2)
+                                                                                                    ->
+                                                                                                    trace
+                                                                                                      ("got: "
+                                                                                                         ++
+                                                                                                         show
+                                                                                                           f)
+                                                                                                      (Q.unions
+                                                                                                         [q_10321,
+                                                                                                          Q.singleton
+                                                                                                            (traceConclusion
+                                                                                                               (AssignStepCont
+                                                                                                                  l10_10316_10320
+                                                                                                                  lAfter0_10318
+                                                                                                                  x0
+                                                                                                                  e2
+                                                                                                                  stA0
+                                                                                                                  st10))]))
+                                                                                                 Q.empty
+                                                                                                 (M.foldlWithKey'
+                                                                                                    (\ rest
+                                                                                                       (v_10322,
+                                                                                                        v_10323)
+                                                                                                       vals
+                                                                                                       ->
+                                                                                                       concatMap
+                                                                                                         (\ v_10324
+                                                                                                            ->
+                                                                                                            pure
+                                                                                                              Assign
+                                                                                                              <*>
+                                                                                                              mlbs
+                                                                                                                v_10322
+                                                                                                                l10_10316
+                                                                                                              <*>
+                                                                                                              pure
+                                                                                                                v_10323
+                                                                                                              <*>
+                                                                                                              pure
+                                                                                                                v_10324)
+                                                                                                         vals
+                                                                                                         ++
+                                                                                                         rest)
+                                                                                                    []
+                                                                                                    (factsAssign
+                                                                                                       db))]))
+                                                                                      Q.empty
+                                                                                      (M.foldlWithKey'
+                                                                                         (\ rest
+                                                                                            v_10325
+                                                                                            vals ->
+                                                                                            concatMap
+                                                                                              (\ v_10326
+                                                                                                 ->
+                                                                                                 pure
+                                                                                                   StateBefore
+                                                                                                   <*>
+                                                                                                   mlbs
+                                                                                                     v_10325
+                                                                                                     lAfter0
+                                                                                                   <*>
+                                                                                                   pure
+                                                                                                     v_10326)
+                                                                                              vals
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsStateBefore
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (foldl'
+                                                                              (\ rest
+                                                                                 (v_10327, v_10328)
+                                                                                 ->
+                                                                                 (pure Seq <*>
+                                                                                    mlbs v_10327 l10
+                                                                                    <*>
+                                                                                    pure v_10328)
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsSeq db)),
+                                                                         foldl'
+                                                                           (\ q_10329
+                                                                              f@(StateBefore
+                                                                                   lAssign0
+                                                                                   stBefore0)
+                                                                              ->
+                                                                              trace
+                                                                                ("got: " ++ show f)
+                                                                                (Q.unions
+                                                                                   [q_10329,
+                                                                                    foldl'
+                                                                                      (\ q_10332
+                                                                                         f@(Seq
+                                                                                              lAssign0_10330
+                                                                                              l10_10331)
+                                                                                         ->
+                                                                                         trace
+                                                                                           ("got: "
+                                                                                              ++
+                                                                                              show
+                                                                                                f)
+                                                                                           (Q.unions
+                                                                                              [q_10332,
+                                                                                               foldl'
+                                                                                                 (\ q_10334
+                                                                                                    f@(Assign
+                                                                                                         lAssign0_10330_10333
+                                                                                                         x0
+                                                                                                         e2)
+                                                                                                    ->
+                                                                                                    trace
+                                                                                                      ("got: "
+                                                                                                         ++
+                                                                                                         show
+                                                                                                           f)
+                                                                                                      (Q.unions
+                                                                                                         [q_10334,
+                                                                                                          Q.singleton
+                                                                                                            (traceConclusion
+                                                                                                               (AssignStepCont
+                                                                                                                  lAssign0_10330_10333
+                                                                                                                  l10_10331
+                                                                                                                  x0
+                                                                                                                  e2
+                                                                                                                  st10
+                                                                                                                  stBefore0))]))
+                                                                                                 Q.empty
+                                                                                                 (M.foldlWithKey'
+                                                                                                    (\ rest
+                                                                                                       (v_10335,
+                                                                                                        v_10336)
+                                                                                                       vals
+                                                                                                       ->
+                                                                                                       concatMap
+                                                                                                         (\ v_10337
+                                                                                                            ->
+                                                                                                            pure
+                                                                                                              Assign
+                                                                                                              <*>
+                                                                                                              mlbs
+                                                                                                                v_10335
+                                                                                                                lAssign0_10330
+                                                                                                              <*>
+                                                                                                              pure
+                                                                                                                v_10336
+                                                                                                              <*>
+                                                                                                              pure
+                                                                                                                v_10337)
+                                                                                                         vals
+                                                                                                         ++
+                                                                                                         rest)
+                                                                                                    []
+                                                                                                    (factsAssign
+                                                                                                       db))]))
+                                                                                      Q.empty
+                                                                                      (foldl'
+                                                                                         (\ rest
+                                                                                            (v_10338,
+                                                                                             v_10339)
+                                                                                            ->
+                                                                                            (pure
+                                                                                               Seq
+                                                                                               <*>
+                                                                                               mlbs
+                                                                                                 v_10338
+                                                                                                 lAssign0
+                                                                                               <*>
+                                                                                               mlbs
+                                                                                                 v_10339
+                                                                                                 l10)
+                                                                                              ++
+                                                                                              rest)
+                                                                                         []
+                                                                                         (factsSeq
+                                                                                            db))]))
+                                                                           Q.empty
+                                                                           (M.foldlWithKey'
+                                                                              (\ rest v_10340 vals
+                                                                                 ->
+                                                                                 S.foldl'
+                                                                                   (\ acc v_10341 ->
+                                                                                      StateBefore
+                                                                                        v_10340
+                                                                                        v_10341
+                                                                                        : acc)
+                                                                                   []
+                                                                                   vals
+                                                                                   ++ rest)
+                                                                              []
+                                                                              (factsStateBefore
+                                                                                 db))]))
+                                                                Q.empty
+                                                                (M.foldlWithKey'
+                                                                   (\ rest v_10342 vals ->
+                                                                      S.foldl'
+                                                                        (\ acc v_10343 ->
+                                                                           StateBefore v_10342
+                                                                             v_10343
+                                                                             : acc)
+                                                                        []
+                                                                        vals
+                                                                        ++ rest)
+                                                                   []
+                                                                   (M.singleton v_10257
+                                                                      (S.singleton v_10258)))]
 
 stateBefore :: Natural -> DataBase -> [StateBefore]
-stateBefore v_9154 db
+stateBefore v_10344 db
   = M.foldlWithKey'
-      (\ rest v_9156 vals ->
+      (\ rest v_10346 vals ->
          concatMap
-           (\ v_9157 ->
-              pure StateBefore <*> mlbs v_9156 v_9154 <*> pure v_9157)
+           (\ v_10347 ->
+              pure StateBefore <*> mlbs v_10346 v_10344 <*> pure v_10347)
            vals
            ++ rest)
       []
