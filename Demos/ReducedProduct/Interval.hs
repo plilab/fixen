@@ -40,13 +40,13 @@ instance MLB Interval where
     (Pair (a, b), Pair (c, d)) -> [if max a c <= min b d then Pair (max a c, min b d) else Bot]
     (_, _) -> [Bot]
 
-joinState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
+joinState :: (Foldable db) => (IState -> f) -> IState -> db IState -> [f]
 joinState k s db = map (k . joinState) (s : toList db)
   where
-    joinState = join s
+    joinState = join' s
 
 
-widenState :: (Foldable db) => (State -> f) -> State -> db State -> [f]
+widenState :: (Foldable db) => (IState -> f) -> IState -> db IState -> [f]
 widenState k s db = map (k . widen) (s : toList db)
   where
     widen = M.map widenInterval
@@ -82,50 +82,50 @@ instance MLB BBool where
     (rest, BBot) -> [rest]
     (BBot, rest) -> [rest]
 
-type State = Map String Interval
+type IState = Map String Interval
 
-join :: State -> State -> State
-join = unionWith joinSign
+join' :: IState -> IState -> IState
+join' = unionWith joinSign
 
-insert :: String -> Interval -> Map String Interval -> Map String Interval
-insert = M.insertWith joinSign
+insert' :: String -> Interval -> Map String Interval -> Map String Interval
+insert' = M.insertWith joinSign
 
 singleton :: k -> a -> Map k a
 singleton = M.singleton
 
-empty :: Int -> Map k a
-empty = const M.empty
+empty' :: Int -> Map k a
+empty' = const M.empty
 
-eval :: Expr -> State -> Interval
-eval e st = case e of
+eval' :: Expr -> IState -> Interval
+eval' e st = case e of
   Num n -> Pair (fromIntegral n, fromIntegral n)
   Id x -> fromMaybe Bot (M.lookup x st)
   InputE -> Top
-  Plus e1 e2 -> case (eval e1 st, eval e2 st) of
+  Plus e1 e2 -> case (eval' e1 st, eval' e2 st) of
     (Pair (a, b), Pair (c, d)) -> Pair (a + c, b + d)
     (_, _) -> Bot
-  -- Times e1 e2 -> case (eval e1 st, eval e2 st) of
+  -- Times e1 e2 -> case (eval' e1 st, eval' e2 st) of
   --   (Pair (a, b), Pair (c, d)) -> Pair (min ( a c) (a * d) (b * c) (b * d),  max(a * c) (a * d) (b * c) (b * d))
   --   (_, _) -> Bot
   Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
   Gte _ _ -> error "Encounted gte" -- this should never happen, and be always handled by evaluateConditional
   Eq _ _ -> error "Encountered eq" -- this should never happen, ...
 
-evaluateConditional :: Expr -> State -> BBool
+evaluateConditional :: Expr -> IState -> BBool
 evaluateConditional e st = case e of
-  Leq e1 e2 -> case (eval e1 st, eval e2 st) of
+  Leq e1 e2 -> case (eval' e1 st, eval' e2 st) of
     (Pair (a, b), Pair (c, d)) -> if b <= c then BTrue else if a > d then BFalse else BTop
     (Bot, _) -> BBot
     (_, Bot) -> BBot
     (_, Top) -> BTop
     (Top, _) -> BTop
-  Gte e1 e2 -> case (eval e1 st, eval e2 st) of
+  Gte e1 e2 -> case (eval' e1 st, eval' e2 st) of
     (Pair (a, b), Pair (c, d)) -> if a >= d then BTrue else if b < c then BFalse else BTop
     (Bot, _) -> BBot
     (_, Bot) -> BBot
     (_, Top) -> BTop
     (Top, _) -> BTop
-  Eq e1 e2 -> case (eval e1 st, eval e2 st) of
+  Eq e1 e2 -> case (eval' e1 st, eval' e2 st) of
     (Pair (a, b), Pair (c, d)) -> if a == c && b == d && a == b && c == d then BTrue else if b < c || d < a then BFalse else BTop
     (Bot, _) -> BBot
     (_, Bot) -> BBot
@@ -134,38 +134,38 @@ evaluateConditional e st = case e of
   _ -> error "Unexpected case"
 
 
-narrowConditional :: Expr -> State -> State
-narrowConditional e st = case e of
-  Leq e1 e2 -> case (e1, eval e2 st) of
+narrowConditional' :: Expr -> IState -> IState
+narrowConditional' e st = case e of
+  Leq e1 e2 -> case (e1, eval' e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
+    (Id id, Pair (c, d)) -> case eval' e1 st of
       Pair (a, b) -> M.fromList [(id, Pair (min a c, min b d))]
       _ -> M.fromList [(id, Bot)]
     (_, _) -> error "Unexpected conditional"
-  Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
+  Gte e1 e2 -> case (e1, eval' e2 st) of
+    (Id id, Pair (c, d)) -> case eval' e1 st of
       Pair (a, b) -> M.union (M.fromList [(id, Pair (max a c,  max b d))]) st
       _ -> M.union (M.fromList [(id, Bot)]) st
     (_, _) -> error "Unexpected conditional"
-  Eq e1 e2 -> case (e1, eval e2 st) of
+  Eq e1 e2 -> case (e1, eval' e2 st) of
     (Id id, Pair (c, d)) -> M.union (M.fromList [(id, Pair (c, d))]) st
     (_, _) -> error "Unexpected conditional"    
   _ -> error "Unexpected case"
 
-narrowConditionalFalse :: Expr -> State -> State
-narrowConditionalFalse e st = case e of
-  Leq e1 e2 -> case (e1, eval e2 st) of
+narrowConditionalFalse' :: Expr -> IState -> IState
+narrowConditionalFalse' e st = case e of
+  Leq e1 e2 -> case (e1, eval' e2 st) of
     -- Only handle the trivial case, it's enough for our demo.
-    (Id id, Pair (c, d)) -> case eval e1 st of
+    (Id id, Pair (c, d)) -> case eval' e1 st of
       Pair (a, b) -> M.union (M.fromList [(id, Pair (d+1, max (d+1) b))]) st
       _ -> M.union (M.fromList [(id, Bot)]) st
     (_, _) -> error "Unexpected conditional"
-  Gte e1 e2 -> case (e1, eval e2 st) of
-    (Id id, Pair (c, d)) -> case eval e1 st of
+  Gte e1 e2 -> case (e1, eval' e2 st) of
+    (Id id, Pair (c, d)) -> case eval' e1 st of
       Pair (a, b) -> M.union (M.fromList [(id, Pair (min (c-1) a,  c-1))]) st
       _ -> M.union (M.fromList [(id, Bot)]) st
     (_, _) -> error "Unexpected conditional"
-  Eq e1 e2 -> case (e1, eval e2 st) of
+  Eq e1 e2 -> case (e1, eval' e2 st) of
     (Id id, Pair (c, d)) -> M.union (M.fromList [(id, Pair (c, d))]) st
     (_, _) -> error "Unexpected conditional"        
   _ -> error "Unexpected case"
