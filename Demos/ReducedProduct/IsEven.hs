@@ -15,8 +15,6 @@ import Data.List as L (head)
 
 import Numeric.Natural
 
-import ReducedProduct.Bezout
-
 
 -- transfer functions sourced from Tutorial on Static Inference of Numeric Invariants by
 -- Abstract Interpretation by Antoine Miné
