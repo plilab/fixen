@@ -24,10 +24,6 @@ rule condInit:
   cond l e jlt jlf
   |- stateBefore l (empty 0)
 
-rule phiInit:
-  phi l
-  |- stateBefore l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
-
 rule varInit:
   var l x
   ---------------------------------
@@ -50,11 +46,6 @@ rule evalCondFalse:
   stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlf stf
   -----------------------------------------------------------------------------------------------------
   |- stateBefore jlf (join (narrowConditionalFalse e stc) stf)
-
-rule phiStep:
-  phi l, stateBefore l st, seq l lAfter
-  --------------------------------------------------------------------------------------------
-  |- stateBefore lAfter st
 
 
 query stateBefore as stateBefore  +
