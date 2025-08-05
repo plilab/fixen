@@ -12,10 +12,10 @@ import ReducedProduct.IsEven
 Example 6.3 from Tutorial on Static Inference of Numeric Invariants by
 Abstract Interpretation
 by Antoine Miné
-my number = nZ + y (Z is integer)                       -- [n, y]
-1 : V ← 1;                                              -- [0, 1]
-2 : while V ≤ 9 do V ← V + 2 done;                      -- [2, 1]   [10, 11] -> [11, 11]
-3 : if V == 11 then                                     -- [1, 0]
+my number = nZ + y (Z is integer)                       -- [isEven]
+1 : V ← 1;                                              -- [Odd]
+2 : while V ≤ 9 do V ← V + 2 done;                      -- [Odd]   [10, 11] -> [11, 11]
+3 : if V == 11 then                                     -- [11, 11]
 4 :     V ← 0
 5 : endif
 -}
