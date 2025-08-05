@@ -5,6 +5,7 @@ module ReducedProduct.IntervalTest where
   "Demos/Dataflow/SignAnalysis.hs" in order to produce the module `Dataflow.SignAnalysis`
 -}
 
+import ReducedProduct.Common
 import ReducedProduct.IntervalAnalysis
 import ReducedProduct.Interval
 

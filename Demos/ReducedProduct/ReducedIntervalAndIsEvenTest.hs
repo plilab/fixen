@@ -1,4 +1,4 @@
-module ReducedProduct.IsEvenTest where
+module ReducedProduct.ReducedIntervalAndIsEvenTest where
 
 {-
   use this file, invoke `Compiler.Compile.compile` on "Demos/Dataflow/sign" and 
@@ -6,8 +6,7 @@ module ReducedProduct.IsEvenTest where
 -}
 
 import ReducedProduct.Common
-import ReducedProduct.IsEvenAnalysis
-import ReducedProduct.IsEven
+import ReducedProduct.ReducedIntervalAndIsEvenAnalysisExposedDb
 
 {- the program:
 Example 6.3 from Tutorial on Static Inference of Numeric Invariants by

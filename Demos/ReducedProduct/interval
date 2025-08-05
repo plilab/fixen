@@ -1,5 +1,6 @@
 module ReducedProduct.IntervalAnalysis where
 
+import ReducedProduct.Common
 import ReducedProduct.Interval
 
 rel stateBefore: Nat, IState
@@ -8,7 +9,6 @@ rel stateBefore: Nat, IState
 rel var:    Nat, String             -- variable declaration:   (var X)^l
 rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
 rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
-rel phi:    Nat                     -- a phi node (see static single assignment form)
 
 -- other cfg edges
 rel seq:    Nat, Nat
