@@ -1,21 +1,25 @@
--- Reduced product of interval and congruence analysis
--- You need to manually copy in FPOP from congruence and interval, as we don't support a module system yet :(
+module ReducedProduct.ReducedIntervalAndIsEvenAnalysis where
+
+-- Reduced product of interval and iseven analysis
+-- You need to manually copy in FPOP from iseven and interval, as we don't support a module system yet :(
 -- In actual production code, we would "import" the rules, and they would be auto-prefixed with the required names.
 -- For this example, we just append their "namespace" names behind them, but the power of this technique still holds.
--- Note that other than naming changes, there are NO changes to the rules of interval and congruence analysis respectively.
+-- Note that other than naming changes, there are NO changes to the rules of interval and iseven analysis respectively.
+-- This shows the power of the reduced product and its modularity.
+-- The only change we did is add a completion to the stateBeforeInterval relation.
 
-module ReducedProduct.IntervalAndIsEven where
+import ReducedProduct.Common
 
 -- INTERVAL ANALYSIS
 import ReducedProduct.Interval
 
-rel stateBeforeInterval: Nat, IState
+-- New completion here, that's all
+rel stateBeforeInterval: Nat, IState [reducedExchange]
 
 -- statement
 rel var:    Nat, String             -- variable declaration:   (var X)^l
 rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
 rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
-rel phi:    Nat                     -- a phi node (see static single assignment form)
 
 -- other cfg edges
 rel seq:    Nat, Nat
@@ -24,46 +28,37 @@ rel seq:    Nat, Nat
 
 rule assignInitInterval:
   assign l x e
-  |- stateBeforeInterval l (empty' 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+  |- stateBeforeInterval l (emptyI 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
 
 rule condInitInterval:
   cond l e jlt jlf
-  |- stateBeforeInterval l (empty' 0)
-
-rule phiInitInterval:
-  phi l
-  |- stateBeforeInterval l (empty' 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+  |- stateBeforeInterval l (emptyI 0)
 
 rule varInitInterval:
   var l x
   ---------------------------------
-  |- stateBeforeInterval l (empty' 0)
+  |- stateBeforeInterval l (emptyI 0)
 
 -- Actual transfer functions.
 
 rule assignStepInterval:
   assign lAssign x e, stateBeforeInterval lAssign stAssign, seq lAssign lAfter, stateBeforeInterval lAfter stAfter
   -----------------------------------------------------------------------------------------------
-  |- stateBeforeInterval lAfter (join' (insert' x (eval' e stAssign) stAssign) stAfter)
+  |- stateBeforeInterval lAfter (joinI (insertI x (evalI e stAssign) stAssign) stAfter)
 
 
 rule evalCondTrueInterval:
   stateBeforeInterval lcond stc, cond lcond e jlt jlf, stateBeforeInterval jlt stt, if leq BTrue (evaluateConditional e stc)
   -----------------------------------------------------------------------------------------------------
-  |- stateBeforeInterval jlt (join' (narrowConditional' e stc) stt)
+  |- stateBeforeInterval jlt (joinI (narrowConditionalI e stc) stt)
 
 rule evalCondFalseInterval:
   stateBeforeInterval lcond stc, cond lcond e jlt jlf, stateBeforeInterval jlf stf, if leq BFalse (evaluateConditional e stc)
   -----------------------------------------------------------------------------------------------------
-  |- stateBeforeInterval jlf (join' (narrowConditionalFalse' e stc) stf)
-
-rule phiStepInterval:
-  phi l, stateBeforeInterval l st, seq l lAfter
-  --------------------------------------------------------------------------------------------
-  |- stateBeforeInterval lAfter st
+  |- stateBeforeInterval jlf (joinI (narrowConditionalIFalse e stc) stf)
 
 
-query stateBeforeInterval as stateBeforeInterval - +
+query stateBeforeInterval as stateBeforeInterval  +
 
 -- ISEVEN ANALYSIS
 
@@ -82,10 +77,6 @@ rule assignInitIsEven:
 rule condInitIsEven:
   cond l e jlt jlf
   |- stateBeforeIsEven l (empty 0)
-
-rule phiInitIsEven:
-  phi l
-  |- stateBeforeIsEven l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
 
 rule varInitIsEven:
   var l x
@@ -110,14 +101,5 @@ rule evalCondFalseIsEven:
   -----------------------------------------------------------------------------------------------------
   |- stateBeforeIsEven jlf (join (narrowConditionalFalse e stc) stf)
 
-rule phiStepIsEven:
-  phi l, stateBeforeIsEven l st, seq l lAfter
-  --------------------------------------------------------------------------------------------
-  |- stateBeforeIsEven lAfter st
-
 
 query stateBeforeIsEven as stateBeforeIsEven - +
-
--- Finally: this is all the actual additional rules we need for the reduced product.
-
-rel stateBeforeProduct: Nat, IState, State
