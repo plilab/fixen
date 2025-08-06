@@ -2105,18 +2105,12 @@ reducedExchange programPoint k s db = [k (MP.fromList (map enrich (MP.toList s))
     isEvenForThisPointSet = M.lookupDefault S.empty programPoint (factsStateBeforeIsEven db)
     enrich :: (String, Interval) -> (String, Interval)
     enrich (name, interval) =
-      case evenness of
-         IsEven -> case interval of
-            Pair (lo, hi) -> (name, Pair (if odd lo then lo + 1 else lo, if odd hi then hi - 1 else hi))
-            _ -> (name, interval)
-         IsOdd -> case interval of
-            Pair (lo, hi) -> (name, Pair (if even lo then lo + 1 else lo, if even hi then hi - 1 else hi))
-            _ -> (name, interval)
+      case (evenness, interval) of
+         (IsEven, Pair (lo, hi)) -> (name, Pair (if odd lo then lo + 1 else lo, if odd hi then hi - 1 else hi))
+         (IsOdd, Pair (lo, hi)) -> (name, Pair (if even lo then lo + 1 else lo, if even hi then hi - 1 else hi))
          _ -> (name, interval)
       where
-         evennessState = head (((S.toList isEvenForThisPointSet) ++ [MP.fromList [(name, EvenBot)]]))
+         evennessState = head (S.toList isEvenForThisPointSet ++ [MP.fromList [(name, EvenBot)]])
          evenness = case MP.lookup name evennessState of
             Nothing -> EvenBot
             Just otherwise -> otherwise
-
-     
