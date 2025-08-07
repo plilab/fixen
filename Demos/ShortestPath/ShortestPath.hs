@@ -21,7 +21,7 @@ strictlySubsumes :: (PartialOrd a) => a -> a -> Bool
 strictlySubsumes y x = leq x y && not (leq y x)
 
 data Start = Start String
-               deriving (Eq, Show, Generic)
+               deriving (Eq, Show, Generic, Read)
 
 instance Hashable Start
 
@@ -30,7 +30,7 @@ instance PartialOrd Start where
 mkStart v0 = StartFact (Start v0)
 
 data DistTo = DistTo String Dist
-                deriving (Eq, Show, Generic)
+                deriving (Eq, Show, Generic, Read)
 
 instance Hashable DistTo
 
@@ -40,7 +40,7 @@ instance PartialOrd DistTo where
 mkDistTo v0 v1 = DistToFact (DistTo v0 v1)
 
 data Edge = Edge String String Dist
-              deriving (Eq, Show, Generic)
+              deriving (Eq, Show, Generic, Read)
 
 instance Hashable Edge
 
@@ -52,7 +52,7 @@ mkEdge v0 v1 v2 = EdgeFact (Edge v0 v1 v2)
 data Fact = StartFact Start
           | DistToFact DistTo
           | EdgeFact Edge
-              deriving (Show, Eq)
+              deriving (Show, Eq, Read)
 
 data Continuation = Initial Fact
                   | AddDistCont String Dist String Dist
