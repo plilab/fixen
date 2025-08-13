@@ -9,7 +9,7 @@ import Numeric.Natural
 
 data Dist = Inf 
           | DistNat Natural
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Read)
 
 instance Hashable Dist
 

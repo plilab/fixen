@@ -394,7 +394,7 @@ generateRelations =  do
         -- data type declaration
         dataDecl name
           [unqualConDecl name $ map concrete typs]
-          [derivingList ["Eq", "Show", "Generic"]],
+          [derivingList ["Eq", "Show", "Generic", "Read"]],
         -- Hashable instance
         instDecl
           (iHApp (iHCon "Hashable") name)

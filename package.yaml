@@ -30,6 +30,8 @@ dependencies:
 - unordered-containers
 - hashable
 - mtl
+- aeson
+- bytestring
 
 ghc-options:
 - -Wall
