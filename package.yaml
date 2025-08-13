@@ -75,3 +75,21 @@ tests:
     - fixed-point-lang
     - tasty
     - tasty-hunit
+
+benchmarks:
+  fixed-point-lang-benchmark:
+    main: Main.hs
+    source-dirs: benchmarks
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - base
+    - containers
+    - directory
+    - filepath
+    - bytestring
+    - text
+    - fixed-point-lang
+    - criterion
