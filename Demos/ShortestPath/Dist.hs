@@ -6,10 +6,14 @@ import Common.Definitions
 import Data.Hashable
 import GHC.Generics (Generic)
 import Numeric.Natural
-
+import Control.DeepSeq
 data Dist = Inf 
           | DistNat Natural
   deriving (Show, Eq, Ord, Generic, Read)
+
+instance NFData Dist where
+  rnf Inf = ()
+  rnf (DistNat x) = rnf x
 
 instance Hashable Dist
 
