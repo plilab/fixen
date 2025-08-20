@@ -3,7 +3,6 @@
   -Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists#-}
 module ShortestPath.ShortestPath where
 import ShortestPath.Dist
-import Control.DeepSeq
 import Algebra.PartialOrd
 import Common.Definitions
 import Data.Bifunctor (Bifunctor(first))
@@ -14,6 +13,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.PQueue.Max as Q
 import GHC.Generics (Generic)
 import Numeric.Natural
+import Control.DeepSeq
 
 subsumes :: (PartialOrd a) => a -> a -> Bool
 subsumes = flip leq
@@ -53,7 +53,7 @@ mkEdge v0 v1 v2 = EdgeFact (Edge v0 v1 v2)
 data Fact = StartFact Start
           | DistToFact DistTo
           | EdgeFact Edge
-              deriving (Show, Eq, Read)
+              deriving (Show, Eq)
 
 data Continuation = Initial Fact
                   | AddDistCont String Dist String Dist
@@ -67,13 +67,15 @@ evaluate db (AddDistCont v10 d10 v20 d20)
 evaluate db (InitCont s0) = [DistToFact (DistTo s0 (DistNat 0))]
 
 instance Ord Continuation where
+        (<=) (AddDistCont _ d11 _ d21) (AddDistCont _ d12 _ d22)
+          = leq (add d11 d21) (add d12 d22)
         (<=) _ (Initial _) = True
         (<=) _ _ = False
 
 data DataBase = DataBase{factsStart :: S.HashSet String,
                          factsEdge :: M.HashMap (String, String) (S.HashSet Dist),
                          factsDistTo :: M.HashMap String (S.HashSet Dist)}
-                  deriving (Show, Eq, Generic)
+                  deriving (Show, Eq)
 
 instance NFData DataBase where 
   rnf (DataBase a b c) = rnf (a, b, c)
