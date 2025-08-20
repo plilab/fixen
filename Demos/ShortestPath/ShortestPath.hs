@@ -3,6 +3,7 @@
   -Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists#-}
 module ShortestPath.ShortestPath where
 import ShortestPath.Dist
+import Control.DeepSeq
 import Algebra.PartialOrd
 import Common.Definitions
 import Data.Bifunctor (Bifunctor(first))
@@ -72,7 +73,10 @@ instance Ord Continuation where
 data DataBase = DataBase{factsStart :: S.HashSet String,
                          factsEdge :: M.HashMap (String, String) (S.HashSet Dist),
                          factsDistTo :: M.HashMap String (S.HashSet Dist)}
-                  deriving (Show, Eq)
+                  deriving (Show, Eq, Generic)
+
+instance NFData DataBase where 
+  rnf (DataBase a b c) = rnf (a, b, c)
 
 emptyDB :: DataBase
 emptyDB = DataBase S.empty M.empty M.empty

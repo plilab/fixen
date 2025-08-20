@@ -10,12 +10,13 @@ import ShortestPath.Converter
   ( loadGraph
   , convertToKleen
   , convertToHandwritten
-  , convertToNoPriorityKleen
+  -- , convertToNoPriorityKleen
   , Graph
   )
 import qualified ShortestPath.HandwrittenDijkstra as HW
 import qualified ShortestPath.ShortestPath as SP
-import qualified ShortestPath.ShortestPathNoPriority as SPNP
+import qualified ShortestPath.SubOptHandwrittenDijkstra as SOHD
+-- import qualified ShortestPath.ShortestPathNoPriority as SPNP
 
 
 -- | Find all *.json graphs in a directory.
@@ -40,16 +41,16 @@ main = do
     let toBenchmarkGroups :: (String, Graph) -> Benchmark
         toBenchmarkGroups (name, g) =
             let facts = convertToKleen g
-                noPriorityFacts = convertToNoPriorityKleen g
+                -- noPriorityFacts = convertToNoPriorityKleen g
                 adj = convertToHandwritten g
             in 
             bgroup name 
                 [ bench "Kleen solve" $
                     nf SP.compute facts
-                , bench "Kleen (no priority) solve" $
-                    nf SPNP.compute noPriorityFacts
+                -- , bench "Kleen (no priority) solve" $
+                --     nf SPNP.compute noPriorityFacts
                 , bench "Handwritten Dijsktra solve" $
-                    nf (HW.dijkstra "0") adj
+                      nf (SOHD.dijkstra "0") adj
             ]
         
     defaultMain $ map toBenchmarkGroups graphs

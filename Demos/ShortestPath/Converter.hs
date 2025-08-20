@@ -36,7 +36,7 @@ module ShortestPath.Converter
   , Graph
   , loadGraph
   , convertToKleen
-  , convertToNoPriorityKleen
+  -- , convertToNoPriorityKleen
   , convertToHandwritten
   ) where
 
@@ -46,7 +46,7 @@ import Data.Aeson
 import Numeric.Natural
 
 import qualified ShortestPath.ShortestPath as SP
-import qualified ShortestPath.ShortestPathNoPriority as SPNP
+-- import qualified ShortestPath.ShortestPathNoPriority as SPNP
 import qualified ShortestPath.Dist as D
 import qualified ShortestPath.HandwrittenCommon as HC
 
@@ -74,14 +74,14 @@ convertToKleen g =
         ]
   in SP.StartFact (SP.Start "0"):edgeFacts
 
-convertToNoPriorityKleen :: Graph -> [SPNP.Fact]
-convertToNoPriorityKleen g =
-  let edgeFacts =
-        [ SPNP.EdgeFact (SPNP.Edge u v (D.DistNat w))
-        | (u, nbrs) <- M.toList g
-        , (v, Weight w) <- M.toList nbrs
-        ]
-  in SPNP.StartFact (SPNP.Start "0"):edgeFacts
+-- convertToNoPriorityKleen :: Graph -> [SPNP.Fact]
+-- convertToNoPriorityKleen g =
+--   let edgeFacts =
+--         [ SPNP.EdgeFact (SPNP.Edge u v (D.DistNat w))
+--         | (u, nbrs) <- M.toList g
+--         , (v, Weight w) <- M.toList nbrs
+--         ]
+--   in SPNP.StartFact (SPNP.Start "0"):edgeFacts
 
 convertToHandwritten :: Graph -> M.Map HC.Vertex [(HC.Vertex, HC.Dist)]
 convertToHandwritten =

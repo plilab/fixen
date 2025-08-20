@@ -21,3 +21,15 @@ add :: Dist -> Dist -> Dist
 add Inf _ = Inf
 add _ Inf = Inf
 add (Dist x) (Dist y) = Dist (x + y)
+
+instance Num Dist where 
+  (+) = add
+  Inf * _ = Inf
+  _ * Inf = Inf
+  abs Inf = Inf
+  abs (Dist x) = Dist (abs x)
+  signum Inf = 1
+  signum (Dist x) = Dist $ signum x
+  fromInteger = Dist . fromInteger
+
+
