@@ -36,6 +36,7 @@ module ShortestPath.Converter
   , Graph
   , loadGraph
   , convertToKleen
+  , convertToNoPriorityKleen
   , convertToHandwritten
   ) where
 
@@ -45,8 +46,9 @@ import Data.Aeson
 import Numeric.Natural
 
 import qualified ShortestPath.ShortestPath as SP
+import qualified ShortestPath.ShortestPathNoPriority as SPNP
 import qualified ShortestPath.Dist as D
-import qualified ShortestPath.HandwrittenDijkstra as HW
+import qualified ShortestPath.HandwrittenCommon as HC
 
 newtype Weight = Weight { weight :: Natural } deriving (Show)
 
@@ -70,11 +72,20 @@ convertToKleen g =
         | (u, nbrs) <- M.toList g
         , (v, Weight w) <- M.toList nbrs
         ]
-  in edgeFacts ++ [SP.StartFact (SP.Start "0")]
+  in SP.StartFact (SP.Start "0"):edgeFacts
 
-convertToHandwritten :: Graph -> M.Map HW.Vertex [(HW.Vertex, HW.Dist)]
+convertToNoPriorityKleen :: Graph -> [SPNP.Fact]
+convertToNoPriorityKleen g =
+  let edgeFacts =
+        [ SPNP.EdgeFact (SPNP.Edge u v (D.DistNat w))
+        | (u, nbrs) <- M.toList g
+        , (v, Weight w) <- M.toList nbrs
+        ]
+  in SPNP.StartFact (SPNP.Start "0"):edgeFacts
+
+convertToHandwritten :: Graph -> M.Map HC.Vertex [(HC.Vertex, HC.Dist)]
 convertToHandwritten =
   M.map (map toAdj . M.toList)
   where
-    toAdj :: (String, Weight) -> (HW.Vertex, HW.Dist)
-    toAdj (v, Weight w) = (v, HW.Dist (fromIntegral w))
+    toAdj :: (String, Weight) -> (HC.Vertex, HC.Dist)
+    toAdj (v, Weight w) = (v, HC.Dist (fromIntegral w))

@@ -2,7 +2,7 @@ module Main where
 
 import Criterion.Main    
 import Control.Monad (filterM, forM)
-import qualified Data.Map.Strict as M
+ 
 import System.Directory (listDirectory, doesDirectoryExist, doesFileExist)
 import System.FilePath ((</>), takeExtension, takeBaseName)
 
@@ -10,11 +10,13 @@ import ShortestPath.Converter
   ( loadGraph
   , convertToKleen
   , convertToHandwritten
+  , convertToNoPriorityKleen
   , Graph
   )
 import qualified ShortestPath.HandwrittenDijkstra as HW
 import qualified ShortestPath.ShortestPath as SP
-import Criterion.Types (Benchmark(Benchmark))
+import qualified ShortestPath.ShortestPathNoPriority as SPNP
+
 
 -- | Find all *.json graphs in a directory.
 -- Hopefully the files are in '/benchmarks/json-graphs'
@@ -38,13 +40,16 @@ main = do
     let toBenchmarkGroups :: (String, Graph) -> Benchmark
         toBenchmarkGroups (name, g) =
             let facts = convertToKleen g
+                noPriorityFacts = convertToNoPriorityKleen g
                 adj = convertToHandwritten g
             in 
             bgroup name 
                 [ bench "Kleen solve" $
-                    whnf SP.compute facts
+                    nf SP.compute facts
+                , bench "Kleen (no priority) solve" $
+                    nf SPNP.compute noPriorityFacts
                 , bench "Handwritten Dijsktra solve" $
-                    whnf (HW.dijkstra "0") adj
+                    nf (HW.dijkstra "0") adj
             ]
         
     defaultMain $ map toBenchmarkGroups graphs

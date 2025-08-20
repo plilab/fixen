@@ -4,11 +4,16 @@ import qualified Data.Map.Strict as M
 import           Data.Map (Map)
 import qualified Data.PQueue.Min as PQ
 import           Data.Foldable (foldl')
+import Control.DeepSeq
 
 type Vertex = String
 
 data Dist = Inf | Dist Int
   deriving (Eq, Show)
+
+instance NFData Dist where
+  rnf Inf = ()
+  rnf (Dist x) = rnf x
 
 instance Ord Dist where
   compare Inf     Inf       = EQ
