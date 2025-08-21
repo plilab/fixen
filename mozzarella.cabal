@@ -31,7 +31,8 @@ executable mozzarella
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:    CommandLine.Parser
+                    , CommandLine.CommandLineArgs
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -39,9 +40,10 @@ executable mozzarella
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.21.0.0
                     , optparse-applicative ^>=0.19.0.0
+                    , filepath ^>=1.5.4.0
 
     -- Directories containing source files.
     hs-source-dirs:   app
 
     -- Base language which the package is written in.
-    default-language: GHC2024
+    default-language: GHC2021
