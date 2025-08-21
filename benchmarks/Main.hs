@@ -5,6 +5,7 @@ import Control.Monad (filterM, forM)
  
 import System.Directory (listDirectory, doesDirectoryExist, doesFileExist)
 import System.FilePath ((</>), takeExtension, takeBaseName)
+import Control.DeepSeq
 
 import ShortestPath.Converter
   ( loadGraph
@@ -17,6 +18,12 @@ import qualified ShortestPath.HandwrittenDijkstra as HW
 import qualified ShortestPath.ShortestPath as SP
 import qualified ShortestPath.SubOptHandwrittenDijkstra as SOHD
 import qualified ShortestPath.ShortestPathNoPriority as SPNP
+
+instance NFData SP.DataBase where
+    rnf (SP.DataBase x y z) = rnf (x, y, z)
+
+instance NFData SPNP.DataBase where
+    rnf (SPNP.DataBase x y z) = rnf (x, y, z)
 
 
 -- | Find all *.json graphs in a directory.

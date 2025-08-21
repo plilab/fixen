@@ -13,7 +13,6 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.PQueue.Max as Q
 import GHC.Generics (Generic)
 import Numeric.Natural
-import Control.DeepSeq
 
 subsumes :: (PartialOrd a) => a -> a -> Bool
 subsumes = flip leq
@@ -76,9 +75,6 @@ data DataBase = DataBase{factsStart :: S.HashSet String,
                          factsEdge :: M.HashMap (String, String) (S.HashSet Dist),
                          factsDistTo :: M.HashMap String (S.HashSet Dist)}
                   deriving (Show, Eq)
-
-instance NFData DataBase where 
-  rnf (DataBase a b c) = rnf (a, b, c)
 
 emptyDB :: DataBase
 emptyDB = DataBase S.empty M.empty M.empty
