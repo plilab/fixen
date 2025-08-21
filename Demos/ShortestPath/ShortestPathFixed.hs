@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC
   -Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists#-}
-module ShortestPath.ShortestPath where
+module ShortestPath.ShortestPathFixed where
 import ShortestPath.Dist
 import Algebra.PartialOrd
 import Common.Definitions
@@ -72,7 +72,7 @@ instance Ord Continuation where
         (<=) _ _ = False
 
 data DataBase = DataBase{factsStart :: S.HashSet String,
-                         factsEdge :: M.HashMap (String, String) (S.HashSet Dist),
+                         factsEdge :: M.HashMap String [(String, Dist)],
                          factsDistTo :: M.HashMap String (S.HashSet Dist),
                          count :: Int}
                   deriving (Show, Eq)

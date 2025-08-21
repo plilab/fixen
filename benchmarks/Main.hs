@@ -20,7 +20,7 @@ import qualified ShortestPath.SubOptHandwrittenDijkstra as SOHD
 import qualified ShortestPath.ShortestPathNoPriority as SPNP
 
 instance NFData SP.DataBase where
-    rnf (SP.DataBase x y z) = rnf (x, y, z)
+    rnf (SP.DataBase x y z a) = rnf (x, y, z, a)
 
 instance NFData SPNP.DataBase where
     rnf (SPNP.DataBase x y z) = rnf (x, y, z)
@@ -65,6 +65,33 @@ listJSON dir = do
         let candidates = [dir </> x | x <- xs, takeExtension x == ".json"]
         filterM doesFileExist candidates
 
+-- main :: IO ()
+-- main = do
+--     lst <- listJSON "./benchmarks/json-graphs"
+--     graphs <- forM lst $ \fp -> do
+--         e <- loadGraph fp
+--         case e of
+--             Left err -> ioError (userError (fp <> ": " <> err))
+--             Right g  -> pure (takeBaseName fp, g)
+--     let toBenchmarkGroups :: (String, Graph) -> Benchmark
+--         toBenchmarkGroups (name, g) =
+--             let facts = convertToKleen g
+--                 noPriorityFacts = convertToNoPriorityKleen g
+--                 adj = convertToHandwritten g
+--             in facts `deepseq` noPriorityFacts `deepseq` adj `deepseq`
+--                 bgroup name 
+--                     [ bench "Kleen solve" $
+--                         nf SP.compute facts
+--                     , bench "Kleen (no priority) solve" $
+--                         nf SPNP.compute noPriorityFacts
+--                     , bench "Handwritten Dijsktra solve" $
+--                         nf (SOHD.dijkstra "0") adj
+--                     , bench "Handwritten V2 Dijkstra solve" $
+--                         nf (HW.dijkstra "0") adj
+--                 ]
+        
+--     defaultMain $ map toBenchmarkGroups graphs
+
 main :: IO ()
 main = do
     lst <- listJSON "./benchmarks/json-graphs"
@@ -73,23 +100,7 @@ main = do
         case e of
             Left err -> ioError (userError (fp <> ": " <> err))
             Right g  -> pure (takeBaseName fp, g)
-    let toBenchmarkGroups :: (String, Graph) -> Benchmark
-        toBenchmarkGroups (name, g) =
-            let facts = convertToKleen g
-                noPriorityFacts = convertToNoPriorityKleen g
-                adj = convertToHandwritten g
-            in facts `deepseq` noPriorityFacts `deepseq` adj `deepseq`
-                bgroup name 
-                    [ bench "Kleen solve" $
-                        nf SP.compute facts
-                    , bench "Kleen (no priority) solve" $
-                        nf SPNP.compute noPriorityFacts
-                    , bench "Handwritten Dijsktra solve" $
-                        nf (SOHD.dijkstra "0") adj
-                    , bench "Handwritten V2 Dijkstra solve" $
-                        nf (HW.dijkstra "0") adj
-                ]
-        
-    defaultMain $ map toBenchmarkGroups graphs
-
-     
+    let facts = convertToKleen (snd $ head graphs)
+    let hand = convertToHandwritten (snd $ head graphs)
+    print $ SP.count $ SP.compute facts
+    print $ snd $ SOHD.dijkstra "0" hand 
