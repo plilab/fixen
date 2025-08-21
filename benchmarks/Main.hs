@@ -25,6 +25,34 @@ instance NFData SP.DataBase where
 instance NFData SPNP.DataBase where
     rnf (SPNP.DataBase x y z) = rnf (x, y, z)
 
+instance NFData SP.Fact where
+    rnf (SP.StartFact s) = rnf (s)
+    rnf (SP.DistToFact d) = rnf (d)
+    rnf (SP.EdgeFact e) = rnf (e)
+
+instance NFData SP.Start where
+    rnf (SP.Start x) = rnf (x)
+
+instance NFData SP.Edge where
+    rnf (SP.Edge x y z) = rnf (x, y, z)
+
+instance NFData SP.DistTo where
+    rnf (SP.DistTo x y) = rnf (x, y)
+    
+instance NFData SPNP.Fact where
+    rnf (SPNP.StartFact s) = rnf (s)
+    rnf (SPNP.DistToFact d) = rnf (d)
+    rnf (SPNP.EdgeFact e) = rnf (e)
+
+instance NFData SPNP.Start where
+    rnf (SPNP.Start x) = rnf (x)
+
+instance NFData SPNP.Edge where
+    rnf (SPNP.Edge x y z) = rnf (x, y, z)
+
+instance NFData SPNP.DistTo where
+    rnf (SPNP.DistTo x y) = rnf (x, y)
+
 
 -- | Find all *.json graphs in a directory.
 -- Hopefully the files are in '/benchmarks/json-graphs'
@@ -50,15 +78,17 @@ main = do
             let facts = convertToKleen g
                 noPriorityFacts = convertToNoPriorityKleen g
                 adj = convertToHandwritten g
-            in 
-            bgroup name 
-                [ bench "Kleen solve" $
-                    nf SP.compute facts
-                , bench "Kleen (no priority) solve" $
-                    nf SPNP.compute noPriorityFacts
-                , bench "Handwritten Dijsktra solve" $
-                      nf (SOHD.dijkstra "0") adj
-            ]
+            in facts `deepseq` noPriorityFacts `deepseq` adj `deepseq`
+                bgroup name 
+                    [ bench "Kleen solve" $
+                        nf SP.compute facts
+                    , bench "Kleen (no priority) solve" $
+                        nf SPNP.compute noPriorityFacts
+                    , bench "Handwritten Dijsktra solve" $
+                        nf (SOHD.dijkstra "0") adj
+                    , bench "Handwritten V2 Dijkstra solve" $
+                        nf (HW.dijkstra "0") adj
+                ]
         
     defaultMain $ map toBenchmarkGroups graphs
 
