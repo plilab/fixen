@@ -169,7 +169,7 @@ priorityDecl :: Parser Declaration
 priorityDecl = let
   parseHead = do
     instl <- instantiation
-    void $ char '<'
+    void $ string "<="
     OrdHead instl <$> instantiation
   in do
     void $ string "priority"
