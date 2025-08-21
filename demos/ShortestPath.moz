@@ -1,0 +1,19 @@
+%%
+module ShortestPath where
+
+type Vertex = String
+data Dist = D Int
+          | Inf
+    deriving (Show, Eq)
+
+instance Num Dist where
+  Inf + Inf = Inf
+  (D x) + (D y) = D $ x + y
+%%
+
+rel distTo : Vertex, Dist
+rel edge   : Vertex, Vertex, Dist
+
+rule addDist : distTo a d, edge a b c
+               ----------------------
+               |- distTo a (b + c)
