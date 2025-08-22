@@ -94,8 +94,8 @@ main = do
                     --     nf SPNP.compute noPriorityFacts
                     , bench "Handwritten Dijsktra solve" $
                         nf (SOHD.dijkstra "0") adj
-                    , bench "Handwritten V2 Dijkstra solve" $
-                        nf (HW.dijkstra "0") adj
+                    -- , bench "Handwritten V2 Dijkstra solve" $
+                    --     nf (HW.dijkstra "0") adj
                 ]
         
     defaultMain $ map toBenchmarkGroups graphs
