@@ -38,9 +38,10 @@ executable mozzarella
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.21.0.0
-                    , optparse-applicative ^>=0.19.0.0
-                    , filepath ^>=1.5.4.0
+    build-depends:    base ^>=4.19.2.0
+                    , optparse-applicative ^>=0.18.1.0
+                    , filepath ^>=1.4.301.0
+                    , diagnose ^>=2.5.1
 
     -- Directories containing source files.
     hs-source-dirs:   app
