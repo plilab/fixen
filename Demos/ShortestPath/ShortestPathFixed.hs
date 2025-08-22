@@ -14,6 +14,22 @@ import qualified Data.PQueue.Max as Q
 import GHC.Generics (Generic)
 import Numeric.Natural
 
+-- added for helper function
+import Data.List (partition)
+
+-- | added insert/merge for a single (dst, dist) under a given src, respecting subsumption
+updateEdgeList :: [(String, Dist)] -> String -> Dist -> ([(String, Dist)], Bool)
+updateEdgeList xs dst dNew =
+  let (sameDst, others) = partition (\(dst', _) -> dst' == dst) xs
+      dsAtDst = [d | (_, d) <- sameDst]
+      hasSubsuming = any (`subsumes` dNew) dsAtDst
+  in if hasSubsuming
+    then (xs, False)
+    else
+      -- drop entries strictly subsumed by the new one then add new dist
+      let same' = filter (\(_, d) -> not (dNew `strictlySubsumes` d)) sameDst
+      in ((dst, dNew) : (same' ++ others), True)
+
 subsumes :: (PartialOrd a) => a -> a -> Bool
 subsumes = flip leq
 
@@ -92,16 +108,14 @@ insertDB fact db
           StartFact (Start v0) -> if S.member v0 (factsStart db) then
                                     (db, False) else
                                     (db{factsStart = S.insert v0 (factsStart db)}, True)
-          EdgeFact (Edge v0 v1 v2) -> if M.member (v0, v1) (factsEdge db)
-                                        then
-                                        first
-                                          (\ hset ->
-                                             db{factsEdge = M.insert (v0, v1) hset (factsEdge db)})
-                                          (update ((M.!) (factsEdge db) (v0, v1)) v2)
-                                        else
-                                        (db{factsEdge =
-                                              M.insert (v0, v1) (S.singleton v2) (factsEdge db)},
-                                         True)
+          -- changed here since factsEdge :: Map src [(dst, dist)]
+          EdgeFact (Edge v0 v1 v2) -> 
+            case M.lookup v0 (factsEdge db) of
+              Just lst ->
+                let (lst', changed) = updateEdgeList lst v1 v2
+                in (db { factsEdge = M.insert v0 lst' (factsEdge db) }, changed)
+              Nothing ->
+                (db { factsEdge = M.insert v0 [(v1, v2)] (factsEdge db) }, True)
           DistToFact (DistTo v0 v1) -> if M.member v0 (factsDistTo db) then
                                          first
                                            (\ hset ->
@@ -127,40 +141,14 @@ step db fact q_1
                                   (Q.unions
                                    [q_1,
                                     wtv], Q.size wtv)
-        DistToFact (DistTo v_5 v_6) -> let wtv = foldl'
-                                            (\ q_7 (DistTo v10 d10) ->
-                                               Q.unions
-                                                 [q_7,
-                                                  foldl'
-                                                    (\ q_9 (Edge v10_8 v20 d20) ->
-                                                       Q.unions
-                                                         [q_9,
-                                                          Q.singleton
-                                                            (AddDistCont v10_8 d10 v20 d20)])
-                                                    Q.empty
-                                                    (M.foldlWithKey'
-                                                       (\ rest (v_10, v_11) vals ->
-                                                          concatMap
-                                                            (\ v_12 ->
-                                                               pure Edge <*> mlbs v_10 v10 <*>
-                                                                 pure v_11
-                                                                 <*> pure v_12)
-                                                            vals
-                                                            ++ rest)
-                                                       []
-                                                       (factsEdge db))])
-                                            Q.empty
-                                            (M.foldlWithKey'
-                                               (\ rest v_13 vals ->
-                                                  S.foldl' (\ acc v_14 -> DistTo v_13 v_14 : acc) []
-                                                    vals
-                                                    ++ rest)
-                                               []
-                                               (M.singleton v_5 (S.singleton v_6)))
-                                        in
-                                        (Q.unions
-                                         [q_1,
-                                          wtv], Q.size wtv)
+        -- change here
+        DistToFact (DistTo v d) ->
+          case M.lookup v (factsEdge db) of
+            Just outs ->
+              let toAdd = [ AddDistCont v d u w | (u, w) <- outs]
+              in (Q.unions [q_1, Q.fromList toAdd], length toAdd)
+            Nothing ->
+              (q_1, 0)
         EdgeFact (Edge v_15 v_16 v_17) -> let wtv = foldl'
                                                (\ q_18 (Edge v10 v20 d20) ->
                                                   Q.unions

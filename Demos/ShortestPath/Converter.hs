@@ -37,6 +37,7 @@ module ShortestPath.Converter
   , loadGraph
   , convertToKleen
   , convertToNoPriorityKleen
+  , convertToFixedKleen
   , convertToHandwritten
   ) where
 
@@ -46,6 +47,7 @@ import Data.Aeson
 import Numeric.Natural
 
 import qualified ShortestPath.ShortestPath as SP
+import qualified ShortestPath.ShortestPathFixed as FSP
 import qualified ShortestPath.ShortestPathNoPriority as SPNP
 import qualified ShortestPath.Dist as D
 import qualified ShortestPath.HandwrittenCommon as HC
@@ -73,6 +75,15 @@ convertToKleen g =
         , (v, Weight w) <- M.toList nbrs
         ]
   in SP.StartFact (SP.Start "0"):edgeFacts
+
+convertToFixedKleen :: Graph -> [FSP.Fact]
+convertToFixedKleen g =
+  let edgeFacts =
+        [ FSP.EdgeFact (FSP.Edge u v (D.DistNat w))
+        | (u, nbrs) <- M.toList g
+        , (v, Weight w) <- M.toList nbrs
+        ]
+  in FSP.StartFact (FSP.Start "0"):edgeFacts
 
 convertToNoPriorityKleen :: Graph -> [SPNP.Fact]
 convertToNoPriorityKleen g =
