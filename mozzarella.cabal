@@ -33,6 +33,14 @@ executable mozzarella
     -- Modules included in this executable, other than Main.
     other-modules:    CommandLine.Parser
                     , CommandLine.CommandLineArgs
+                    , Mozzarella.IR.AST
+                    , Mozzarella.IR.Core
+                    , Mozzarella.Monad
+                    , Mozzarella.Parser
+                    , Mozzarella.Parser.Common
+                    , Mozzarella.Parser.Expr
+                    , Mozzarella.Parser.Token
+                    , Mozzarella.Parser.Type
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -42,6 +50,10 @@ executable mozzarella
                     , optparse-applicative ^>=0.18.1.0
                     , filepath ^>=1.4.301.0
                     , diagnose ^>=2.5.1
+                    , megaparsec ^>=9.7.0
+                    , mtl ^>=2.3.1
+                    , containers ^>=0.6.8
+                    , parser-combinators
 
     -- Directories containing source files.
     hs-source-dirs:   app

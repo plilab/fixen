@@ -1,19 +1,8 @@
-%%
-module ShortestPath where
+rel DistTo : Vertex, Dist
+  completion widen
+rel Edge : Vertex, Vertex, Dist
+rule: 
+    DistTo a d, Edge a b d'
+    -----------------------
+ |- DistTo b (d + d')
 
-type Vertex = String
-data Dist = D Int
-          | Inf
-    deriving (Show, Eq)
-
-instance Num Dist where
-  Inf + Inf = Inf
-  (D x) + (D y) = D $ x + y
-%%
-
-rel distTo : Vertex, Dist
-rel edge   : Vertex, Vertex, Dist
-
-rule addDist : distTo a d, edge a b c
-               ----------------------
-               |- distTo a (b + c)
