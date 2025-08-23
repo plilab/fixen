@@ -64,6 +64,22 @@ getCommandLineArgs = do
           ( metavar "FILENAME"
               <> help "The input Mozzarella source file"
           )
+        <*> fmap
+          not
+          ( switch
+              ( long "no-color"
+                  <> short 'c'
+                  <> help "Suppress colors in output"
+              )
+          )
+        <*> fmap
+          not
+          ( switch
+              ( long "no-unicode"
+                  <> short 'u'
+                  <> help "Suppress unicode characters in output"
+              )
+          )
 
 --------------------------------------------------------------------------------
 --

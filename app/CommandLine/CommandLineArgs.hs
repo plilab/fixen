@@ -31,6 +31,10 @@ data CommandLineArgs = CommandLineArgs
   -- ^ The output Haskell source file path
   , inFile :: InFilePath
   -- ^ The input Mozzarella source file path
+  , color :: Bool
+  -- ^ Whether the output should contain color.
+  , unicode :: Bool
+  -- ^ Whether the output should contain unicode characters.
   }
   deriving (Show)
 
