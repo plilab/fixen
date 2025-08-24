@@ -59,7 +59,8 @@ import Control.Applicative.Combinators (
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
 import Mozzarella.IR.AST qualified as AST
-import Mozzarella.IR.Core ((:<:) (..))
+
+-- import Mozzarella.IR.Core ((:<:) (..))
 import Mozzarella.Parser.Common
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
@@ -226,8 +227,8 @@ parseNonInfixOpIdentifier = do
 --   3. Parenthesizes operators like @(++)@
 parseNonInfixTermIdentifier :: Parser AST.TermIdentifier
 parseNonInfixTermIdentifier =
-  ((↑) <$> P.try parseAnyCasedLetterIdentifier)
-    <|> ((↑) <$> parseNonInfixOpIdentifier)
+  (AST.TermIdentifierAlpha <$> P.try parseAnyCasedLetterIdentifier)
+    <|> (AST.TermIdentifierOp <$> parseNonInfixOpIdentifier)
 
 -- | Parses a term-level infix letter-based identifier. These are essentially
 -- variables or constructors that are used in infix position. For example,
@@ -255,8 +256,8 @@ parseInfixOperatorIdentifier = do
 --   2. Operators like @++@ or @<=@
 parseInfixTermIdentifier :: Parser AST.TermIdentifier
 parseInfixTermIdentifier =
-  ((↑) <$> P.try parseInfixOperatorIdentifier)
-    <|> ((↑) <$> parseInfixAnyCasedLetterIdentifier)
+  (AST.TermIdentifierOp <$> P.try parseInfixOperatorIdentifier)
+    <|> (AST.TermIdentifierAlpha <$> parseInfixAnyCasedLetterIdentifier)
 
 -------------------------------------------------------------------------------
 --

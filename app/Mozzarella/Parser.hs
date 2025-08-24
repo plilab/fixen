@@ -102,7 +102,7 @@ parseProgram = sc *> parseAST <* eof
 -- | Parses a 'AST.Program'.
 parseAST :: Parser AST.Program
 parseAST = do
-  top_levels <- some parseTopLevel
+  top_levels <- some (l parseTopLevel)
   return AST.Program {AST.topLevels = top_levels}
 
 -- | Parses a 'AST.TopLevel' declaration.
@@ -118,7 +118,7 @@ parseTopLevel =
 parseExtern :: Parser AST.Extern
 parseExtern = do
   offset_start <- P.getOffset
-  (pos, ls) <- l $ parsePositioned $ do
+  (pos, ls) <- parsePositioned $ do
     -- Parse the 'extern' keyword. extern must not be indented. We try
     -- here so we do not have to try when parsing top-level declarations
     _ <- P.try $ l $ L.nonIndented sc $ keyword "extern"
@@ -135,44 +135,58 @@ parseExtern = do
                   (ErrorFail "extern declaration cannot be empty!")
               )
           )
-      Right _ -> P.some (indented *> l parseLowerFirstIdentifier)
+      Right _ -> indentedWhiteSpaceConsumingSome parseLowerFirstIdentifier
   return $ AST.Extern pos ls
+
+-- TODO: This needs to be cleaned up way more.
 
 -- | Parses a 'AST.Relation'.
 parseRelation :: Parser AST.Relation
 parseRelation = do
-  (pos, (a, b, c)) <- l $ parsePositioned $ do
+  (pos, (a, b, c)) <- parsePositioned $ do
     -- parse the 'rel' keyword. rel must not be indented. we try here so we
     -- can avoid trying when parsing top level declaration
     _ <- P.try $ l $ L.nonIndented sc $ keyword "rel"
     -- parse the name of the relation. must be capitalized since these are
     -- constructors
     _ <- indented
-    name <- l parseCapitalizedIdentifier
+    name <- parseCapitalizedIdentifier
     -- now try parsing the arguments. these are optional. however, if there
     -- are no arguments, we should not parse ':'. i.e., we cannot have
     -- a relation declaration like
     --    rel MyEmptyRel :
-    (pos, args) <- l $ parsePositioned $ optional $ do
-      _ <- l $ indented *> keywordOp ":"
-      (pos, types) <- l $ parsePositioned $ commaSepBy1 parseType
-      return $ AST.RelationSignature pos types
+    (pos, args) <- parsePositioned $ do
+      x <- P.observing $ P.try $ do
+        _ <- indented
+        _ <- l $ keywordOp ":"
+        (pos, types) <- parsePositioned $ commaSepBy1 parseType
+        return $ AST.RelationSignature pos types
+      case x of
+        Left _ -> return Nothing
+        Right y -> return $ Just y
     -- parse a completion clause. The reason why we use the completion
     -- keyword instead of [myCompletion] is because we may want list types
     -- in relation arguments.
-    comp <- optional $ do
-      (pos', ident) <- parsePositioned $ do
-        _ <- indented
-        _ <- l $ keyword "completion"
-        _ <- indented
-        l parseLowerFirstIdentifier
-      return $ AST.Completion pos' ident
+    comp <- do
+      res <- P.observing $ P.try $ do
+        _ <- sc
+        (pos', ident) <- parsePositioned $ do
+          _ <- indented
+          _ <- l $ keyword "completion"
+          _ <- indented
+          parseLowerFirstIdentifier
+        return $ AST.Completion pos' ident
+      case res of
+        Left _ -> return Nothing
+        Right x -> return $ Just x
     let real_args =
           fromMaybe
             (AST.RelationSignature pos [])
             args
     return (name, real_args, comp)
   return $ AST.Relation pos a b c
+
+-- TODO this needs to be cleaned up more.
 
 -- | Parses a 'AST.Rule'. Rules are not indented. The turnstile @|-@ is not an
 -- operator keyword, thus can (and should) be usable in expressions. Uses of
@@ -181,23 +195,24 @@ parseRelation = do
 -- @rule myRule: Fact a b, if (a |- b) |- Fact a (b |- a)@
 parseRule :: Parser AST.Rule
 parseRule = do
-  (pos, (name, bound_vars, premises, concl)) <- l $ parsePositioned $ do
+  (pos, (name, bound_vars, premises, concl)) <- parsePositioned $ do
     -- parse the rule keyword. rules must not be indented.
     _ <- l $ L.nonIndented sc $ keyword "rule"
     -- try parsing the name and bound variables.
     _ <- indented
-    maybe_name_and_bound_vars <- l $ optional $ do
+    maybe_name_and_bound_vars <- optional $ do
       -- rule names cannot be capitalized
       name <- l parseLowerFirstIdentifier
       _ <- indented
       -- parse the bound variables
-      (pos, idents) <- l $ parsePositioned $ P.many (indented *> l parseLowerFirstIdentifier)
+      (pos, idents) <-
+        parsePositioned $
+          indentedWhiteSpaceConsumingMany parseLowerFirstIdentifier
       let vars = AST.RuleBoundVars pos idents
       return (name, vars)
     let (name, bound_vars) = case maybe_name_and_bound_vars of
           Nothing -> (Nothing, Nothing)
           Just (x, y) -> (Just x, Just y)
-
     -- all rules have a ':' symbol.
     _ <- indented
     _ <- l $ keywordOp ":"
@@ -209,7 +224,7 @@ parseRule = do
     _ <- indented
     _ <- l turnstile
     -- parse the conclusion
-    concl <- l parseConclusion
+    concl <- parseConclusion
     return (name, bound_vars, premises, concl)
   return $ AST.Rule pos name bound_vars premises concl
 
@@ -223,24 +238,14 @@ parsePremise = parseAssumption <|> parseCondition
 -- | Parses the 'AST.Conclusion' of a rule.
 parseConclusion :: Parser AST.Conclusion
 parseConclusion = do
-  (pos, (header, real_args)) <- l $ parsePositioned $ do
+  (pos, (header, real_args)) <- parsePositioned $ do
     -- must be indented
     _ <- indented
     -- must conclude fact, hence the first thing in the conclusion is a
     -- capitalized fact name
-    header <- l parseCapitalizedIdentifier
-    _ <- indented
-    -- try parse the arguments. the reason we use optional and some instead
-    -- of many is so that we don't get nonsense source positions for
-    -- non-existent arguments. the arguments are atom expressions, i.e. this
-    -- fact is just an expression application.
-    (pos, args) <- l $ parsePositioned $ optional $ do
-      (pos, ls) <- l $ parsePositioned $ some (indented *> parseParenExpr)
-      return $ AST.ConclusionArguments pos ls
-    -- pos should be a fixed point (not a range) if args is empty; use that to
-    -- our advantage
-    let real_args = fromMaybe (AST.ConclusionArguments pos []) args
-    -- return the header (fact name) and arguments
+    header <- parseCapitalizedIdentifier
+    (pos, args) <- parsePositioned $ indentedWhiteSpaceConsumingMany parseParenExpr
+    let real_args = AST.ConclusionArguments pos args
     return (header, real_args)
   return $ AST.Conclusion pos header real_args
 
@@ -248,34 +253,23 @@ parseConclusion = do
 -- variables as pattern matching on relation arguments is not supported.
 parseAssumption :: Parser AST.Premise
 parseAssumption = do
-  (pos, (header, real_args)) <- l $ parsePositioned $ do
+  (pos, (header, real_args)) <- parsePositioned $ do
     -- must be indented
     _ <- indented
     -- facts are all constructors, thus must be capitalized. we 'try' here so
     -- that we can backtrack if the rule premise is actually an 'if' condition.
-    header <- l $ P.try parseCapitalizedIdentifier
-    _ <- indented
-    -- try parse the arguments. the reason we use optional and some instead
-    -- of many is so that we don't get nonsense source positions for
-    -- non-existent arguments.
-    (pos, args) <- l $ parsePositioned $ optional $ do
-      -- try parsing a nonempty argument list
-      (pos, ls) <-
-        l $
-          parsePositioned $
-            some (indented *> l parseLowerFirstIdentifier)
-      return $ AST.AssumptionArguments pos ls
-    -- pos should be a fixed point (not a range) if args is empty; use that to our
-    -- advantage
-    let real_args = fromMaybe (AST.AssumptionArguments pos []) args
-    -- return the header (fact name) and arguments
-    return (header, real_args)
+    header <- P.try parseCapitalizedIdentifier
+    -- try parse the arguments.
+    (pos, args) <-
+      parsePositioned $
+        indentedWhiteSpaceConsumingMany parseLowerFirstIdentifier
+    return (header, AST.AssumptionArguments pos args)
   return $ AST.PremiseAssumption pos header real_args
 
 -- | Parses a 'AST.Condition' 'if' \<expr\>.
 parseCondition :: Parser AST.Premise
 parseCondition = do
-  (pos, e) <- l $ parsePositioned $ do
+  (pos, e) <- parsePositioned $ do
     _ <- indented
     _ <- l $ keyword "if"
     parseExpr

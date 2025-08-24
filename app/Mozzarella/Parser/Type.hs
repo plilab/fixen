@@ -21,7 +21,6 @@
 module Mozzarella.Parser.Type where
 
 import Control.Applicative.Combinators (
-  some,
   (<|>),
  )
 import Data.List
@@ -40,7 +39,7 @@ parseTypeApp :: Parser AST.Type
 parseTypeApp = do
   -- Essentially, a type application is a list of atom types. Each type must
   -- be indented.
-  (x : xs) <- some $ l (indented *> parseParenType)
+  (x : xs) <- indentedWhiteSpaceConsumingSome parseParenType
   -- Fold the list as an application
   return $ foldl' folder x xs
   where
@@ -67,11 +66,7 @@ parseParenType = P.try f <|> parseTypeVar
       -- must be indented
       _ <- indented
       -- each type is indented
-      (pos, t) <-
-        l $
-          parsePositioned $
-            betweenParentheses
-              (indented *> parseType)
+      (pos, t) <- parsePositioned $ betweenParentheses parseType
       return $ AST.setPosition pos t
 
 -- | Parses a type name.
@@ -79,5 +74,5 @@ parseTypeVar :: Parser AST.Type
 parseTypeVar = do
   -- must be indented
   _ <- indented
-  (pos, str) <- l $ parsePositioned parseCapitalizedIdentifier
+  (pos, str) <- parsePositioned parseCapitalizedIdentifier
   return $ AST.TypeVar pos str

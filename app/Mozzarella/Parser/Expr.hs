@@ -36,7 +36,6 @@ module Mozzarella.Parser.Expr (
 ) where
 
 import Control.Applicative.Combinators (
-  some,
   (<|>),
  )
 import Data.List (foldl')
@@ -66,7 +65,7 @@ parseInfixExpr = do
     _ <- indented
     op <- l parseInfixTermIdentifier
     _ <- indented
-    rhs <- l parseParenExpr
+    rhs <- parseParenExpr
     -- Apply op to lhs.
     let first_app :: AST.Expr =
           -- calculate the stupid annotation. since lhs comes before op, we use
@@ -97,7 +96,7 @@ parseExprVar = do
   -- must be indented
   _ <- indented
   -- Parse the identifier
-  ident <- l parseNonInfixTermIdentifier
+  ident <- parseNonInfixTermIdentifier
   -- they can share annotations
   let pos = AST.getPosition ident
   return $ AST.ExprTermVar pos ident
@@ -107,7 +106,7 @@ parseExprApp :: Parser AST.Expr
 parseExprApp = do
   -- Essentially, an expression application is a list of atom expressions.
   -- Each expression must be indented
-  (x : xs) <- some $ l (indented *> parseParenExpr)
+  (x : xs) <- indentedWhiteSpaceConsumingSome parseParenExpr
   -- Fold the list as an application.
   return $ foldl' folder x xs
   where
@@ -131,14 +130,14 @@ parseExprApp = do
 parseIntLit :: Parser AST.Expr
 parseIntLit = do
   _ <- indented
-  (pos, n) <- l $ parsePositioned parseRawInteger
+  (pos, n) <- parsePositioned parseRawInteger
   return $ AST.ExprIntLit pos n
 
 -- | Parses a string literal
 parseStringLit :: Parser AST.Expr
 parseStringLit = do
   _ <- indented
-  (pos, str) <- l $ parsePositioned parseRawString
+  (pos, str) <- parsePositioned parseRawString
   return $ AST.ExprStrLit pos str
 
 -- | Parses an atomic (parenthesized) expression
@@ -151,9 +150,5 @@ parseParenExpr =
   where
     f = do
       _ <- indented
-      (pos, t) <-
-        l $
-          parsePositioned $
-            betweenParentheses
-              (indented *> parseExpr)
+      (pos, t) <- parsePositioned $ betweenParentheses parseExpr
       return $ AST.setPosition pos t

@@ -22,10 +22,14 @@ module Mozzarella.Parser.Common (
   l,
   parsePositioned,
   betweenParentheses,
+  indentedWhiteSpaceConsumingMany,
+  indentedWhiteSpaceConsumingSome,
 ) where
 
 import Data.Text (Text)
 import Data.Void (Void)
+
+-- import Control.Applicative.Combinators
 import Error.Diagnose qualified as Diag
 import Error.Diagnose.Compat.Megaparsec (HasHints (..))
 import Text.Megaparsec qualified as P
@@ -39,7 +43,13 @@ type Parser = P.Parsec Void Text
 -- | Parses some (one or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
 commaSepBy1 :: Parser a -> Parser [a]
-commaSepBy1 p = P.sepBy1 p comma
+commaSepBy1 p = do
+  _ <- indented
+  e <- p
+  ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
+  return $ e : ls
+
+-- P.sepBy1 p comma
 
 -- | Parses many (zero or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
@@ -57,6 +67,35 @@ indented = L.indentGuard sc GT (MPos.mkPos 1)
 -- | The parser for an 'indented' comma @,@.
 comma :: Parser Char
 comma = indented *> l (P.single ',')
+
+-- | Given a parser @p@, runs @p@ as many times as possible and returns
+-- all the results. Indentation checks for @p@ will be performed.
+-- All but the last parse of @p@ will consume whitespace after.
+indentedWhiteSpaceConsumingMany :: Parser a -> Parser [a]
+indentedWhiteSpaceConsumingMany p = do
+  -- by convention, the moment this function is ever called,
+  -- there should be no more white space ahead. Thus, we can call
+  -- sc so that recursive calls can eat up the white space before the
+  -- next parse.
+  m <- P.observing (P.try $ indented *> p)
+  -- result <- P.observing (P.try $ sc *> indented *> p)
+  case m of
+    Left _ -> return []
+    Right e -> (:) e <$> indentedWhiteSpaceConsumingMany p
+
+-- case result of
+--   Left _ -> return []
+--   Right e -> (:) e <$> indentedWhiteSpaceConsumingMany p
+
+-- | Given a parser @p@, runs @p@ at least once and returns
+-- all the results. Indentation checks for @p@ will be performed.
+-- All but the last parse of @p@ will consume whitespace after.
+indentedWhiteSpaceConsumingSome :: Parser a -> Parser [a]
+indentedWhiteSpaceConsumingSome p = do
+  _ <- sc
+  _ <- indented
+  e <- p
+  (:) e <$> indentedWhiteSpaceConsumingMany p
 
 -- | The space consumer. Double dashes @--@ are single-line comment indicators,
 -- and block comments are opened and closed with @/-@ and @-/@ respectively.
