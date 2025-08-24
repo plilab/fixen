@@ -107,7 +107,7 @@ parseAST = do
 parseTopLevel :: Parser AST.TopLevel
 -- no try here. the first tokens in each branch is distinct and once one
 -- matches we should commit to it.
-parseTopLevel = ((↑) <$> l parseRelation) <|> ((↑) <$> l parseRule)
+parseTopLevel = (AST.TopLevelRelation <$> l parseRelation) <|> (AST.TopLevelRule <$> l parseRule)
 
 -- | Parses a 'AST.Relation'.
 parseRelation :: Parser AST.Relation
