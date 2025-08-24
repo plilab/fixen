@@ -84,15 +84,15 @@ parseInfixExpr = do
                   , DPos.file = file_name
                   }
               -- Reconstruct operator identifier as an expression
-              op_expr = AST.ExprTermVar $ AST.TermVar (AST.getPosition op) op
+              op_expr = AST.ExprTermVar (AST.getPosition op) op
           in  -- now apply op_expr to the lhs
-              AST.mkAppExpr pos op_expr lhs
+              AST.ExprApp pos op_expr lhs
     return (first_app, rhs)
   -- just apply first_app to rhs.
-  return $ AST.mkAppExpr pos first_app rhs
+  return $ AST.ExprApp pos first_app rhs
 
 -- | Parse an expression variable, in non infix notation.
-parseExprVar :: Parser (AST.TermVar a)
+parseExprVar :: Parser AST.Expr
 parseExprVar = do
   -- must be indented
   _ <- indented
@@ -100,12 +100,7 @@ parseExprVar = do
   ident <- l parseNonInfixTermIdentifier
   -- they can share annotations
   let pos = AST.getPosition ident
-  return $ AST.TermVar pos ident
-
--- -- We can use parseNonInfixTermIdentifier, except that we just need to
--- -- deconstruct the annotated item and re-build it as an expression.
--- Annotated ann str <- l parseNonInfixTermIdentifier
--- return $ mkExprVar ann str
+  return $ AST.ExprTermVar pos ident
 
 -- | Parses an application expression in non infix notation.
 parseExprApp :: Parser AST.Expr
@@ -130,31 +125,35 @@ parseExprApp = do
               , DPos.file = file_name
               }
       in  -- make the app.
-          AST.mkAppExpr new_pos t t'
+          AST.ExprApp new_pos t t'
 
 -- | Parses an integer literal
-parseIntLit :: Parser (AST.IntLit a)
+parseIntLit :: Parser AST.Expr
 parseIntLit = do
   _ <- indented
   (pos, n) <- l $ parsePositioned parseRawInteger
-  return $ AST.IntLit pos n
+  return $ AST.ExprIntLit pos n
 
 -- | Parses a string literal
-parseStringLit :: Parser (AST.StrLit a)
+parseStringLit :: Parser AST.Expr
 parseStringLit = do
   _ <- indented
   (pos, str) <- l $ parsePositioned parseRawString
-  return $ AST.StrLit pos str
+  return $ AST.ExprStrLit pos str
 
 -- | Parses an atomic (parenthesized) expression
 parseParenExpr :: Parser AST.Expr
 parseParenExpr =
   P.try f
-    <|> (AST.ExprTermVar <$> P.try parseExprVar)
-    <|> (AST.ExprIntLit <$> P.try parseIntLit)
-    <|> (AST.ExprStrLit <$> parseStringLit)
+    <|> P.try parseExprVar
+    <|> P.try parseIntLit
+    <|> parseStringLit
   where
     f = do
       _ <- indented
-      (pos, t) <- l $ parsePositioned $ betweenParentheses (indented *> parseExpr)
+      (pos, t) <-
+        l $
+          parsePositioned $
+            betweenParentheses
+              (indented *> parseExpr)
       return $ AST.setPosition pos t

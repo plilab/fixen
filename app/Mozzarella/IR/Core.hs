@@ -278,7 +278,7 @@ infixr 3 ::+::
 -- cannot be itself a product. Thus, just use the type alias in a flattened
 -- manner, like
 -- @a :*: b :*: c :*: d@
--- where all of @a@, @b@, @c@ and @d@ are not sums.
+-- where all of @a@, @b@, @c@ and @d@ are not products.
 
 -------------------------------------------------------------------------------
 

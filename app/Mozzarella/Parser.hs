@@ -124,7 +124,7 @@ parseRelation = do
     (pos, args) <- l $ parsePositioned $ optional $ do
       _ <- l $ indented *> keywordOp ":"
       (pos, types) <- l $ parsePositioned $ commaSepBy1 parseType
-      return $ AST.mkRelationSignature pos types
+      return $ AST.RelationSignature pos types
     -- parse a completion clause. The reason why we use the completion
     -- keyword instead of [myCompletion] is because we may want list types
     -- in relation arguments.
@@ -134,13 +134,13 @@ parseRelation = do
         _ <- l $ keyword "completion"
         _ <- indented
         l parseLowerFirstIdentifier
-      return $ AST.mkCompletion pos' ident
+      return $ AST.Completion pos' ident
     let real_args =
           fromMaybe
-            (AST.mkRelationSignature pos [])
+            (AST.RelationSignature pos [])
             args
     return (name, real_args, comp)
-  return $ AST.mkRelation pos a b c
+  return $ AST.Relation pos a b c
 
 -- | Parses a 'AST.Rule'. Rules are not indented. The turnstile @|-@ is not an
 -- operator keyword, thus can (and should) be usable in expressions. Uses of
@@ -161,21 +161,21 @@ parseRule = do
     premises <- do
       -- parse the premises
       (pos, premises) <- l $ parsePositioned $ commaSepBy parsePremise
-      return $ AST.mkRulePremises pos premises
+      return $ AST.RulePremises pos premises
     -- parse the turnstile
     _ <- indented
     _ <- l turnstile
     -- parse the conclusion
     concl <- l parseConclusion
     return (name, premises, concl)
-  return $ AST.mkRule pos name premises concl
+  return $ AST.Rule pos name premises concl
 
 -- | Parses a 'AST.Premise' of a rule.
 parsePremise :: Parser AST.Premise
 -- There is no 'try' here because we try in the first identifier in
 -- parseAssumption. This is because the first token of each branch are
 -- obviously distinct, and once one matches, we should commit to it.
-parsePremise = ((↑) <$> parseAssumption) <|> ((↑) <$> parseCondition)
+parsePremise = parseAssumption <|> parseCondition
 
 -- | Parses the 'AST.Conclusion' of a rule.
 parseConclusion :: Parser AST.Conclusion
@@ -193,17 +193,17 @@ parseConclusion = do
     -- fact is just an expression application.
     (pos, args) <- l $ parsePositioned $ optional $ do
       (pos, ls) <- l $ parsePositioned $ some (indented *> parseParenExpr)
-      return $ AST.mkConclusionArguments pos ls
+      return $ AST.ConclusionArguments pos ls
     -- pos should be a fixed point (not a range) if args is empty; use that to
     -- our advantage
-    let real_args = fromMaybe (AST.mkConclusionArguments pos []) args
+    let real_args = fromMaybe (AST.ConclusionArguments pos []) args
     -- return the header (fact name) and arguments
     return (header, real_args)
-  return $ AST.mkConclusion pos header real_args
+  return $ AST.Conclusion pos header real_args
 
 -- | Parses an 'AST.Assumption' (a fact). The arguments to facts must all be
 -- variables as pattern matching on relation arguments is not supported.
-parseAssumption :: Parser AST.Assumption
+parseAssumption :: Parser AST.Premise
 parseAssumption = do
   (pos, (header, real_args)) <- l $ parsePositioned $ do
     -- must be indented
@@ -221,19 +221,19 @@ parseAssumption = do
         l $
           parsePositioned $
             some (indented *> l parseLowerFirstIdentifier)
-      return $ AST.mkAssumptionArguments pos ls -- Annotated {annotation = pos, unAnnotate = ls}
-      -- pos should be a fixed point (not a range) if args is empty; use that to our
-      -- advantage
-    let real_args = fromMaybe (AST.mkAssumptionArguments pos []) args
+      return $ AST.AssumptionArguments pos ls
+    -- pos should be a fixed point (not a range) if args is empty; use that to our
+    -- advantage
+    let real_args = fromMaybe (AST.AssumptionArguments pos []) args
     -- return the header (fact name) and arguments
     return (header, real_args)
-  return $ AST.mkAssumption pos header real_args
+  return $ AST.PremiseAssumption pos header real_args
 
 -- | Parses a 'AST.Condition' 'if' \<expr\>.
-parseCondition :: Parser AST.Condition
+parseCondition :: Parser AST.Premise
 parseCondition = do
   (pos, e) <- l $ parsePositioned $ do
     _ <- indented
     _ <- l $ keyword "if"
     parseExpr
-  return $ AST.mkCondition pos e
+  return $ AST.PremiseCondition pos e

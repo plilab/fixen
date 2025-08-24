@@ -30,6 +30,7 @@ import System.IO qualified as SIO
 --
 -------------------------------------------------------------------------------
 
+-- | Go!
 main :: IO ()
 main = do
   -- parse command line arguments
@@ -64,6 +65,7 @@ main = do
 --
 -------------------------------------------------------------------------------
 
+-- | Handler for file opening exceptions
 openFileExceptionHandler :: InFilePath -> IOException -> IO a
 openFileExceptionHandler file_name e = do
   SIO.hPutStrLn SIO.stderr $ "Cannot open " ++ file_name
@@ -71,6 +73,7 @@ openFileExceptionHandler file_name e = do
   SIO.hPrint SIO.stderr e
   exitWith (ExitFailure 1)
 
+-- | Handler for file reading exceptions
 readFileExceptionHandler :: InFilePath -> IOException -> IO a
 readFileExceptionHandler file_name e = do
   SIO.hPutStrLn SIO.stderr $ "Cannot read " ++ file_name ++ ":"

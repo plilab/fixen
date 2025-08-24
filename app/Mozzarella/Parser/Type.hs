@@ -31,11 +31,9 @@ import Mozzarella.Parser.Common
 import Mozzarella.Parser.Token
 import Text.Megaparsec qualified as P
 
-
--- | Parses an 'ASTType'
+-- | Parses a 'AST.Type'
 parseType :: Parser AST.Type
 parseType = parseTypeApp
-
 
 -- | Parses a type application.
 parseTypeApp :: Parser AST.Type
@@ -59,8 +57,7 @@ parseTypeApp = do
               , DPos.file = file_name
               }
       in  -- make the app.
-          AST.mkAppType new_pos t t'
-
+          AST.TypeApp new_pos t t'
 
 -- | Parses an atomic (parenthesized) type
 parseParenType :: Parser AST.Type
@@ -77,11 +74,10 @@ parseParenType = P.try f <|> parseTypeVar
               (indented *> parseType)
       return $ AST.setPosition pos t
 
-
 -- | Parses a type name.
 parseTypeVar :: Parser AST.Type
 parseTypeVar = do
   -- must be indented
   _ <- indented
-  (pos, str) <- l $ parsePositioned parseCapitalizedIdentifier -- parseRawCapitalizedHsIdentifierString
-  return $ AST.mkVarType pos str
+  (pos, str) <- l $ parsePositioned parseCapitalizedIdentifier
+  return $ AST.TypeVar pos str

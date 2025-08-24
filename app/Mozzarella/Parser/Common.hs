@@ -31,22 +31,18 @@ import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Pos qualified as MPos
 
-
 -- | The type of our parser.
 type Parser = P.Parsec Void String
-
 
 -- | Parses some (one or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
 commaSepBy1 :: Parser a -> Parser [a]
 commaSepBy1 p = P.sepBy1 p comma
 
-
 -- | Parses many (zero or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
 commaSepBy :: Parser a -> Parser [a]
 commaSepBy p = P.sepBy p comma
-
 
 -- | A clause to ensure that the current token is indented by at least one
 -- character. The key observation is that everything except the top-level
@@ -56,26 +52,21 @@ commaSepBy p = P.sepBy p comma
 indented :: Parser MPos.Pos
 indented = L.indentGuard sc GT (MPos.mkPos 1)
 
-
 -- | The parser for an 'indented' comma @,@.
 comma :: Parser Char
 comma = indented *> l (P.single ',')
-
 
 -- | The space consumer. Double dashes @--@ are single-line comment indicators,
 -- and block comments are opened and closed with @/-@ and @-/@ respectively.
 sc :: Parser ()
 sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "/-" "-/")
 
-
 -- | Parses something and consumes all whitespace and comments after.
 l :: Parser a -> Parser a
 l = L.lexeme sc
 
-
 instance HasHints Void String where
   hints _ = []
-
 
 -- | Obtains the start and end source positions from parsing something with
 -- a parser. Importantly, ensure that the parser does not consume any
@@ -111,7 +102,6 @@ parsePositioned p = do
             , Diag.end = (end_line, end_col)
             , Diag.file = file_path
             }
-
 
 -- | Parses using a parser that is between parentheses @(@ and @)@
 betweenParentheses :: Parser a -> Parser a

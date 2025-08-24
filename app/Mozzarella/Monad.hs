@@ -16,15 +16,12 @@ module Mozzarella.Monad (
 import Control.Monad.Except qualified as Except
 import Error.Diagnose.Diagnostic qualified as Diagnostic
 
-
 -- | The monad
 type MozzarellaM a = Except.ExceptT (Diagnostic.Diagnostic String) IO a
-
 
 -- | Raises an error in 'MozzarellaM'
 mozzarellaError :: Diagnostic.Diagnostic String -> MozzarellaM a
 mozzarellaError = Except.liftEither . Left
-
 
 -- | Obtains the underlying 'IO' from a 'MozzarellaM'
 runMozzarellaM :: MozzarellaM a -> IO (Either (Diagnostic.Diagnostic String) a)
