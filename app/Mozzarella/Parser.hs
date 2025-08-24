@@ -18,6 +18,7 @@ module Mozzarella.Parser (
   -- * Parsing AST nodes
   parseAST,
   parseTopLevel,
+  parseExtern,
   parseRelation,
   parseRule,
   parsePremise,
@@ -126,6 +127,7 @@ parseExtern = do
     r <- P.observing indented
     case r of
       Left _ ->
+        -- re-throw more informative parse error
         P.parseError
           ( P.FancyError
               offset_start
