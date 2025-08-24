@@ -8,7 +8,8 @@
 module Mozzarella.Pipeline (pipeline) where
 
 import Data.Text
-import Mozzarella.IR.Sorted qualified as Sorted
+import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
+import Mozzarella.IR.ExplicitBoundVars qualified as Explicit
 import Mozzarella.Monad
 import Mozzarella.Parser (parse)
 import Mozzarella.Sorter (sort)
@@ -31,7 +32,8 @@ pipeline
   -- ^ The path of the compiled file
   -> String
   -- ^ The contents of the compiled file
-  -> MozzarellaM Sorted.Program
+  -> MozzarellaM Explicit.Program
 pipeline file_path contents = do
   program <- parse file_path (pack contents)
-  sort file_path contents program
+  program' <- sort file_path contents program
+  return $ makeBoundVarsExplicit program'

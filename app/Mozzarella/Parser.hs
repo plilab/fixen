@@ -208,11 +208,11 @@ parseRule = do
       (pos, idents) <-
         parsePositioned $
           indentedWhiteSpaceConsumingMany parseLowerFirstIdentifier
-      let vars = AST.RuleBoundVars pos idents
+      let vars = case idents of [] -> Nothing; _ -> Just $ AST.RuleBoundVars pos idents
       return (name, vars)
     let (name, bound_vars) = case maybe_name_and_bound_vars of
           Nothing -> (Nothing, Nothing)
-          Just (x, y) -> (Just x, Just y)
+          Just (x, y) -> (Just x, y)
     -- all rules have a ':' symbol.
     _ <- indented
     _ <- l $ keywordOp ":"
