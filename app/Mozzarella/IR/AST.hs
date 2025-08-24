@@ -444,6 +444,19 @@ pattern ConclusionArguments pos ls = CoreItem pos ls
 
 -- $ @__COMPLETE__@ v'ConclusionArguments'
 
+-- * Extern
+
+type Extern = CoreItem "AST.Extern" Position [TermLetterIdentifier] Void
+
+pattern Extern :: Position -- ^ The annotation
+  -> [TermLetterIdentifier] -- ^ The list of extern declarations
+  -> Extern
+pattern Extern pos ls = CoreItem pos ls
+
+{-# COMPLETE Extern #-}
+
+-- $ @__COMPLETE__@ v'Extern'
+
 -- * Top-level declarations
 type TopLevel = Relation :+: Rule
 
