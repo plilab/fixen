@@ -36,12 +36,15 @@ executable mozzarella
                     , CommandLine.CommandLineArgs
                     , Mozzarella.IR.AST
                     , Mozzarella.IR.Core
+                    , Mozzarella.IR.Sorted
                     , Mozzarella.Monad
+                    , Mozzarella.Pipeline
                     , Mozzarella.Parser
                     , Mozzarella.Parser.Common
                     , Mozzarella.Parser.Expr
                     , Mozzarella.Parser.Token
                     , Mozzarella.Parser.Type
+                    , Mozzarella.Sorter
                     , Paths_mozzarella
 
     -- LANGUAGE extensions used by modules in this package.

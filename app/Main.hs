@@ -8,7 +8,6 @@ import CommandLine.Parser (
   getCommandLineArgs,
  )
 import Control.Exception
-import Data.Text (pack)
 import Error.Diagnose (
   TabSize (TabSize),
   WithUnicode (WithUnicode, WithoutUnicode),
@@ -18,7 +17,7 @@ import Error.Diagnose (
   unadornedStyle,
  )
 import Mozzarella.Monad
-import Mozzarella.Parser
+import Mozzarella.Pipeline
 import System.Exit (
   ExitCode (..),
   exitWith,
@@ -48,11 +47,9 @@ main = do
     handle (openFileExceptionHandler in_file) $
       SIO.openFile in_file SIO.ReadMode
   in_file_contents <-
-    -- pack as a Text
-    fmap pack $
-      handle (readFileExceptionHandler in_file) $
-        SIO.hGetContents' file_handle
-  ast <- runMozzarellaM $ parse in_file in_file_contents
+    handle (readFileExceptionHandler in_file) $
+      SIO.hGetContents' file_handle
+  ast <- runMozzarellaM $ pipeline in_file in_file_contents
   -- output styles
   let out_style = if color then defaultStyle else unadornedStyle
   let out_unicode = if unicode then WithUnicode else WithoutUnicode
