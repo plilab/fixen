@@ -54,7 +54,18 @@ commaSepBy1 p = do
 -- | Parses many (zero or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
 commaSepBy :: Parser a -> Parser [a]
-commaSepBy p = P.sepBy p comma
+commaSepBy p = do
+  x <- P.observing $ P.try $ do
+    _ <- sc
+    _ <- indented
+    p
+  case x of
+    Left _ -> return []
+    Right e -> do
+      ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
+      return $ e : ls
+
+-- P.sepBy p comma
 
 -- | A clause to ensure that the current token is indented by at least one
 -- character. The key observation is that everything except the top-level

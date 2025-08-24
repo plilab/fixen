@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- |
 --     Module      : Mozzarella.Parser.Expr
@@ -38,6 +39,7 @@ module Mozzarella.Parser.Expr (
 import Control.Applicative.Combinators (
   (<|>),
  )
+import Control.Monad (when)
 import Data.List (foldl')
 import Error.Diagnose.Position qualified as DPos
 import Mozzarella.IR.AST qualified as AST
@@ -63,7 +65,9 @@ parseInfixExpr = do
     _ <- indented
     lhs <- l parseParenExpr
     _ <- indented
-    op <- l parseInfixTermIdentifier
+    -- Make sure taht at the top level, you cannot use the turnstile!!
+    op@(AST.TermIdentifierOp (AST.OpIdentifier _ v)) <- l parseInfixTermIdentifier
+    when (v == "|-") $ fail "turnstile (|-) cannot appear in expression without being enclosed in parentheses"
     _ <- indented
     rhs <- parseParenExpr
     -- Apply op to lhs.
@@ -150,5 +154,47 @@ parseParenExpr =
   where
     f = do
       _ <- indented
-      (pos, t) <- parsePositioned $ betweenParentheses parseExpr
+      (pos, t) <- parsePositioned $ betweenParentheses (P.try parseNestedInfixExpr <|> parseExprApp)
       return $ AST.setPosition pos t
+
+-- | Parses an infix 'ASTExpr' that is part of a larger expression, i.e.,
+-- is enclosed in parentheses.
+parseNestedInfixExpr :: Parser AST.Expr
+parseNestedInfixExpr = do
+  (pos, (first_app, rhs)) <- parsePositioned $ do
+    -- This thing you see write here (this do-block) consumes the infix expr
+    -- e op e' and return (op e, e'). The reason for this is so that wrapping
+    -- this do-block in parsePositioned gives us the annotation for the entire
+    -- expr (op e) e' for free without having to recalculate all that nonsense.
+
+    -- every step of the way, we check that the expression is not at the
+    -- top-level. intermediate parses are wrapped with 'l'.
+    _ <- indented
+    lhs <- l parseParenExpr
+    _ <- indented
+    op <- l parseInfixTermIdentifier
+    _ <- indented
+    rhs <- parseParenExpr
+    -- Apply op to lhs.
+    let first_app :: AST.Expr =
+          -- calculate the stupid annotation. since lhs comes before op, we use
+          -- the start position of lhs as the start of the app, and the end
+          -- position of op as the end of the app. However, the internal
+          -- representation of this is (op e).
+          let start_pos = DPos.begin $ AST.getPosition lhs
+              end_pos = DPos.end $ AST.getPosition op
+              file_name = DPos.file $ AST.getPosition lhs
+              pos =
+                -- This is the source position of the fn app we are building
+                DPos.Position
+                  { DPos.begin = start_pos
+                  , DPos.end = end_pos
+                  , DPos.file = file_name
+                  }
+              -- Reconstruct operator identifier as an expression
+              op_expr = AST.ExprTermVar (AST.getPosition op) op
+          in  -- now apply op_expr to the lhs
+              AST.ExprApp pos op_expr lhs
+    return (first_app, rhs)
+  -- just apply first_app to rhs.
+  return $ AST.ExprApp pos first_app rhs
