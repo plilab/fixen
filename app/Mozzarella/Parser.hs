@@ -149,12 +149,22 @@ parseRelation = do
 -- @rule myRule: Fact a b, if (a |- b) |- Fact a (b |- a)@
 parseRule :: Parser AST.Rule
 parseRule = do
-  (pos, (name, premises, concl)) <- l $ parsePositioned $ do
+  (pos, (name, bound_vars, premises, concl)) <- l $ parsePositioned $ do
     -- parse the rule keyword. rules must not be indented.
     _ <- l $ L.nonIndented sc $ keyword "rule"
-    -- try parsing the name. rule names cannot be capitalized
+    -- try parsing the name and bound variables.
     _ <- indented
-    name <- l $ optional parseLowerFirstIdentifier
+    maybe_name_and_bound_vars <- l $ optional $ do
+      -- rule names cannot be capitalized
+      name <- l parseLowerFirstIdentifier
+      -- parse the bound variables
+      (pos, idents) <- l $ parsePositioned $ P.many (l parseLowerFirstIdentifier)
+      let vars = AST.RuleBoundVars pos idents
+      return (name, vars)
+    let (name, bound_vars) = case maybe_name_and_bound_vars of
+          Nothing -> (Nothing, Nothing)
+          Just (x, y) -> (Just x, Just y)
+
     -- all rules have a ':' symbol.
     _ <- indented
     _ <- l $ keywordOp ":"
@@ -167,8 +177,8 @@ parseRule = do
     _ <- l turnstile
     -- parse the conclusion
     concl <- l parseConclusion
-    return (name, premises, concl)
-  return $ AST.Rule pos name premises concl
+    return (name, bound_vars, premises, concl)
+  return $ AST.Rule pos name bound_vars premises concl
 
 -- | Parses a 'AST.Premise' of a rule.
 parsePremise :: Parser AST.Premise

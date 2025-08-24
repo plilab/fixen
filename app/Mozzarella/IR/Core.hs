@@ -214,18 +214,20 @@ data CoreRelation (ℓ :: Symbol) α β π χ where
   deriving (Show, Eq)
 
 -- | A rule in the program.
-data CoreRule (ℓ :: Symbol) α β π χ where
+data CoreRule (ℓ :: Symbol) α ν β π χ where
   CoreRule
-    :: forall name ann rule_name premise concl
+    :: forall name ann rule_name rule_bound_vars premise concl
      . ann
     -- ^ The annotation
     -> rule_name
     -- ^ The name of the rule
+    -> rule_bound_vars
+    -- ^ The bound variables of the rule
     -> premise
     -- ^ The premises of the rule
     -> concl
     -- ^ The conclusion of the rule
-    -> CoreRule name ann rule_name premise concl
+    -> CoreRule name ann rule_name rule_bound_vars premise concl
   deriving (Show, Eq)
 
 -------------------------------------------------------------------------------

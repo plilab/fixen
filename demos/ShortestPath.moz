@@ -1,8 +1,6 @@
 rel DistTo : Vertex, Dist
-  completion widen
 rel Edge : Vertex, Vertex, Dist
-rule: 
-    DistTo a d, Edge a b d'
-    -----------------------
- |- DistTo b (d + d')
+rule addDist a b d d' : DistTo a d, Edge a b d'
+                        -----------------------
+                        |- DistTo b (d + d')
 

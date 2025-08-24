@@ -296,6 +296,7 @@ type Rule =
     "AST.Rule" 
     Position 
     (Maybe TermLetterIdentifier) 
+    (Maybe RuleBoundVars)
     RulePremises 
     Conclusion
 pattern Rule
@@ -303,14 +304,27 @@ pattern Rule
   -- ^ The annotation
   -> Maybe TermLetterIdentifier
   -- ^ An optional name
+  -> Maybe RuleBoundVars
+  -- ^ An optional set of bound variables
   -> RulePremises
   -- ^ The premises of the rule
   -> Conclusion
   -- ^ The conclusion of the rule
   -> Rule
-pattern Rule pos name prem concl = CoreRule pos name prem concl
+pattern Rule pos name bvs prem concl = CoreRule pos name bvs prem concl
 {-# COMPLETE Rule #-}
 -- $ @__COMPLETE__@ v'Rule'
+
+type RuleBoundVars = CoreItem "AST.Rule#vars" Position [TermLetterIdentifier] Void
+pattern RuleBoundVars :: 
+  Position  -- ^ The annotation
+  -> [TermLetterIdentifier] -- ^ The identifiers
+  -> RuleBoundVars
+pattern RuleBoundVars pos ls = CoreItem pos ls
+
+{-# COMPLETE RuleBoundVars #-}
+
+-- $ @__COMPLETE__@ v'RuleBoundVars'
 
 -- ** Premises
 
