@@ -61,7 +61,8 @@ module Mozzarella.IR.Core (
   setAnnotationOf,
 ) where
 
-import GHC.TypeLits (Symbol)
+import Data.Typeable
+import GHC.TypeLits (KnownSymbol, Symbol)
 
 -------------------------------------------------------------------------------
 --
@@ -116,7 +117,12 @@ data CoreItem (ℓ :: Symbol) μ α (ρ :: κ) where
     -> !a
     -- ^ The annotated term
     -> CoreItem name ann a rec
-  deriving (Show, Eq)
+  deriving (Eq, Typeable)
+
+instance (KnownSymbol a, Show b, Show c) => Show (CoreItem a b c d) where
+  show (CoreItem b c) =
+    let type_name = show $ typeRep (Proxy :: Proxy a)
+    in  "(CoreItem @" ++ drop 1 (init type_name) ++ " (" ++ show b ++ ") (" ++ show c ++ "))"
 
 -- | Describes an annotated pair. The type parameters are:
 --
