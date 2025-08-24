@@ -20,7 +20,7 @@ module Mozzarella.IR.AST where
 import Data.Void
 import Error.Diagnose.Position (Position)
 import Mozzarella.IR.Core
-
+import Data.Text(Text)
 -- * Identifiers
 
 -- $identifiers
@@ -41,13 +41,13 @@ type TypeLetterIdentifier =
   CoreItem
     "AST.TypeLetterIdentifier"
     Position
-    String
+    Text
     Void
 
 pattern TypeLetterIdentifier
   :: Position
   -- ^ The annotation
-  -> String
+  -> Text
   -- ^ The raw identifier as a string
   -> TypeLetterIdentifier
 pattern TypeLetterIdentifier a b = CoreItem a b
@@ -63,13 +63,13 @@ type TermLetterIdentifier =
   CoreItem
     "AST.TermLetterIdentifier"
     Position
-    String
+    Text
     Void
 
 pattern TermLetterIdentifier
   :: Position
   -- ^ The annotation
-  -> String
+  -> Text
   -- ^ The identifier itself
   -> TermLetterIdentifier
 pattern TermLetterIdentifier a b = CoreItem a b
@@ -80,12 +80,12 @@ pattern TermLetterIdentifier a b = CoreItem a b
 
 -- *** Operators
 
-type OpIdentifier = CoreItem "AST.OpIdentifier" Position String Void
+type OpIdentifier = CoreItem "AST.OpIdentifier" Position Text Void
 
 pattern OpIdentifier
   :: Position
   -- ^ The annotation
-  -> String
+  -> Text
   -- ^ The identifier
   -> OpIdentifier
 
@@ -121,7 +121,7 @@ type TypeIdentifier = TypeLetterIdentifier
 pattern TypeIdentifier
   :: Position
   -- ^ The annotation
-  -> String
+  -> Text
   -- ^ The identifier
   -> TypeIdentifier
 pattern TypeIdentifier a b = CoreItem a b
@@ -133,7 +133,7 @@ pattern TypeIdentifier a b = CoreItem a b
 -- * Expressions
 
 type IntLit = CoreItem "AST.IntLit" Position Integer
-type StrLit = CoreItem "AST.StrLit" Position String
+type StrLit = CoreItem "AST.StrLit" Position Text
 type TermVar = CoreItem "AST.TermVar" Position TermIdentifier
 type AppExpr = CoreDouble "AST.AppExpr" Position
 
@@ -153,7 +153,7 @@ pattern ExprIntLit pos i <- ((↓↓?) -> Just (CoreItem @"AST.IntLit" pos i))
 pattern ExprStrLit
   :: Position
   -- ^ The annotation
-  -> String
+  -> Text
   -- ^ The string
   -> Expr
 pattern ExprStrLit pos i <- ((↓↓?) -> Just (CoreItem @"AST.StrLit" pos i))

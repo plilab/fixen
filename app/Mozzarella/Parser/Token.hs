@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- |
 --     Module      : Mozzarella.Parser.Token
 --     Description : Parsers for tokens in Mozzarella.
@@ -55,6 +57,7 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Data.Set qualified as Set
+import Data.Text (Text, pack, unpack)
 import Mozzarella.IR.AST qualified as AST
 import Mozzarella.IR.Core ((:<:) (..))
 import Mozzarella.Parser.Common
@@ -79,15 +82,16 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 -- identifier. The string must also not be a 'reserved' keyword
 --
 -- Examples: @hello@ (ok), @x'@ (ok), @_123X@ (ok), @Int@ (not ok)
-parseRawLowerHsIdentifierString :: Parser String
+parseRawLowerHsIdentifierString :: Parser Text
 parseRawLowerHsIdentifierString = do
   -- Get the offset for throwing errors
   offset_start <- P.getOffset
   str <-
-    (:)
-      <$> (C.lowerChar <|> P.single '_') -- first char must be lowercase or _
-      <*> P.many -- remaining can be any alphanum or _ or '
-        (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
+    fmap pack $
+      (:)
+        <$> (C.lowerChar <|> P.single '_') -- first char must be lowercase or _
+        <*> P.many -- remaining can be any alphanum or _ or '
+          (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
   if str `elem` reserved
     then -- disallow any string that is a reserved keyword!
 
@@ -95,7 +99,7 @@ parseRawLowerHsIdentifierString = do
         ( P.FancyError
             offset_start
             ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ str ++ "'")
+                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
             )
         )
     else return str
@@ -104,33 +108,35 @@ parseRawLowerHsIdentifierString = do
 -- remaining characters are valid in a Haskell type/constructor identifier.
 --
 -- Examples: @Int@ (ok), @int@ (not ok), @A'@ (ok)
-parseRawCapitalizedHsIdentifierString :: Parser String
+parseRawCapitalizedHsIdentifierString :: Parser Text
 parseRawCapitalizedHsIdentifierString =
-  (:)
-    <$> C.upperChar -- first char MUST be uppercase
-    <*> P.many -- remaining can be any alphanum of _ or '
-      (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
+  fmap pack $
+    (:)
+      <$> C.upperChar -- first char MUST be uppercase
+      <*> P.many -- remaining can be any alphanum of _ or '
+        (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
 
 -- | Parses strings whose characters do not form operators, and are essentially
 -- valid identifiers for types and variables. The string must not be a
 -- 'reserved' keyword.
-parseRawAnyCaseHsIdentifierString :: Parser String
+parseRawAnyCaseHsIdentifierString :: Parser Text
 parseRawAnyCaseHsIdentifierString = do
   -- Get the offset for throwing errors
   offset_start <- P.getOffset
   str <-
-    (:)
-      -- first char must be lower char, _ or upper char
-      <$> (C.lowerChar <|> P.single '_' <|> C.upperChar)
-      -- the rest is alphanum, _ or '
-      <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
+    fmap pack $
+      (:)
+        -- first char must be lower char, _ or upper char
+        <$> (C.lowerChar <|> P.single '_' <|> C.upperChar)
+        -- the rest is alphanum, _ or '
+        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'')
   if str `elem` reserved -- disallow any string that is a reserved keyword!
     then
       P.parseError
         ( P.FancyError
             offset_start
             ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ str ++ "'")
+                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
             )
         )
     else return str
@@ -142,14 +148,14 @@ parseRawOpChar = choice (P.single <$> opChars)
 
 -- | Parses the name of a Haskell operator. The name must not be a
 -- 'reservedOps' keyword.
-parseRawOpIdentifierString :: Parser String
+parseRawOpIdentifierString :: Parser Text
 parseRawOpIdentifierString = do
   -- Get the offset for throwing errors
   offset_start <- P.getOffset
   -- use parseRawOpChar
   -- bug fix: was using many instead of some; must have
   --          more than one char!!
-  str <- some parseRawOpChar
+  str <- pack <$> some parseRawOpChar
   if str `elem` reservedOps
     then -- cannot use reserved operators!
 
@@ -157,7 +163,7 @@ parseRawOpIdentifierString = do
         ( P.FancyError
             offset_start
             ( Set.singleton
-                (ErrorFail $ "unexpected reserved operator (" ++ str ++ ")")
+                (ErrorFail $ "unexpected reserved operator (" ++ unpack str ++ ")")
             )
         )
     else return str
@@ -259,8 +265,11 @@ parseInfixTermIdentifier =
 -------------------------------------------------------------------------------
 
 -- | Parses a string literal, i.e. @"blabla"@
-parseRawString :: Parser String
-parseRawString = l $ C.char '"' >> manyTill L.charLiteral (C.char '"')
+parseRawString :: Parser Text
+parseRawString =
+  fmap pack $
+    l $
+      C.char '"' >> manyTill L.charLiteral (C.char '"')
 
 -- | Parses a (signed) integer literal.
 parseRawInteger :: Parser Integer
@@ -285,7 +294,7 @@ opChars = ":!#$%&*+./<=>?@\\^|-~"
 -- @
 -- reserved = ["if"]
 -- @
-reserved :: [String]
+reserved :: [Text]
 reserved = ["if"]
 
 -- |
@@ -293,12 +302,12 @@ reserved = ["if"]
 -- @
 -- reservedOps = ["="]
 -- @
-reservedOps :: [String]
+reservedOps :: [Text]
 reservedOps = ["="]
 
 -- | Parses a string as a keyword, ensuring that it is not trailed by more
 -- letters, numbers, underscores and @'@s.
-keyword :: String -> Parser String
+keyword :: Text -> Parser Text
 keyword s = do
   x <- C.string s
   P.notFollowedBy (C.alphaNumChar <|> C.char '_' <|> C.char '\'')
@@ -306,12 +315,12 @@ keyword s = do
 
 -- | Parses a string as a keyword operator, ensuring that it is not trailed
 -- by more op chars.
-keywordOp :: String -> Parser String
+keywordOp :: Text -> Parser Text
 keywordOp s = do
   x <- C.string s
   P.notFollowedBy parseRawOpChar
   return x
 
 -- | Parses a turnstile @|-@ or @⊢@
-turnstile :: Parser String
+turnstile :: Parser Text
 turnstile = P.try (keywordOp "⊢") <|> keywordOp "|-"

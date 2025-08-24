@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- |
 --     Module      : Mozzarella.Parser
 --     Description : Parser for Mozzarella programs
@@ -30,6 +32,7 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Data.Maybe (fromMaybe)
+import Data.Text (Text, unpack)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
 import Error.Diagnose.Diagnostic (addFile)
 import Mozzarella.IR.AST qualified as AST
@@ -56,7 +59,7 @@ import Text.Megaparsec.Char.Lexer qualified as L
 parse
   :: FilePath
   -- ^ The file path of the program
-  -> String
+  -> Text
   -- ^ The contents of the file
   -> MozzarellaM AST.Program
 parse = mozzarellaParse parseProgram
@@ -73,7 +76,7 @@ mozzarellaParse
   -- ^ The 'Parser' to run
   -> FilePath
   -- ^ The file path of the program
-  -> String
+  -> Text
   -- ^ The contents of the file
   -> MozzarellaM a
 mozzarellaParse parser file_path contents =
@@ -82,7 +85,7 @@ mozzarellaParse parser file_path contents =
         Right p -> return p
         Left err ->
           let d = errorDiagnosticFromBundle Nothing "syntax error" Nothing err
-          in  mozzarellaError $ addFile d file_path contents
+          in  mozzarellaError $ addFile d file_path (unpack contents)
 
 --------------------------------------------------------------------------------
 --

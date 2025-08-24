@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- Shut the orphan instance warning up because it's very annoying.
@@ -23,6 +24,7 @@ module Mozzarella.Parser.Common (
   betweenParentheses,
 ) where
 
+import Data.Text (Text)
 import Data.Void (Void)
 import Error.Diagnose qualified as Diag
 import Error.Diagnose.Compat.Megaparsec (HasHints (..))
@@ -32,7 +34,7 @@ import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Pos qualified as MPos
 
 -- | The type of our parser.
-type Parser = P.Parsec Void String
+type Parser = P.Parsec Void Text
 
 -- | Parses some (one or more) items, separated by the comma @,@. Commas
 -- are 'indented'.

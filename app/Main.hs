@@ -8,6 +8,7 @@ import CommandLine.Parser (
   getCommandLineArgs,
  )
 import Control.Exception
+import Data.Text (pack)
 import Error.Diagnose (
   TabSize (TabSize),
   WithUnicode (WithUnicode, WithoutUnicode),
@@ -47,10 +48,10 @@ main = do
     handle (openFileExceptionHandler in_file) $
       SIO.openFile in_file SIO.ReadMode
   in_file_contents <-
-    handle (readFileExceptionHandler in_file) $
-      SIO.hGetContents' file_handle
-  -- for now, just print the file contents so we can see what is going on.
-  putStrLn in_file_contents
+    -- pack as a Text
+    fmap pack $
+      handle (readFileExceptionHandler in_file) $
+        SIO.hGetContents' file_handle
   ast <- runMozzarellaM $ parse in_file in_file_contents
   -- output styles
   let out_style = if color then defaultStyle else unadornedStyle
