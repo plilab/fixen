@@ -148,4 +148,4 @@ mozProgramHeader =
 
 -- | The version of this program
 mozVersion :: String
-mozVersion = intercalate "." $ map show $ versionBranch PM.version -- packageName (undefined :: Rep Whatever x) -- "v0.1.0.0"
+mozVersion = intercalate "." $ map show $ versionBranch PM.version
