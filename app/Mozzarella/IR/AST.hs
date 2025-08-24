@@ -458,7 +458,7 @@ pattern Extern pos ls = CoreItem pos ls
 -- $ @__COMPLETE__@ v'Extern'
 
 -- * Top-level declarations
-type TopLevel = Relation :+: Rule
+type TopLevel = Relation :+: Rule :+: Extern
 
 pattern TopLevelRelation :: Relation -> TopLevel
 pattern TopLevelRelation r <- ((↓?) -> Just r)
@@ -469,8 +469,13 @@ pattern TopLevelRule :: Rule -> TopLevel
 pattern TopLevelRule r <- ((↓?) -> Just r)
   where
     TopLevelRule r = (↑) r
-{-# COMPLETE TopLevelRelation, TopLevelRule #-}
--- $ @__COMPLETE__@ v'TopLevelRelation', v'TopLevelRule'
+
+pattern TopLevelExtern :: Extern -> TopLevel
+pattern TopLevelExtern r <- ((↓?) -> Just r)
+  where
+    TopLevelExtern r = (↑) r
+{-# COMPLETE TopLevelRelation, TopLevelRule, TopLevelExtern #-}
+-- $ @__COMPLETE__@ v'TopLevelRelation', v'TopLevelRule', v'TopLevelExtern'
 
 -- * Program
 newtype Program = Program {topLevels :: [TopLevel]}
