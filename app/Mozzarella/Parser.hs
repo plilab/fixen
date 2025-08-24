@@ -32,11 +32,11 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Data.Maybe (fromMaybe)
+import Data.Set qualified as Set
 import Data.Text (Text, unpack)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
 import Error.Diagnose.Diagnostic (addFile)
 import Mozzarella.IR.AST qualified as AST
-import Mozzarella.IR.Core
 import Mozzarella.Monad (
   MozzarellaM,
   mozzarellaError,
@@ -48,6 +48,7 @@ import Mozzarella.Parser.Type
 import Text.Megaparsec (eof)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char.Lexer qualified as L
+import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 
 --------------------------------------------------------------------------------
 --
@@ -107,7 +108,32 @@ parseAST = do
 parseTopLevel :: Parser AST.TopLevel
 -- no try here. the first tokens in each branch is distinct and once one
 -- matches we should commit to it.
-parseTopLevel = (AST.TopLevelRelation <$> l parseRelation) <|> (AST.TopLevelRule <$> l parseRule)
+parseTopLevel =
+  (AST.TopLevelExtern <$> parseExtern)
+    <|> (AST.TopLevelRelation <$> parseRelation)
+    <|> (AST.TopLevelRule <$> parseRule)
+
+-- | Parses a 'AST.Extern'.
+parseExtern :: Parser AST.Extern
+parseExtern = do
+  offset_start <- P.getOffset
+  (pos, ls) <- l $ parsePositioned $ do
+    -- Parse the 'extern' keyword. extern must not be indented. We try
+    -- here so we do not have to try when parsing top-level declarations
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "extern"
+    -- make sure if it is indented. Otherwise, it means that the extern
+    -- declaration is empty!
+    _ <-
+      P.try indented
+        <|> P.parseError
+          ( P.FancyError
+              offset_start
+              ( Set.singleton
+                  (ErrorFail "extern declaration cannot be empty!")
+              )
+          )
+    P.some (indented *> l parseLowerFirstIdentifier)
+  return $ AST.Extern pos ls
 
 -- | Parses a 'AST.Relation'.
 parseRelation :: Parser AST.Relation
@@ -160,8 +186,9 @@ parseRule = do
     maybe_name_and_bound_vars <- l $ optional $ do
       -- rule names cannot be capitalized
       name <- l parseLowerFirstIdentifier
+      _ <- indented
       -- parse the bound variables
-      (pos, idents) <- l $ parsePositioned $ P.many (l parseLowerFirstIdentifier)
+      (pos, idents) <- l $ parsePositioned $ P.many (indented *> l parseLowerFirstIdentifier)
       let vars = AST.RuleBoundVars pos idents
       return (name, vars)
     let (name, bound_vars) = case maybe_name_and_bound_vars of
