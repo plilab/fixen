@@ -1,3 +1,6 @@
 packages: .
+optimization: 2
 package diagnose
   flags: +megaparsec-compat
+package *
+  optimization: 2
