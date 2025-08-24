@@ -3,7 +3,8 @@ name:               mozzarella
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.1.0.0
+--                  | | | | +- dev version
+version:            0.0.0.0.1
 -- synopsis:
 -- description:
 license:            MIT
@@ -41,6 +42,7 @@ executable mozzarella
                     , Mozzarella.Parser.Expr
                     , Mozzarella.Parser.Token
                     , Mozzarella.Parser.Type
+                    , Paths_mozzarella
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

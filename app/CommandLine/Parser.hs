@@ -14,7 +14,10 @@ module CommandLine.Parser (
 
 import CommandLine.CommandLineArgs
 import Control.Monad (when)
+import Data.List
+import Data.Version (Version (versionBranch))
 import Options.Applicative -- See: optparse-applicative package
+import Paths_mozzarella qualified as PM
 import System.Exit (ExitCode (..), exitWith)
 import System.FilePath
 import System.IO (hPutStrLn, stderr)
@@ -145,4 +148,4 @@ mozProgramHeader =
 
 -- | The version of this program
 mozVersion :: String
-mozVersion = "v0.1.0.0"
+mozVersion = intercalate "." $ map show $ versionBranch PM.version -- packageName (undefined :: Rep Whatever x) -- "v0.1.0.0"
