@@ -123,16 +123,17 @@ parseExtern = do
     _ <- P.try $ l $ L.nonIndented sc $ keyword "extern"
     -- make sure if it is indented. Otherwise, it means that the extern
     -- declaration is empty!
-    _ <-
-      P.try indented
-        <|> P.parseError
+    r <- P.observing indented
+    case r of
+      Left _ ->
+        P.parseError
           ( P.FancyError
               offset_start
               ( Set.singleton
                   (ErrorFail "extern declaration cannot be empty!")
               )
           )
-    P.some (indented *> l parseLowerFirstIdentifier)
+      Right _ -> P.some (indented *> l parseLowerFirstIdentifier)
   return $ AST.Extern pos ls
 
 -- | Parses a 'AST.Relation'.
