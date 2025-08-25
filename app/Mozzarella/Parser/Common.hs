@@ -62,7 +62,24 @@ commaSepBy p = do
   case x of
     Left _ -> return []
     Right e -> do
-      ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
+      (:) e <$> commaSepByCommaFirst p
+
+-- -- try the comma
+-- com <- P.observing $ P.try $ indented *> P.single ','
+-- case com of
+--   Left _ -> return [e]
+--   Right _ ->
+-- ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
+-- return $ e : ls
+
+commaSepByCommaFirst :: Parser a -> Parser [a]
+commaSepByCommaFirst p = do
+  com <- P.observing $ P.try $ indented *> P.single ','
+  case com of
+    Left _ -> return []
+    Right _ -> do
+      e <- p
+      ls <- commaSepByCommaFirst p
       return $ e : ls
 
 -- P.sepBy p comma

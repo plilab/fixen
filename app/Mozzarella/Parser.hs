@@ -233,7 +233,7 @@ parsePremise :: Parser AST.Premise
 -- There is no 'try' here because we try in the first identifier in
 -- parseAssumption. This is because the first token of each branch are
 -- obviously distinct, and once one matches, we should commit to it.
-parsePremise = parseAssumption <|> parseCondition
+parsePremise = P.try parseAssumption <|> parseCondition
 
 -- | Parses the 'AST.Conclusion' of a rule.
 parseConclusion :: Parser AST.Conclusion
@@ -271,6 +271,6 @@ parseCondition :: Parser AST.Premise
 parseCondition = do
   (pos, e) <- parsePositioned $ do
     _ <- indented
-    _ <- l $ keyword "if"
+    _ <- keyword "if"
     parseExpr
   return $ AST.PremiseCondition pos e
