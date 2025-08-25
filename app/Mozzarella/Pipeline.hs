@@ -14,7 +14,8 @@ import Mozzarella.Monad
 import Mozzarella.Parser (parse)
 import Mozzarella.Sorter (sort)
 
--- | The compilation pipeline. It consists of several phases:
+-- | The compilation pipeline. The code as a connector for each phase of
+-- the pipeline (which may use different monads):
 --
 -- 1. 'parse': Parses the program, yielding a 'Mozzarella.IR.AST.Program'.
 --
@@ -34,6 +35,8 @@ pipeline
   -- ^ The contents of the compiled file
   -> MozzarellaM Explicit.Program
 pipeline file_path contents = do
-  program <- parse file_path (pack contents)
-  program' <- sort file_path contents program
+  let file_map = [(file_path, contents)]
+      init_errs = mozEmptyErrors file_map
+  (program, err_after) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
+  (program', err_after) <- runMozzarellaPass err_after $ sort program
   return $ makeBoundVarsExplicit program'

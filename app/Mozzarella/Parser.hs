@@ -34,14 +34,10 @@ import Control.Applicative.Combinators (
  )
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
-import Data.Text (Text, unpack)
+import Data.Text (Text)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
-import Error.Diagnose.Diagnostic (addFile)
 import Mozzarella.IR.AST qualified as AST
-import Mozzarella.Monad (
-  MozzarellaM,
-  mozzarellaError,
- )
+import Mozzarella.Monad
 import Mozzarella.Parser.Common
 import Mozzarella.Parser.Expr
 import Mozzarella.Parser.Token
@@ -57,13 +53,15 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --
 --------------------------------------------------------------------------------
 
+-- type MozzarellaParserM a = MozzarellaFailFastM MozzarellaErrors a
+
 -- | Parses a Mozzarella program.
 parse
   :: FilePath
   -- ^ The file path of the program
   -> Text
   -- ^ The contents of the file
-  -> MozzarellaM AST.Program
+  -> MozzarellaPass MozzarellaErrors AST.Program
 parse = mozzarellaParse parseProgram
 
 --------------------------------------------------------------------------------
@@ -80,14 +78,14 @@ mozzarellaParse
   -- ^ The file path of the program
   -> Text
   -- ^ The contents of the file
-  -> MozzarellaM a
-mozzarellaParse parser file_path contents =
+  -> MozzarellaPass MozzarellaErrors a
+mozzarellaParse parser file_path contents = do
   let e = P.parse parser file_path contents
-  in  case e of
-        Right p -> return p
-        Left err ->
-          let d = errorDiagnosticFromBundle Nothing "syntax error" Nothing err
-          in  mozzarellaError $ addFile d file_path (unpack contents)
+  case e of
+    Right p -> return p
+    Left p -> do
+      -- let d = errorDiagnosticFromBundle Nothing "syntax error" Nothing p
+      failD $ errorDiagnosticFromBundle Nothing "syntax error" Nothing p -- mozzarellaError $ mozAddDiagnostic d err -- addFile d file_path (unpack contents)
 
 --------------------------------------------------------------------------------
 --

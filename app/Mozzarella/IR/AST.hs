@@ -17,10 +17,13 @@
 --     the AST are annotated with source positions.
 module Mozzarella.IR.AST where
 
+import Data.Text (Text)
 import Data.Void
 import Error.Diagnose.Position (Position)
+import Mozzarella.Data.AlaCarte
 import Mozzarella.IR.Core
-import Data.Text(Text)
+import Mozzarella.IR.Core.Annotations
+
 -- * Identifiers
 
 -- $identifiers
@@ -31,9 +34,6 @@ import Data.Text(Text)
 -- or operator.
 
 -- ** Basic Identifiers
-
--- $
--- Note that the pattern definitions here are individually complete.
 
 -- *** Capitalized
 
@@ -88,7 +88,6 @@ pattern OpIdentifier
   -> Text
   -- ^ The identifier
   -> OpIdentifier
-
 pattern OpIdentifier a b = CoreItem a b
 
 {-# COMPLETE OpIdentifier #-}
@@ -96,7 +95,6 @@ pattern OpIdentifier a b = CoreItem a b
 -- $ @__COMPLETE__@ v'OpIdentifier'
 
 -- ** Compound identifiers
-
 
 -- | The main identifier type for terms.
 type TermIdentifier = TermLetterIdentifier :+: OpIdentifier
@@ -187,7 +185,6 @@ pattern ExprApp pos e e' <- ((↓↓?) -> Just (CoreDouble @"AST.AppExpr" pos e 
 -- $ @__COMPLETE__@ v'ExprIntLit', v'ExprStrLit', v'ExprTermVar', v'ExprApp'
 
 -- * Types
-
 
 type VarType = CoreItem "AST.VarType" Position TypeIdentifier
 type AppType = CoreDouble "AST.AppType" Position
@@ -291,13 +288,13 @@ pattern Completion pos name = CoreItem pos name
 
 -- * Rules
 
-type Rule = 
-  CoreRule 
-    "AST.Rule" 
-    Position 
-    (Maybe TermLetterIdentifier) 
+type Rule =
+  CoreRule
+    "AST.Rule"
+    Position
+    (Maybe TermLetterIdentifier)
     (Maybe RuleBoundVars)
-    RulePremises 
+    RulePremises
     Conclusion
 pattern Rule
   :: Position
@@ -316,9 +313,11 @@ pattern Rule pos name bvs prem concl = CoreRule pos name bvs prem concl
 -- $ @__COMPLETE__@ v'Rule'
 
 type RuleBoundVars = CoreItem "AST.Rule#vars" Position [TermLetterIdentifier] Void
-pattern RuleBoundVars :: 
-  Position  -- ^ The annotation
-  -> [TermLetterIdentifier] -- ^ The identifiers
+pattern RuleBoundVars
+  :: Position
+  -- ^ The annotation
+  -> [TermLetterIdentifier]
+  -- ^ The identifiers
   -> RuleBoundVars
 pattern RuleBoundVars pos ls = CoreItem pos ls
 
@@ -361,10 +360,10 @@ pattern PremiseAssumption
   -> AssumptionArguments
   -- ^ Arguments to the relation being assumed
   -> Premise
-pattern PremiseAssumption pos name args <- 
-    ((↓?) -> Just (CorePair @"AST.Assumption" pos name args))
+pattern PremiseAssumption pos name args <-
+  ((↓?) -> Just (CorePair @"AST.Assumption" pos name args))
   where
-    PremiseAssumption pos name args = 
+    PremiseAssumption pos name args =
       (↑) $ CorePair @"AST.Assumption" pos name args
 
 pattern PremiseCondition
@@ -373,10 +372,10 @@ pattern PremiseCondition
   -> Expr
   -- ^ The condition itself
   -> Premise
-pattern PremiseCondition pos e <- 
-    ((↓?) -> Just (CoreItem @"AST.Condition" @Position @Expr @Void pos e))
+pattern PremiseCondition pos e <-
+  ((↓?) -> Just (CoreItem @"AST.Condition" @Position @Expr @Void pos e))
   where
-    PremiseCondition pos e = 
+    PremiseCondition pos e =
       (↑) (CoreItem @"AST.Condition" @Position @Expr @Void pos e)
 
 {-# COMPLETE PremiseAssumption, PremiseCondition #-}
@@ -448,8 +447,11 @@ pattern ConclusionArguments pos ls = CoreItem pos ls
 
 type Extern = CoreItem "AST.Extern" Position [TermLetterIdentifier] Void
 
-pattern Extern :: Position -- ^ The annotation
-  -> [TermLetterIdentifier] -- ^ The list of extern declarations
+pattern Extern
+  :: Position
+  -- ^ The annotation
+  -> [TermLetterIdentifier]
+  -- ^ The list of extern declarations
   -> Extern
 pattern Extern pos ls = CoreItem pos ls
 
@@ -492,10 +494,10 @@ getPosition
 getPosition = getAnnotationOf @Position
 
 -- | Sets the source position of something in the AST.
-setPosition 
+setPosition
   :: forall group e e'
-   . (group :>: Position, SetAnnotation group e e', GetAnnotation group e) 
-  => Position 
-  -> e 
+   . (group :>: Position, SetAnnotation group e e', GetAnnotation group e)
+  => Position
+  -> e
   -> e'
 setPosition = setAnnotationOf @Position

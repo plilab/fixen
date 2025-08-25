@@ -28,37 +28,37 @@ import Mozzarella.IR.AST qualified as AST
 import Mozzarella.IR.Sorted qualified as Sorted
 import Mozzarella.Monad
 
+type SorterM a = MozzarellaPass MozzarellaErrors a
+
 -- | Sorts the top-level declarations into a 'SortedProgram'
 sort
-  :: FilePath
-  -- ^ The file path of the program used for showing errs
-  -> String
-  -- ^ The file contents for showing errs
-  -> AST.Program
+  :: AST.Program
   -- ^ The parsed AST
-  -> MozzarellaM Sorted.Program
-sort file_path contents AST.Program {AST.topLevels = top_levels} = do
+  -> SorterM Sorted.Program
+sort AST.Program {AST.topLevels = top_levels} = do
   -- static-argument transform the folder for efficiency gains
-  let go = putTopLevelInBuckets file_path contents
+  -- let go = putTopLevelInBuckets errs
   -- Run the fold on the empty program
-  pgm <- foldM go (Sorted.Program Nothing [] []) top_levels
+  pgm <- foldM putTopLevelInBuckets (Sorted.Program Nothing [] []) top_levels
   -- Throw errors when there are no relations/rules
   when (null (Sorted.relations pgm)) $
-    mozzarellaError $
-      Diag.addReport (Diag.addFile mempty file_path contents) $
-        Diag.Err
+    accumR
+      ( Diag.Err
           Nothing
           "no relations found"
           []
           [Diag.Note "every program must contain relations"]
+      )
+
   when (null (Sorted.rules pgm)) $
-    mozzarellaError $
-      Diag.addReport (Diag.addFile mempty file_path contents) $
-        Diag.Err
+    accumR
+      ( Diag.Err
           Nothing
           "no rules found"
           []
           [Diag.Note "every program must contain rules"]
+      )
+
   -- The fold caused the relations and rules to be reversed, so we un-reverse
   -- them
   return $
@@ -70,38 +70,35 @@ sort file_path contents AST.Program {AST.topLevels = top_levels} = do
 
 -- | Puts a 'AST.TopLevel' into a 'SortedProgram'
 putTopLevelInBuckets
-  :: FilePath
-  -- ^ The file path of the program used for showing errors
-  -> String
-  -- ^ The file contents for showing errors
-  -> Sorted.Program
+  :: Sorted.Program
   -- ^ The intermediate sorted program
   -> AST.TopLevel
   -- ^ The top-level declaration to put into the sorted program
-  -> MozzarellaM Sorted.Program
-putTopLevelInBuckets file_path contents pgm (AST.TopLevelExtern e) = do
+  -> SorterM Sorted.Program
+putTopLevelInBuckets pgm (AST.TopLevelExtern e) = do
   let exts = Sorted.externs pgm
   case exts of
-    Just x ->
+    Just x -> do
       -- There can only be one extern declaration. throw an error! here
       -- we show the current extern declaration and the one we already
       -- have as part of the error message.
       let pos_x = AST.getPosition x
           pos_e = AST.getPosition e
           err_fst_decl = (pos_x, Diag.Where "an extern declaration")
-          err_snd_decl = (pos_e, Diag.This "a second extern declaration")
-      in  mozzarellaError $
-            Diag.addReport (Diag.addFile mempty file_path contents) $
-              Diag.Err
-                Nothing
-                "cannot have multiple extern declarations"
-                [ err_fst_decl
-                , err_snd_decl
-                ]
-                [Diag.Hint "merge the two extern declarations"]
+          err_snd_decl = (pos_e, Diag.This "another extern declaration")
+      accumR
+        ( Diag.Err
+            Nothing
+            "cannot have multiple extern declarations"
+            [ err_fst_decl
+            , err_snd_decl
+            ]
+            [Diag.Hint "merge these extern declarations"]
+        )
+      return pgm {Sorted.externs = Just e}
     Nothing -> return pgm {Sorted.externs = Just e}
 -- Obvious.
-putTopLevelInBuckets _ _ pgm (AST.TopLevelRule r) =
+putTopLevelInBuckets pgm (AST.TopLevelRule r) =
   return pgm {Sorted.rules = r : Sorted.rules pgm}
-putTopLevelInBuckets _ _ pgm (AST.TopLevelRelation r) =
+putTopLevelInBuckets pgm (AST.TopLevelRelation r) =
   return pgm {Sorted.relations = r : Sorted.relations pgm}
