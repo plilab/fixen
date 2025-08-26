@@ -13,6 +13,7 @@ module Mozzarella.Monad where
 
 import Control.Monad
 import Control.Monad.Except qualified as Except
+import Control.Monad.IO.Class
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Maybe as Maybe
 import Data.List (foldl', partition)
@@ -101,6 +102,12 @@ runMozzarellaPass'' state monad = do
     Nothing -> Except.liftEither (Left mempty)
     Just res' -> return (res', state')
 
+-- | Runs a stateful computation with more state in a monad with less state by
+-- providing the additional state.
+adapter :: ε -> MozzarellaPass (σ :*: ε) a -> MozzarellaPass σ (a, ε)
+adapter st' m = Maybe.MaybeT $ State.StateT $ \st ->
+  (\(x, (y, z)) -> ((,z) <$> x, y)) <$> State.runStateT (Maybe.runMaybeT m) (st, st')
+
 -- | Fail fast with a report.
 failR
   :: (Errored σ, State.MonadState σ μ, MonadPlus μ)
@@ -114,6 +121,15 @@ failD
   => Diagnostic.Diagnostic String
   -> μ a
 failD rep = accumD rep >> mzero
+
+-- | Fail fast if there have been accumulated errors
+failIfErrored
+  :: (Errored σ, State.MonadState σ μ, MonadPlus μ)
+  => μ ()
+failIfErrored = do
+  moz_state <- State.get
+  let errs :: MozzarellaErrors = (↓) moz_state
+  when (mozHasErrors errs) mzero
 
 -- | Add a 'Report.Report' __without failing__. This is useful for accumulating
 -- error messages.

@@ -28,7 +28,7 @@ folder (AST.Rule ann name bvs prems concls) = do
 getvars :: Int -> Map.Map Text (Set.Set (Int, Int)) -> [AST.Premise] -> [Explicit.BoundVar]
 getvars _ mp [] =
   let ls = Map.toAscList mp
-  in  (\(v, s) -> Explicit.BoundVar (Generated, Inferred (Set.toAscList s)) v) <$> ls
+  in  (\(v, s) -> Explicit.BoundVar (Inferred (Set.toAscList s)) v) <$> ls
 getvars n mp (AST.PremiseCondition _ _ : ps) = getvars (n + 1) mp ps
 getvars n mp (AST.PremiseAssumption _ _ (AST.AssumptionArguments _ args) : ps) =
   let mp' = getvarsargs n 0 mp args
@@ -46,4 +46,4 @@ annotateBVs :: AST.RuleBoundVars -> Explicit.RuleBoundVars
 annotateBVs (AST.RuleBoundVars pos ls) = Explicit.RuleBoundVars (ActuallyPosition pos) $ f <$> ls
   where
     f :: AST.TermLetterIdentifier -> Explicit.BoundVar
-    f (AST.TermLetterIdentifier pos' s) = Explicit.BoundVar (ActuallyPosition pos', ExplicitBoundVar) s
+    f (AST.TermLetterIdentifier pos' s) = Explicit.BoundVar (SourcePosition pos') s

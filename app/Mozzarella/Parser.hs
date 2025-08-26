@@ -84,8 +84,7 @@ mozzarellaParse parser file_path contents = do
   case e of
     Right p -> return p
     Left p -> do
-      -- let d = errorDiagnosticFromBundle Nothing "syntax error" Nothing p
-      failD $ errorDiagnosticFromBundle Nothing "syntax error" Nothing p -- mozzarellaError $ mozAddDiagnostic d err -- addFile d file_path (unpack contents)
+      failD $ errorDiagnosticFromBundle Nothing "syntax error" Nothing p
 
 --------------------------------------------------------------------------------
 --

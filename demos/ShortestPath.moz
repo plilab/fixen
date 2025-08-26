@@ -1,6 +1,12 @@
-rel DistTo : Vertex, Dist
-rel Edge : Vertex, Vertex, Dist
-rule addDist a b d d' : DistTo a d, Edge a b d'
-                        -----------------------
-                        |- DistTo b (d + d')
+rel DistTo : Nat, Nat, Vertex
+  completion myCompletion
+rel Edge : Nat, Dist
+rel Edge : Dist
+
+extern ad bc ad
+
+rule addDist a b c : 
+  DistTo a b, Edge a b c
+  |- DistTo a (1 + 2) c
+
 

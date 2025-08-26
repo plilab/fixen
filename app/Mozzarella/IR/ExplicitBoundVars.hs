@@ -31,6 +31,7 @@ pattern Rule
   -- ^ The conclusion of the rule
   -> Rule
 pattern Rule pos name bvs prems concl = CoreRule pos name bvs prems concl
+{-# COMPLETE Rule #-}
 
 type RuleBoundVars = CoreItem "ExplicitBoundVars.Rule#bound_vars" PositionOrGenerated [BoundVar] Void
 pattern RuleBoundVars
@@ -44,22 +45,23 @@ pattern RuleBoundVars pos ls = CoreItem pos ls
 type BoundVar =
   CoreItem
     "Explicit.BoundVar"
-    (PositionOrGenerated :*: BoundVarSource)
+    BoundVarSource
     Text
     Void
 
 pattern BoundVar
-  :: (PositionOrGenerated :*: BoundVarSource)
+  :: BoundVarSource
   -- ^ The annotation
   -> Text
   -- ^ The identifier itself
   -> BoundVar
 pattern BoundVar a b = CoreItem a b
+{-# COMPLETE BoundVar #-}
 
-data BoundVarSource
-  = ExplicitBoundVar
-  | Inferred [(Int, Int)]
-  deriving (Show, Eq)
+-- data BoundVarSource
+--   = ExplicitBoundVar
+--   | Inferred [(Int, Int)]
+--   deriving (Show, Eq)
 
 data Program = Program
   { externs :: Maybe AST.Extern
@@ -69,3 +71,5 @@ data Program = Program
   deriving (Show, Eq)
 
 data PositionOrGenerated = ActuallyPosition Position | Generated deriving (Show, Eq)
+
+data BoundVarSource = SourcePosition Position | Inferred [(Int, Int)] deriving (Show, Eq)

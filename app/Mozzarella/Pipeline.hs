@@ -7,12 +7,16 @@
 --     Stability   : experimental
 module Mozzarella.Pipeline (pipeline) where
 
+import Control.Monad
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Text
+import Error.Diagnose
 import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
 import Mozzarella.IR.ExplicitBoundVars qualified as Explicit
 import Mozzarella.Monad
 import Mozzarella.Parser (parse)
 import Mozzarella.Sorter (sort)
+import Mozzarella.SymbolSolver
 
 -- | The compilation pipeline. The code as a connector for each phase of
 -- the pipeline (which may use different monads):
@@ -33,10 +37,15 @@ pipeline
   -- ^ The path of the compiled file
   -> String
   -- ^ The contents of the compiled file
-  -> MozzarellaM Explicit.Program
+  -> MozzarellaM SymbolEnv
 pipeline file_path contents = do
   let file_map = [(file_path, contents)]
       init_errs = mozEmptyErrors file_map
   (program, err_after) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
   (program', err_after) <- runMozzarellaPass err_after $ sort program
-  return $ makeBoundVarsExplicit program'
+  let pp = makeBoundVarsExplicit program'
+  (env, ess) <- runMozzarellaPass err_after $ solveSymbols pp
+  when (hasReports (mozErrorsDiagnostic ess)) $
+    liftIO $
+      printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle (mozErrorsDiagnostic ess)
+  return env
