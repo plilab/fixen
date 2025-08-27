@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeAbstractions #-}
 
 module Mozzarella.SymbolSolver where
 
@@ -67,14 +68,13 @@ data BoundVarInfo
 data RelationInfo
   = RelationInfo
       { relArgs :: [(ActualType, Position)]
+      , relPos :: Position
       }
   | UnknownRelationInfo
   deriving (Show, Eq)
 
 data RuleInfo = RuleInfo
-  { ruleName :: Text
-  , ruleBoundVars :: Map.Map Text BoundVarInfo
-  , rulePosition :: Position
+  { ruleBoundVars :: Map.Map Text ActualType
   }
   deriving (Show, Eq)
 
@@ -82,11 +82,10 @@ data SymbolEnv = SymbolEnv
   { relations :: Map.Map Text RelationInfo
   , rules :: Map.Map Int RuleInfo
   , externs :: Map.Map Text Position
-  , typeEquations :: Map Text (TypeLattice, Reason)
   }
   deriving (Show, Eq)
 
-data Reason = Reason AST.TermIdentifier AST.Type
+data Reason = Reason Position Position
   deriving (Show, Eq)
 
 preludeTermsCons :: Set.Set Text
@@ -235,7 +234,7 @@ preludeTerms =
     , "sequence_"
     , "foldMap"
     , "foldl"
-    , "folr"
+    , "foldr"
     , "foldl'"
     , "foldr1"
     , "foldl1"
@@ -328,7 +327,7 @@ preludeTerms =
 
 solveSymbols :: E.Program -> MozzarellaPass MozzarellaErrors SymbolEnv
 solveSymbols pgm = do
-  let env = SymbolEnv Map.empty Map.empty Map.empty Map.empty
+  let env = SymbolEnv Map.empty Map.empty Map.empty
   -- do a name check on the explicitly declared stuff by the user.
   rel_name_env <- foldM foldRelNames Map.empty $ E.relations pgm
   rul_name_env <- foldM foldRuleNames Map.empty $ E.rules pgm
@@ -339,10 +338,10 @@ solveSymbols pgm = do
   extern_env <- foldM (foldCompletions rul_name_env) extern_name_env completions
   failIfErrored
   -- walk rels
-  rel_env <- foldM (walkRelations) Map.empty $ E.relations pgm
+  rel_env <- foldM (walkRelations rel_name_env) Map.empty $ E.relations pgm
   -- walk rules
   rul_env <- walkRules rel_env extern_env rul_name_env Map.empty $ E.rules pgm
-  return env {relations = rel_env, externs = extern_env}
+  return env {relations = rel_env, externs = extern_env, rules = rul_env}
 
 walkRules :: Map.Map Text RelationInfo -> Map.Map Text Position -> Map.Map Text E.Rule -> Map.Map Int RuleInfo -> [E.Rule] -> MozzarellaPass MozzarellaErrors (Map.Map Int RuleInfo)
 walkRules rel_env extern_env rule_name_env mp_ ls = go mp_ 0 ls
@@ -353,10 +352,96 @@ walkRules rel_env extern_env rule_name_env mp_ ls = go mp_ 0 ls
       rule' <- walkRule rule
       go (Map.insert n rule' mp) (n + 1) rules
     walkRule :: E.Rule -> MozzarellaPass MozzarellaErrors RuleInfo
-    walkRule (E.Rule rule_pos maybe_name (E.RuleBoundVars rbv_pos rule_bound_vars) premises conclusion) = do
+    walkRule (E.Rule _ _ (E.RuleBoundVars _ rule_bound_vars) premises conclusion) = do
       are_bound_vars_unique Map.empty rule_bound_vars
-      are_bvs_rule_names rule_bound_vars
-      undefined
+      are_bvs_rule_names premises rule_bound_vars
+      are_bvs_externs premises rule_bound_vars
+      are_bvs_unused premises conclusion rule_bound_vars
+      -- at this point the bvs are okay. What is left is to make sure that
+      -- the premises and conclusions are well-formed, and we can do type checking in the meantime
+      let bv_env = Set.fromList $ (\(E.BoundVar _ t) -> t) <$> rule_bound_vars
+      t1 <- arePremisesWellFormed bv_env premises
+      t2 <- isConclusionWellFormed bv_env t1 conclusion
+      failIfErrored
+      t3 <-
+        mapM
+          ( \(l, _) -> case l of
+              ActualType x -> return x
+              _ -> error $ "MOZZARELLAERROR: THIS SHOULD NEVER HAPPEN? AFTER UNIFICATION TYPE IS " ++ show l
+          )
+          t2
+      return $ RuleInfo t3
+    isConclusionWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Conclusion -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+    isConclusionWellFormed bv_env ty_map (AST.Conclusion concl_pos (AST.TypeLetterIdentifier _ concl_name) (AST.ConclusionArguments _ args)) = do
+      -- make sure name of conclusion is a relation
+      -- TODO: If it's the name of a type, it would be good to say so.
+      case Map.lookup concl_name rel_env of
+        Nothing -> failR $ Err Nothing "relation not found" [(concl_pos, This $ unpack concl_name ++ " is not a declared relation")] []
+        Just rel_info -> do
+          let rel_args = relArgs rel_info
+              rel_pos = relPos rel_info
+          when (Prelude.length args /= Prelude.length rel_args) $
+            failR $
+              Err Nothing "relation arguments do not match relation parameters" [(concl_pos, This $ unpack concl_name ++ " applied to " ++ show (Prelude.length args) ++ " arguments"), (rel_pos, Where $ unpack concl_name ++ " declared with " ++ show (Prelude.length rel_args) ++ " parameters")] []
+          foldM
+            ( \tmap (e, (ty, ty_pos)) ->
+                case e of
+                  AST.ExprTermVar _ (AST.TermIdentifierAlpha (AST.TermLetterIdentifier id_pos v)) -> do
+                    -- check that it is a valid variable in the first place
+                    unless (Set.member v bv_env || Set.member v preludeTerms || Map.member v extern_env) $ do
+                      accumR $ Err Nothing "unknown variable" [(id_pos, This "not declared as rule bound variable or extern")] []
+
+                    case Map.lookup v tmap of
+                      Nothing ->
+                        -- no idea what the type of v is -- is extern;
+                        return tmap
+                      Just (Top, _) -> return tmap -- already failed somewhere
+                      Just (Dynamic, _) -> return tmap -- already extern
+                      Just (ActualType ty', Reason id_pos' ty_pos') -> if ty /= ty' then accumR (Err Nothing "type mismatch" [(id_pos', Where $ unpack v ++ " used here"), (ty_pos', Where $ unpack v ++ " must have this type"), (id_pos, This $ unpack v ++ " also used here"), (ty_pos, Where "must also have this type")] []) >> return (Map.insert v (Top, Reason id_pos ty_pos) tmap) else return tmap
+                  e' -> walkExpr bv_env extern_env e' >> return tmap -- dont bother type checking anymore. just walk the expression.
+            )
+            ty_map
+            (Prelude.zip args rel_args)
+
+    arePremisesWellFormed :: Set.Set Text -> AST.RulePremises -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+    arePremisesWellFormed bv_env (AST.RulePremises _ ls') = foldM (isPremiseWellFormed bv_env) Map.empty ls'
+    isPremiseWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Premise -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+    isPremiseWellFormed bv_env mp (AST.PremiseAssumption pos (AST.TypeLetterIdentifier _ t) (AST.AssumptionArguments _ args)) = do
+      case Map.lookup t rel_env of
+        Nothing -> do failR $ Err Nothing "relation not found" [(pos, This $ unpack t ++ " is not a declared relation")] []
+        Just rel_info -> do
+          -- relation exists. get the number of args
+          let rel_args = relArgs rel_info
+              rel_pos = relPos rel_info
+          when (Prelude.length args /= Prelude.length rel_args) $
+            failR $
+              Err Nothing "relation arguments do not match relation parameters" [(pos, This $ unpack t ++ " applied to " ++ show (Prelude.length args) ++ " arguments"), (rel_pos, Where $ unpack t ++ " declared with " ++ show (Prelude.length rel_args) ++ " parameters")] []
+          -- check each variable to see if they are in the bound vars.
+          forM_
+            args
+            ( \(CoreItem pos' v) ->
+                unless (Set.member v bv_env) $
+                  failR $
+                    Err Nothing "variable not found" [(pos', This $ unpack v ++ " is not a bound variable in this rule")] []
+            )
+          -- now same number of args as params. also, args are actually bound.
+          -- type check!
+          foldM
+            ( \tymap (AST.TermLetterIdentifier id_pos i, (ty, ty_pos)) ->
+                case Map.lookup i tymap of
+                  Nothing -> return $ Map.insert i (ActualType ty, Reason id_pos ty_pos) tymap
+                  Just (Top, _) -> return tymap
+                  Just (Dynamic, _) -> return $ Map.insert i (ActualType ty, Reason id_pos ty_pos) tymap
+                  Just (ActualType ty', Reason id_pos' ty_pos') -> if ty /= ty' then accumR (Err Nothing "type mismatch" [(id_pos', Where $ unpack i ++ " used here"), (ty_pos', Where $ unpack i ++ " must have this type"), (id_pos, This $ unpack i ++ " also used here"), (ty_pos, Where $ unpack i ++ " must also have this type")] []) >> return (Map.insert i (Top, Reason id_pos ty_pos) tymap) else return tymap
+            )
+            mp
+            (Prelude.zip args rel_args)
+    isPremiseWellFormed bv_env mp (AST.PremiseCondition _ expr) = do
+      -- dont bother type checking here. just check if the vars are declared somewhere.
+      -- reason why we don't type check even if given something like `if v` where v is a bound var is because maybe the type of v is actually Bool.
+      walkExpr bv_env extern_env expr
+      return mp
+
     are_bound_vars_unique :: Map.Map Text E.BoundVar -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
     are_bound_vars_unique _ [] = return ()
     are_bound_vars_unique s (bv@(E.BoundVar bv_pos v) : bvs) = do
@@ -368,11 +453,11 @@ walkRules rel_env extern_env rule_name_env mp_ ls = go mp_ 0 ls
             _ -> error "MOZZARELLA EXCEPTION: CANNOT BE THE CASE. TODO: CLEAN THIS UP!"
         Nothing ->
           are_bound_vars_unique (Map.insert v bv s) bvs
-    are_bvs_rule_names :: [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
-    are_bvs_rule_names [] = return ()
-    are_bvs_rule_names (E.BoundVar bv_pos v : bvs) = do
+    are_bvs_rule_names :: AST.RulePremises -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+    are_bvs_rule_names _ [] = return ()
+    are_bvs_rule_names premises (E.BoundVar bv_pos v : bvs) = do
       case Map.lookup v rule_name_env of
-        Just (E.Rule rule_pos _ _ premises _) -> do
+        Just (E.Rule rule_pos _ _ _ _) -> do
           let notes = case bv_pos of
                 E.SourcePosition pos -> [(rule_pos, Where $ "rule is named " ++ unpack v), (pos, This $ "variable is also named " ++ unpack v)]
                 E.Inferred args ->
@@ -380,7 +465,61 @@ walkRules rel_env extern_env rule_name_env mp_ ls = go mp_ 0 ls
                   in  (rule_pos, Where $ "rule is named " ++ unpack v) : ls'
 
           failR $ Err Nothing "variable has same name as rule" notes []
-        Nothing -> are_bvs_rule_names bvs
+        Nothing -> are_bvs_rule_names premises bvs
+    are_bvs_externs :: AST.RulePremises -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+    are_bvs_externs _ [] = return ()
+    are_bvs_externs premises (E.BoundVar bv_pos v : bvs) = do
+      case Map.lookup v extern_env of
+        Just pos ->
+          let notes = case bv_pos of
+                E.SourcePosition pos' -> [(pos, Where $ "external symbol " ++ unpack v ++ " is imported"), (pos', This $ "variable is also named " ++ unpack v)]
+                E.Inferred args ->
+                  let ls' = f premises <$> args
+                  in  (pos, Where $ "external symbol " ++ unpack v ++ " is imported") : ls'
+          in  failR $ Err Nothing "variable has same name as external symbols" notes []
+        Nothing -> are_bvs_externs premises bvs
+    are_bvs_unused :: AST.RulePremises -> AST.Conclusion -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+    are_bvs_unused premises concl bvs = do
+      let used = Set.union (getAllVarsFromPremises premises) (getAllVarsFromConclusion concl)
+      -- liftIO $ print used
+      let unused = Prelude.filter (\(E.BoundVar _ v) -> v `Set.notMember` used) bvs
+      let warns =
+            ( \(E.BoundVar pos _) -> case pos of
+                E.SourcePosition p -> (p, This "unused")
+                E.Inferred _ -> error "NO WAY THIS CAN POSSIBLY HAPPEN!"
+            )
+              <$> unused
+      unless (Prelude.null warns) $
+        accumR $
+          Warn Nothing "unused variables" warns []
+
+-- TODO: if its in the rule env it would be good to say so.
+walkExpr :: Set.Set Text -> Map.Map Text Position -> AST.Expr -> MozzarellaPass MozzarellaErrors ()
+walkExpr bv_env extern_env (AST.ExprTermVar pos (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) = do
+  unless (Set.member v bv_env || Set.member v preludeTerms || Map.member v extern_env) $ do
+    accumR $ Err Nothing "unknown variable" [(pos, This "not declared as rule bound variable or extern")] []
+walkExpr bv_env extern_env (AST.ExprApp app_pos (AST.ExprTermVar _ (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) e') = do
+  when (Set.member v bv_env) $
+    accumR $
+      Err Nothing "type mismatch" [(app_pos, This "rule variable cannot be applied to arguments")] []
+  walkExpr bv_env extern_env e'
+walkExpr bv_env extern_env (AST.ExprApp _ e e') = walkExpr bv_env extern_env e >> walkExpr bv_env extern_env e'
+walkExpr _ _ _ = return ()
+
+getAllVarsFromPremises :: AST.RulePremises -> Set.Set Text
+getAllVarsFromPremises (AST.RulePremises _ ls) = Set.unions $ getAllVarsFromPremise <$> ls
+
+getAllVarsFromPremise :: AST.Premise -> Set.Set Text
+getAllVarsFromPremise (AST.PremiseAssumption _ _ (AST.AssumptionArguments _ ls)) = Set.fromList $ (\(CoreItem _ t) -> t) <$> ls
+getAllVarsFromPremise (AST.PremiseCondition _ e) = getAllVarsFromExpr e
+
+getAllVarsFromExpr :: AST.Expr -> Set.Set Text
+getAllVarsFromExpr (AST.ExprTermVar _ (AST.TermIdentifierAlpha (CoreItem _ v))) = Set.singleton v
+getAllVarsFromExpr (AST.ExprApp _ e e') = Set.union (getAllVarsFromExpr e) (getAllVarsFromExpr e')
+getAllVarsFromExpr _ = Set.empty
+
+getAllVarsFromConclusion :: AST.Conclusion -> Set.Set Text
+getAllVarsFromConclusion (AST.Conclusion _ _ (AST.ConclusionArguments _ ls)) = Set.unions $ getAllVarsFromExpr <$> ls
 
 f :: AST.RulePremises -> (Int, Int) -> (Position, Marker String)
 f (AST.RulePremises _ ls) (x, y) =
@@ -391,10 +530,20 @@ f (AST.RulePremises _ ls) (x, y) =
           in  (pos, This $ "occurrences of " ++ unpack v)
         _ -> error "MOZZARELLA EXCEPTION: CANNOT BE THE CASE. WHEN WE ANNOTATE BOUND VARIABLES WITH OCCURRENCES (I.E. FORMING OUR OWN BOUND VAR LIST), THEY MUST COME FROM ASSUMPTIONS, NOT CONDITIONS!!!!!"
 
-walkRelations :: Map.Map Text RelationInfo -> AST.Relation -> MozzarellaPass MozzarellaErrors (Map.Map Text RelationInfo)
-walkRelations mp (AST.Relation _ (AST.TypeLetterIdentifier _ n) (AST.RelationSignature _ ls) _) = do
+walkRelations :: Map.Map Text AST.Relation -> Map.Map Text RelationInfo -> AST.Relation -> MozzarellaPass MozzarellaErrors (Map.Map Text RelationInfo)
+walkRelations rel_name_env mp (AST.Relation pos (AST.TypeLetterIdentifier _ n) (AST.RelationSignature _ ls) _) = do
+  -- make sure that types don't share names with relations!
+  forM_ ls walkTypes
   let t = createRawType <$> ls
-  return $ Map.insert n (RelationInfo t) mp
+  return $ Map.insert n (RelationInfo t pos) mp
+  where
+    walkTypes :: AST.Type -> MozzarellaPass MozzarellaErrors ()
+    walkTypes (AST.TypeVar posT (AST.TypeIdentifier _ nT)) =
+      case Map.lookup nT rel_name_env of
+        Just (AST.Relation rel_pos _ _ _) ->
+          failR $ Err Nothing "relation cannot be used as type" [(rel_pos, Where "this relation"), (posT, This "this type shares the same name")] []
+        Nothing -> return ()
+    walkTypes (AST.TypeApp _ t t') = walkTypes t >> walkTypes t'
 
 createRawType :: AST.Type -> (ActualType, Position)
 createRawType (AST.TypeVar pos (AST.TypeIdentifier _ n)) = (NameType n, pos)
@@ -405,7 +554,7 @@ createRawType' (AST.TypeVar _ (AST.TypeIdentifier _ n)) = NameType n
 createRawType' (AST.TypeApp _ t t') = ApplicationType (createRawType' t) (createRawType' t')
 
 foldCompletions :: Map.Map Text E.Rule -> Map.Map Text Position -> Maybe AST.Completion -> MozzarellaPass MozzarellaErrors (Map.Map Text Position)
-foldCompletions mp mp2 Nothing = return mp2
+foldCompletions _ mp2 Nothing = return mp2
 foldCompletions mp mp2 (Just (AST.Completion pos (AST.TermLetterIdentifier _ n))) = do
   case Map.lookup n mp of
     Just (CoreRule pos1 _ _ _ _) -> do

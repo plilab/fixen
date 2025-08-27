@@ -1,12 +1,10 @@
-rel DistTo : Nat, Nat, Vertex
-  completion myCompletion
-rel Edge : Nat, Dist
-rel Edge : Dist
+rel DistTo : Vertex, Dist
 
-extern ad bc ad
+rel Edge : Vertex, Vertex, Dist
 
-rule addDist a b c : 
-  DistTo a b, Edge a b c
-  |- DistTo a (1 + 2) c
+extern blob lolz
 
+rule addDist: 
+  DistTo a d, Edge a b d'
+  |- DistTo b d
 
