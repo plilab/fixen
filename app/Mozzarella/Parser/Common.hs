@@ -74,7 +74,7 @@ commaSepBy p = do
 
 commaSepByCommaFirst :: Parser a -> Parser [a]
 commaSepByCommaFirst p = do
-  com <- P.observing $ P.try $ indented *> P.single ','
+  com <- P.observing $ P.try $ indented *> l (P.single ',')
   case com of
     Left _ -> return []
     Right _ -> do
@@ -174,4 +174,4 @@ parsePositioned p = do
 
 -- | Parses using a parser that is between parentheses @(@ and @)@
 betweenParentheses :: Parser a -> Parser a
-betweenParentheses = P.between (L.symbol sc "(") (L.symbol sc ")")
+betweenParentheses = P.between (L.symbol sc "(") (sc >> ")")

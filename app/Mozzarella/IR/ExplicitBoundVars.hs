@@ -6,7 +6,6 @@ module Mozzarella.IR.ExplicitBoundVars where
 import Data.Text
 import Data.Void
 import Error.Diagnose.Position
-import Mozzarella.Data.AlaCarte
 import Mozzarella.IR.AST qualified as AST
 import Mozzarella.IR.Core
 
@@ -41,6 +40,7 @@ pattern RuleBoundVars
   -- ^ The identifiers
   -> RuleBoundVars
 pattern RuleBoundVars pos ls = CoreItem pos ls
+{-# COMPLETE RuleBoundVars #-}
 
 type BoundVar =
   CoreItem

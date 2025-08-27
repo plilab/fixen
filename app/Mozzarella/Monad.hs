@@ -13,7 +13,6 @@ module Mozzarella.Monad where
 
 import Control.Monad
 import Control.Monad.Except qualified as Except
-import Control.Monad.IO.Class
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Maybe as Maybe
 import Data.List (foldl', partition)

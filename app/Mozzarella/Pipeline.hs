@@ -12,7 +12,6 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Text
 import Error.Diagnose
 import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
-import Mozzarella.IR.ExplicitBoundVars qualified as Explicit
 import Mozzarella.Monad
 import Mozzarella.Parser (parse)
 import Mozzarella.Sorter (sort)
@@ -41,10 +40,10 @@ pipeline
 pipeline file_path contents = do
   let file_map = [(file_path, contents)]
       init_errs = mozEmptyErrors file_map
-  (program, err_after) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
-  (program', err_after) <- runMozzarellaPass err_after $ sort program
+  (program, err_after1) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
+  (program', err_after2) <- runMozzarellaPass err_after1 $ sort program
   let pp = makeBoundVarsExplicit program'
-  (env, ess) <- runMozzarellaPass err_after $ solveSymbols pp
+  (env, ess) <- runMozzarellaPass err_after2 $ solveSymbols pp
   when (hasReports (mozErrorsDiagnostic ess)) $
     liftIO $
       printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle (mozErrorsDiagnostic ess)
