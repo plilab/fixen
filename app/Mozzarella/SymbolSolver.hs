@@ -39,6 +39,7 @@ import Mozzarella.IR.AST qualified as AST
 import Mozzarella.IR.Core
 import Mozzarella.IR.ExplicitBoundVars qualified as E
 import Mozzarella.Monad
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
 type NameType = CoreItem "SymbolSolver.NameType" () Text
 type ApplicationType = CoreDouble "SymbolSolver.AppType" ()
@@ -498,10 +499,12 @@ walkExpr :: Set.Set Text -> Map.Map Text Position -> AST.Expr -> MozzarellaPass 
 walkExpr bv_env extern_env (AST.ExprTermVar pos (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) = do
   unless (Set.member v bv_env || Set.member v preludeTerms || Map.member v extern_env) $ do
     accumR $ Err Nothing "unknown variable" [(pos, This "not declared as rule bound variable or extern")] []
-walkExpr bv_env extern_env (AST.ExprApp app_pos (AST.ExprTermVar _ (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) e') = do
+walkExpr bv_env extern_env (AST.ExprApp app_pos (AST.ExprTermVar pos (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) e') = do
   when (Set.member v bv_env) $
     accumR $
       Err Nothing "type mismatch" [(app_pos, This "rule variable cannot be applied to arguments")] []
+  unless (Set.member v bv_env || Set.member v preludeTerms || Map.member v extern_env) $ do
+    accumR $ Err Nothing "unknown variable" [(pos, This "not declared as rule bound variable or extern")] []
   walkExpr bv_env extern_env e'
 walkExpr bv_env extern_env (AST.ExprApp _ e e') = walkExpr bv_env extern_env e >> walkExpr bv_env extern_env e'
 walkExpr _ _ _ = return ()
