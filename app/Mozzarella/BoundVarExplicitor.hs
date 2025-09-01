@@ -1,49 +1,49 @@
 module Mozzarella.BoundVarExplicitor where
 
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
-import Data.Text
-import Mozzarella.IR.AST qualified as AST
-import Mozzarella.IR.ExplicitBoundVars as Explicit
-import Mozzarella.IR.Sorted qualified as Sorted
-
-makeBoundVarsExplicit :: Sorted.Program -> Explicit.Program
-makeBoundVarsExplicit Sorted.Program {Sorted.relations = relations, Sorted.rules = rules, Sorted.externs = externs} =
-  let new_rules = fmap folder rules
-  in  Explicit.Program {Explicit.relations = relations, Explicit.rules = new_rules, Explicit.externs = externs}
-
-folder :: AST.Rule -> Explicit.Rule
-folder (AST.Rule ann name bvs prems concls) = do
-  case bvs of
-    Just vs ->
-      let bvs' = annotateBVs vs
-      in  Explicit.Rule ann name bvs' prems concls
-    Nothing ->
-      -- time to collect all the variables!
-      let AST.RulePremises _ prems' = prems
-          vars = getvars 0 Map.empty prems'
-          new_bvs = Explicit.RuleBoundVars Generated vars
-      in  Explicit.Rule ann name new_bvs prems concls
-
-getvars :: Int -> Map.Map Text (Set.Set (Int, Int)) -> [AST.Premise] -> [Explicit.BoundVar]
-getvars _ mp [] =
-  let ls = Map.toAscList mp
-  in  (\(v, s) -> Explicit.BoundVar (Inferred (Set.toAscList s)) v) <$> ls
-getvars n mp (AST.PremiseCondition _ _ : ps) = getvars (n + 1) mp ps
-getvars n mp (AST.PremiseAssumption _ _ (AST.AssumptionArguments _ args) : ps) =
-  let mp' = getvarsargs n 0 mp args
-  in  getvars (n + 1) mp' ps
-
-getvarsargs :: Int -> Int -> Map.Map Text (Set.Set (Int, Int)) -> [AST.TermLetterIdentifier] -> Map.Map Text (Set.Set (Int, Int))
-getvarsargs _ _ mp [] = mp
-getvarsargs n m mp (AST.TermLetterIdentifier _ v : args) =
-  let set = Map.findWithDefault Set.empty v mp
-      new_set = Set.insert (n, m) set
-      new_mp = Map.insert v new_set mp
-  in  getvarsargs n (m + 1) new_mp args
-
-annotateBVs :: AST.RuleBoundVars -> Explicit.RuleBoundVars
-annotateBVs (AST.RuleBoundVars pos ls) = Explicit.RuleBoundVars (ActuallyPosition pos) $ f <$> ls
-  where
-    f :: AST.TermLetterIdentifier -> Explicit.BoundVar
-    f (AST.TermLetterIdentifier pos' s) = Explicit.BoundVar (SourcePosition pos') s
+-- import Data.Map.Strict qualified as Map
+-- import Data.Set qualified as Set
+-- import Data.Text
+-- import Mozzarella.IR.AST qualified as AST
+-- import Mozzarella.IR.ExplicitBoundVars as Explicit
+-- import Mozzarella.IR.Sorted qualified as Sorted
+--
+-- makeBoundVarsExplicit :: Sorted.Program -> Explicit.Program
+-- makeBoundVarsExplicit Sorted.Program {Sorted.relations = relations, Sorted.rules = rules, Sorted.externs = externs} =
+--   let new_rules = fmap folder rules
+--   in  Explicit.Program {Explicit.relations = relations, Explicit.rules = new_rules, Explicit.externs = externs}
+--
+-- folder :: AST.Rule -> Explicit.Rule
+-- folder (AST.Rule ann name bvs prems concls) = do
+--   case bvs of
+--     Just vs ->
+--       let bvs' = annotateBVs vs
+--       in  Explicit.Rule ann name bvs' prems concls
+--     Nothing ->
+--       -- time to collect all the variables!
+--       let AST.RulePremises _ prems' = prems
+--           vars = getvars 0 Map.empty prems'
+--           new_bvs = Explicit.RuleBoundVars Generated vars
+--       in  Explicit.Rule ann name new_bvs prems concls
+--
+-- getvars :: Int -> Map.Map Text (Set.Set (Int, Int)) -> [AST.Premise] -> [Explicit.BoundVar]
+-- getvars _ mp [] =
+--   let ls = Map.toAscList mp
+--   in  (\(v, s) -> Explicit.BoundVar (Inferred (Set.toAscList s)) v) <$> ls
+-- getvars n mp (AST.PremiseCondition _ _ : ps) = getvars (n + 1) mp ps
+-- getvars n mp (AST.PremiseAssumption _ _ (AST.AssumptionArguments _ args) : ps) =
+--   let mp' = getvarsargs n 0 mp args
+--   in  getvars (n + 1) mp' ps
+--
+-- getvarsargs :: Int -> Int -> Map.Map Text (Set.Set (Int, Int)) -> [AST.TermLetterIdentifier] -> Map.Map Text (Set.Set (Int, Int))
+-- getvarsargs _ _ mp [] = mp
+-- getvarsargs n m mp (AST.TermLetterIdentifier _ v : args) =
+--   let set = Map.findWithDefault Set.empty v mp
+--       new_set = Set.insert (n, m) set
+--       new_mp = Map.insert v new_set mp
+--   in  getvarsargs n (m + 1) new_mp args
+--
+-- annotateBVs :: AST.RuleBoundVars -> Explicit.RuleBoundVars
+-- annotateBVs (AST.RuleBoundVars pos ls) = Explicit.RuleBoundVars (ActuallyPosition pos) $ f <$> ls
+--   where
+--     f :: AST.TermLetterIdentifier -> Explicit.BoundVar
+--     f (AST.TermLetterIdentifier pos' s) = Explicit.BoundVar (SourcePosition pos') s

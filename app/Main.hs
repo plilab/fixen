@@ -18,6 +18,7 @@ import Error.Diagnose (
  )
 import Mozzarella.Monad
 import Mozzarella.Pipeline
+import System.Directory (canonicalizePath)
 import System.Exit (
   ExitCode (..),
   exitWith,
@@ -35,14 +36,16 @@ main :: IO ()
 main = do
   -- parse command line arguments
   CommandLineArgs
-    { outFile = _
-    , inFile = in_file
+    { outFile = out_file_
+    , inFile = in_file_
     , color = color
     , unicode = unicode
     } <-
     getCommandLineArgs
   -- read the input file. whenever there are exceptions, terminate with the
   -- error messages.
+  in_file <- canonicalizePath in_file_
+  _ <- canonicalizePath out_file_
   file_handle <-
     handle (openFileExceptionHandler in_file) $
       SIO.openFile in_file SIO.ReadMode

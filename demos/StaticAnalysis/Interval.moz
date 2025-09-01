@@ -1,0 +1,33 @@
+generate StaticAnalysis.Interval
+
+use Common
+
+{
+data StateI = ... -- interval state definition
+emptyI :: StateI
+emptyI = undefined
+}
+
+extern emptyI joinI insertI evalI refineTI refineFI
+
+rel StateBeforeI: Nat, *StateI
+
+rule assignInitI : Assign l x e   |- StateBeforeI l empty
+rule condInitI   : Cond l jlt jlf |- StateBeforeI l empty
+rule varInitI    : Var l x        |- StateBeforeI l empty
+
+-- actual transfer functions
+rule assignStepI :
+  Assign l x e, StateBeforeI l s, Seq l l', StateBeforeI l' s'
+  -----------------------------------------------------------
+  |- StateBeforeI l' (joinI (insertI x (evalI e st) st) st')
+
+rule evalCondTI :
+  Cond l e t f, StateBeforeI l st, StateBeforeI t st'
+  ---------------------------------------------------
+  |- StateBeforeI t (joinI (refineTI e st) st')
+
+rule evalCondFI :
+  Cond l e t f, StateBeforeI l st, StateBeforeI f st'
+  ---------------------------------------------------
+  |- StateBeforeI f (join (refineFI st) st')

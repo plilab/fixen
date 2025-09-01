@@ -1,10 +1,30 @@
-rel DistTo : Vertex, Dist
+/-
+generate Demos.ShortestPath
 
+{
+data Dist = D Int deriving (Show, Eq)
+
+instance Ord Dist where
+  D x <= D y = y <= x
+
+instance Num Dist where
+  D x + D y = D $ x + y
+}
+-/
+
+rel DistTo : Vertex, *Dist
 rel Edge : Vertex, Vertex, Dist
-
-extern blob lolz
 
 rule addDist: 
   DistTo a d, Edge a b d'
-  |- DistTo b d
+  |- DistTo b (d + d')
+
+/-
+priority:
+  (d1 + d1') >= (d2 + d2') 
+    |- addDist { d = d1, d' = d1' } <= addDist { d = d2, d' = d2' }
+
+query DistTo as distTo - +
+query DistTo as distLessThan + -
+-/
 

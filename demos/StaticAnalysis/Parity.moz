@@ -1,0 +1,33 @@
+generate StaticAnalysis.Parity
+
+use Common
+
+{
+data StateP = ... -- parity state definition
+emptyP :: StateP
+emptyP = undefined
+}
+
+extern emptyP joinP insertP evalP refineTP refineFP
+
+rel StateBeforeP: Nat, *StateP
+
+rule assignInitP : Assign l x e   |- StateBeforeP l empty
+rule condInitP   : Cond l jlt jlf |- StateBeforeP l empty
+rule varInitP    : Var l x        |- StateBeforeP l empty
+
+-- actual transfer functions
+rule assignStepP :
+  Assign l x e, StateBeforeP l s, Seq l l', StateBeforeP l' s'
+  -----------------------------------------------------------
+  |- StateBeforeP l' (joinP (insertP x (evalP e st) st) st')
+
+rule evalCondTP :
+  Cond l e t f, StateBeforeP l st, StateBeforeP t st'
+  ---------------------------------------------------
+  |- StateBeforeP t (joinP (refineTP e st) st')
+
+rule evalCondFP :
+  Cond l e t f, StateBeforeP l st, StateBeforeP f st'
+  ---------------------------------------------------
+  |- StateBeforeP f (join (refineFP st) st')

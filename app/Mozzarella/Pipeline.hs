@@ -11,11 +11,14 @@ import Control.Monad
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Text
 import Error.Diagnose
-import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
+import Mozzarella.IR.AST
+
+-- import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
 import Mozzarella.Monad
 import Mozzarella.Parser (parse)
-import Mozzarella.Sorter (sort)
-import Mozzarella.SymbolSolver
+
+-- import Mozzarella.Sorter (sort)
+-- import Mozzarella.SymbolSolver
 
 -- | The compilation pipeline. The code as a connector for each phase of
 -- the pipeline (which may use different monads):
@@ -36,15 +39,15 @@ pipeline
   -- ^ The path of the compiled file
   -> String
   -- ^ The contents of the compiled file
-  -> MozzarellaM SymbolEnv
+  -> MozzarellaM Program
 pipeline file_path contents = do
   let file_map = [(file_path, contents)]
       init_errs = mozEmptyErrors file_map
   (program, err_after1) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
-  (program', err_after2) <- runMozzarellaPass err_after1 $ sort program
-  let pp = makeBoundVarsExplicit program'
-  (env, ess) <- runMozzarellaPass err_after2 $ solveSymbols pp
-  when (hasReports (mozErrorsDiagnostic ess)) $
+  -- (program', err_after2) <- runMozzarellaPass err_after1 $ sort program
+  -- let pp = makeBoundVarsExplicit program'
+  -- (env, ess) <- runMozzarellaPass err_after2 $ solveSymbols pp
+  when (hasReports (mozErrorsDiagnostic err_after1)) $
     liftIO $
-      printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle (mozErrorsDiagnostic ess)
-  return env
+      printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle (mozErrorsDiagnostic err_after1)
+  return program

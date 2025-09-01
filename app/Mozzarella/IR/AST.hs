@@ -1,9 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeAbstractions #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
-
 -- |
 --     Module      : Mozzarella.IR.AST
 --     Description : Data structures for programs freshly baked by the parser.
@@ -17,470 +11,65 @@
 --     the AST are annotated with source positions.
 module Mozzarella.IR.AST where
 
+import Data.List.NonEmpty
+import Data.Map.Strict
 import Data.Text (Text)
-import Data.Void
 import Error.Diagnose.Position (Position)
+import GHC.Natural (Natural)
 import Mozzarella.Data.AlaCarte
-import Mozzarella.IR.Core
+import Mozzarella.IR.Core qualified as Core
 import Mozzarella.IR.Core.Annotations
 
--- * Identifiers
-
--- $identifiers
--- We differentiate different kinds of identifiers here. Alphanumeric
--- identifiers come in strictly capitalized and arbitrarily capitalized
--- variants. There are also operator identifiers. Primarily, types and relation
--- names (constructors) are capitalized, expressions can be either alphanumeric
--- or operator.
-
--- ** Basic Identifiers
-
--- *** Capitalized
-
-type TypeLetterIdentifier =
-  CoreItem
-    "AST.TypeLetterIdentifier"
-    Position
-    Text
-    Void
-
-pattern TypeLetterIdentifier
-  :: Position
-  -- ^ The annotation
-  -> Text
-  -- ^ The raw identifier as a string
-  -> TypeLetterIdentifier
-pattern TypeLetterIdentifier a b = CoreItem a b
-
-{-# COMPLETE TypeLetterIdentifier #-}
-
--- $
--- @__COMPLETE__@ v'TypeLetterIdentifier'
-
--- *** Arbitrarily-cased
-
-type TermLetterIdentifier =
-  CoreItem
-    "AST.TermLetterIdentifier"
-    Position
-    Text
-    Void
-
-pattern TermLetterIdentifier
-  :: Position
-  -- ^ The annotation
-  -> Text
-  -- ^ The identifier itself
-  -> TermLetterIdentifier
-pattern TermLetterIdentifier a b = CoreItem a b
-
-{-# COMPLETE TermLetterIdentifier #-}
-
--- $ @__COMPLETE__@ v'TermLetterIdentifier'
-
--- *** Operators
-
-type OpIdentifier = CoreItem "AST.OpIdentifier" Position Text Void
-
-pattern OpIdentifier
-  :: Position
-  -- ^ The annotation
-  -> Text
-  -- ^ The identifier
-  -> OpIdentifier
-pattern OpIdentifier a b = CoreItem a b
-
-{-# COMPLETE OpIdentifier #-}
-
--- $ @__COMPLETE__@ v'OpIdentifier'
-
--- ** Compound identifiers
-
--- | The main identifier type for terms.
-type TermIdentifier = TermLetterIdentifier :+: OpIdentifier
-
-pattern TermIdentifierAlpha :: TermLetterIdentifier -> TermIdentifier
-pattern TermIdentifierAlpha t <- ((↓?) -> Just t)
-  where
-    TermIdentifierAlpha t = (↑) t
-
-pattern TermIdentifierOp :: OpIdentifier -> TermIdentifier
-pattern TermIdentifierOp t <- ((↓?) -> Just t)
-  where
-    TermIdentifierOp t = (↑) t
-
-{-# COMPLETE TermIdentifierAlpha, TermIdentifierOp #-}
-
--- $ @__COMPLETE__@ v'TermIdentifierAlpha', v'TermIdentifierOp'
-
--- | The main identifier type for types.
-type TypeIdentifier = TypeLetterIdentifier
-
-pattern TypeIdentifier
-  :: Position
-  -- ^ The annotation
-  -> Text
-  -- ^ The identifier
-  -> TypeIdentifier
-pattern TypeIdentifier a b = CoreItem a b
-
-{-# COMPLETE TypeIdentifier #-}
-
--- $ @__COMPLETE__@ v'TypeIdentifier'
-
--- * Expressions
-
-type IntLit = CoreItem "AST.IntLit" Position Integer
-type StrLit = CoreItem "AST.StrLit" Position Text
-type TermVar = CoreItem "AST.TermVar" Position TermIdentifier
-type AppExpr = CoreDouble "AST.AppExpr" Position
-
--- | The type of expressions in the AST.
-type Expr = Fixpoint (IntLit ::+:: StrLit ::+:: TermVar ::+:: AppExpr)
-
-pattern ExprIntLit
-  :: Position
-  -- ^ The annotation
-  -> Integer
-  -- ^ The integer
-  -> Expr
-pattern ExprIntLit pos i <- ((↓↓?) -> Just (CoreItem @"AST.IntLit" pos i))
-  where
-    ExprIntLit pos i = (↑↑) $ CoreItem @"AST.IntLit" pos i
-
-pattern ExprStrLit
-  :: Position
-  -- ^ The annotation
-  -> Text
-  -- ^ The string
-  -> Expr
-pattern ExprStrLit pos i <- ((↓↓?) -> Just (CoreItem @"AST.StrLit" pos i))
-  where
-    ExprStrLit pos i = (↑↑) $ CoreItem @"AST.StrLit" pos i
-
-pattern ExprTermVar
-  :: Position
-  -- ^ The annotation
-  -> TermIdentifier
-  -- ^ The term-level variable
-  -> Expr
-pattern ExprTermVar pos e <- ((↓↓?) -> Just (CoreItem @"AST.TermVar" pos e))
-  where
-    ExprTermVar pos e = (↑↑) $ CoreItem @"AST.TermVar" pos e
-
-pattern ExprApp
-  :: Position
-  -- ^ The annotation
-  -> Expr
-  -- ^ LHS
-  -> Expr
-  -- ^ RHS
-  -> Expr
-pattern ExprApp pos e e' <- ((↓↓?) -> Just (CoreDouble @"AST.AppExpr" pos e e'))
-  where
-    ExprApp pos e e' = (↑↑) $ CoreDouble @"AST.AppExpr" pos e e'
-
-{-# COMPLETE ExprIntLit, ExprStrLit, ExprTermVar, ExprApp #-}
-
--- $ @__COMPLETE__@ v'ExprIntLit', v'ExprStrLit', v'ExprTermVar', v'ExprApp'
-
--- * Types
-
-type VarType = CoreItem "AST.VarType" Position TypeIdentifier
-type AppType = CoreDouble "AST.AppType" Position
-
--- | The types of types in the AST.
-type Type = Fixpoint (VarType ::+:: AppType)
-
-pattern TypeVar
-  :: Position
-  -- ^ The annotation
-  -> TypeIdentifier
-  -- ^ The name
-  -> Type
-pattern TypeVar pos ident <- ((↓↓?) -> Just (CoreItem @"AST.VarType" pos ident))
-  where
-    TypeVar pos ident = (↑↑) $ CoreItem @"AST.VarType" pos ident
-
-pattern TypeApp
-  :: Position
-  -- ^ The annotation
-  -> Type
-  -- ^ LHS
-  -> Type
-  -- ^ RHS
-  -> Type
-pattern TypeApp pos t t' <- ((↓↓?) -> Just (CoreDouble @"AST.AppType" pos t t'))
-  where
-    TypeApp pos t t' = (↑↑) $ CoreDouble @"AST.AppType" pos t t'
-
-{-# COMPLETE TypeVar, TypeApp #-}
-
--- $ @__COMPLETE__@ v'TypeVar', v'TypeApp'
-
--- * Relations
-
+type SimpleIdentifier = Core.SimpleIdentifier Position Text
+type ModuleName = Core.ModuleName Position (NonEmpty SimpleIdentifier)
+type FullyQualifiedName = Core.FullyQualifiedName Position ModuleName SimpleIdentifier
+type Identifier = Core.Identifier Position ModuleName SimpleIdentifier Text
+type Expr = Core.Expr Position Identifier Integer Text
+type Type = Core.Type Position Identifier Natural Text
+type RelationArgument = Core.RelationArgument Position Core.SubsumptionAnnotation Type
 type Relation =
-  CoreRelation
-    "AST.Relation"
+  Core.Relation
     Position
-    TypeLetterIdentifier
-    RelationSignature
-    (Maybe Completion)
-
-pattern Relation
-  :: Position
-  -- ^ The annotation
-  -> TypeLetterIdentifier
-  -- ^ The name of the relation (must be capitalized
-  -- as it is a constructor name)
-  -> RelationSignature
-  -- ^ The signature
-  -> Maybe Completion
-  -- ^ The completion clause
-  -> Relation
-pattern Relation pos name sig comp = CoreRelation pos name sig comp
-
-{-# COMPLETE Relation #-}
-
--- $ @__COMPLETE__@ v'Relation'
-
--- ** Signatures
-
--- $
--- The signature of a relation, i.e., a list of types representing the types
--- of the arguments to the relation
-
-type RelationSignature = CoreItem "AST.Relation#signature" Position [Type] Void
-
-pattern RelationSignature
-  :: Position
-  -- ^ The annotation
-  -> [Type]
-  -- ^ The list of types of the arguments
-  -> RelationSignature
-pattern RelationSignature pos t = CoreItem pos t
-
-{-# COMPLETE RelationSignature #-}
-
--- $ @__COMPLETE__@ v'RelationSignature'
-
--- ** Completions
-
-type Completion =
-  CoreItem
-    "AST.Relation#completion"
+    SimpleIdentifier
+    [RelationArgument]
+type Assumption = Core.Fact Position SimpleIdentifier [SimpleIdentifier]
+type Condition = Core.Condition Position Expr
+type PrecomposedRule =
+  Core.PrecomposedRule
     Position
-    TermLetterIdentifier
-    Void
-
-pattern Completion
-  :: Position
-  -- ^ The annotation
-  -> TermLetterIdentifier
-  -- ^ The name of the completion
-  -> Completion
-pattern Completion pos name = CoreItem pos name
-
-{-# COMPLETE Completion #-}
-
--- $ @__COMPLETE__@ v'Completion'
-
--- * Rules
-
+    [SimpleIdentifier]
+    Assumption
+type Conclusion = Core.Fact Position SimpleIdentifier [Expr]
 type Rule =
-  CoreRule
-    "AST.Rule"
+  Core.Rule
     Position
-    (Maybe TermLetterIdentifier)
-    (Maybe RuleBoundVars)
-    RulePremises
+    (Maybe SimpleIdentifier)
+    (Maybe [SimpleIdentifier])
+    [Assumption]
+    [Condition]
+    [PrecomposedRule]
     Conclusion
-pattern Rule
-  :: Position
-  -- ^ The annotation
-  -> Maybe TermLetterIdentifier
-  -- ^ An optional name
-  -> Maybe RuleBoundVars
-  -- ^ An optional set of bound variables
-  -> RulePremises
-  -- ^ The premises of the rule
-  -> Conclusion
-  -- ^ The conclusion of the rule
-  -> Rule
-pattern Rule pos name bvs prem concl = CoreRule pos name bvs prem concl
-{-# COMPLETE Rule #-}
--- $ @__COMPLETE__@ v'Rule'
+type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
+type Completion = Core.Completion Position Identifier SimpleIdentifier
+type HsImport = Core.HsImport Position Text
+type Use = Core.Use Position Text (Core.InclusionOrExclusion Position [SimpleIdentifier] [SimpleIdentifier])
+type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
+type RuleInstantiation = Core.RuleInstantiation Position SimpleIdentifier (Map SimpleIdentifier SimpleIdentifier)
+type PriorityOrd = Core.PriorityOrd Position Expr RuleInstantiation
+type Priority = Core.Priority Position [PriorityOrd]
+type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
+type Generate = Core.Generate Position ModuleName [SimpleIdentifier]
 
-type RuleBoundVars = CoreItem "AST.Rule#vars" Position [TermLetterIdentifier] Void
-pattern RuleBoundVars
-  :: Position
-  -- ^ The annotation
-  -> [TermLetterIdentifier]
-  -- ^ The identifiers
-  -> RuleBoundVars
-pattern RuleBoundVars pos ls = CoreItem pos ls
-
-{-# COMPLETE RuleBoundVars #-}
-
--- $ @__COMPLETE__@ v'RuleBoundVars'
-
--- ** Premises
-
--- $ A list of premises in the rule
-
-type RulePremises = CoreItem "AST.Rule#premises" Position [Premise] Void
-pattern RulePremises
-  :: Position
-  -- ^ The annotation
-  -> [Premise]
-  -- ^ List of premises
-  -> RulePremises
-pattern RulePremises pos ls = CoreItem pos ls
-{-# COMPLETE RulePremises #-}
--- $
--- @__COMPLETE__@ v'RulePremises'
-
-type Assumption =
-  CorePair
-    "AST.Assumption"
-    Position
-    TypeLetterIdentifier
-    AssumptionArguments
-type Condition = CoreItem "AST.Condition" Position Expr Void
-
--- | The type of premises in the AST.
-type Premise = Assumption :+: Condition
-
-pattern PremiseAssumption
-  :: Position
-  -- ^ The annotation
-  -> TypeLetterIdentifier
-  -- ^ The name of the relation being assumed
-  -> AssumptionArguments
-  -- ^ Arguments to the relation being assumed
-  -> Premise
-pattern PremiseAssumption pos name args <-
-  ((↓?) -> Just (CorePair @"AST.Assumption" pos name args))
-  where
-    PremiseAssumption pos name args =
-      (↑) $ CorePair @"AST.Assumption" pos name args
-
-pattern PremiseCondition
-  :: Position
-  -- ^ The annotation
-  -> Expr
-  -- ^ The condition itself
-  -> Premise
-pattern PremiseCondition pos e <-
-  ((↓?) -> Just (CoreItem @"AST.Condition" @Position @Expr @Void pos e))
-  where
-    PremiseCondition pos e =
-      (↑) (CoreItem @"AST.Condition" @Position @Expr @Void pos e)
-
-{-# COMPLETE PremiseAssumption, PremiseCondition #-}
--- $ @__COMPLETE__@ v'PremiseAssumption', v'PremiseCondition'
-
-type AssumptionArguments =
-  CoreItem
-    "AST.Assumption#arguments"
-    Position
-    [TermLetterIdentifier]
-    Void
-
-pattern AssumptionArguments
-  :: Position
-  -- ^ The annotation
-  -> [TermLetterIdentifier]
-  -- ^ The list of arguments
-  -> AssumptionArguments
-pattern AssumptionArguments pos ls = CoreItem pos ls
-
-{-# COMPLETE AssumptionArguments #-}
-
--- $ @__COMPLETE__@ v'AssumptionArguments'
-
--- ** Conclusion
-
--- | The type of conclusions in the AST.
-type Conclusion =
-  CorePair
-    "AST.Conclusion"
-    Position
-    TypeLetterIdentifier
-    ConclusionArguments
-
-pattern Conclusion
-  :: Position
-  -- ^ The annotation
-  -> TypeLetterIdentifier
-  -- ^ The name of the relation being concluded
-  -> ConclusionArguments
-  -- ^ The arguments to the relation being concluded
-  -> Conclusion
-pattern Conclusion pos name args = CorePair pos name args
-
-{-# COMPLETE Conclusion #-}
-
--- $ @__COMPLETE__@ v'Conclusion'
-
-type ConclusionArguments =
-  CoreItem
-    "AST.Conclusion#arguments"
-    Position
-    [Expr]
-    Void
-
-pattern ConclusionArguments
-  :: Position
-  -- ^ The annotation
-  -> [Expr]
-  -- ^ The argument list
-  -> ConclusionArguments
-pattern ConclusionArguments pos ls = CoreItem pos ls
-
-{-# COMPLETE ConclusionArguments #-}
-
--- $ @__COMPLETE__@ v'ConclusionArguments'
-
--- * Extern
-
-type Extern = CoreItem "AST.Extern" Position [TermLetterIdentifier] Void
-
-pattern Extern
-  :: Position
-  -- ^ The annotation
-  -> [TermLetterIdentifier]
-  -- ^ The list of extern declarations
-  -> Extern
-pattern Extern pos ls = CoreItem pos ls
-
-{-# COMPLETE Extern #-}
-
--- $ @__COMPLETE__@ v'Extern'
-
--- * Top-level declarations
-type TopLevel = Relation :+: Rule :+: Extern
-
-pattern TopLevelRelation :: Relation -> TopLevel
-pattern TopLevelRelation r <- ((↓?) -> Just r)
-  where
-    TopLevelRelation r = (↑) r
-
-pattern TopLevelRule :: Rule -> TopLevel
-pattern TopLevelRule r <- ((↓?) -> Just r)
-  where
-    TopLevelRule r = (↑) r
-
-pattern TopLevelExtern :: Extern -> TopLevel
-pattern TopLevelExtern r <- ((↓?) -> Just r)
-  where
-    TopLevelExtern r = (↑) r
-{-# COMPLETE TopLevelRelation, TopLevelRule, TopLevelExtern #-}
--- $ @__COMPLETE__@ v'TopLevelRelation', v'TopLevelRule', v'TopLevelExtern'
-
--- * Program
-newtype Program = Program {topLevels :: [TopLevel]}
+data Program = Program
+  { hsBlocks :: [HsBlock]
+  , priorities :: Maybe Priority
+  , queries :: [Query]
+  , generate :: Maybe Generate
+  , hsImports :: [HsImport]
+  , extern :: Maybe Extern
+  , relations :: [Relation]
+  , rules :: [Rule]
+  }
   deriving (Show, Eq)
 
 -- * Annotations

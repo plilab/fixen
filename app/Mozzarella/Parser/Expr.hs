@@ -41,19 +41,23 @@ import Control.Applicative.Combinators (
  )
 import Control.Monad (when)
 import Data.List (foldl')
+import Data.List.NonEmpty
 import Error.Diagnose.Position qualified as DPos
 import Mozzarella.IR.AST qualified as AST
+import Mozzarella.IR.Core
 import Mozzarella.Parser.Common
 import Mozzarella.Parser.Token
 import Text.Megaparsec qualified as P
+import Text.Megaparsec.Pos qualified as MPos
 
--- | Parses an 'ASTExpr'.
-parseExpr :: Parser AST.Expr
-parseExpr = P.try parseInfixExpr <|> parseExprApp
+-- | Parses an 'AST.Expr' at the top-level.
+parseExpr :: Parser MPos.Pos -> Parser AST.Expr
+parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp indentCheck
 
--- | Parses an infix 'ASTExpr'.
-parseInfixExpr :: Parser AST.Expr
-parseInfixExpr = do
+-- | Parses an infix 'ASTExpr'. This is a top-level infix expression, so
+-- the turnstile @(|-)@ is not allowed unless the expression is enclosed in parentheses.
+parseInfixExpr :: Parser MPos.Pos -> Parser AST.Expr
+parseInfixExpr indentCheck = do
   (pos, (first_app, rhs)) <- parsePositioned $ do
     -- This thing you see write here (this do-block) consumes the infix expr
     -- e op e' and return (op e, e'). The reason for this is so that wrapping
@@ -62,14 +66,14 @@ parseInfixExpr = do
 
     -- every step of the way, we check that the expression is not at the
     -- top-level. intermediate parses are wrapped with 'l'.
-    _ <- indented
-    lhs <- l parseParenExpr
-    _ <- indented
-    -- Make sure taht at the top level, you cannot use the turnstile!!
-    op@(AST.TermIdentifierOp (AST.OpIdentifier _ v)) <- l parseInfixTermIdentifier
-    when (v == "|-") $ fail "turnstile (|-) cannot appear in expression without being enclosed in parentheses"
-    _ <- indented
-    rhs <- parseParenExpr
+    _ <- indentCheck
+    lhs <- l (parseParenExpr indentCheck)
+    _ <- indentCheck
+    -- Make sure that at the top level, you cannot use the turnstile!!
+    op <- l $ parseInfixTermIdentifier indentCheck
+    when (identifier op == "|-") $ fail "turnstile (|-) cannot appear in expression without being enclosed in parentheses"
+    _ <- indentCheck
+    rhs <- parseParenExpr indentCheck
     -- Apply op to lhs.
     let first_app :: AST.Expr =
           -- calculate the stupid annotation. since lhs comes before op, we use
@@ -87,30 +91,30 @@ parseInfixExpr = do
                   , DPos.file = file_name
                   }
               -- Reconstruct operator identifier as an expression
-              op_expr = AST.ExprTermVar (AST.getPosition op) op
+              op_expr = ExprVar (AST.getPosition op) op
           in  -- now apply op_expr to the lhs
-              AST.ExprApp pos op_expr lhs
+              ExprApp pos op_expr lhs
     return (first_app, rhs)
   -- just apply first_app to rhs.
-  return $ AST.ExprApp pos first_app rhs
+  return $ ExprApp pos first_app rhs
 
 -- | Parse an expression variable, in non infix notation.
-parseExprVar :: Parser AST.Expr
-parseExprVar = do
+parseExprVar :: Parser MPos.Pos -> Parser AST.Expr
+parseExprVar indentCheck = do
   -- must be indented
-  _ <- indented
+  _ <- indentCheck
   -- Parse the identifier
-  ident <- parseNonInfixTermIdentifier
+  ident <- parseNonInfixTermIdentifier indentCheck
   -- they can share annotations
   let pos = AST.getPosition ident
-  return $ AST.ExprTermVar pos ident
+  return $ ExprVar pos ident
 
 -- | Parses an application expression in non infix notation.
-parseExprApp :: Parser AST.Expr
-parseExprApp = do
+parseExprApp :: Parser MPos.Pos -> Parser AST.Expr
+parseExprApp indent_check = do
   -- Essentially, an expression application is a list of atom expressions.
   -- Each expression must be indented
-  (x : xs) <- indentedWhiteSpaceConsumingSome parseParenExpr
+  (x :| xs) <- someI indent_check (parseParenExpr indent_check)
   -- Fold the list as an application.
   return $ foldl' folder x xs
   where
@@ -128,39 +132,79 @@ parseExprApp = do
               , DPos.file = file_name
               }
       in  -- make the app.
-          AST.ExprApp new_pos t t'
+          ExprApp new_pos t t'
 
--- | Parses an integer literal
-parseIntLit :: Parser AST.Expr
-parseIntLit = do
-  _ <- indented
+-- | Parses an integer literal expression, such as @42@ or @0@.
+parseIntLit :: Parser MPos.Pos -> Parser AST.Expr
+parseIntLit indent_check = do
+  _ <- indent_check
   (pos, n) <- parsePositioned parseRawInteger
-  return $ AST.ExprIntLit pos n
+  return $ ExprIntLit pos n
 
--- | Parses a string literal
-parseStringLit :: Parser AST.Expr
-parseStringLit = do
-  _ <- indented
+-- | Parses a string literal expression, such as @"hello"@ or @""@.
+parseStringLit :: Parser MPos.Pos -> Parser AST.Expr
+parseStringLit indent_check = do
+  _ <- indent_check
   (pos, str) <- parsePositioned parseRawString
-  return $ AST.ExprStrLit pos str
+  return $ ExprStrLit pos str
+
+-- | Parses a unit literal, i.e., @()@.
+parseUnitLit :: Parser MPos.Pos -> Parser AST.Expr
+parseUnitLit indent_check = do
+  _ <- indent_check
+  (pos, _) <- parsePositioned $ betweenParentheses indent_check (return ())
+  return $ ExprUnit pos
+
+-- | Parses a tuple literal, such as @(e1, e2, e3)@. Note that @(e)@ is not a
+-- tuple literal, but just @e@ enclosed in parentheses.
+parseTupleLit :: Parser MPos.Pos -> Parser AST.Expr
+parseTupleLit indent_check = do
+  _ <- indent_check
+  (pos, (e, exprs)) <-
+    parsePositioned $
+      betweenParentheses
+        indent_check
+        (commaSepBy2 indent_check (parseAnyExpr indent_check))
+  return $ ExprTuple pos e exprs
+
+-- | Parses a list literal, such as @[e1, e2, e3]@. Note that @[]@ is the empty
+-- list literal.
+parseListLit :: Parser MPos.Pos -> Parser AST.Expr
+parseListLit indent_check = do
+  _ <- indent_check
+  (pos, exprs) <-
+    parsePositioned $
+      betweenSquareBrackets
+        indent_check
+        (commaSepBy indent_check (parseAnyExpr indent_check))
+  return $ ExprList pos exprs
+
+parseAnyExpr :: Parser MPos.Pos -> Parser AST.Expr
+parseAnyExpr indent_check =
+  P.try (parseNestedInfixExpr indent_check)
+    <|> parseExprApp indent_check
 
 -- | Parses an atomic (parenthesized) expression
-parseParenExpr :: Parser AST.Expr
-parseParenExpr =
+parseParenExpr :: Parser MPos.Pos -> Parser AST.Expr
+parseParenExpr indent_check =
   P.try f
-    <|> P.try parseExprVar
-    <|> P.try parseIntLit
-    <|> parseStringLit
+    <|> P.try (parseUnitLit indent_check)
+    <|> P.try (parseTupleLit indent_check)
+    <|> P.try (parseListLit indent_check)
+    <|> P.try (parseExprVar indent_check)
+    <|> P.try (parseIntLit indent_check)
+    <|> parseStringLit indent_check
   where
     f = do
       _ <- indented
-      (pos, t) <- parsePositioned $ betweenParentheses (P.try parseNestedInfixExpr <|> parseExprApp)
+      (pos, t) <- parsePositioned $ betweenParentheses indent_check item
       return $ AST.setPosition pos t
+    item = P.try (parseNestedInfixExpr indent_check) <|> parseExprApp indent_check
 
 -- | Parses an infix 'ASTExpr' that is part of a larger expression, i.e.,
 -- is enclosed in parentheses.
-parseNestedInfixExpr :: Parser AST.Expr
-parseNestedInfixExpr = do
+parseNestedInfixExpr :: Parser MPos.Pos -> Parser AST.Expr
+parseNestedInfixExpr indent_check = do
   (pos, (first_app, rhs)) <- parsePositioned $ do
     -- This thing you see write here (this do-block) consumes the infix expr
     -- e op e' and return (op e, e'). The reason for this is so that wrapping
@@ -169,12 +213,12 @@ parseNestedInfixExpr = do
 
     -- every step of the way, we check that the expression is not at the
     -- top-level. intermediate parses are wrapped with 'l'.
-    _ <- indented
-    lhs <- l parseParenExpr
-    _ <- indented
-    op <- l parseInfixTermIdentifier
-    _ <- indented
-    rhs <- parseParenExpr
+    _ <- indent_check
+    lhs <- l (parseParenExpr indent_check)
+    _ <- indent_check
+    op <- l $ parseInfixTermIdentifier indent_check
+    _ <- indent_check
+    rhs <- parseParenExpr indent_check
     -- Apply op to lhs.
     let first_app :: AST.Expr =
           -- calculate the stupid annotation. since lhs comes before op, we use
@@ -192,9 +236,9 @@ parseNestedInfixExpr = do
                   , DPos.file = file_name
                   }
               -- Reconstruct operator identifier as an expression
-              op_expr = AST.ExprTermVar (AST.getPosition op) op
+              op_expr = ExprVar (AST.getPosition op) op
           in  -- now apply op_expr to the lhs
-              AST.ExprApp pos op_expr lhs
+              ExprApp pos op_expr lhs
     return (first_app, rhs)
   -- just apply first_app to rhs.
-  return $ AST.ExprApp pos first_app rhs
+  return $ ExprApp pos first_app rhs

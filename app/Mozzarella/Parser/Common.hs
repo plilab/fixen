@@ -15,21 +15,30 @@
 module Mozzarella.Parser.Common (
   Parser,
   commaSepBy1,
+  commaSepBy1',
+  commaSepBy2,
+  commaSepBy2',
   commaSepBy,
+  commaSepBy',
   indented,
-  comma,
+  indentedByMoreThan,
+  indentedByExactly,
   sc,
   l,
   parsePositioned,
   betweenParentheses,
-  indentedWhiteSpaceConsumingMany,
-  indentedWhiteSpaceConsumingSome,
+  betweenSquareBrackets,
+  manyI,
+  manyI',
+  someI,
+  someI',
 ) where
 
 import Data.Text (Text)
 import Data.Void (Void)
 
 -- import Control.Applicative.Combinators
+import Data.List.NonEmpty
 import Error.Diagnose qualified as Diag
 import Error.Diagnose.Compat.Megaparsec (HasHints (..))
 import Text.Megaparsec qualified as P
@@ -41,48 +50,71 @@ import Text.Megaparsec.Pos qualified as MPos
 type Parser = P.Parsec Void Text
 
 -- | Parses some (one or more) items, separated by the comma @,@. Commas
--- are 'indented'.
-commaSepBy1 :: Parser a -> Parser [a]
-commaSepBy1 p = do
-  _ <- indented
+-- are indented by some customizable indentation level.
+commaSepBy1
+  :: Parser MPos.Pos
+  -- ^ The parser that checks the indentation level
+  -> Parser a
+  -- ^ The parser for the items
+  -> Parser (NonEmpty a)
+commaSepBy1 indent_check p = do
+  _ <- indent_check
   e <- p
-  ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
-  return $ e : ls
+  ls <- manyI indent_check (l (P.single ',') *> p)
+  return $ e :| ls
 
--- P.sepBy1 p comma
+-- | Parses two or more items, separated by the comma @,@. Commas
+-- are indented by some customizable indentation level.
+commaSepBy2
+  :: Parser MPos.Pos
+  -- ^ The parser that checks the indentation level
+  -> Parser a
+  -- ^ The parser for the items
+  -> Parser (a, NonEmpty a)
+commaSepBy2 indent_check p = do
+  _ <- indent_check
+  e <- p
+  _ <- indent_check
+  _ <- P.single ','
+  _ <- indent_check
+  e' <- p
+  ls <- manyI indent_check (l (P.single ',') *> p)
+  return (e, e' :| ls)
+
+-- | Parses two or more items, separated by the comma @,@. Commas are 'indented'.
+commaSepBy2' :: Parser a -> Parser (a, NonEmpty a)
+commaSepBy2' = commaSepBy2 indented
+
+-- | Parses some (one or more) items, separated by the comma @,@. Commas
+-- are 'indented'.
+commaSepBy1' :: Parser a -> Parser (NonEmpty a)
+commaSepBy1' = commaSepBy1 indented
 
 -- | Parses many (zero or more) items, separated by the comma @,@. Commas
 -- are 'indented'.
-commaSepBy :: Parser a -> Parser [a]
-commaSepBy p = do
+commaSepBy :: Parser MPos.Pos -> Parser a -> Parser [a]
+commaSepBy indent_check p = do
   x <- P.observing $ P.try $ do
     _ <- sc
-    _ <- indented
+    _ <- indent_check
     p
   case x of
     Left _ -> return []
     Right e -> do
-      (:) e <$> commaSepByCommaFirst p
+      (:) e <$> commaSepByCommaFirst indent_check p
 
--- -- try the comma
--- com <- P.observing $ P.try $ indented *> P.single ','
--- case com of
---   Left _ -> return [e]
---   Right _ ->
--- ls <- indentedWhiteSpaceConsumingMany (l (P.single ',') *> p)
--- return $ e : ls
+commaSepBy' :: Parser a -> Parser [a]
+commaSepBy' = commaSepBy indented
 
-commaSepByCommaFirst :: Parser a -> Parser [a]
-commaSepByCommaFirst p = do
-  com <- P.observing $ P.try $ indented *> l (P.single ',')
+commaSepByCommaFirst :: Parser MPos.Pos -> Parser a -> Parser [a]
+commaSepByCommaFirst indent_check p = do
+  com <- P.observing $ P.try $ indent_check *> l (P.single ',')
   case com of
     Left _ -> return []
     Right _ -> do
       e <- p
-      ls <- commaSepByCommaFirst p
+      ls <- commaSepByCommaFirst indent_check p
       return $ e : ls
-
--- P.sepBy p comma
 
 -- | A clause to ensure that the current token is indented by at least one
 -- character. The key observation is that everything except the top-level
@@ -90,40 +122,69 @@ commaSepByCommaFirst p = do
 -- look weird and the parser has no idea whether a wrongly declared top-level
 -- declaration is part of the previous top-level declaration or not.
 indented :: Parser MPos.Pos
-indented = L.indentGuard sc GT (MPos.mkPos 1)
+indented = indentedByMoreThan (MPos.mkPos 1)
 
--- | The parser for an 'indented' comma @,@.
-comma :: Parser Char
-comma = indented *> l (P.single ',')
+-- | A clause to ensure that the current token is indented by some amount.
+-- This is mainly used for parsing priority declarations where multiple
+-- orders can be declared. In those cases, we want to ensure that within
+-- each order declaration, the tokens are indented by more than the
+-- indentation of the order declaration itself.
+indentedByMoreThan :: MPos.Pos -> Parser MPos.Pos
+indentedByMoreThan = L.indentGuard sc GT
+
+-- | A clause to ensure that the current token is indented by some amount.
+-- This is mainly used for parsing priority declarations where multiple
+-- orders can be declared. In those cases, we want to ensure that within
+-- each order declaration, the tokens are indented by more than the
+-- indentation of the order declaration itself.
+indentedByExactly :: MPos.Pos -> Parser MPos.Pos
+indentedByExactly = L.indentGuard sc EQ
 
 -- | Given a parser @p@, runs @p@ as many times as possible and returns
 -- all the results. Indentation checks for @p@ will be performed.
 -- All but the last parse of @p@ will consume whitespace after.
-indentedWhiteSpaceConsumingMany :: Parser a -> Parser [a]
-indentedWhiteSpaceConsumingMany p = do
-  -- by convention, the moment this function is ever called,
-  -- there should be no more white space ahead. Thus, we can call
-  -- sc so that recursive calls can eat up the white space before the
-  -- next parse.
-  m <- P.observing (P.try $ indented *> p)
-  -- result <- P.observing (P.try $ sc *> indented *> p)
+manyI
+  :: Parser MPos.Pos
+  -- ^ The parser that checks the indentation level
+  -> Parser a
+  -- ^ The parser for the items
+  -> Parser [a]
+manyI indent_check p = do
+  m <- P.observing (P.try $ indent_check *> p)
   case m of
     Left _ -> return []
-    Right e -> (:) e <$> indentedWhiteSpaceConsumingMany p
-
--- case result of
---   Left _ -> return []
---   Right e -> (:) e <$> indentedWhiteSpaceConsumingMany p
+    Right e -> (:) e <$> manyI indent_check p
 
 -- | Given a parser @p@, runs @p@ at least once and returns
+-- all the results. The items are 'indented'. All but the last parse of @p@ will
+-- consume whitespace after.
+manyI'
+  :: Parser a
+  -- ^ The parser for the items
+  -> Parser [a]
+manyI' = manyI indented
+
+-- | Given a parser @p@, runs @p@ as at least once and as many times as possible and returns
 -- all the results. Indentation checks for @p@ will be performed.
 -- All but the last parse of @p@ will consume whitespace after.
-indentedWhiteSpaceConsumingSome :: Parser a -> Parser [a]
-indentedWhiteSpaceConsumingSome p = do
-  _ <- sc
-  _ <- indented
+someI
+  :: Parser MPos.Pos
+  -- ^ The parser that checks the indentation level
+  -> Parser a
+  -- ^ The parser for the items
+  -> Parser (NonEmpty a)
+someI indent_check p = do
+  _ <- indent_check
   e <- p
-  (:) e <$> indentedWhiteSpaceConsumingMany p
+  (:|) e <$> manyI indent_check p
+
+-- | Given a parser @p@, runs @p@ at least once and returns all the results. The items
+-- are 'indented'. All but the last parse of @p@ will consume whitespace after.
+someI'
+  :: Parser a
+  -- ^ The parser for the items
+  -> Parser (NonEmpty a)
+someI' = someI indented
 
 -- | The space consumer. Double dashes @--@ are single-line comment indicators,
 -- and block comments are opened and closed with @/-@ and @-/@ respectively.
@@ -173,5 +234,9 @@ parsePositioned p = do
             }
 
 -- | Parses using a parser that is between parentheses @(@ and @)@
-betweenParentheses :: Parser a -> Parser a
-betweenParentheses = P.between (L.symbol sc "(") (sc >> ")")
+betweenParentheses :: Parser MPos.Pos -> Parser a -> Parser a
+betweenParentheses indent_check = P.between (L.symbol sc "(") (indent_check >> ")")
+
+-- | Parses using a parser that is between square brackets @[@ and @]@
+betweenSquareBrackets :: Parser MPos.Pos -> Parser a -> Parser a
+betweenSquareBrackets indent_check = P.between (L.symbol sc "[") (indent_check >> "]")

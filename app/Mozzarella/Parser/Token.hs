@@ -24,22 +24,23 @@ module Mozzarella.Parser.Token (
 
   -- * Identifier parsers
   -- $id
-
-  -- ** Non-infix identifiers
-  parseLowerFirstIdentifier,
+  parseLowerFirstSimpleIdentifier,
+  parseCapitalizedSimpleIdentifier,
   parseCapitalizedIdentifier,
+  parseAnyCasedLetterSimpleIdentifier,
+  parseAnyCasedLetterFQN,
   parseAnyCasedLetterIdentifier,
-  parseNonInfixOpIdentifier,
-  parseNonInfixTermIdentifier,
-
-  -- ** Infix identifier
-  parseInfixAnyCasedLetterIdentifier,
-  parseInfixOperatorIdentifier,
+  parseOpSimpleIdentifier,
+  parseOpFQN,
+  parseOpIdentifier,
   parseInfixTermIdentifier,
+  parseNonInfixTermIdentifier,
+  parseNonInfixOpIdentifier,
 
   -- * Literals
   parseRawString,
   parseRawInteger,
+  parseRawNatural,
 
   -- * Miscellaneous
   opChars,
@@ -56,16 +57,20 @@ import Control.Applicative.Combinators (
   some,
   (<|>),
  )
+import Control.Monad.Combinators.NonEmpty qualified as PNE
+import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
+import Error.Diagnose.Position
+import GHC.Natural (Natural)
 import Mozzarella.IR.AST qualified as AST
-
--- import Mozzarella.IR.Core ((:<:) (..))
+import Mozzarella.IR.Core qualified as Core
 import Mozzarella.Parser.Common
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
+import Text.Megaparsec.Pos qualified as MPos
 
 -------------------------------------------------------------------------------
 --
@@ -75,8 +80,7 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 
 -- $raw
 -- The @parseRaw...@ parsers are the lowest-level parsers that directly parse
--- the text and produce unannotated base types. The raw parsers __do not__
--- __consume whitespace__ after the token.
+-- the text and produce unannotated base types.
 
 -- | Parses strings whose first character is a lowercase letter or an
 -- underscore (@_@), and the remaining characters are valid in a Haskell
@@ -182,82 +186,182 @@ parseRawOpIdentifierString = do
 -- can be used without parentheses in infix, while identifiers must be
 -- surrounded by backticks.
 
+-- | Parses a module name, which is a series of capitalized identifiers separated
+-- by dots. For example, @Data.List@ or @MyCompany.MyProject.MyModule@.
+parseModuleName :: Parser AST.ModuleName
+parseModuleName = do
+  (pos, ls) <- parsePositioned (PNE.sepBy1 parseCapitalizedSimpleIdentifier (P.single '.'))
+  return $ Core.ModuleName pos ls
+
 -- | The parser 'parseRawLowerHsIdentifierString' but wrapped as an
--- 'ASTAnnotatedString'. These are non-constructor variables that are __not__
+-- 'AST.SimpleIdentifier'. These are non-constructor variables that are __not__
 -- used in infix form.
-parseLowerFirstIdentifier :: Parser AST.TermLetterIdentifier
-parseLowerFirstIdentifier = do
+parseLowerFirstSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifier = do
   (pos, str) <- parsePositioned parseRawLowerHsIdentifierString
-  return $ AST.TermLetterIdentifier pos str
+  return $ Core.SimpleIdentifier pos str
+
+-- | Parses a fully qualified name whose first identifier starts with a lowercase
+-- letter. For example, @Data.List.map@ or @MyModule.myFunction@.
+parseLowerFirstFQN :: Parser AST.FullyQualifiedName
+parseLowerFirstFQN = do
+  (pos, (module_name, ident)) <- parsePositioned $ do
+    module_name <- parseModuleName
+    _ <- P.single '.'
+    ident <- parseLowerFirstSimpleIdentifier
+    return (module_name, ident)
+  return $ Core.FullyQualifiedName pos module_name ident
 
 -- | The parser 'parseRawCapitalizedHsIdentifierString' but wrapped as an
--- 'ASTAnnotatedString'. These are non-constructor variables that are __not__
+-- 'AST.SimpleIdentifier'. These are non-constructor variables that are __not__
 -- used in infix form.
-parseCapitalizedIdentifier :: Parser AST.TypeLetterIdentifier
-parseCapitalizedIdentifier = do
+parseCapitalizedSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseCapitalizedSimpleIdentifier = do
   (pos, str) <- parsePositioned parseRawCapitalizedHsIdentifierString
-  return $ AST.TypeLetterIdentifier pos str
+  return $ Core.SimpleIdentifier pos str
+
+-- | Parses a fully qualified name whose first identifier starts with a capital
+-- letter. For example, @Data.List@ or @MyModule.MyType@.
+parseCapitalizedFQN :: Parser AST.FullyQualifiedName
+parseCapitalizedFQN = do
+  -- Get the offset for throwing errors
+  offset_start <- P.getOffset
+  -- parse a series of capitalized identifiers separated by dots
+  ls <- P.sepBy1 parseCapitalizedSimpleIdentifier (P.single '.')
+  case ls of
+    -- must have at least two identifiers to be a FQN
+    (x : x' : ls') -> do
+      let -- first_ident is the first ident, remaining_idents is a non-empty
+          -- list of the rest. remaining_idents is guaranteed to be
+          -- non-empty because of the pattern match above
+          (first_ident, remaining_idents) = (x, x' NE.:| ls')
+          -- mod_name is the module name, which is all but the last ident
+          mod_name = first_ident NE.:| NE.init remaining_idents
+          -- name is the actual name, which is the last ident
+          name = NE.last remaining_idents
+          -- m_pos is the position of the module name, which spans from the
+          -- start of the first ident, to the end of the last ident in
+          -- the module name
+          m_init_pos = AST.getPosition first_ident
+          m_last_pos = AST.getPosition (NE.last mod_name)
+          m_pos =
+            Position
+              { begin = begin m_init_pos
+              , end = end m_last_pos
+              , file = file m_init_pos
+              }
+          -- name_pos is the position of the name
+          name_pos = AST.getPosition name
+          -- fqn_pos is the positiong of the whole FQN, which spans from the
+          -- start of the first ident to the end of the name
+          fqn_pos =
+            Position
+              { begin = begin m_init_pos
+              , end = end name_pos
+              , file = file m_init_pos
+              }
+      return $ Core.FullyQualifiedName fqn_pos (Core.ModuleName m_pos mod_name) name
+    _ ->
+      P.parseError
+        ( P.FancyError
+            offset_start
+            ( Set.singleton
+                (ErrorFail "expected module name")
+            )
+        )
+
+-- | Parses either a capitalized fully qualified name like @Data.List@ or a
+-- capitalized simple identifier like @Just@.
+parseCapitalizedIdentifier :: Parser AST.Identifier
+parseCapitalizedIdentifier =
+  (Core.IdentifierFullyQualifiedName <$> P.try parseCapitalizedFQN)
+    <|> (Core.IdentifierSimpleIdentifier <$> parseCapitalizedSimpleIdentifier)
 
 -- | The parser 'parseRawAnyCaseHsIdentifierString' but wrapped as an
--- 'ASTAnnotatedString'. These are essentially normal terms or constructors
+-- 'AST.SimpleIdentifier'. These are essentially normal terms or constructors
 -- that are __not__ used in infix.
-parseAnyCasedLetterIdentifier :: Parser AST.TermLetterIdentifier
-parseAnyCasedLetterIdentifier = do
+parseAnyCasedLetterSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseAnyCasedLetterSimpleIdentifier = do
   (pos, str) <- parsePositioned parseRawAnyCaseHsIdentifierString
-  return $ AST.TermLetterIdentifier pos str
+  return $ Core.SimpleIdentifier pos str
 
--- | Parses operators that are __not used in infix notation__. This means that
--- they are surrounded with parentheses. The annotated source positions include
--- the parentheses. For example, @(++)@ or @(*)@, but not @/=@.
-parseNonInfixOpIdentifier :: Parser AST.OpIdentifier
-parseNonInfixOpIdentifier = do
-  (pos, str) <-
-    parsePositioned
-      ( P.single
-          '('
-          *> parseRawOpIdentifierString
-          <* P.single ')'
-      )
-  return $ AST.OpIdentifier pos str
+-- | Parses either a fully qualified name whose first letter is lowercase like
+-- @Data.List.map@ or a capitalized fully qualified name like @Data.List@.
+parseAnyCasedLetterFQN :: Parser AST.FullyQualifiedName
+parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 
--- | Parses a term-level non-infix identifer. These are:
---
---   1. First-letter lowercase terms like @myFunction@
---   2. Capitalized letter terms like constructors, e.g. @Just@
---   3. Parenthesizes operators like @(++)@
-parseNonInfixTermIdentifier :: Parser AST.TermIdentifier
-parseNonInfixTermIdentifier =
-  (AST.TermIdentifierAlpha <$> P.try parseAnyCasedLetterIdentifier)
-    <|> (AST.TermIdentifierOp <$> parseNonInfixOpIdentifier)
+-- | Parses either a fully qualified name like @Data.List@ or a simple
+-- identifier like @Just@ or @myFunction@. These are essentially normal
+-- terms or constructors that are __not__ used in infix.
+parseAnyCasedLetterIdentifier :: Parser AST.Identifier
+parseAnyCasedLetterIdentifier =
+  (Core.IdentifierFullyQualifiedName <$> P.try parseAnyCasedLetterFQN)
+    <|> (Core.IdentifierSimpleIdentifier <$> parseAnyCasedLetterSimpleIdentifier)
 
--- | Parses a term-level infix letter-based identifier. These are essentially
--- variables or constructors that are used in infix position. For example,
--- @`elem`@ and @`notElem`@. Note that the annotated source positions include
--- the backticks.
-parseInfixAnyCasedLetterIdentifier :: Parser AST.TermLetterIdentifier
-parseInfixAnyCasedLetterIdentifier = do
-  (pos, str) <- parsePositioned $ do
-    _ <- P.single '`'
-    str <- parseRawAnyCaseHsIdentifierString
-    _ <- P.single '`'
-    return str
-  return $ AST.TermLetterIdentifier pos str
-
--- | Parses an operator identifier used in infix notation. Essentially the
--- parser 'parseRawOpIdentifierString' annotated with source positions.
-parseInfixOperatorIdentifier :: Parser AST.OpIdentifier
-parseInfixOperatorIdentifier = do
+-- | Parses a simple operator identifier, which is a string of operator
+-- characters.
+parseOpSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseOpSimpleIdentifier = do
   (pos, str) <- parsePositioned parseRawOpIdentifierString
-  return $ AST.OpIdentifier pos str
+  return $ Core.SimpleIdentifier pos str
+
+-- | Parses a fully qualified operator name, e.g. @Data.List.++@.
+parseOpFQN :: Parser AST.FullyQualifiedName
+parseOpFQN = do
+  (pos, (module_name, ident)) <- parsePositioned $ do
+    module_name <- parseModuleName
+    _ <- P.single '.'
+    ident <- parseOpSimpleIdentifier
+    return (module_name, ident)
+  return $ Core.FullyQualifiedName pos module_name ident
+
+-- | Parses either a fully qualified operator name like @Data.List.++@ or a
+-- simple operator identifier like @++@.
+parseOpIdentifier :: Parser AST.Identifier
+parseOpIdentifier =
+  (Core.IdentifierFullyQualifiedName <$> P.try parseOpFQN)
+    <|> (Core.IdentifierSimpleIdentifier <$> parseOpSimpleIdentifier)
 
 -- | Parses a term-level non-infix identifer. These are:
 --
 --   1. Letter-based terms with backticks like @`elem`@ or @`Just`@
 --   2. Operators like @++@ or @<=@
-parseInfixTermIdentifier :: Parser AST.TermIdentifier
-parseInfixTermIdentifier =
-  (AST.TermIdentifierOp <$> P.try parseInfixOperatorIdentifier)
-    <|> (AST.TermIdentifierAlpha <$> parseInfixAnyCasedLetterIdentifier)
+parseInfixTermIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseInfixTermIdentifier indent_check = P.try (parseInfixLetterIdentifier indent_check) <|> parseOpIdentifier
+
+-- | Parses a term-level infix letter-based identifier. These are essentially
+-- variables or constructors that are used in infix position. For example,
+-- @`elem`@ and @`notElem`@. Note that the annotated source positions do not
+-- include the backticks.
+parseInfixLetterIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseInfixLetterIdentifier indentCheck = do
+  _ <- P.single '`'
+  _ <- indentCheck
+  ident <- parseAnyCasedLetterIdentifier
+  _ <- indentCheck
+  _ <- P.single '`'
+  return ident
+
+-- | Parses a term-level non-infix identifier. These are:
+--
+--    1. First-letter lowercase terms like @myFunction@ or @MyModule.var@
+--    2. Capitalized letter terms like constructors, e.g. @Just@ or @Data.Maybe.Just@
+--    3. Parenthesized operators like @(++)@ or @(Data.List.++)@
+--
+--  The parser takes an indentation checker as an argument, which is used to
+--  ensure that the operator is indented correctly.
+parseNonInfixTermIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseNonInfixTermIdentifier indent_check =
+  P.try parseAnyCasedLetterIdentifier
+    <|> parseNonInfixOpIdentifier indent_check
+
+-- | Parses an operator identifier used in non-infix notation. Essentially the
+-- parser 'parseOpIdentifier' wrapped in parentheses. The parser takes an
+-- indentation checker as an argument, which is used to ensure that the operator
+-- is indented correctly.
+parseNonInfixOpIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseNonInfixOpIdentifier indent_check = do
+  betweenParentheses indent_check (indent_check >> parseOpIdentifier)
 
 -------------------------------------------------------------------------------
 --
@@ -275,6 +379,10 @@ parseRawString =
 -- | Parses a (signed) integer literal.
 parseRawInteger :: Parser Integer
 parseRawInteger = L.signed sc L.decimal
+
+-- | Parses a natural literal.
+parseRawNatural :: Parser Natural
+parseRawNatural = L.decimal
 
 -------------------------------------------------------------------------------
 --

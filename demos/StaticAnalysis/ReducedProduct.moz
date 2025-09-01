@@ -1,0 +1,21 @@
+generate StaticAnalysis.ReducedProduct
+  * except assignStepI evalCondTI evalCondFI
+
+use Common
+use Parity
+use Interval 
+
+{
+reducedExchange :: StateI -> StateP -> StateI
+reducedExchange = undefined -- ...
+}
+
+extern reducedExchange
+
+rule reducedExchange :
+  (assignStepI, evalCondTI, evalCondFI) 
+    { .. |- StateBeforeI l st }
+  , StateBeforeP l st'
+  -----------------------------
+  |- StateBeforeI l (reducedExchange st st')
+
