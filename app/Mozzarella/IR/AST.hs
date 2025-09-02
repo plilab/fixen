@@ -37,7 +37,7 @@ type Condition = Core.Condition Position Expr
 type PrecomposedRule =
   Core.PrecomposedRule
     Position
-    [SimpleIdentifier]
+    (NonEmpty SimpleIdentifier)
     Assumption
 type Conclusion = Core.Fact Position SimpleIdentifier [Expr]
 type Rule =

@@ -253,7 +253,8 @@ parsePremise :: Parser RulePremise
 -- parseAssumption. This is because the first token of each branch are
 -- obviously distinct, and once one matches, we should commit to it.
 parsePremise =
-  RPAssumption <$> P.try parseAssumption
+  RPPrecomposed <$> parsePrecomposedRule
+    <|> RPAssumption <$> parseAssumption
     <|> RPCondition <$> parseCondition
 
 -- | Parses the 'AST.Conclusion' of a rule.
@@ -297,3 +298,26 @@ parseCondition = do
         *> indented
         *> parseExpr indented
   return $ Condition pos e
+
+parsePrecomposedRule :: Parser AST.PrecomposedRule
+parsePrecomposedRule = do
+  (pos, (rule_names, concl)) <- parsePositioned $ do
+    -- parse the rule names. once the rule names have been successfully parsed,
+    -- we commit to this parse.
+    rule_names <- indented *> parseRuleNames
+    _ <-
+      indented
+        *> P.single '{'
+        *> indented
+        *> keywordOp ".."
+        *> indented
+        *> turnstile
+    conc <- indented *> parseAssumption
+    _ <- indented *> P.single '}'
+    return (rule_names, conc)
+  return $ PrecomposedRule pos rule_names concl
+  where
+    parseRuleNames :: Parser (NonEmpty AST.SimpleIdentifier)
+    parseRuleNames =
+      P.try (betweenParentheses indented $ commaSepBy1' parseLowerFirstSimpleIdentifier)
+        <|> P.try (fmap (:| []) parseLowerFirstSimpleIdentifier)
