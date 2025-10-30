@@ -17,14 +17,14 @@ import Control.Monad (when)
 import Data.List
 import Data.Version (Version (versionBranch))
 import Options.Applicative -- See: optparse-applicative package
-import Paths_mozzarella qualified as PM
+import Paths_fixen qualified as PM
 import System.Exit (ExitCode (..), exitWith)
 import System.FilePath
 import System.IO (hPutStrLn, stderr)
 
 -- | This function obtains the command line arguments from the user. Currently,
 -- the program only accepts two arguments, the output Haskell file (with -o or
--- --output) and the input Mozzarella file (positional argument). The file
+-- --output) and the input Fixen file (positional argument). The file
 -- extensions are validated via 'validateOutFileExtension' and
 -- 'validateInFileExtension'. See Note: [Validating file extensions].
 getCommandLineArgs :: IO CommandLineArgs
@@ -65,7 +65,7 @@ getCommandLineArgs = do
         <*> argument
           str
           ( metavar "FILENAME"
-              <> help "The input Mozzarella source file"
+              <> help "The input Fixen source file"
           )
         <*> fmap
           not
@@ -113,7 +113,7 @@ validateOutFileExtension out_file =
     exitWith (ExitFailure 2)
 
 -- | Validates that the out file path has a file extensions that matches what we
--- are expecting, which are Mozzarella source files. The program exits with an
+-- are expecting, which are Fixen source files. The program exits with an
 -- error message when the file extension is incorrect.
 validateInFileExtension :: InFilePath -> IO ()
 validateInFileExtension in_file =
@@ -123,7 +123,7 @@ validateInFileExtension in_file =
         ++ in_file
         ++ "\n                           "
         ++ replicate (length in_file) '^'
-        ++ "\n  in file must be Mozzarella source file with .moz extension"
+        ++ "\n  in file must be Fixen source file with .moz extension"
     exitWith (ExitFailure 2)
 
 --------------------------------------------------------------------------------
@@ -138,7 +138,7 @@ validateInFileExtension in_file =
 
 -- | The program description that is displayed to the user in the help screen.
 mozProgramDescription :: String
-mozProgramDescription = "Generates Haskell source code from a Mozzarella program"
+mozProgramDescription = "Generates Haskell source code from a Fixen program"
 
 -- | The program header that is displayed to the user in the help screen.
 mozProgramHeader :: String

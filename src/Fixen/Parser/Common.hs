@@ -4,15 +4,15 @@
 -- Shut the orphan instance warning up because it's very annoying.
 
 -- |
---     Module      : Mozzarella.Parser.Common
---     Description : Common utilities for the Mozzarella parser
+--     Module      : Fixen.Parser.Common
+--     Description : Common utilities for the Fixen parser
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     Common utilities for the Mozzarella parser.
-module Mozzarella.Parser.Common (
+--     Common utilities for the Fixen parser.
+module Fixen.Parser.Common (
   Parser,
   commaSepBy1,
   commaSepBy1',

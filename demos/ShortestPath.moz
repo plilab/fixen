@@ -16,7 +16,7 @@ rel DistTo : Vertex, *Dist
 rel Edge : Vertex, Vertex, Dist
 
 rule addDist: 
-  DistTo a d, Edge a b d'
+  DistTo a d, Edge a b d', (a, b, c) { .. |- Edge d e }
   |- DistTo b (d + d')
 
 /-

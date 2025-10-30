@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
---     Module      : Mozzarella.Parser.Token
---     Description : Parsers for tokens in Mozzarella.
+--     Module      : Fixen.Parser.Token
+--     Description : Parsers for tokens in Fixen.
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     Parsers for tokens in Mozzarella.
-module Mozzarella.Parser.Token (
+--     Parsers for tokens in Fixen.
+module Fixen.Parser.Token (
   -- * Raw string parsers
   -- $raw
 
@@ -62,10 +62,10 @@ import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
 import Error.Diagnose.Position
+import Fixen.IR.AST qualified as AST
+import Fixen.IR.Core qualified as Core
+import Fixen.Parser.Common
 import GHC.Natural (Natural)
-import Mozzarella.IR.AST qualified as AST
-import Mozzarella.IR.Core qualified as Core
-import Mozzarella.Parser.Common
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L

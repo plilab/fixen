@@ -4,17 +4,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 -- |
---     Module      : Mozzarella.IR.Core
---     Description : Building blocks for Mozzarella intermediate representations
+--     Module      : Fixen.IR.Core
+--     Description : Building blocks for Fixen intermediate representations
 --                   (IRs)
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     Building blocks for intermediate representations for Mozzarella. This
+--     Building blocks for intermediate representations for Fixen. This
 --     module uses hardcore abstractions and data types a la carte.
-module Mozzarella.IR.Core (
+module Fixen.IR.Core (
   -- * Building blocks
   -- $buildingblocks
 
@@ -56,15 +56,15 @@ module Mozzarella.IR.Core (
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Typeable
+import Fixen.IR.Core.Annotations
 import GHC.TypeLits (KnownSymbol, Symbol)
-import Mozzarella.IR.Core.Annotations
 
 -------------------------------------------------------------------------------
 --
 -- Building blocks
 
 -- $buildingblocks
--- Here we define the basic building blocks of Mozzarella intermediate
+-- Here we define the basic building blocks of Fixen intermediate
 -- representations. The reason we want to do this is so that common patterns
 -- like annotated items, pairs and recursive types are captured all in the same
 -- type to be re-used and for common operations to be easily defined.
@@ -547,7 +547,7 @@ data HsImport α σ where
     -> HsImport ann imp
   deriving (Show, Eq)
 
--- | A @use@ statement for importing Mozzarella modules
+-- | A @use@ statement for importing Fixen modules
 data Use α μ β where
   Use
     :: forall ann mod contents

@@ -1,11 +1,11 @@
-module Mozzarella.BoundVarExplicitor where
+module Fixen.BoundVarExplicitor where
 
 -- import Data.Map.Strict qualified as Map
 -- import Data.Set qualified as Set
 -- import Data.Text
--- import Mozzarella.IR.AST qualified as AST
--- import Mozzarella.IR.ExplicitBoundVars as Explicit
--- import Mozzarella.IR.Sorted qualified as Sorted
+-- import Fixen.IR.AST qualified as AST
+-- import Fixen.IR.ExplicitBoundVars as Explicit
+-- import Fixen.IR.Sorted qualified as Sorted
 --
 -- makeBoundVarsExplicit :: Sorted.Program -> Explicit.Program
 -- makeBoundVarsExplicit Sorted.Program {Sorted.relations = relations, Sorted.rules = rules, Sorted.externs = externs} =

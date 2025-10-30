@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Mozzarella.Data.AlaCarte (
+module Fixen.Data.AlaCarte (
   -- ** Sums
   -- $sum
   (:+:),

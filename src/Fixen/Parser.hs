@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
---     Module      : Mozzarella.Parser
---     Description : Parser for Mozzarella programs
+--     Module      : Fixen.Parser
+--     Description : Parser for Fixen programs
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     This module defines the parser for Mozzarella programs.
-module Mozzarella.Parser (
+--     This module defines the parser for Fixen programs.
+module Fixen.Parser (
   -- * Parser
   parse,
   mozzarellaParse,
@@ -36,13 +36,13 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
 import Error.Diagnose.Report
-import Mozzarella.IR.AST qualified as AST
-import Mozzarella.IR.Core
-import Mozzarella.Monad
-import Mozzarella.Parser.Common
-import Mozzarella.Parser.Expr
-import Mozzarella.Parser.Token
-import Mozzarella.Parser.Type
+import Fixen.IR.AST qualified as AST
+import Fixen.IR.Core
+import Fixen.Monad
+import Fixen.Parser.Common
+import Fixen.Parser.Expr
+import Fixen.Parser.Token
+import Fixen.Parser.Type
 import Text.Megaparsec (eof)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -54,26 +54,26 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --
 --------------------------------------------------------------------------------
 
--- type MozzarellaParserM a = MozzarellaFailFastM MozzarellaErrors a
+-- type FixenParserM a = FixenFailFastM FixenErrors a
 
--- | Parses a Mozzarella program.
+-- | Parses a Fixen program.
 parse
   :: FilePath
   -- ^ The file path of the program
   -> Text
   -- ^ The contents of the file
-  -> MozzarellaPass MozzarellaErrors AST.Program
+  -> FixenPass FixenErrors AST.Program
 parse file_path contents = do
   top_levels <- mozzarellaParse parseProgram file_path contents
   partitionTopLevels top_levels
 
 --------------------------------------------------------------------------------
 --
--- Parsing in MozzarellaM
+-- Parsing in FixenM
 --
 --------------------------------------------------------------------------------
 
--- | Runs a parser in the 'MozzarellaM' monad
+-- | Runs a parser in the 'FixenM' monad
 mozzarellaParse
   :: Parser a
   -- ^ The 'Parser' to run
@@ -81,7 +81,7 @@ mozzarellaParse
   -- ^ The file path of the program
   -> Text
   -- ^ The contents of the file
-  -> MozzarellaPass MozzarellaErrors a
+  -> FixenPass FixenErrors a
 mozzarellaParse parser file_path contents = do
   let e = P.parse parser file_path contents
   case e of
@@ -110,7 +110,7 @@ parseAST =
 
 data TopLevel = TLExtern AST.Extern | TLRelation AST.Relation | TLRule AST.Rule
 
-partitionTopLevels :: [TopLevel] -> MozzarellaPass MozzarellaErrors AST.Program
+partitionTopLevels :: [TopLevel] -> FixenPass FixenErrors AST.Program
 partitionTopLevels [] =
   return
     AST.Program

@@ -4,7 +4,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeAbstractions #-}
 
-module Mozzarella.SymbolSolver where
+module Fixen.SymbolSolver where
 
 -- The symbol solver must perform two things:
 -- 1. Make sure every var is either locally bound or extern, not neither.
@@ -34,11 +34,11 @@ module Mozzarella.SymbolSolver where
 -- import Data.Text
 -- import Error.Diagnose.Position
 -- import Error.Diagnose.Report
--- import Mozzarella.Data.AlaCarte
--- import Mozzarella.IR.AST qualified as AST
--- import Mozzarella.IR.Core
--- import Mozzarella.IR.ExplicitBoundVars qualified as E
--- import Mozzarella.Monad
+-- import Fixen.Data.AlaCarte
+-- import Fixen.IR.AST qualified as AST
+-- import Fixen.IR.Core
+-- import Fixen.IR.ExplicitBoundVars qualified as E
+-- import Fixen.Monad
 -- import Control.Monad.IO.Class (MonadIO(liftIO))
 --
 -- type NameType = CoreItem "SymbolSolver.NameType" () Text
@@ -326,7 +326,7 @@ module Mozzarella.SymbolSolver where
 --     , "userError"
 --     ]
 --
--- solveSymbols :: E.Program -> MozzarellaPass MozzarellaErrors SymbolEnv
+-- solveSymbols :: E.Program -> FixenPass FixenErrors SymbolEnv
 -- solveSymbols pgm = do
 --   let env = SymbolEnv Map.empty Map.empty Map.empty
 --   -- do a name check on the explicitly declared stuff by the user.
@@ -344,15 +344,15 @@ module Mozzarella.SymbolSolver where
 --   rul_env <- walkRules rel_env extern_env rul_name_env Map.empty $ E.rules pgm
 --   return env {relations = rel_env, externs = extern_env, rules = rul_env}
 --
--- walkRules :: Map.Map Text RelationInfo -> Map.Map Text Position -> Map.Map Text E.Rule -> Map.Map Int RuleInfo -> [E.Rule] -> MozzarellaPass MozzarellaErrors (Map.Map Int RuleInfo)
+-- walkRules :: Map.Map Text RelationInfo -> Map.Map Text Position -> Map.Map Text E.Rule -> Map.Map Int RuleInfo -> [E.Rule] -> FixenPass FixenErrors (Map.Map Int RuleInfo)
 -- walkRules rel_env extern_env rule_name_env mp_ ls = go mp_ 0 ls
 --   where
---     go :: Map.Map Int RuleInfo -> Int -> [E.Rule] -> MozzarellaPass MozzarellaErrors (Map.Map Int RuleInfo)
+--     go :: Map.Map Int RuleInfo -> Int -> [E.Rule] -> FixenPass FixenErrors (Map.Map Int RuleInfo)
 --     go mp _ [] = return mp
 --     go mp n (rule : rules) = do
 --       rule' <- walkRule rule
 --       go (Map.insert n rule' mp) (n + 1) rules
---     walkRule :: E.Rule -> MozzarellaPass MozzarellaErrors RuleInfo
+--     walkRule :: E.Rule -> FixenPass FixenErrors RuleInfo
 --     walkRule (E.Rule _ _ (E.RuleBoundVars _ rule_bound_vars) premises conclusion) = do
 --       are_bound_vars_unique Map.empty rule_bound_vars
 --       are_bvs_rule_names premises rule_bound_vars
@@ -372,7 +372,7 @@ module Mozzarella.SymbolSolver where
 --           )
 --           t2
 --       return $ RuleInfo t3
---     isConclusionWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Conclusion -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+--     isConclusionWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Conclusion -> FixenPass FixenErrors (Map.Map Text (TypeLattice, Reason))
 --     isConclusionWellFormed bv_env ty_map (AST.Conclusion concl_pos (AST.TypeLetterIdentifier _ concl_name) (AST.ConclusionArguments _ args)) = do
 --       -- make sure name of conclusion is a relation
 --       -- TODO: If it's the name of a type, it would be good to say so.
@@ -404,9 +404,9 @@ module Mozzarella.SymbolSolver where
 --             ty_map
 --             (Prelude.zip args rel_args)
 --
---     arePremisesWellFormed :: Set.Set Text -> AST.RulePremises -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+--     arePremisesWellFormed :: Set.Set Text -> AST.RulePremises -> FixenPass FixenErrors (Map.Map Text (TypeLattice, Reason))
 --     arePremisesWellFormed bv_env (AST.RulePremises _ ls') = foldM (isPremiseWellFormed bv_env) Map.empty ls'
---     isPremiseWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Premise -> MozzarellaPass MozzarellaErrors (Map.Map Text (TypeLattice, Reason))
+--     isPremiseWellFormed :: Set.Set Text -> Map.Map Text (TypeLattice, Reason) -> AST.Premise -> FixenPass FixenErrors (Map.Map Text (TypeLattice, Reason))
 --     isPremiseWellFormed bv_env mp (AST.PremiseAssumption pos (AST.TypeLetterIdentifier _ t) (AST.AssumptionArguments _ args)) = do
 --       case Map.lookup t rel_env of
 --         Nothing -> do failR $ Err Nothing "relation not found" [(pos, This $ unpack t ++ " is not a declared relation")] []
@@ -443,7 +443,7 @@ module Mozzarella.SymbolSolver where
 --       walkExpr bv_env extern_env expr
 --       return mp
 --
---     are_bound_vars_unique :: Map.Map Text E.BoundVar -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+--     are_bound_vars_unique :: Map.Map Text E.BoundVar -> [E.BoundVar] -> FixenPass FixenErrors ()
 --     are_bound_vars_unique _ [] = return ()
 --     are_bound_vars_unique s (bv@(E.BoundVar bv_pos v) : bvs) = do
 --       case Map.lookup v s of
@@ -454,7 +454,7 @@ module Mozzarella.SymbolSolver where
 --             _ -> error "MOZZARELLA EXCEPTION: CANNOT BE THE CASE. TODO: CLEAN THIS UP!"
 --         Nothing ->
 --           are_bound_vars_unique (Map.insert v bv s) bvs
---     are_bvs_rule_names :: AST.RulePremises -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+--     are_bvs_rule_names :: AST.RulePremises -> [E.BoundVar] -> FixenPass FixenErrors ()
 --     are_bvs_rule_names _ [] = return ()
 --     are_bvs_rule_names premises (E.BoundVar bv_pos v : bvs) = do
 --       case Map.lookup v rule_name_env of
@@ -467,7 +467,7 @@ module Mozzarella.SymbolSolver where
 --
 --           failR $ Err Nothing "variable has same name as rule" notes []
 --         Nothing -> are_bvs_rule_names premises bvs
---     are_bvs_externs :: AST.RulePremises -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+--     are_bvs_externs :: AST.RulePremises -> [E.BoundVar] -> FixenPass FixenErrors ()
 --     are_bvs_externs _ [] = return ()
 --     are_bvs_externs premises (E.BoundVar bv_pos v : bvs) = do
 --       case Map.lookup v extern_env of
@@ -479,7 +479,7 @@ module Mozzarella.SymbolSolver where
 --                   in  (pos, Where $ "external symbol " ++ unpack v ++ " is imported") : ls'
 --           in  failR $ Err Nothing "variable has same name as external symbols" notes []
 --         Nothing -> are_bvs_externs premises bvs
---     are_bvs_unused :: AST.RulePremises -> AST.Conclusion -> [E.BoundVar] -> MozzarellaPass MozzarellaErrors ()
+--     are_bvs_unused :: AST.RulePremises -> AST.Conclusion -> [E.BoundVar] -> FixenPass FixenErrors ()
 --     are_bvs_unused premises concl bvs = do
 --       let used = Set.union (getAllVarsFromPremises premises) (getAllVarsFromConclusion concl)
 --       -- liftIO $ print used
@@ -495,7 +495,7 @@ module Mozzarella.SymbolSolver where
 --           Warn Nothing "unused variables" warns []
 --
 -- -- TODO: if its in the rule env it would be good to say so.
--- walkExpr :: Set.Set Text -> Map.Map Text Position -> AST.Expr -> MozzarellaPass MozzarellaErrors ()
+-- walkExpr :: Set.Set Text -> Map.Map Text Position -> AST.Expr -> FixenPass FixenErrors ()
 -- walkExpr bv_env extern_env (AST.ExprTermVar pos (AST.TermIdentifierAlpha (AST.TermLetterIdentifier _ v))) = do
 --   unless (Set.member v bv_env || Set.member v preludeTerms || Map.member v extern_env) $ do
 --     accumR $ Err Nothing "unknown variable" [(pos, This "not declared as rule bound variable or extern")] []
@@ -533,14 +533,14 @@ module Mozzarella.SymbolSolver where
 --           in  (pos, This $ "occurrences of " ++ unpack v)
 --         _ -> error "MOZZARELLA EXCEPTION: CANNOT BE THE CASE. WHEN WE ANNOTATE BOUND VARIABLES WITH OCCURRENCES (I.E. FORMING OUR OWN BOUND VAR LIST), THEY MUST COME FROM ASSUMPTIONS, NOT CONDITIONS!!!!!"
 --
--- walkRelations :: Map.Map Text AST.Relation -> Map.Map Text RelationInfo -> AST.Relation -> MozzarellaPass MozzarellaErrors (Map.Map Text RelationInfo)
+-- walkRelations :: Map.Map Text AST.Relation -> Map.Map Text RelationInfo -> AST.Relation -> FixenPass FixenErrors (Map.Map Text RelationInfo)
 -- walkRelations rel_name_env mp (AST.Relation pos (AST.TypeLetterIdentifier _ n) (AST.RelationSignature _ ls) _) = do
 --   -- make sure that types don't share names with relations!
 --   forM_ ls walkTypes
 --   let t = createRawType <$> ls
 --   return $ Map.insert n (RelationInfo t pos) mp
 --   where
---     walkTypes :: AST.Type -> MozzarellaPass MozzarellaErrors ()
+--     walkTypes :: AST.Type -> FixenPass FixenErrors ()
 --     walkTypes (AST.TypeVar posT (AST.TypeIdentifier _ nT)) =
 --       case Map.lookup nT rel_name_env of
 --         Just (AST.Relation rel_pos _ _ _) ->
@@ -556,7 +556,7 @@ module Mozzarella.SymbolSolver where
 -- createRawType' (AST.TypeVar _ (AST.TypeIdentifier _ n)) = NameType n
 -- createRawType' (AST.TypeApp _ t t') = ApplicationType (createRawType' t) (createRawType' t')
 --
--- foldCompletions :: Map.Map Text E.Rule -> Map.Map Text Position -> Maybe AST.Completion -> MozzarellaPass MozzarellaErrors (Map.Map Text Position)
+-- foldCompletions :: Map.Map Text E.Rule -> Map.Map Text Position -> Maybe AST.Completion -> FixenPass FixenErrors (Map.Map Text Position)
 -- foldCompletions _ mp2 Nothing = return mp2
 -- foldCompletions mp mp2 (Just (AST.Completion pos (AST.TermLetterIdentifier _ n))) = do
 --   case Map.lookup n mp of
@@ -575,7 +575,7 @@ module Mozzarella.SymbolSolver where
 --       Nothing -> return $ Map.insert n pos mp2
 --       Just _ -> return mp2
 --
--- foldExterns :: Map.Map Text E.Rule -> Map.Map Text Position -> AST.TermLetterIdentifier -> MozzarellaPass MozzarellaErrors (Map.Map Text Position)
+-- foldExterns :: Map.Map Text E.Rule -> Map.Map Text Position -> AST.TermLetterIdentifier -> FixenPass FixenErrors (Map.Map Text Position)
 -- foldExterns mp mp2 (AST.TermLetterIdentifier p n) = do
 --   case Map.lookup n mp of
 --     Just (CoreRule pos1 _ _ _ _) -> do
@@ -599,7 +599,7 @@ module Mozzarella.SymbolSolver where
 -- foldRelNames
 --   :: Map.Map Text AST.Relation
 --   -> AST.Relation
---   -> MozzarellaPass MozzarellaErrors (Map.Map Text AST.Relation)
+--   -> FixenPass FixenErrors (Map.Map Text AST.Relation)
 -- foldRelNames mp rel@(CoreRelation pos2 (CoreItem p n2) _ _) = do
 --   when
 --     (Set.member n2 preludeTermsCons)
@@ -624,7 +624,7 @@ module Mozzarella.SymbolSolver where
 --       return mp
 --     Nothing -> return $ Map.insert n2 rel mp
 --
--- foldRuleNames :: Map.Map Text E.Rule -> E.Rule -> MozzarellaPass MozzarellaErrors (Map.Map Text E.Rule)
+-- foldRuleNames :: Map.Map Text E.Rule -> E.Rule -> FixenPass FixenErrors (Map.Map Text E.Rule)
 -- foldRuleNames mp rul@(CoreRule pos (Just (AST.TermLetterIdentifier p n)) _ _ _) = do
 --   when
 --     (Set.member n preludeTerms)

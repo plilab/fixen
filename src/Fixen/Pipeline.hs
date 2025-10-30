@@ -1,32 +1,32 @@
 -- |
---     Module      : Mozzarella.Pipeline
---     Description : The Mozzarella pipeline
+--     Module      : Fixen.Pipeline
+--     Description : The Fixen pipeline
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
-module Mozzarella.Pipeline (pipeline) where
+module Fixen.Pipeline (pipeline) where
 
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Text
 import Error.Diagnose
-import Mozzarella.IR.AST
+import Fixen.IR.AST
 
--- import Mozzarella.BoundVarExplicitor (makeBoundVarsExplicit)
-import Mozzarella.Monad
-import Mozzarella.Parser (parse)
+-- import Fixen.BoundVarExplicitor (makeBoundVarsExplicit)
+import Fixen.Monad
+import Fixen.Parser (parse)
 
--- import Mozzarella.Sorter (sort)
--- import Mozzarella.SymbolSolver
+-- import Fixen.Sorter (sort)
+-- import Fixen.SymbolSolver
 
 -- | The compilation pipeline. The code as a connector for each phase of
 -- the pipeline (which may use different monads):
 --
--- 1. 'parse': Parses the program, yielding a 'Mozzarella.IR.AST.Program'.
+-- 1. 'parse': Parses the program, yielding a 'Fixen.IR.AST.Program'.
 --
--- 2. 'sort': Puts the top-level declarations of the 'Mozzarella.IR.AST.Program'
---            into their respective buckets in a 'Mozzarella.IR.Sorted.Program'
+-- 2. 'sort': Puts the top-level declarations of the 'Fixen.IR.AST.Program'
+--            into their respective buckets in a 'Fixen.IR.Sorted.Program'
 --            and ensures
 --
 --              a. There is at most one extern declaration
@@ -39,14 +39,14 @@ pipeline
   -- ^ The path of the compiled file
   -> String
   -- ^ The contents of the compiled file
-  -> MozzarellaM Program
+  -> FixenM Program
 pipeline file_path contents = do
   let file_map = [(file_path, contents)]
       init_errs = mozEmptyErrors file_map
-  (program, err_after1) <- runMozzarellaPass init_errs $ parse file_path (pack contents)
-  -- (program', err_after2) <- runMozzarellaPass err_after1 $ sort program
+  (program, err_after1) <- runFixenPass init_errs $ parse file_path (pack contents)
+  -- (program', err_after2) <- runFixenPass err_after1 $ sort program
   -- let pp = makeBoundVarsExplicit program'
-  -- (env, ess) <- runMozzarellaPass err_after2 $ solveSymbols pp
+  -- (env, ess) <- runFixenPass err_after2 $ solveSymbols pp
   when (hasReports (mozErrorsDiagnostic err_after1)) $
     liftIO $
       printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle (mozErrorsDiagnostic err_after1)

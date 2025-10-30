@@ -1,13 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Mozzarella.IR.ExplicitBoundVars where
+module Fixen.IR.ExplicitBoundVars where
 
 -- import Data.Text
 -- import Data.Void
 -- import Error.Diagnose.Position
--- import Mozzarella.IR.AST qualified as AST
--- import Mozzarella.IR.Core
+-- import Fixen.IR.AST qualified as AST
+-- import Fixen.IR.Core
 --
 -- type Rule =
 --   CoreRule

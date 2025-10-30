@@ -1,5 +1,5 @@
 -- |
---     Module      : Mozzarella.Sorted
+--     Module      : Fixen.Sorted
 --     Description : AST programs sorted into buckets
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
@@ -12,9 +12,9 @@
 --     1. There must be no more than one extern declaration
 --     2. There is a nonempty set of relations
 --     3. There is a nonempty set of rules
-module Mozzarella.IR.Sorted (Program (..)) where
+module Fixen.IR.Sorted (Program (..)) where
 
-import Mozzarella.IR.AST qualified as AST
+import Fixen.IR.AST qualified as AST
 
 -- | A 'Program' in this context is split into the different kinds of
 -- 'AST.TopLevel' declarations.

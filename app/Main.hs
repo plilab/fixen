@@ -16,8 +16,8 @@ import Error.Diagnose (
   stderr,
   unadornedStyle,
  )
-import Mozzarella.Monad
-import Mozzarella.Pipeline
+import Fixen.Monad
+import Fixen.Pipeline
 import System.Directory (canonicalizePath)
 import System.Exit (
   ExitCode (..),
@@ -52,7 +52,7 @@ main = do
   in_file_contents <-
     handle (readFileExceptionHandler in_file) $
       SIO.hGetContents' file_handle
-  ast <- runMozzarellaM $ pipeline in_file in_file_contents
+  ast <- runFixenM $ pipeline in_file in_file_contents
   -- output styles
   let out_style = if color then defaultStyle else unadornedStyle
   let out_unicode = if unicode then WithUnicode else WithoutUnicode

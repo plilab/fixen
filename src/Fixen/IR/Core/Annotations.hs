@@ -1,7 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Mozzarella.IR.Core.Annotations (
+module Fixen.IR.Core.Annotations (
   -- * Annotations
   -- $ann
   GetAnnotation (..),
@@ -10,7 +10,7 @@ module Mozzarella.IR.Core.Annotations (
   setAnnotationOf,
 ) where
 
-import Mozzarella.Data.AlaCarte
+import Fixen.Data.AlaCarte
 
 --------------------------------------------------------------------------------
 --

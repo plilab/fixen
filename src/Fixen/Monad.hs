@@ -1,15 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- |
---     Module      : Mozzarella.Monad
---     Description : Monads for the Mozzarella compiler
+--     Module      : Fixen.Monad
+--     Description : Monads for the Fixen compiler
 --     Copyright   : (c) Programming Languages Innovation Lab@NUS
 --     License     : MIT
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     This module defines monads for the Mozzarella compiler.
-module Mozzarella.Monad where
+--     This module defines monads for the Fixen compiler.
+module Fixen.Monad where
 
 import Control.Monad
 import Control.Monad.Except qualified as Except
@@ -18,7 +18,7 @@ import Control.Monad.Trans.Maybe as Maybe
 import Data.List (foldl', partition)
 import Error.Diagnose.Diagnostic qualified as Diagnostic
 import Error.Diagnose.Report qualified as Report
-import Mozzarella.Data.AlaCarte
+import Fixen.Data.AlaCarte
 
 -- * Pipeline monad
 
@@ -30,13 +30,13 @@ import Mozzarella.Data.AlaCarte
 -- type argument @α@ is the type of the term being returned from the monad if
 -- it succeeds. If it does not succeed, then it returns a
 -- @'Diagnostic.Diagnostic' 'String'@.
-type MozzarellaM α = Except.ExceptT (Diagnostic.Diagnostic String) IO α
+type FixenM α = Except.ExceptT (Diagnostic.Diagnostic String) IO α
 
--- | Deconstructs 'MozzarellaM' into an 'IO'. The result is 'Either' an error
+-- | Deconstructs 'FixenM' into an 'IO'. The result is 'Either' an error
 -- message stored in a @'Diagnostic.Diagnostic' 'String'@, or the successful
 -- result.
-runMozzarellaM :: MozzarellaM α -> IO (Either (Diagnostic.Diagnostic String) α)
-runMozzarellaM = Except.runExceptT
+runFixenM :: FixenM α -> IO (Either (Diagnostic.Diagnostic String) α)
+runFixenM = Except.runExceptT
 
 -- * Pass monad
 
@@ -47,20 +47,20 @@ runMozzarellaM = Except.runExceptT
 -- accumulation (as long as the store is 'Errored'). The first type argument is
 -- the state used, the second argument is the type of the term being returned
 -- from the monad.
-type MozzarellaPass σ α = Maybe.MaybeT (State.StateT σ IO) α
+type FixenPass σ α = Maybe.MaybeT (State.StateT σ IO) α
 
 -- | The type of states that can contain errors.
-type Errored σ = σ :>: MozzarellaErrors
+type Errored σ = σ :>: FixenErrors
 
 -- | The canonical way to run a pass in the pipeline. If the pass terminated
 -- with no result, or if errors are present in the resulting state then it
 -- terminates with the errors. For a run that succeeds as long as the monad
--- returns a value, see 'runMozzarellaPass'' and 'runMozzarellaPass'''.
-runMozzarellaPass :: (Errored σ) => σ -> MozzarellaPass σ α -> MozzarellaM (α, σ)
-runMozzarellaPass state monad = do
+-- returns a value, see 'runFixenPass'' and 'runFixenPass'''.
+runFixenPass :: (Errored σ) => σ -> FixenPass σ α -> FixenM (α, σ)
+runFixenPass state monad = do
   (res, state') <- Except.ExceptT $ Right <$> State.runStateT (Maybe.runMaybeT monad) state
   -- Get the errors resulting from the state.
-  let errs :: MozzarellaErrors = (↓) state'
+  let errs :: FixenErrors = (↓) state'
   case res of
     -- just re-raise all the errors since no result was received
     Nothing -> Except.liftEither (Left (mozErrorsDiagnostic errs))
@@ -73,14 +73,14 @@ runMozzarellaPass state monad = do
 -- | Runs a pass in the pipeline. If the pass terminated
 -- with no result then it
 -- terminates with the errors in the state.
-runMozzarellaPass' :: (Errored σ) => σ -> MozzarellaPass σ α -> MozzarellaM (α, σ)
-runMozzarellaPass' state monad = do
+runFixenPass' :: (Errored σ) => σ -> FixenPass σ α -> FixenM (α, σ)
+runFixenPass' state monad = do
   (res, state') <-
     Except.ExceptT $
       Right
         <$> State.runStateT (Maybe.runMaybeT monad) state
   -- Get the errors resulting from the state.
-  let errs :: MozzarellaErrors = (↓) state'
+  let errs :: FixenErrors = (↓) state'
   case res of
     -- just re-raise all the errors since no result was received
     Nothing -> Except.liftEither (Left (mozErrorsDiagnostic errs))
@@ -90,8 +90,8 @@ runMozzarellaPass' state monad = do
 -- with no result then it
 -- terminates with the empty error message. This is useful if the state does
 -- not contain errors.
-runMozzarellaPass'' :: σ -> MozzarellaPass σ α -> MozzarellaM (α, σ)
-runMozzarellaPass'' state monad = do
+runFixenPass'' :: σ -> FixenPass σ α -> FixenM (α, σ)
+runFixenPass'' state monad = do
   (res, state') <-
     Except.ExceptT $
       Right
@@ -103,7 +103,7 @@ runMozzarellaPass'' state monad = do
 
 -- | Runs a stateful computation with more state in a monad with less state by
 -- providing the additional state.
-adapter :: ε -> MozzarellaPass (σ :*: ε) a -> MozzarellaPass σ (a, ε)
+adapter :: ε -> FixenPass (σ :*: ε) a -> FixenPass σ (a, ε)
 adapter st' m = Maybe.MaybeT $ State.StateT $ \st ->
   (\(x, (y, z)) -> ((,z) <$> x, y)) <$> State.runStateT (Maybe.runMaybeT m) (st, st')
 
@@ -127,18 +127,18 @@ failIfErrored
   => μ ()
 failIfErrored = do
   moz_state <- State.get
-  let errs :: MozzarellaErrors = (↓) moz_state
+  let errs :: FixenErrors = (↓) moz_state
   when (mozHasErrors errs) mzero
 
 -- | Add a 'Report.Report' __without failing__. This is useful for accumulating
 -- error messages.
 accumR
-  :: (State.MonadState σ μ, σ :>: MozzarellaErrors)
+  :: (State.MonadState σ μ, σ :>: FixenErrors)
   => Report.Report String
   -> μ ()
 accumR rep = do
   moz_state <- State.get
-  let errs :: MozzarellaErrors = (↓) moz_state
+  let errs :: FixenErrors = (↓) moz_state
       new_errs =
         errs
           { mozErrorsDiagnostic =
@@ -155,7 +155,7 @@ accumD
   -> μ ()
 accumD d = do
   moz_state <- State.get
-  let errs :: MozzarellaErrors = (↓) moz_state
+  let errs :: FixenErrors = (↓) moz_state
       new_errs = errs {mozErrorsDiagnostic = mozErrorsDiagnostic errs <> d}
       new_state = moz_state *<-: new_errs
   State.put new_state
@@ -164,31 +164,31 @@ accumD d = do
 
 -- $ The main error tracker used by the compiler.
 
--- | The type of errors produced by Mozzarella passes. The main error type
+-- | The type of errors produced by Fixen passes. The main error type
 -- are 'Diagnostic.Diagnostic' 'String's; to be able to reset the diagnostics
 -- (e.g., flushing out warnings in between passes), we also store a map of
--- file names to file contents ('MozzarellaFileMap').
-data MozzarellaErrors = MozzarellaErrors
-  { mozErrorsFileMap :: MozzarellaFileMap
+-- file names to file contents ('FixenFileMap').
+data FixenErrors = FixenErrors
+  { mozErrorsFileMap :: FixenFileMap
   , mozErrorsDiagnostic :: Diagnostic.Diagnostic String
   }
 
 -- | Just a list of pairs mapping file paths to file contents.
-type MozzarellaFileMap = [(FilePath, String)]
+type FixenFileMap = [(FilePath, String)]
 
--- | Clears all errors from a 'MozzarellaErrors'.
-mozResetErrors :: MozzarellaErrors -> MozzarellaErrors
-mozResetErrors MozzarellaErrors {mozErrorsFileMap = ls} = mozEmptyErrors ls
+-- | Clears all errors from a 'FixenErrors'.
+mozResetErrors :: FixenErrors -> FixenErrors
+mozResetErrors FixenErrors {mozErrorsFileMap = ls} = mozEmptyErrors ls
 
--- | Creates an empty set of errors from a 'MozzarellaFileMap'.
-mozEmptyErrors :: MozzarellaFileMap -> MozzarellaErrors
+-- | Creates an empty set of errors from a 'FixenFileMap'.
+mozEmptyErrors :: FixenFileMap -> FixenErrors
 mozEmptyErrors ls =
   let d = foldl' (\r (fp, s) -> Diagnostic.addFile r fp s) mempty ls
-  in  MozzarellaErrors {mozErrorsFileMap = ls, mozErrorsDiagnostic = d}
+  in  FixenErrors {mozErrorsFileMap = ls, mozErrorsDiagnostic = d}
 
 -- | Determines if a set of errors has error messages (warnings are not counted)
-mozHasErrors :: MozzarellaErrors -> Bool
-mozHasErrors MozzarellaErrors {mozErrorsDiagnostic = b} =
+mozHasErrors :: FixenErrors -> Bool
+mozHasErrors FixenErrors {mozErrorsDiagnostic = b} =
   let rep = Diagnostic.reportsOf b
       -- partition the reports by errors and warnings
       -- to check if there are any errors
@@ -201,9 +201,9 @@ mozHasErrors MozzarellaErrors {mozErrorsDiagnostic = b} =
           rep
   in  not (null errs)
 
-instance Semigroup MozzarellaErrors where
-  (MozzarellaErrors a b) <> (MozzarellaErrors a' b') =
-    MozzarellaErrors (a <> a') (b <> b')
+instance Semigroup FixenErrors where
+  (FixenErrors a b) <> (FixenErrors a' b') =
+    FixenErrors (a <> a') (b <> b')
 
-instance Monoid MozzarellaErrors where
-  mempty = MozzarellaErrors mempty mempty
+instance Monoid FixenErrors where
+  mempty = FixenErrors mempty mempty

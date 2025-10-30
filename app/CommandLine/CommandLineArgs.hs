@@ -30,7 +30,7 @@ data CommandLineArgs = CommandLineArgs
   { outFile :: OutFilePath
   -- ^ The output Haskell source file path
   , inFile :: InFilePath
-  -- ^ The input Mozzarella source file path
+  -- ^ The input Fixen source file path
   , color :: Bool
   -- ^ Whether the output should contain color.
   , unicode :: Bool
@@ -40,7 +40,7 @@ data CommandLineArgs = CommandLineArgs
 
 -- These types are used just to keep the type signatures self-explanatory.
 
--- | The 'FilePath' of the input Mozzarella source file
+-- | The 'FilePath' of the input Fixen source file
 type InFilePath = FilePath
 
 -- | The 'FilePath' of the output Haskell source file
