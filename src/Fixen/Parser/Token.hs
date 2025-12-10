@@ -36,6 +36,7 @@ module Fixen.Parser.Token (
   parseInfixTermIdentifier,
   parseNonInfixTermIdentifier,
   parseNonInfixOpIdentifier,
+  parseModuleName,
 
   -- * Literals
   parseRawString,

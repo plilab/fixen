@@ -21,25 +21,37 @@ import Fixen.IR.Core.Annotations
 import GHC.Natural (Natural)
 
 type SimpleIdentifier = Core.SimpleIdentifier Position Text
+
 type ModuleName = Core.ModuleName Position (NonEmpty SimpleIdentifier)
+
 type FullyQualifiedName = Core.FullyQualifiedName Position ModuleName SimpleIdentifier
+
 type Identifier = Core.Identifier Position ModuleName SimpleIdentifier Text
+
 type Expr = Core.Expr Position Identifier Integer Text
+
 type Type = Core.Type Position Identifier Natural Text
+
 type RelationArgument = Core.RelationArgument Position Core.SubsumptionAnnotation Type
+
 type Relation =
   Core.Relation
     Position
     SimpleIdentifier
     [RelationArgument]
+
 type Assumption = Core.Fact Position SimpleIdentifier [SimpleIdentifier]
+
 type Condition = Core.Condition Position Expr
+
 type PrecomposedRule =
   Core.PrecomposedRule
     Position
     (NonEmpty SimpleIdentifier)
     Assumption
+
 type Conclusion = Core.Fact Position SimpleIdentifier [Expr]
+
 type Rule =
   Core.Rule
     Position
@@ -49,16 +61,30 @@ type Rule =
     [Condition]
     [PrecomposedRule]
     Conclusion
+
 type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
+
+-- May actually be unused
 type Completion = Core.Completion Position Identifier SimpleIdentifier
+
 type HsImport = Core.HsImport Position Text
 type Use = Core.Use Position Text (Core.InclusionOrExclusion Position [SimpleIdentifier] [SimpleIdentifier])
+
 type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
+
 type RuleInstantiation = Core.RuleInstantiation Position SimpleIdentifier (Map SimpleIdentifier SimpleIdentifier)
+
 type PriorityOrd = Core.PriorityOrd Position Expr RuleInstantiation
+
 type Priority = Core.Priority Position [PriorityOrd]
+
 type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
-type Generate = Core.Generate Position ModuleName [SimpleIdentifier]
+
+type GenerateIncludeOrExclude = Core.InclusionOrExclusion Position (NonEmpty SimpleIdentifier) (NonEmpty SimpleIdentifier)
+
+-- The reason we use `Maybe GenerateIncludeOrExclude` is because the original
+-- might not have the clause and we don't have source positions for it.
+type Generate = Core.Generate Position ModuleName (Maybe GenerateIncludeOrExclude)
 
 data Program = Program
   { hsBlocks :: [HsBlock]

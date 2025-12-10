@@ -291,7 +291,7 @@ instance IdentifierLike (SimpleIdentifier α σ) σ where
 instance IdentifierLike (FullyQualifiedName α μ ν) ν where
   identifier (FullyQualifiedName _ _ n) = n
 
-instance (IdentifierLike β δ) => IdentifierLike (Identifier α χ β δ) δ where
+instance IdentifierLike β δ => IdentifierLike (Identifier α χ β δ) δ where
   identifier (MkIdentifierSimple _ n) = n
   identifier (MkIdentifierFQN _ _ n) = identifier n
 
@@ -722,6 +722,9 @@ instance SetAnnotation ann (Type ann v int str) (Type ann v int str) where
 instance GetAnnotation ann (Extern ann e) where
   getAnnotation (Extern ann _) = ann
 
+instance GetAnnotation ann (Generate ann g e) where
+  getAnnotation (Generate ann _ _) = ann
+
 --------------------------------------------------------------------------------
 --
 -- Names
@@ -742,3 +745,6 @@ instance Named (HsBlock α ν β) ν where
 
 instance Named (HsImport α σ) σ where
   nameOf (HsImport _ i) = i
+
+instance Named (Generate ann m e) m where
+  nameOf (Generate _ m _) = m
