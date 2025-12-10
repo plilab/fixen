@@ -56,7 +56,7 @@ library
     default-language: GHC2021
 
 
-executable mozzarella
+executable fixen
     -- Import common warning flags.
     import:           warnings
 

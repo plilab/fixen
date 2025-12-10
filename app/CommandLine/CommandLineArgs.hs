@@ -21,7 +21,7 @@ module CommandLine.CommandLineArgs (
 --
 -- This is a rather straightforward implementation of command-line-argument
 -- parsing using optparse-applicative. Currently, we only need to receive the
--- input .moz file and the output .hs file names from the user.
+-- input .fix file and the output .hs file names from the user.
 --
 --------------------------------------------------------------------------------
 

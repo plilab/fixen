@@ -17,7 +17,7 @@ import Control.Monad (when)
 import Data.List
 import Data.Version (Version (versionBranch))
 import Options.Applicative -- See: optparse-applicative package
-import Paths_fixen qualified as PM
+import Paths_fixen qualified as PF
 import System.Exit (ExitCode (..), exitWith)
 import System.FilePath
 import System.IO (hPutStrLn, stderr)
@@ -46,10 +46,10 @@ getCommandLineArgs = do
     opts :: ParserInfo CommandLineArgs
     opts =
       info
-        (cmd <**> simpleVersioner ("mozzarella " ++ mozVersion) <**> helper)
+        (cmd <**> simpleVersioner ("fixen " ++ fixenVersion) <**> helper)
         ( fullDesc
-            <> progDesc mozProgramDescription
-            <> header mozProgramHeader
+            <> progDesc fixenProgramDescription
+            <> header fixenProgramHeader
         )
     -- The thing that actually parses the arguments and builds
     -- the 'CommandLineArgs'
@@ -92,7 +92,7 @@ getCommandLineArgs = do
 -- have specified are of extensions that we are not expecting. For instance,
 -- a user may write
 --
--- mozzarella --output Prog.moz Prog.hs
+-- fixen --output Prog.fix Prog.hs
 --
 -- by accident, which might give puzzling syntax errors.
 --
@@ -117,13 +117,13 @@ validateOutFileExtension out_file =
 -- error message when the file extension is incorrect.
 validateInFileExtension :: InFilePath -> IO ()
 validateInFileExtension in_file =
-  when (takeExtension in_file /= ".moz") $ do
+  when (takeExtension in_file /= ".fix") $ do
     hPutStrLn stderr $
       "Invalid input source file: "
         ++ in_file
         ++ "\n                           "
         ++ replicate (length in_file) '^'
-        ++ "\n  in file must be Fixen source file with .moz extension"
+        ++ "\n  in file must be Fixen source file with .fix extension"
     exitWith (ExitFailure 2)
 
 --------------------------------------------------------------------------------
@@ -137,15 +137,15 @@ validateInFileExtension in_file =
 --------------------------------------------------------------------------------
 
 -- | The program description that is displayed to the user in the help screen.
-mozProgramDescription :: String
-mozProgramDescription = "Generates Haskell source code from a Fixen program"
+fixenProgramDescription :: String
+fixenProgramDescription = "Generates Haskell source code from a Fixen program"
 
 -- | The program header that is displayed to the user in the help screen.
-mozProgramHeader :: String
-mozProgramHeader =
-  "mozzarella: A Fixed-Point-Oriented Programming (FPOP)"
+fixenProgramHeader :: String
+fixenProgramHeader =
+  "fixen: A Fixed-Point-Oriented Programming (FPOP)"
     ++ " language for generating work-queue algorithms in Haskell"
 
 -- | The version of this program
-mozVersion :: String
-mozVersion = intercalate "." $ map show $ versionBranch PM.version
+fixenVersion :: String
+fixenVersion = intercalate "." $ map show $ versionBranch PF.version

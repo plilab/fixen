@@ -1,6 +1,7 @@
-/-
-generate Demos.ShortestPath
+generate Demos.ShortestPath 
+ hiding(addDist,distTo)
 
+/-
 {
 data Dist = D Int deriving (Show, Eq)
 
