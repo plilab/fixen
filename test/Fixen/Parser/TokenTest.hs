@@ -24,6 +24,12 @@ tokenTests =
     , parseModuleNameTest
     , parseLowerFirstSimpleIdentifierTest
     , parseLowerFirstFQNTest
+    , parseCapitalizedSimpleIdentifierTest
+    , parseCapitalizedFQNTest
+    , parseCapitalizedIdentifierTest
+    , parseAnyCasedLetterSimpleIdentifierTest
+    , parseAnyCasedLetterFQNTest
+    , parseAnyCasedLetterIdentifierTest
     ]
 
 parseRawLowerHsIdentifierStringTest :: TestTree
@@ -280,6 +286,387 @@ parseLowerFirstFQNTest =
     , parserShouldFail parseLowerFirstFQN "data.list"
     , parserShouldFail (parseLowerFirstFQN <* P.eof) "Data.list.set"
     , parserShouldFail parseLowerFirstFQN ".Data.list"
+    ]
+
+parseCapitalizedSimpleIdentifierTest :: TestTree
+parseCapitalizedSimpleIdentifierTest =
+  testGroup
+    "parseCapitalizedSimpleIdentifier"
+    [ parserShouldPass
+        parseCapitalizedSimpleIdentifier
+        "Data"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 5) "test")
+            (pack "Data")
+        )
+    , parserShouldPass
+        parseCapitalizedSimpleIdentifier
+        "Just"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 5) "test")
+            (pack "Just")
+        )
+    , parserShouldPass
+        parseCapitalizedSimpleIdentifier
+        "MyType"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 7) "test")
+            (pack "MyType")
+        )
+    , parserShouldPass
+        parseCapitalizedSimpleIdentifier
+        "A"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 2) "test")
+            (pack "A")
+        )
+    , parserShouldPass
+        parseCapitalizedSimpleIdentifier
+        "List'123"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 9) "test")
+            (pack "List'123")
+        )
+    , parserShouldFail parseCapitalizedSimpleIdentifier "data"
+    , parserShouldFail parseCapitalizedSimpleIdentifier "123Data"
+    , parserShouldFail parseCapitalizedSimpleIdentifier ""
+    , parserShouldFail (parseCapitalizedSimpleIdentifier <* P.eof) "Data-Name"
+    , parserShouldFail (parseCapitalizedSimpleIdentifier <* P.eof) "Data.Name"
+    , parserShouldFail (parseCapitalizedSimpleIdentifier <* P.eof) "Data Name"
+    , parserShouldFail parseCapitalizedSimpleIdentifier "if"
+    ]
+
+parseCapitalizedFQNTest :: TestTree
+parseCapitalizedFQNTest =
+  testGroup
+    "parseCapitalizedFQN"
+    [ parserShouldPass
+        parseCapitalizedFQN
+        "Data.List"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 10) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 5) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 6) (1, 10) "test") (pack "List"))
+        )
+    , parserShouldPass
+        parseCapitalizedFQN
+        "Data.Set.Map"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 13) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 9) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| [ Core.SimpleIdentifier (Diag.Position (1, 6) (1, 9) "test") (pack "Set")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 13) "test") (pack "Map"))
+        )
+    , parserShouldPass
+        parseCapitalizedFQN
+        "MyModule.MyType"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 16) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 9) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 9) "test")
+                    (pack "MyModule")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 16) "test") (pack "MyType"))
+        )
+    , parserShouldPass
+        parseCapitalizedFQN
+        "Data.List.Map"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 14) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| [ Core.SimpleIdentifier
+                          (Diag.Position (1, 6) (1, 10) "test")
+                          (pack "List")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 11) (1, 14) "test") (pack "Map"))
+        )
+    , parserShouldFail parseCapitalizedFQN "Data.list"
+    , parserShouldFail parseCapitalizedFQN "data.List"
+    , parserShouldFail parseCapitalizedFQN "Data"
+    , parserShouldFail parseCapitalizedFQN "123Data.List"
+    , parserShouldFail parseCapitalizedFQN ""
+    , parserShouldFail parseCapitalizedFQN "Data-List"
+    , parserShouldFail parseCapitalizedFQN ".Data.List"
+    , parserShouldFail parseCapitalizedFQN "Data.List."
+    ]
+
+parseCapitalizedIdentifierTest :: TestTree
+parseCapitalizedIdentifierTest =
+  testGroup
+    "parseCapitalizedIdentifier"
+    [ parserShouldPass
+        parseCapitalizedIdentifier
+        "Data.List"
+        ( Core.IdentifierFullyQualifiedName
+            ( Core.FullyQualifiedName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.ModuleName
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    ( Core.SimpleIdentifier
+                        (Diag.Position (1, 1) (1, 5) "test")
+                        (pack "Data")
+                        :| []
+                    )
+                )
+                (Core.SimpleIdentifier (Diag.Position (1, 6) (1, 10) "test") (pack "List"))
+            )
+        )
+    , parserShouldPass
+        parseCapitalizedIdentifier
+        "Just"
+        ( Core.IdentifierSimpleIdentifier
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 1) (1, 5) "test")
+                (pack "Just")
+            )
+        )
+    , parserShouldPass
+        parseCapitalizedIdentifier
+        "MyModule.MyType"
+        ( Core.IdentifierFullyQualifiedName
+            ( Core.FullyQualifiedName
+                (Diag.Position (1, 1) (1, 16) "test")
+                ( Core.ModuleName
+                    (Diag.Position (1, 1) (1, 9) "test")
+                    ( Core.SimpleIdentifier
+                        (Diag.Position (1, 1) (1, 9) "test")
+                        (pack "MyModule")
+                        :| []
+                    )
+                )
+                (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 16) "test") (pack "MyType"))
+            )
+        )
+    , parserShouldFail parseCapitalizedIdentifier "data.List"
+    , parserShouldFail parseCapitalizedIdentifier "data"
+    , parserShouldFail parseCapitalizedIdentifier "123Data.List"
+    , parserShouldFail parseCapitalizedIdentifier ""
+    , parserShouldFail (parseCapitalizedIdentifier <* P.eof) "Data-List"
+    , parserShouldFail parseCapitalizedIdentifier ".Data.List"
+    , parserShouldFail (parseCapitalizedIdentifier <* P.eof) "Data.List."
+    ]
+
+parseAnyCasedLetterSimpleIdentifierTest :: TestTree
+parseAnyCasedLetterSimpleIdentifierTest =
+  testGroup
+    "parseAnyCasedLetterSimpleIdentifier"
+    [ parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "data"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 5) "test")
+            (pack "data")
+        )
+    , parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "Data"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 5) "test")
+            (pack "Data")
+        )
+    , parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "myVariable"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 11) "test")
+            (pack "myVariable")
+        )
+    , parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "MyType"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 7) "test")
+            (pack "MyType")
+        )
+    , parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "A"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 2) "test")
+            (pack "A")
+        )
+    , parserShouldPass
+        parseAnyCasedLetterSimpleIdentifier
+        "list123"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 8) "test")
+            (pack "list123")
+        )
+    , parserShouldFail parseAnyCasedLetterSimpleIdentifier "123data"
+    , parserShouldFail parseAnyCasedLetterSimpleIdentifier ""
+    , parserShouldFail (parseAnyCasedLetterSimpleIdentifier <* P.eof) "data-name"
+    , parserShouldFail (parseAnyCasedLetterSimpleIdentifier <* P.eof) "data.name"
+    , parserShouldFail (parseAnyCasedLetterSimpleIdentifier <* P.eof) "data name"
+    ]
+
+parseAnyCasedLetterFQNTest :: TestTree
+parseAnyCasedLetterFQNTest =
+  testGroup
+    "parseAnyCasedLetterFQN"
+    [ parserShouldPass
+        parseAnyCasedLetterFQN
+        "Data.List"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 10) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 5) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 6) (1, 10) "test") (pack "List"))
+        )
+    , parserShouldPass
+        parseAnyCasedLetterFQN
+        "Data.list"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 10) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 5) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 6) (1, 10) "test") (pack "list"))
+        )
+    , parserShouldPass
+        parseAnyCasedLetterFQN
+        "MyModule.MyType"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 16) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 9) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 9) "test")
+                    (pack "MyModule")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 16) "test") (pack "MyType"))
+        )
+    , parserShouldPass
+        parseAnyCasedLetterFQN
+        "Data.Set.map"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 13) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 9) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    (pack "Data")
+                    :| [ Core.SimpleIdentifier (Diag.Position (1, 6) (1, 9) "test") (pack "Set")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 13) "test") (pack "map"))
+        )
+    , parserShouldFail parseAnyCasedLetterFQN "data"
+    , parserShouldFail parseAnyCasedLetterFQN "123data.List"
+    , parserShouldFail parseAnyCasedLetterFQN ""
+    , parserShouldFail parseAnyCasedLetterFQN "data-List"
+    , parserShouldFail parseAnyCasedLetterFQN "data.List"
+    , parserShouldFail parseAnyCasedLetterFQN "data.List"
+    , parserShouldFail parseAnyCasedLetterFQN "data.List.Map"
+    ]
+
+parseAnyCasedLetterIdentifierTest :: TestTree
+parseAnyCasedLetterIdentifierTest =
+  testGroup
+    "parseAnyCasedLetterIdentifier"
+    [ parserShouldPass
+        parseAnyCasedLetterIdentifier
+        "data"
+        ( Core.IdentifierSimpleIdentifier
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 1) (1, 5) "test")
+                (pack "data")
+            )
+        )
+    , parserShouldPass
+        parseAnyCasedLetterIdentifier
+        "Data"
+        ( Core.IdentifierSimpleIdentifier
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 1) (1, 5) "test")
+                (pack "Data")
+            )
+        )
+    , parserShouldPass
+        parseAnyCasedLetterIdentifier
+        "myVariable"
+        ( Core.IdentifierSimpleIdentifier
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 1) (1, 11) "test")
+                (pack "myVariable")
+            )
+        )
+    , parserShouldPass
+        parseAnyCasedLetterIdentifier
+        "Data.list"
+        ( Core.IdentifierFullyQualifiedName
+            ( Core.FullyQualifiedName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.ModuleName
+                    (Diag.Position (1, 1) (1, 5) "test")
+                    ( Core.SimpleIdentifier
+                        (Diag.Position (1, 1) (1, 5) "test")
+                        (pack "Data")
+                        :| []
+                    )
+                )
+                (Core.SimpleIdentifier (Diag.Position (1, 6) (1, 10) "test") (pack "list"))
+            )
+        )
+    , parserShouldPass
+        parseAnyCasedLetterIdentifier
+        "MyModule.MyType"
+        ( Core.IdentifierFullyQualifiedName
+            ( Core.FullyQualifiedName
+                (Diag.Position (1, 1) (1, 16) "test")
+                ( Core.ModuleName
+                    (Diag.Position (1, 1) (1, 9) "test")
+                    ( Core.SimpleIdentifier
+                        (Diag.Position (1, 1) (1, 9) "test")
+                        (pack "MyModule")
+                        :| []
+                    )
+                )
+                (Core.SimpleIdentifier (Diag.Position (1, 10) (1, 16) "test") (pack "MyType"))
+            )
+        )
+    , parserShouldFail parseAnyCasedLetterIdentifier "123data"
+    , parserShouldFail parseAnyCasedLetterIdentifier ""
+    , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data-name"
+    , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data.name"
+    , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data name"
     ]
 
 parserShouldPass :: (Show a, Eq a) => Parser a -> Text -> a -> TestTree

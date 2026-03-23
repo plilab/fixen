@@ -26,6 +26,7 @@ module Fixen.Parser.Token (
   -- $id
   parseLowerFirstSimpleIdentifier,
   parseCapitalizedSimpleIdentifier,
+  parseCapitalizedFQN,
   parseLowerFirstFQN,
   parseCapitalizedIdentifier,
   parseAnyCasedLetterSimpleIdentifier,
