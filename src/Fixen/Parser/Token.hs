@@ -26,6 +26,7 @@ module Fixen.Parser.Token (
   -- $id
   parseLowerFirstSimpleIdentifier,
   parseCapitalizedSimpleIdentifier,
+  parseLowerFirstFQN,
   parseCapitalizedIdentifier,
   parseAnyCasedLetterSimpleIdentifier,
   parseAnyCasedLetterFQN,
@@ -207,11 +208,25 @@ parseLowerFirstSimpleIdentifier = do
 parseLowerFirstFQN :: Parser AST.FullyQualifiedName
 parseLowerFirstFQN = do
   (pos, (module_name, ident)) <- parsePositioned $ do
-    module_name <- parseModuleName
+    module_name <- parsePrefix
     _ <- P.single '.'
     ident <- parseLowerFirstSimpleIdentifier
     return (module_name, ident)
   return $ Core.FullyQualifiedName pos module_name ident
+  where
+    parsePrefix :: Parser AST.ModuleName
+    parsePrefix = do
+      (pos, (hd, tl)) <- parsePositioned $ do
+        f <- parseCapitalizedSimpleIdentifier
+        ls <- manyNonFailing (P.single '.' *> parseCapitalizedSimpleIdentifier)
+        return (f, ls)
+      return $ Core.ModuleName pos (hd NE.:| tl)
+    manyNonFailing :: Parser a -> Parser [a]
+    manyNonFailing p = do
+      m <- P.observing (P.try p)
+      case m of
+        Left _ -> return []
+        Right e -> (:) e <$> manyNonFailing p
 
 -- | The parser 'parseRawCapitalizedHsIdentifierString' but wrapped as an
 -- 'AST.SimpleIdentifier'. These are non-constructor variables that are __not__
