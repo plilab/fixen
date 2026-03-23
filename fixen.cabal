@@ -22,7 +22,7 @@ extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-    ghc-options: -Wall
+    ghc-options: -Wall -Werror
 
 library 
     -- Import common warning flags.
@@ -90,3 +90,29 @@ executable fixen
 
     -- Base language which the package is written in.
     default-language: GHC2021
+
+test-suite parser-tests
+  -- Import common warning flags.
+  import:           warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Fixen/ParserTest.hs
+  build-depends:    base ^>=4.19.2.0
+                    , optparse-applicative ^>=0.18.1.0
+                    , filepath ^>=1.4.301.0
+                    , diagnose ^>=2.5.1
+                    , megaparsec ^>=9.7.0
+                    , mtl ^>=2.3.1
+                    , transformers ^>=0.6.1.0
+                    , containers ^>=0.6.8
+                    , parser-combinators ^>=1.3.0
+                    , text ^>=2.0
+                    , directory
+                    , tasty
+                    , tasty-hunit
+                    , tasty-quickcheck
+                    , fixen
+  default-extensions: OverloadedStrings
+  -- Base language which the package is written in.
+  default-language: GHC2021
+  other-modules: Fixen.Parser.TokenTest
