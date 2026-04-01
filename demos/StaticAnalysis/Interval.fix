@@ -1,16 +1,17 @@
-generate StaticAnalysis.Interval
+module StaticAnalysis.Interval where
 
-use Common
+include "Common"
 
-{
-data StateI = ... -- interval state definition
-emptyI :: StateI
-emptyI = undefined
-}
+```hs
+-- other functions like refining, inserting, etc. ...
+```
 
-extern emptyI joinI insertI evalI refineTI refineFI
+partial ord StateI where
+  type = HashMap String (HashSet (Int, Int)) 
+  leq = stateILeq
+  mlbs = stateIMlbs
 
-rel StateBeforeI: Nat, *StateI
+rel StateBeforeI: Nat, StateI
 
 rule assignInitI : Assign l x e   |- StateBeforeI l emptyI
 rule condInitI   : Cond l jlt jlf |- StateBeforeI l emptyI

@@ -1,16 +1,18 @@
-generate StaticAnalysis.Parity
+module StaticAnalysis.Parity where
 
-use Common
+include "Common"
 
-{
-data StateP = ... -- parity state definition
-emptyP :: StateP
-emptyP = undefined
-}
+```hs
+-- functions and whatnot
+```
 
-extern emptyP joinP insertP evalP refineTP refineFP
 
-rel StateBeforeP: Nat, *StateP
+rel StateBeforeP: Nat, StateP
+
+partial ord StateP where
+  type = HashMap String Parity
+  leq  = statePLeq
+  mlbs = statePMlbs
 
 rule assignInitP : Assign l x e   |- StateBeforeP l empty
 rule condInitP   : Cond l jlt jlf |- StateBeforeP l empty

@@ -1,21 +1,32 @@
-generate StaticAnalysis.ReducedProduct
-  * except assignStepI evalCondTI evalCondFI
+module StaticAnalysis.ReducedProduct where
 
-use Common
-use Parity
-use Interval 
+include "Parity"
+include "Interval"
 
-{
-reducedExchange :: StateI -> StateP -> StateI
-reducedExchange = undefined -- ...
+```hs
+-- whatever exchange and widening functions we need
+reducedExchangeI :: StateI -> StateP -> StateI
+reducedExchangeI =  -- ...
+reducedExchangeP :: StateI -> StateP -> StateP
+reducedExchangeP =  -- ...
+```
 }
 
-extern reducedExchange
+-- returns refined parity information from intervals 
+rule reducedExchangeP : StateBeforeP l st, StateBeforeI l st' 
+    |- StateBeforeP l (reduceParity st st')
+-- returns refined interval information from parities
+rule reducedExchangeI : StateBeforeP l st, StateBeforeI l st' 
+    |- StateBeforeI l (reduceInterval st st') 
 
-rule reducedExchange :
-  (assignStepI, evalCondTI, evalCondFI) 
-    { .. |- StateBeforeI l st }
-  , StateBeforeP l st'
-  -----------------------------
-  |- StateBeforeI l (reducedExchange st st')
+-- widenIntervals function takes intervals of size >= 30 and brings it to inf
+rule widenInterval : StateBeforeI l st |- StateBeforeI l (widenIntervals st)
+-- Needed so that StateBeforeP updates from stage 1 are carried back to stage 0
+rule widenParity   : StateBeforeP l st |- StateBeforeP l st 
 
+-- The important bit
+phases: [
+    * -- everything else
+    , {reducedExchangeP, reducedExchangeI }
+    , { widenInterval, widenParity }
+  ]

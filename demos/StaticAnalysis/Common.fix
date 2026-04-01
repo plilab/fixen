@@ -1,3 +1,5 @@
+module StaticAnalysis.Program where
+
 rel Var: Nat, String
 rel Assign: Nat, String, Expr
 rel Cond: Nat, Expr, Nat, Nat

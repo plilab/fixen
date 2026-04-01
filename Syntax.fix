@@ -1,78 +1,68 @@
--- generate exactly what the user wants. user specifies
--- 1. rules
--- 2. code blocks
--- relations are included automatically whenever 
-generate Demos.ShortestPath 
-  hiding (assignI, condITrue, condIFalse)
-  -- alternative
-  (reducedProductAssign, distTo, code, distDef)
-  -- with export list -- TO DO NEXT TIME
-  exporting (Abc(..),(<=),main)
+module Demos.ShortestPath where -- Haskell module declaration. All stuff in the module is used. Placed at the top of the generated source file.
 
--- haskell imports. imports need to be lifted to Mozzarella because we need to be able
--- to resolve them from other mozzarella files and make sure there are no duplicates;
--- or at the very least, to not include the imports of other Mozzarella files when 
--- they are used. Unconditionally included when generating haskell from this source,
--- never included when `used` by other Mozzarella files (otherwise, users cannot control
--- unused imports!
-import MyStuff
+-- haskell imports. imports need to be lifted to Fixen because we need to be able
+-- to resolve them from other Fixen files and make sure there are no duplicates;
+-- or at the very least, to not include the imports of other Fixen files when 
+-- they are used. Unconditionally included when generating haskell from this source.
+import Data.List
+import AnotherModule.List
 
-/-
-Block Comments!
--/
+{-
+Block Comments! Follows Haskell convention for simplicity. Otherwise, if we use
+some other syntax for block comments, e.g., /-, then it might clash with actual
+Haskell operators (like /- and -/).
+-}
 
--- Haskell blocks. These should be named so that they can be omitted from imports
--- . Unnamed haskell blocks can also be written, which will then be unconditionally
--- included in the generated haskell file when used.
--- in the future, we might want to distinguish haskell blocks and blocks of other
+-- Haskell blocks. This is so that we can keep everything self-contained. 
+-- Seems like a reasonable feature to have.
+-- In the future, we might want to distinguish haskell blocks and blocks of other
 -- languages if we want to target different backends.
-distDef {
-
+```hs
 data Dist = D Int | Bot deriving (Show, Eq)
+```
 
-}
+-- Partial order/lattice declarations. Used to create
+-- instances of PartialOrd for the underlying type, 
+-- and also as information to Fixen that certain argument positions
+-- of relations are partially ordered.
+partial ord Dist where
+  type = Dist
+  leq = distLeq
+  mlbs = distMlbs
 
--- use clauses import other Mozzarella files. Currently, we only import relations,
--- rules and haskell code blocks. priorities and queries should be redefined
--- since each new analysis may use completely different priorities and interfaces
-use "../AbstractInterpretation/IntervalAnalysis"
-  (StateBeforeI, Seq, Assign, condI, assignI) 
 
--- extern declarations, solely for the symbol solver to work.
+-- Optional lattice declarations. I think for the upcoming paper
+-- we can just ignore it, unless we intend to include a discussion
+-- of using lattices (automatic joins) in the paper. Probably not though.
+lat StateP where
+  type = HashMap Label Parity
+  join = statePJoin
+  meet = statePMeet
+  leq = statePLeq
+  
+
+-- include clauses import other Fixen files. Currently, we only import relations,
+-- rules and haskell code blocks (and recursively, other Fixen files). Priorities and 
+-- queries and "stages" should be redefined since each new analysis may use completely different 
+-- priorities and interfaces
+include "../AbstractInterpretation/IntervalAnalysis"
+
+-- extern declarations, solely for the symbol solver to work. Completely optional.
+-- I think for the time being we will omit having a symbol solver/type checker.
 extern join
 
--- relations. Pretty straightforward. * annotates arguments with partial orders.
-rel DistTo : Vertex, *Dist
-
+-- relations. Pretty straightforward.
+rel DistTo : Vertex, Dist
 rel Edge : Vertex, Vertex, Dist
+
 
 -- rules. Pretty straightforward
 rule addDist: 
   DistTo a d, Edge a b d'
   |- DistTo b (d + d')
 
--- rule composition. should hardly be used since the consequence
--- of the composed rule can just be listed as a premise. However,
--- useful if we want to post-compose a rule and hide the composed
--- rule from the analysis, or if you want a naive form of provenance
--- tracking
-rule reducedProduct l int p:  
-
-  (assignI, condITrue, condIFalse) { .. |- StateBeforeInterval l int }, 
-  StateBeforeParity l p
-  |- StateBeforeI l (narrowInterval p int)
-
--- higher-order rules. can receive rules as parameters. next time.
-rule family reducedProductS @r l int p:  
-
-  @r { .. |- StateBeforeInterval l int }, 
-  StateBeforeParity l p
-  |- StateBeforeI l (narrowInterval p int)
-
--- higher-order rule instantiation. next time
-rule instance reducedProductAssign = reducedProductS @assignI
-rule instance reducedProductCond   = reducedProductS @condITrue
-rule instance reducedProductCondF  = reducedProductS @condIFalse
+-- rules can also be parameterized to be explicit
+rule anotherRule a b c : DistTo a c, Edge a b c |- DistTo a (b + c)
 
 -- priority declarations for this exported module.
 priority:
@@ -84,4 +74,10 @@ priority:
 query DistTo as distTo - +
 query DistTo as distLessThan + -
 
+-- Stages/Phase/Some other keyword to denote what we want
+phases: [
+    *,
+    {rules1, rules2},
+    {rules3, rules4}
+  ]
 
