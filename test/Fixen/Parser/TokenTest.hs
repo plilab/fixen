@@ -30,6 +30,10 @@ tokenTests =
     , parseAnyCasedLetterSimpleIdentifierTest
     , parseAnyCasedLetterFQNTest
     , parseAnyCasedLetterIdentifierTest
+    , parseOpSimpleIdentifierTest
+    , parseOpFQNTest
+    , parseOpIdentifierTest
+    , parseInfixTermIdentifierTest
     ]
 
 parseRawLowerHsIdentifierStringTest :: TestTree
@@ -667,6 +671,333 @@ parseAnyCasedLetterIdentifierTest =
     , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data-name"
     , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data.name"
     , parserShouldFail (parseAnyCasedLetterIdentifier <* P.eof) "data name"
+    ]
+
+parseOpSimpleIdentifierTest :: TestTree
+parseOpSimpleIdentifierTest =
+  testGroup
+    "parseOpSimpleIdentifier"
+    [ parserShouldPass
+        parseOpSimpleIdentifier
+        "!"
+        ( Core.SimpleIdentifier
+            (Diag.Position (1, 1) (1, 2) "test")
+            (pack "!")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "++"
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 3) "test") (pack "++")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "+-*"
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 4) "test") (pack "+-*")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "+-*/"
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 5) "test") (pack "+-*/")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "\\"
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 2) "test") (pack "\\")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "->"
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 3) "test") (pack "->")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "=="
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 3) "test") (pack "==")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "<="
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 3) "test") (pack "<=")
+        )
+    , parserShouldPass
+        parseOpSimpleIdentifier
+        "=>><="
+        ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 6) "test") (pack "=>><=")
+        )
+    , parserShouldFail parseOpSimpleIdentifier "_"
+    , parserShouldFail parseOpSimpleIdentifier "="
+    , parserShouldFail parseOpSimpleIdentifier "a"
+    , parserShouldFail parseOpSimpleIdentifier "1"
+    , parserShouldFail parseOpSimpleIdentifier "\"a\""
+    , parserShouldFail parseOpSimpleIdentifier "'a'"
+    , parserShouldFail parseOpSimpleIdentifier "(a)"
+    , parserShouldFail parseOpSimpleIdentifier "(+)"
+    ]
+
+parseOpFQNTest :: TestTree
+parseOpFQNTest =
+  testGroup
+    "parseOpFQN"
+    [ parserShouldPass
+        parseOpFQN
+        "My.Module.+"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 12) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.SimpleIdentifier
+                    ( Diag.Position
+                        (1, 1)
+                        (1, 3)
+                        "test"
+                    )
+                    (pack "My")
+                    :| [ Core.SimpleIdentifier
+                          ( Diag.Position
+                              (1, 4)
+                              (1, 10)
+                              "test"
+                          )
+                          (pack "Module")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 11) (1, 12) "test") (pack "+"))
+        )
+    , parserShouldPass
+        parseOpFQN
+        "AnotherModule.==/>!"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 20) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 14) "test")
+                ( Core.SimpleIdentifier
+                    ( Diag.Position
+                        (1, 1)
+                        (1, 14)
+                        "test"
+                    )
+                    (pack "AnotherModule")
+                    :| []
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 15) (1, 20) "test") (pack "==/>!"))
+        )
+    , parserShouldPass
+        parseOpFQN
+        "Fixen.Parser.Token.->"
+        ( Core.FullyQualifiedName
+            (Diag.Position (1, 1) (1, 22) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 19) "test")
+                ( Core.SimpleIdentifier
+                    ( Diag.Position
+                        (1, 1)
+                        (1, 6)
+                        "test"
+                    )
+                    (pack "Fixen")
+                    :| [ Core.SimpleIdentifier
+                          ( Diag.Position
+                              (1, 7)
+                              (1, 13)
+                              "test"
+                          )
+                          (pack "Parser")
+                       , Core.SimpleIdentifier
+                          ( Diag.Position
+                              (1, 14)
+                              (1, 19)
+                              "test"
+                          )
+                          (pack "Token")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 20) (1, 22) "test") (pack "->"))
+        )
+    , parserShouldFail parseOpFQN "+"
+    , parserShouldFail parseOpFQN "++"
+    , parserShouldFail parseOpFQN "_"
+    , parserShouldFail parseOpFQN "a"
+    , parserShouldFail parseOpFQN "1"
+    , parserShouldFail parseOpFQN "\"a\""
+    , parserShouldFail parseOpFQN "'a'"
+    , parserShouldFail parseOpFQN "(a)"
+    , parserShouldFail parseOpFQN "(+)"
+    , parserShouldFail parseOpFQN "Module.(+)"
+    , parserShouldFail parseOpFQN "Module.1"
+    , parserShouldFail parseOpFQN "Module.AnotherModule._"
+    ]
+
+parseOpIdentifierTest :: TestTree
+parseOpIdentifierTest =
+  testGroup
+    "parseOpIdentifier"
+    [ parserShouldPass
+        parseOpIdentifier
+        "!"
+        (Core.MkIdentifierSimple (Diag.Position (1, 1) (1, 2) "test") (pack "!"))
+    , parserShouldPass
+        parseOpIdentifier
+        "++"
+        ( Core.MkIdentifierSimple
+            (Diag.Position (1, 1) (1, 3) "test")
+            (pack "++")
+        )
+    , parserShouldPass
+        parseOpIdentifier
+        "+-*"
+        ( Core.MkIdentifierSimple
+            (Diag.Position (1, 1) (1, 4) "test")
+            (pack "+-*")
+        )
+    , parserShouldPass
+        parseOpIdentifier
+        "My.Module.+"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 1) (1, 12) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 3) "test")
+                    (pack "My")
+                    :| [ Core.SimpleIdentifier
+                          (Diag.Position (1, 4) (1, 10) "test")
+                          (pack "Module")
+                       ]
+                )
+            )
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 11) (1, 12) "test")
+                (pack "+")
+            )
+        )
+    , parserShouldPass
+        parseOpIdentifier
+        "AnotherModule.==/>!"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 1) (1, 20) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 14) "test")
+                ( Core.SimpleIdentifier
+                    (Diag.Position (1, 1) (1, 14) "test")
+                    (pack "AnotherModule")
+                    :| []
+                )
+            )
+            ( Core.SimpleIdentifier
+                (Diag.Position (1, 15) (1, 20) "test")
+                (pack "==/>!")
+            )
+        )
+    , parserShouldFail parseOpIdentifier "_"
+    , parserShouldFail parseOpIdentifier "a"
+    , parserShouldFail parseOpIdentifier "1"
+    , parserShouldFail parseOpIdentifier "\"a\""
+    , parserShouldFail parseOpIdentifier "'a'"
+    , parserShouldFail parseOpIdentifier "(a)"
+    , parserShouldFail parseOpIdentifier "(+)"
+    , parserShouldFail parseOpIdentifier "My.Module.(+)"
+    ]
+
+parseInfixTermIdentifierTest :: TestTree
+parseInfixTermIdentifierTest =
+  testGroup
+    "parseInfixTermIdentifier"
+    [ parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "`a`"
+        (Core.MkIdentifierSimple (Diag.Position (1, 2) (1, 3) "test") (pack "a"))
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "`abc`"
+        ( Core.MkIdentifierSimple
+            (Diag.Position (1, 2) (1, 5) "test")
+            (pack "abc")
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "`Just`"
+        ( Core.MkIdentifierSimple
+            (Diag.Position (1, 2) (1, 6) "test")
+            (pack "Just")
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "`My.Module.a`"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 2) (1, 13) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 2) (1, 11) "test")
+                ( Core.SimpleIdentifier (Diag.Position (1, 2) (1, 4) "test") (pack "My")
+                    :| [ Core.SimpleIdentifier
+                          (Diag.Position (1, 5) (1, 11) "test")
+                          (pack "Module")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 12) (1, 13) "test") (pack "a"))
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "`My.Module.Just`"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 2) (1, 16) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 2) (1, 11) "test")
+                ( Core.SimpleIdentifier (Diag.Position (1, 2) (1, 4) "test") (pack "My")
+                    :| [ Core.SimpleIdentifier
+                          (Diag.Position (1, 5) (1, 11) "test")
+                          (pack "Module")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 12) (1, 16) "test") (pack "Just"))
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "+-*"
+        ( Core.MkIdentifierSimple
+            (Diag.Position (1, 1) (1, 4) "test")
+            (pack "+-*")
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "My.Module.+"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 1) (1, 12) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 10) "test")
+                ( Core.SimpleIdentifier (Diag.Position (1, 1) (1, 3) "test") (pack "My")
+                    :| [ Core.SimpleIdentifier (Diag.Position (1, 4) (1, 10) "test") (pack "Module")
+                       ]
+                )
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 11) (1, 12) "test") (pack "+"))
+        )
+    , parserShouldPass
+        (parseInfixTermIdentifier indented)
+        "AnotherModule.==/>!"
+        ( Core.MkIdentifierFQN
+            (Diag.Position (1, 1) (1, 20) "test")
+            ( Core.ModuleName
+                (Diag.Position (1, 1) (1, 14) "test")
+                (Core.SimpleIdentifier (Diag.Position (1, 1) (1, 14) "test") (pack "AnotherModule") :| [])
+            )
+            (Core.SimpleIdentifier (Diag.Position (1, 15) (1, 20) "test") (pack "==/>!"))
+        )
+    , parserShouldFail (parseInfixTermIdentifier indented) "`\na`"
+    , parserShouldFail (parseInfixTermIdentifier indented) "a"
+    , parserShouldFail (parseInfixTermIdentifier indented) "1"
+    , parserShouldFail (parseInfixTermIdentifier indented) "123"
+    , parserShouldFail (parseInfixTermIdentifier indented) "_"
+    , parserShouldFail (parseInfixTermIdentifier indented) "a+b"
+    , parserShouldFail (parseInfixTermIdentifier indented) "a.b"
+    , parserShouldFail (parseInfixTermIdentifier indented) "\"a\""
+    , parserShouldFail (parseInfixTermIdentifier indented) "'a'"
+    , parserShouldFail (parseInfixTermIdentifier indented) "(a)"
+    , parserShouldFail (parseInfixTermIdentifier indented) "(+)"
     ]
 
 parserShouldPass :: (Show a, Eq a) => Parser a -> Text -> a -> TestTree
