@@ -32,7 +32,6 @@ module Fixen.IR.Core (
   IdentifierLike (..),
   Expr (..),
   Type (..),
-  InclusionOrExclusion (..),
   Relation (..),
   Rule (..),
   Condition (..),
@@ -44,7 +43,7 @@ module Fixen.IR.Core (
   PriorityOrd (..),
   RuleInstantiation (..),
   Query (..),
-  Generate (..),
+  ModuleDeclaration (..),
   Extern (..),
   Mode (..),
   Named (..),
@@ -565,17 +564,15 @@ data Query α ρ ν μ where
 
 data Mode = Plus | Minus deriving (Show, Eq)
 
--- | A generate clause for determining what the generated program contains.
-data Generate α ν ε where
-  Generate
-    :: forall ann mod_name exports
+-- | A module declaration clause for determining the Haskell module being generated.
+data ModuleDeclaration α ν where
+  ModuleDeclaration
+    :: forall ann mod_name
      . ann
     -- ^ The annotation
     -> mod_name
     -- ^ The name of the module being generated
-    -> exports
-    -- ^ The stuff being exported as part of the generated analysis
-    -> Generate ann mod_name exports
+    -> ModuleDeclaration ann mod_name
   deriving (Show, Eq)
 
 data Extern α δ where
@@ -588,22 +585,10 @@ data Extern α δ where
     -> Extern ann e
   deriving (Show, Eq)
 
--- | Either a list of stuff to import/export or exclusions to import/export
-data InclusionOrExclusion α ι ε where
-  Inclusion
-    :: forall ann incl excl
      . ann
     -- ^ The annotation
-    -> incl
-    -- ^ The inclusions
-    -> InclusionOrExclusion ann incl excl
-  Exclusion
-    :: forall ann incl excl
      . ann
     -- ^ The annotation
-    -> excl
-    -- ^ The exclusions
-    -> InclusionOrExclusion ann incl excl
   deriving (Show, Eq)
 
 --------------------------------------------------------------------------------
@@ -673,8 +658,8 @@ instance SetAnnotation ann (Type ann v int str) (Type ann v int str) where
 instance GetAnnotation ann (Extern ann e) where
   getAnnotation (Extern ann _) = ann
 
-instance GetAnnotation ann (Generate ann g e) where
-  getAnnotation (Generate ann _ _) = ann
+instance GetAnnotation ann (ModuleDeclaration ann g) where
+  getAnnotation (ModuleDeclaration ann _) = ann
 
 --------------------------------------------------------------------------------
 --
@@ -697,5 +682,6 @@ instance Named (HsBlock α ν β) ν where
 instance Named (HsImport α σ) σ where
   nameOf (HsImport _ i) = i
 
-instance Named (Generate ann m e) m where
-  nameOf (Generate _ m _) = m
+instance Named (ModuleDeclaration ann m) m where
+  nameOf (ModuleDeclaration _ m) = m
+

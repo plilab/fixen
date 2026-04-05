@@ -27,7 +27,7 @@ module Fixen.Parser (
 ) where
 
 import Control.Applicative.Combinators (
-  optional,
+  -- optional,
   some,
   (<|>),
  )
@@ -65,7 +65,10 @@ parse
   -> FixenPass FixenErrors AST.Program
 parse file_path contents = do
   top_levels <- fixenParse parseProgram file_path contents
-  partitionTopLevels top_levels
+  -- TODO: We probably need to parse the module header, then the imports, then
+  -- the rest of the program; otherwise, we probably can't instantiate the
+  -- AST.Program type.
+  partitionTopLevels undefined top_levels
 
 --------------------------------------------------------------------------------
 --
@@ -107,26 +110,26 @@ parseAST =
       (TLExtern <$> parseExtern)
         <|> (TLRelation <$> parseRelation)
         <|> (TLRule <$> parseRule)
-        <|> (TLGenerate <$> parseGenerate)
 
-data TopLevel = TLExtern AST.Extern | TLRelation AST.Relation | TLRule AST.Rule | TLGenerate AST.Generate
+data TopLevel = TLExtern AST.Extern | TLRelation AST.Relation | TLRule AST.Rule
 
-partitionTopLevels :: [TopLevel] -> FixenPass FixenErrors AST.Program
-partitionTopLevels [] =
+-- TODO: Might wanna deal with this portion too.
+partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
+partitionTopLevels mod_decl [] =
   return
     AST.Program
       { AST.hsBlocks = []
       , AST.priorities = Nothing
       , AST.queries = []
-      , AST.generate = Nothing
+      , AST.moduleName = mod_decl
       , AST.hsImports = []
       , AST.extern = Nothing
       , AST.relations = []
       , AST.rules = []
       , AST.includes = []
       }
-partitionTopLevels (x : xs) = do
-  rest <- partitionTopLevels xs
+partitionTopLevels mod_decl (x : xs) = do
+  rest <- partitionTopLevels mod_decl xs
   case x of
     TLExtern e ->
       case AST.extern rest of
@@ -142,17 +145,6 @@ partitionTopLevels (x : xs) = do
               [Note "each program can only have one extern declaration"]
     TLRelation r -> return rest {AST.relations = r : AST.relations rest}
     TLRule r -> return rest {AST.rules = r : AST.rules rest}
-    TLGenerate g -> case AST.generate rest of
-      Nothing -> return rest {AST.generate = Just g}
-      Just g' ->
-        failR $
-          Err
-            Nothing
-            "syntax error"
-            [ (AST.getPosition g, Where "a generate clause")
-            , (AST.getPosition g', This "another generate clause")
-            ]
-            [Note "each program can only have one generate clause"]
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -177,30 +169,6 @@ parseExtern = do
           )
       Right _ -> someI' parseLowerFirstSimpleIdentifier
   return $ Extern pos ls
-
--- Parses a 'AST.Generate' clause
-parseGenerate :: Parser AST.Generate
-parseGenerate = do
-  (pos, (name, ex)) <- parsePositioned $ do
-    _ <- P.try $ L.nonIndented sc $ keyword "generate"
-    name <- indented *> parseModuleName
-    -- parse either:
-    --    1. hiding (.., .., ..)
-    --    2. (.., .., ..)
-    clause <- optional $ P.try $ do
-      (p, (h, list)) <- parsePositioned $ do
-        opt_hiding <- optional $ P.try $ indented *> keyword "hiding"
-        _ <- indented
-        ls <- betweenParentheses indented $ commaSepBy1' parseLowerFirstSimpleIdentifier
-        return (opt_hiding, ls)
-      case h of
-        -- using clause; list specifies inclusion for work-queue algorithm
-        -- generation
-        Nothing -> return $ Inclusion p list
-        -- hiding clause; list specifies exclusion for work-queue algorithm
-        Just _ -> return $ Exclusion p list
-    return (name, clause)
-  return $ Generate pos name ex
 
 -- | Parses a 'AST.Relation'.
 parseRelation :: Parser AST.Relation

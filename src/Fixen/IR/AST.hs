@@ -68,17 +68,14 @@ type Priority = Core.Priority Position [PriorityOrd]
 
 type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
 
-type GenerateIncludeOrExclude = Core.InclusionOrExclusion Position (NonEmpty SimpleIdentifier) (NonEmpty SimpleIdentifier)
+type ModuleDeclaration = Core.ModuleDeclaration Position ModuleName
 
--- The reason we use `Maybe GenerateIncludeOrExclude` is because the original
--- might not have the clause and we don't have source positions for it.
-type Generate = Core.Generate Position ModuleName (Maybe GenerateIncludeOrExclude)
 
 data Program = Program
   { hsBlocks :: [HsBlock]
   , priorities :: Maybe Priority
   , queries :: [Query]
-  , generate :: Maybe Generate
+  , moduleName :: ModuleDeclaration
   , hsImports :: [HsImport]
   , extern :: Maybe Extern
   , relations :: [Relation]
