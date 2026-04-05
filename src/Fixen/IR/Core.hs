@@ -44,9 +44,12 @@ module Fixen.IR.Core (
   RuleInstantiation (..),
   Query (..),
   ModuleDeclaration (..),
+  PartialOrdDeclaration (..),
+  Phases (..),
   Extern (..),
   Mode (..),
   Named (..),
+  Ruleset (..),
 ) where
 
 import Data.List.NonEmpty (NonEmpty)
@@ -453,6 +456,7 @@ data Rule α ν β π χ δ where
     -> Rule ann rule_name rule_bound_vars asm cond concl
   deriving (Show, Eq)
 
+-- | Fact-like premise/conclusion, i.e., an instance of a relation
 data Fact α ρ β where
   Fact
     :: forall ann rel args
@@ -465,6 +469,7 @@ data Fact α ρ β where
     -> Fact ann rel args
   deriving (Show, Eq)
 
+-- | A condition of a rule.
 data Condition α ε where
   Condition
     :: forall ann expr
@@ -521,6 +526,8 @@ data Priority α δ where
     -> Priority ann decls
   deriving (Show, Eq)
 
+-- | The actual contents of the priority declaration, describing orders
+-- between rule instances.
 data PriorityOrd α ε ι where
   PriorityOrd
     :: forall ann cond inst
@@ -535,6 +542,7 @@ data PriorityOrd α ε ι where
     -> PriorityOrd ann cond inst
   deriving (Show, Eq)
 
+-- | The instantiation of a rule, used for priority declarations.
 data RuleInstantiation α ρ μ where
   RuleInstantiation
     :: forall ann rul mp
@@ -562,6 +570,7 @@ data Query α ρ ν μ where
     -> Query ann rel name mode
   deriving (Show, Eq)
 
+-- | Query modes, used to determine if they are outputs or inputs to the query.
 data Mode = Plus | Minus deriving (Show, Eq)
 
 -- | A module declaration clause for determining the Haskell module being generated.
@@ -575,6 +584,8 @@ data ModuleDeclaration α ν where
     -> ModuleDeclaration ann mod_name
   deriving (Show, Eq)
 
+-- | An extern declaration, used by the symbol solver to determine which symbols
+-- are defined in Haskell.
 data Extern α δ where
   Extern
     :: forall ann e
@@ -585,10 +596,45 @@ data Extern α δ where
     -> Extern ann e
   deriving (Show, Eq)
 
+-- | A partial order declaration. Used to define the instance of PartialOrd for
+-- specific types, and to inform Fixen how to generate an optimized(-ish)
+-- database representation.
+data PartialOrdDeclaration α ν τ ℓ μ where
+  PartialOrdDeclaration
+    :: forall ann name ty leq mlbs
      . ann
     -- ^ The annotation
+    -> name
+    -- ^ The name of the thing we are defining
+    -> ty
+    -- ^ The base type
+    -> leq
+    -- ^ The function that defines how elements of this type are compared
+    -> mlbs
+    -- ^ The function that defines how to obtain the maximal lower bounds of two elements of this type
+    -> PartialOrdDeclaration ann name ty leq mlbs
+  deriving (Show, Eq)
+
+-- | Phase declaration for multi-phase FPOP, e.g., for the reduced product + widening.
+data Phases α φ where
+  Phases
+    :: forall ann phases
      . ann
     -- ^ The annotation
+    -> phases
+    -- ^ The actual phase declarations
+    -> Phases ann phases
+  deriving (Show, Eq)
+
+-- | A set of rule names, i.e., the contents of phase declarations.
+data Ruleset α ρ where
+  Ruleset
+    :: forall ann rules
+     . ann
+    -- ^ The annotation
+    -> rules
+    -- ^ The actual set of rules
+    -> Ruleset ann rules
   deriving (Show, Eq)
 
 --------------------------------------------------------------------------------
@@ -661,6 +707,12 @@ instance GetAnnotation ann (Extern ann e) where
 instance GetAnnotation ann (ModuleDeclaration ann g) where
   getAnnotation (ModuleDeclaration ann _) = ann
 
+instance GetAnnotation ann (PartialOrdDeclaration ann b c d e) where
+  getAnnotation (PartialOrdDeclaration ann _ _ _ _) = ann
+
+instance SetAnnotation ann (PartialOrdDeclaration ann b c d e) (PartialOrdDeclaration ann b c d e) where
+  setAnnotation ann (PartialOrdDeclaration _ a b c d) = PartialOrdDeclaration ann a b c d
+
 --------------------------------------------------------------------------------
 --
 -- Names
@@ -685,3 +737,5 @@ instance Named (HsImport α σ) σ where
 instance Named (ModuleDeclaration ann m) m where
   nameOf (ModuleDeclaration _ m) = m
 
+instance Named (PartialOrdDeclaration ann a b c d) a where
+  nameOf (PartialOrdDeclaration _ n _ _ _) = n

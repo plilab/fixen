@@ -70,6 +70,15 @@ type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
 
 type ModuleDeclaration = Core.ModuleDeclaration Position ModuleName
 
+type PartialOrdDeclaration = Core.PartialOrdDeclaration Position SimpleIdentifier Type Expr Expr
+
+-- | We probably want something data type to denote "everything else". Then later,
+-- once everything has been parsed, we can actually collect all the rules that
+-- belong to this "everything else" phase.
+newtype EverythingElseRuleset = EverythingElseRuleset Position
+  deriving (Show, Eq)
+
+type Phases = Core.Phases Position (Core.Ruleset Position [SimpleIdentifier] :+: EverythingElseRuleset)
 
 data Program = Program
   { hsBlocks :: [HsBlock]
@@ -81,6 +90,8 @@ data Program = Program
   , relations :: [Relation]
   , rules :: [Rule]
   , includes :: [Include]
+  , phases :: Maybe Phases
+  , partialOrdDeclarations :: [PartialOrdDeclaration]
   }
   deriving (Show, Eq)
 

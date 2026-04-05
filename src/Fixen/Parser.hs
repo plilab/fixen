@@ -54,8 +54,6 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --
 --------------------------------------------------------------------------------
 
--- type FixenParserM a = FixenFailFastM FixenErrors a
-
 -- | Parses a Fixen program.
 parse
   :: FilePath
@@ -127,6 +125,8 @@ partitionTopLevels mod_decl [] =
       , AST.relations = []
       , AST.rules = []
       , AST.includes = []
+      , AST.phases = Nothing
+      , AST.partialOrdDeclarations = []
       }
 partitionTopLevels mod_decl (x : xs) = do
   rest <- partitionTopLevels mod_decl xs
