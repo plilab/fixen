@@ -55,9 +55,6 @@ type Rule =
 
 type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
 
--- May actually be unused
-type Completion = Core.Completion Position Identifier SimpleIdentifier
-
 type HsImport = Core.HsImport Position Text
 type Use = Core.Use Position Text (Core.InclusionOrExclusion Position [SimpleIdentifier] [SimpleIdentifier])
 

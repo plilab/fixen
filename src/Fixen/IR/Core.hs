@@ -37,7 +37,6 @@ module Fixen.IR.Core (
   Rule (..),
   Condition (..),
   Fact (..),
-  Completion (..),
   HsBlock (..),
   HsImport (..),
   Use (..),
@@ -475,18 +474,6 @@ data Condition α ε where
     -> expr
     -- ^ The condition itself
     -> Condition ann expr
-  deriving (Show, Eq)
-
-data Completion α χ ρ where
-  Completion
-    :: forall ann comp att
-     . ann
-    -- ^ The annotation
-    -> comp
-    -- ^ The completion function
-    -> att
-    -- ^ The thing the completion is attached to
-    -> Completion ann comp att
   deriving (Show, Eq)
 
 -- | A Haskell source block in the program
