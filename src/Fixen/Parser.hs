@@ -221,20 +221,9 @@ parseRelation = do
       Left _ -> return (name, [])
       Right _ -> do
         _ <- indented
-        args <- commaSepBy1' parseRelationArgument
+        args <- commaSepBy1' (parseType indented)
         return (name, toList args)
   return $ Relation pos name args
-
-parseRelationArgument :: Parser AST.RelationArgument
-parseRelationArgument = do
-  (pos, (ann, t)) <- parsePositioned $ do
-    ann <- indented *> optional (keywordOp "*") <* indented
-    t <- parseType indented
-    let real_ann = case ann of
-          Nothing -> Discrete
-          Just _ -> PartialOrder
-    return (real_ann, t)
-  return $ RelationArgument pos ann t
 
 -- | Parses a 'AST.Rule'. Rules are not indented. The turnstile @|-@ is not an
 -- operator keyword, thus can (and should) be usable in expressions. Uses of

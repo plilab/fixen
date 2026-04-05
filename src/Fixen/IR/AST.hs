@@ -32,13 +32,11 @@ type Expr = Core.Expr Position Identifier Integer Text
 
 type Type = Core.Type Position Identifier Natural Text
 
-type RelationArgument = Core.RelationArgument Position Core.SubsumptionAnnotation Type
-
 type Relation =
   Core.Relation
     Position
     SimpleIdentifier
-    [RelationArgument]
+    [Type]
 
 type Assumption = Core.Fact Position SimpleIdentifier [SimpleIdentifier]
 

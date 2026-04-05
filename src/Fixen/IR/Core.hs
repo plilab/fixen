@@ -32,10 +32,8 @@ module Fixen.IR.Core (
   IdentifierLike (..),
   Expr (..),
   Type (..),
-  SubsumptionAnnotation (..),
   InclusionOrExclusion (..),
   Relation (..),
-  RelationArgument (..),
   Rule (..),
   Condition (..),
   Fact (..),
@@ -423,23 +421,6 @@ data Type α θ ι σ where
     -- ^ The symbol literal
     -> Type ann v int sym
     -- ^ The symbol literal type
-  deriving (Show, Eq)
-
-data RelationArgument α θ ι where
-  RelationArgument
-    :: forall ann ann_sub t
-     . ann
-    -- ^ The annotation
-    -> ann_sub
-    -- ^ The subsumption annotation
-    -> t
-    -- ^ The type of the argument
-    -> RelationArgument ann ann_sub t
-  deriving (Show, Eq)
-
-data SubsumptionAnnotation
-  = Discrete
-  | PartialOrder
   deriving (Show, Eq)
 
 -- | A relation in the program.
