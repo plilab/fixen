@@ -39,7 +39,7 @@ module Fixen.IR.Core (
   Fact (..),
   HsBlock (..),
   HsImport (..),
-  Use (..),
+  Include (..),
   Priority (..),
   PriorityOrd (..),
   RuleInstantiation (..),
@@ -500,17 +500,15 @@ data HsImport α σ where
     -> HsImport ann imp
   deriving (Show, Eq)
 
--- | A @use@ statement for importing Fixen modules
-data Use α μ β where
-  Use
-    :: forall ann mod contents
+-- | An @include@ statement for importing Fixen modules
+data Include α π where
+  Include
+    :: forall ann path
      . ann
     -- ^ The annotation
-    -> mod
-    -- ^ The module to import
-    -> contents
-    -- ^ The contents being imported
-    -> Use ann mod contents
+    -> path
+    -- ^ The path to the file to import
+    -> Include ann path
   deriving (Show, Eq)
 
 -- | A priority declaration

@@ -123,6 +123,7 @@ partitionTopLevels [] =
       , AST.extern = Nothing
       , AST.relations = []
       , AST.rules = []
+      , AST.includes = []
       }
 partitionTopLevels (x : xs) = do
   rest <- partitionTopLevels xs

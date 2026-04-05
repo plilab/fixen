@@ -56,7 +56,7 @@ type Rule =
 type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
 
 type HsImport = Core.HsImport Position Text
-type Use = Core.Use Position Text (Core.InclusionOrExclusion Position [SimpleIdentifier] [SimpleIdentifier])
+type Include = Core.Include Position Text
 
 type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
 
@@ -83,6 +83,7 @@ data Program = Program
   , extern :: Maybe Extern
   , relations :: [Relation]
   , rules :: [Rule]
+  , includes :: [Include]
   }
   deriving (Show, Eq)
 
