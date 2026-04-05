@@ -44,12 +44,6 @@ type Assumption = Core.Fact Position SimpleIdentifier [SimpleIdentifier]
 
 type Condition = Core.Condition Position Expr
 
-type PrecomposedRule =
-  Core.PrecomposedRule
-    Position
-    (NonEmpty SimpleIdentifier)
-    Assumption
-
 type Conclusion = Core.Fact Position SimpleIdentifier [Expr]
 
 type Rule =
@@ -59,7 +53,6 @@ type Rule =
     (Maybe [SimpleIdentifier])
     [Assumption]
     [Condition]
-    [PrecomposedRule]
     Conclusion
 
 type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)

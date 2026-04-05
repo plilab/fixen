@@ -38,7 +38,6 @@ module Fixen.IR.Core (
   RelationArgument (..),
   Rule (..),
   Condition (..),
-  PrecomposedRule (..),
   Fact (..),
   Completion (..),
   HsBlock (..),
@@ -457,9 +456,9 @@ data Relation α β π where
   deriving (Show, Eq)
 
 -- | A rule in the program.
-data Rule α ν β π χ ρ δ where
+data Rule α ν β π χ δ where
   Rule
-    :: forall ann rule_name rule_bound_vars asm cond rul concl
+    :: forall ann rule_name rule_bound_vars asm cond concl
      . ann
     -- ^ The annotation
     -> rule_name
@@ -470,11 +469,9 @@ data Rule α ν β π χ ρ δ where
     -- ^ The assumptions (relations) of the rule
     -> cond
     -- ^ The conditions of the rule
-    -> rul
-    -- ^ pre-composed rules
     -> concl
     -- ^ The conclusion of the rule
-    -> Rule ann rule_name rule_bound_vars asm cond rul concl
+    -> Rule ann rule_name rule_bound_vars asm cond concl
   deriving (Show, Eq)
 
 data Fact α ρ β where
@@ -497,18 +494,6 @@ data Condition α ε where
     -> expr
     -- ^ The condition itself
     -> Condition ann expr
-  deriving (Show, Eq)
-
-data PrecomposedRule α ρ χ where
-  PrecomposedRule
-    :: forall ann rules concl
-     . ann
-    -- ^ The annotation
-    -> rules
-    -- ^ The rules being pre-composed
-    -> concl
-    -- ^ The conclusion of the rule
-    -> PrecomposedRule ann rules concl
   deriving (Show, Eq)
 
 data Completion α χ ρ where
@@ -737,8 +722,8 @@ class Named α ν | α -> ν where
 instance Named (Relation α β π) β where
   nameOf (Relation _ n _) = n
 
-instance Named (Rule α ν β π χ ρ δ) ν where
-  nameOf (Rule _ n _ _ _ _ _) = n
+instance Named (Rule α ν β π χ δ) ν where
+  nameOf (Rule _ n _ _ _ _) = n
 
 instance Named (HsBlock α ν β) ν where
   nameOf (HsBlock _ n _) = n

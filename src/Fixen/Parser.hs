@@ -243,7 +243,7 @@ parseRelationArgument = do
 -- @rule myRule: Fact a b, if (a |- b) |- Fact a (b |- a)@
 parseRule :: Parser AST.Rule
 parseRule = do
-  (pos, (name, bv, asm, cond, prl, cnc)) <- parsePositioned $ do
+  (pos, (name, bv, asm, cond, cnc)) <- parsePositioned $ do
     -- parse the rule keyword. rules must not be indented.
     _ <- L.nonIndented sc $ keyword "rule"
     _ <- indented
@@ -256,7 +256,7 @@ parseRule = do
         (x : x' : xs) -> return (Just x, Just $ x' : xs)
     -- all rules have a ':' symbol.
     _ <- indented *> keywordOp ":" *> indented
-    (assumptions, conditions, precomposed_rules) <- do
+    (assumptions, conditions) <- do
       -- parse the premises
       premises <- commaSepBy' parsePremise
       return $ partitionPremises premises
@@ -264,24 +264,22 @@ parseRule = do
     _ <- indented *> turnstile *> indented
     -- parse the conclusion
     concl <- parseConclusion
-    return (name, bound_vars, assumptions, conditions, precomposed_rules, concl)
-  return $ Rule pos name bv asm cond prl cnc
+    return (name, bound_vars, assumptions, conditions, concl)
+  return $ Rule pos name bv asm cond cnc
 
 data RulePremise
   = RPAssumption AST.Assumption
   | RPCondition AST.Condition
-  | RPPrecomposed AST.PrecomposedRule
 
 partitionPremises
   :: [RulePremise]
-  -> ([AST.Assumption], [AST.Condition], [AST.PrecomposedRule])
-partitionPremises [] = ([], [], [])
+  -> ([AST.Assumption], [AST.Condition])
+partitionPremises [] = ([], [])
 partitionPremises (x : xs) =
-  let (as, cs, ps) = partitionPremises xs
+  let (as, cs) = partitionPremises xs
   in  case x of
-        RPAssumption a -> (a : as, cs, ps)
-        RPCondition c -> (as, c : cs, ps)
-        RPPrecomposed p -> (as, cs, p : ps)
+        RPAssumption a -> (a : as, cs)
+        RPCondition c -> (as, c : cs)
 
 -- | Parses a 'AST.Premise' of a rule.
 parsePremise :: Parser RulePremise
@@ -289,8 +287,7 @@ parsePremise :: Parser RulePremise
 -- parseAssumption. This is because the first token of each branch are
 -- obviously distinct, and once one matches, we should commit to it.
 parsePremise =
-  RPPrecomposed <$> parsePrecomposedRule
-    <|> RPAssumption <$> parseAssumption
+  RPAssumption <$> parseAssumption
     <|> RPCondition <$> parseCondition
 
 -- | Parses the 'AST.Conclusion' of a rule.
@@ -334,26 +331,3 @@ parseCondition = do
         *> indented
         *> parseExpr indented
   return $ Condition pos e
-
-parsePrecomposedRule :: Parser AST.PrecomposedRule
-parsePrecomposedRule = do
-  (pos, (rule_names, concl)) <- parsePositioned $ do
-    -- parse the rule names. once the rule names have been successfully parsed,
-    -- we commit to this parse.
-    rule_names <- indented *> parseRuleNames
-    _ <-
-      indented
-        *> P.single '{'
-        *> indented
-        *> keywordOp ".."
-        *> indented
-        *> turnstile
-    conc <- indented *> parseAssumption
-    _ <- indented *> P.single '}'
-    return (rule_names, conc)
-  return $ PrecomposedRule pos rule_names concl
-  where
-    parseRuleNames :: Parser (NonEmpty AST.SimpleIdentifier)
-    parseRuleNames =
-      P.try (betweenParentheses indented $ commaSepBy1' parseLowerFirstSimpleIdentifier)
-        <|> P.try (fmap (:| []) parseLowerFirstSimpleIdentifier)
