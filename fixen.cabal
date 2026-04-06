@@ -116,3 +116,35 @@ test-suite parser-tests
   -- Base language which the package is written in.
   default-language: GHC2021
   other-modules: Fixen.Parser.TokenTest
+
+benchmark shortest-path
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks/ShortestPath
+  main-is: Main.hs
+  other-modules:
+      ShortestPath.Hand
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      OverloadedStrings
+  build-depends:      base ^>=4.19.2.0
+                    , containers ^>=0.6.8
+                    , pqueue ^>=1.5.0.0
+  default-language: GHC2021
+
+benchmark pareto
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks/Pareto
+  main-is: Main.hs
+  other-modules:
+      Pareto.Hand
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      OverloadedStrings
+  build-depends:      base ^>=4.19.2.0
+                    , containers ^>=0.6.8
+                    , pqueue ^>=1.5.0.0
+  default-language: GHC2021
