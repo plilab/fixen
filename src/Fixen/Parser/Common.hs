@@ -190,7 +190,7 @@ someI' = someI indented
 -- | The space consumer. Double dashes @--@ are single-line comment indicators,
 -- and block comments are opened and closed with @/-@ and @-/@ respectively.
 sc :: Parser ()
-sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "/-" "-/")
+sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
 -- | Parses something and consumes all whitespace and comments after.
 l :: Parser a -> Parser a
