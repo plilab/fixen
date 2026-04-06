@@ -108,8 +108,13 @@ parseAST =
       (TLExtern <$> parseExtern)
         <|> (TLRelation <$> parseRelation)
         <|> (TLRule <$> parseRule)
+        <|> (TLPartialOrd <$> parsePartialOrd)
 
-data TopLevel = TLExtern AST.Extern | TLRelation AST.Relation | TLRule AST.Rule
+data TopLevel
+  = TLExtern AST.Extern
+  | TLRelation AST.Relation
+  | TLRule AST.Rule
+  | TLPartialOrd AST.PartialOrdDeclaration
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -145,6 +150,7 @@ partitionTopLevels mod_decl (x : xs) = do
               [Note "each program can only have one extern declaration"]
     TLRelation r -> return rest {AST.relations = r : AST.relations rest}
     TLRule r -> return rest {AST.rules = r : AST.rules rest}
+    TLPartialOrd po -> return rest {AST.partialOrdDeclarations = po : AST.partialOrdDeclarations rest}
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -289,3 +295,40 @@ parseCondition = do
         *> indented
         *> parseExpr indented
   return $ Condition pos e
+
+-- | Parses a partial order declaration
+parsePartialOrd :: Parser AST.PartialOrdDeclaration
+parsePartialOrd = do
+  (pos, (name, type_expr, leq_func, mlbs_func)) <- parsePositioned $ do
+    -- Parse 'partial' and 'ord' keywords (must not be indented)
+    _ <- L.nonIndented sc $ keyword "partial"
+    _ <- indented
+    _ <- keyword "ord"
+    _ <- indented
+
+    -- Parse the type name (Dist)
+    name <- parseCapitalizedSimpleIdentifier
+    _ <- indented
+
+    -- Parse 'where' keyword
+    _ <- keyword "where"
+    _ <- indented
+
+    -- Parse the indented block of fields
+    -- Each field must be indented relative to the 'partial ord' line
+    type_expr <- parsePartialOrdField "type" (parseType indented)
+    leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
+    mlbs_func <- parsePartialOrdField "mlbs" (parseNonInfixTermIdentifier indented)
+
+    return (name, type_expr, leq_func, mlbs_func)
+
+  return $ PartialOrdDeclaration pos name type_expr leq_func mlbs_func
+
+-- | Helper to parse a field like: "type = Dist"
+parsePartialOrdField
+  :: Text -- Field name ("type", "leq", "mlbs")
+  -> Parser a -- Parser for the value
+  -> Parser a
+parsePartialOrdField fieldName valueParser = do
+  _ <- indented *> keyword fieldName *> indented *> keywordOp "=" *> indented -- / simplications
+  valueParser

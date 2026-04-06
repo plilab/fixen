@@ -70,7 +70,7 @@ type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
 
 type ModuleDeclaration = Core.ModuleDeclaration Position ModuleName
 
-type PartialOrdDeclaration = Core.PartialOrdDeclaration Position SimpleIdentifier Type Expr Expr
+type PartialOrdDeclaration = Core.PartialOrdDeclaration Position SimpleIdentifier Type Identifier Identifier
 
 -- | We probably want something data type to denote "everything else". Then later,
 -- once everything has been parsed, we can actually collect all the rules that
