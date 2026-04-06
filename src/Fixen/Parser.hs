@@ -393,10 +393,8 @@ parseRuleInstance :: Parser AST.RuleInstantiation
 parseRuleInstance = do
   (pos, (name, subs)) <- parsePositioned $ do
     name <- parseLowerFirstSimpleIdentifier
-    _ <- indented *> keywordOp "{" *> indented
     -- Parse optional substitutions
-    subst <- commaSepBy' parseSubstitution
-    _ <- indented *> keywordOp "}" *> indented
+    subst <- betweenCurlyBraces indented $ commaSepBy' parseSubstitution
     return (name, Map.fromList subst) -- Using Left/Right as a simple tagged union
   return $ RuleInstantiation pos name subs
 

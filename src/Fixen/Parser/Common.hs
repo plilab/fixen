@@ -28,6 +28,7 @@ module Fixen.Parser.Common (
   parsePositioned,
   betweenParentheses,
   betweenSquareBrackets,
+  betweenCurlyBraces,
   manyI,
   manyI',
   someI,
@@ -240,3 +241,7 @@ betweenParentheses indent_check = P.between (L.symbol sc "(") (indent_check >> "
 -- | Parses using a parser that is between square brackets @[@ and @]@
 betweenSquareBrackets :: Parser MPos.Pos -> Parser a -> Parser a
 betweenSquareBrackets indent_check = P.between (L.symbol sc "[") (indent_check >> "]")
+
+-- | Parses using a parser that is between curly braces @{@ and @}@
+betweenCurlyBraces :: Parser MPos.Pos -> Parser a -> Parser a
+betweenCurlyBraces indent_check = P.between (L.symbol sc "{") (indent_check >> "}")
