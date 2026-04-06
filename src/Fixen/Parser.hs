@@ -113,6 +113,7 @@ parseAST =
         <|> (TLPartialOrd <$> parsePartialOrd)
         <|> (TLPriority <$> parsePriority)
         <|> (TLQuery <$> parseQuery)
+        <|> (TLInclude <$> parseInclude)
 
 data TopLevel
   = TLExtern AST.Extern
@@ -121,6 +122,7 @@ data TopLevel
   | TLPartialOrd AST.PartialOrdDeclaration
   | TLPriority AST.Priority
   | TLQuery AST.Query
+  | TLInclude AST.Include
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -160,6 +162,7 @@ partitionTopLevels mod_decl (x : xs) = do
     TLPartialOrd po -> return rest {AST.partialOrdDeclarations = po : AST.partialOrdDeclarations rest}
     TLPriority p -> return rest {AST.priorities = p : AST.priorities rest}
     TLQuery q -> return rest {AST.queries = q : AST.queries rest}
+    TLInclude i -> return rest {AST.includes = i : AST.includes rest}
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -431,5 +434,15 @@ parseQuery = do
 -- | Parses a single mode: '+' or '-'
 parseQueryMode :: Parser AST.QueryMode
 parseQueryMode = do
-  (pos, m) <- parsePositioned $ P.try (C.char '+' >> return Input) <|> (C.char '-' >> return Output)
+  (pos, m) <- parsePositioned $ indented *> P.try (C.char '+' >> return Input) <|> (C.char '-' >> return Output)
   return $ QueryMode pos m
+
+-- | Parses an include "Path/To/Fixen.fix" statement
+parseInclude :: Parser AST.Include
+parseInclude = do
+  (pos, path) <- parsePositioned $ do
+    -- parse the include keyword. include statements must not be indented.
+    _ <- L.nonIndented sc $ keyword "indented"
+    _ <- indented
+    parseRawString
+  return $ Include pos path
