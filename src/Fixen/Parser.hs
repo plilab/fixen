@@ -221,7 +221,8 @@ parseRule :: Parser AST.Rule
 parseRule = do
   (pos, (name, bv, asm, cond, cnc)) <- parsePositioned $ do
     -- parse the rule keyword. rules must not be indented.
-    _ <- L.nonIndented sc $ keyword "rule"
+    -- definitely need a try here
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "rule"
     _ <- indented
     -- try parsing the name and bound variables.
     (name, bound_vars) <- do
@@ -313,7 +314,8 @@ parsePartialOrd :: Parser AST.PartialOrdDeclaration
 parsePartialOrd = do
   (pos, (name, type_expr, leq_func, mlbs_func)) <- parsePositioned $ do
     -- Parse 'partial' and 'ord' keywords (must not be indented)
-    _ <- L.nonIndented sc $ keyword "partial"
+    -- definitely need a try here.
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "partial"
     _ <- indented
     _ <- keyword "ord"
     _ <- indented
@@ -356,7 +358,8 @@ parsePriority :: Parser AST.Priority
 parsePriority = do
   (pos, (expr, concl)) <- parsePositioned $ do
     -- Parse 'priority' keyword (must not be indented)
-    _ <- L.nonIndented sc $ keyword "priority"
+    -- definitely need a try here.
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "priority"
     _ <- indented *> keywordOp ":" *> indented
     _ <- indented
     -- Parse premises (left side of |-)
@@ -409,7 +412,8 @@ parseQuery :: Parser AST.Query
 parseQuery = do
   (pos, (relation, name, modes)) <- parsePositioned $ do
     -- Parse 'query' keyword (must not be indented)
-    _ <- L.nonIndented sc $ keyword "query"
+    -- definitely need a try here.
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "query"
     _ <- indented
 
     -- Parse relation name (capitalized)
@@ -442,7 +446,8 @@ parseInclude :: Parser AST.Include
 parseInclude = do
   (pos, path) <- parsePositioned $ do
     -- parse the include keyword. include statements must not be indented.
-    _ <- L.nonIndented sc $ keyword "indented"
+    -- definitely need a try here.
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "indented"
     _ <- indented
     parseRawString
   return $ Include pos path
