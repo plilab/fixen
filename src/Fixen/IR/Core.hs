@@ -43,6 +43,7 @@ module Fixen.IR.Core (
   PriorityConclusion (..),
   RuleInstantiation (..),
   Query (..),
+  QueryMode (..),
   ModuleDeclaration (..),
   PartialOrdDeclaration (..),
   Phases (..),
@@ -572,8 +573,19 @@ data Query α ρ ν μ where
     -> Query ann rel name mode
   deriving (Show, Eq)
 
--- | Query modes, used to determine if they are outputs or inputs to the query.
-data Mode = Plus | Minus deriving (Show, Eq)
+data QueryMode α where
+  QueryMode
+    :: forall ann
+     . ann
+    -- ^ The annotation
+    -> Mode
+    -- ^ The actual polarity, i.e., input or output
+    -> QueryMode ann
+  deriving (Show, Eq)
+
+-- | The two modes used to determine if they are outputs or inputs to the query.
+-- Either a + or -
+data Mode = Input | Output deriving (Show, Eq)
 
 -- | A module declaration clause for determining the Haskell module being generated.
 data ModuleDeclaration α ν where

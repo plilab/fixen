@@ -66,7 +66,9 @@ type PriorityConclusion = Core.PriorityConclusion Position RuleInstantiation Rul
 
 type Priority = Core.Priority Position Expr PriorityConclusion
 
-type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
+type QueryMode = Core.QueryMode Position
+
+type Query = Core.Query Position SimpleIdentifier SimpleIdentifier (NonEmpty QueryMode)
 
 type ModuleDeclaration = Core.ModuleDeclaration Position ModuleName
 

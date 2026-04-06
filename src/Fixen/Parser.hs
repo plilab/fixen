@@ -46,6 +46,7 @@ import Fixen.Parser.Token
 import Fixen.Parser.Type
 import Text.Megaparsec (eof)
 import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 
@@ -111,6 +112,7 @@ parseAST =
         <|> (TLRule <$> parseRule)
         <|> (TLPartialOrd <$> parsePartialOrd)
         <|> (TLPriority <$> parsePriority)
+        <|> (TLQuery <$> parseQuery)
 
 data TopLevel
   = TLExtern AST.Extern
@@ -118,6 +120,7 @@ data TopLevel
   | TLRule AST.Rule
   | TLPartialOrd AST.PartialOrdDeclaration
   | TLPriority AST.Priority
+  | TLQuery AST.Query
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -156,6 +159,7 @@ partitionTopLevels mod_decl (x : xs) = do
     TLRule r -> return rest {AST.rules = r : AST.rules rest}
     TLPartialOrd po -> return rest {AST.partialOrdDeclarations = po : AST.partialOrdDeclarations rest}
     TLPriority p -> return rest {AST.priorities = p : AST.priorities rest}
+    TLQuery q -> return rest {AST.queries = q : AST.queries rest}
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -394,3 +398,38 @@ parseSubstitution = do
   _ <- indented *> keywordOp "=" *> indented
   right <- parseLowerFirstSimpleIdentifier
   return (left, right)
+
+-- | Parses query declarations like:
+--   query DistTo as distTo - +
+--   query DistTo as distLessThan + -
+parseQuery :: Parser AST.Query
+parseQuery = do
+  (pos, (relation, name, modes)) <- parsePositioned $ do
+    -- Parse 'query' keyword (must not be indented)
+    _ <- L.nonIndented sc $ keyword "query"
+    _ <- indented
+
+    -- Parse relation name (capitalized)
+    relation <- parseCapitalizedSimpleIdentifier
+    _ <- indented
+
+    -- Parse 'as' keyword
+    _ <- keyword "as"
+    _ <- indented
+
+    -- Parse query name (lowercase)
+    name <- parseLowerFirstSimpleIdentifier
+    _ <- indented
+
+    -- Parse mode list (like - + or + -)
+    modes <- someI' parseQueryMode
+
+    return (relation, name, modes)
+
+  return $ Query pos relation name modes
+
+-- | Parses a single mode: '+' or '-'
+parseQueryMode :: Parser AST.QueryMode
+parseQueryMode = do
+  (pos, m) <- parsePositioned $ P.try (C.char '+' >> return Input) <|> (C.char '-' >> return Output)
+  return $ QueryMode pos m
