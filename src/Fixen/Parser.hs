@@ -447,7 +447,7 @@ parseInclude = do
   (pos, path) <- parsePositioned $ do
     -- parse the include keyword. include statements must not be indented.
     -- definitely need a try here.
-    _ <- P.try $ l $ L.nonIndented sc $ keyword "indented"
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "include"
     _ <- indented
     parseRawString
   return $ Include pos path
