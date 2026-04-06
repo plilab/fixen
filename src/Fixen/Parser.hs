@@ -115,6 +115,7 @@ parseAST =
         <|> (TLQuery <$> parseQuery)
         <|> (TLInclude <$> parseInclude)
         <|> (TLImport <$> parseImport)
+        <|> (TLPhases <$> parsePhases)
 
 data TopLevel
   = TLExtern AST.Extern
@@ -125,6 +126,7 @@ data TopLevel
   | TLQuery AST.Query
   | TLInclude AST.Include
   | TLImport AST.HsImport
+  | TLPhases AST.Phases
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -148,6 +150,8 @@ partitionTopLevels mod_decl (x : xs) = do
   case x of
     TLExtern e ->
       -- only one extern declaration should be allowed; similar structure as Priority
+      -- Note: change one priority with multiple rules to multiple priorities with one
+      -- rule each.
       case AST.extern rest of
         Nothing -> return rest {AST.extern = Just e}
         Just e' ->
@@ -166,6 +170,19 @@ partitionTopLevels mod_decl (x : xs) = do
     TLQuery q -> return rest {AST.queries = q : AST.queries rest}
     TLInclude i -> return rest {AST.includes = i : AST.includes rest}
     TLImport i -> return rest {AST.hsImports = i : AST.hsImports rest}
+    TLPhases p ->
+      -- only one phase declaration should be allowed; similar structure as extern
+      case AST.phases rest of
+        Nothing -> return rest {AST.phases = Just p}
+        Just p' ->
+          failR $
+            Err
+              Nothing
+              "syntax error"
+              [ (AST.getPosition p, Where "a phase definition")
+              , (AST.getPosition p', This "another phase definition")
+              ]
+              [Note "each program can only have one phase declaration"]
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -463,3 +480,33 @@ parseImport = do
     _ <- indented
     parseModuleName
   return $ HsImport pos mod_name
+
+-- | Parses a phases declaration
+parsePhases :: Parser AST.Phases
+parsePhases = do
+  (pos, rulesets) <- parsePositioned $ do
+    -- parse the include keyword. include statements must not be indented.
+    -- do not need a try here. This is the last syntactic category in the
+    -- program.
+    _ <- L.nonIndented sc $ keyword "phases"
+    -- all phases have a ':' symbol.
+    _ <- indented *> keywordOp ":" *> indented
+    -- parse the rulesets
+    betweenSquareBrackets indented $ commaSepBy1' parsePhaseRuleset
+  -- parseModuleName
+  return $ Phases pos rulesets
+
+parsePhaseRuleset :: Parser AST.RulesetOrEverythingElse
+parsePhaseRuleset = do
+  (Left <$> P.try parseExplicitRuleset) <|> (Right <$> parseEverythingElseRuleset)
+
+parseExplicitRuleset :: Parser AST.ExplicitRuleset
+parseExplicitRuleset = do
+  (pos, rules) <- parsePositioned $ do
+    betweenCurlyBraces indented $ commaSepBy1' parseLowerFirstSimpleIdentifier
+  return $ Ruleset pos rules
+
+parseEverythingElseRuleset :: Parser AST.EverythingElseRuleset
+parseEverythingElseRuleset = do
+  (pos, _) <- parsePositioned $ keywordOp "*"
+  return $ AST.EverythingElseRuleset pos

@@ -727,6 +727,12 @@ instance GetAnnotation ann (PartialOrdDeclaration ann b c d e) where
 instance SetAnnotation ann (PartialOrdDeclaration ann b c d e) (PartialOrdDeclaration ann b c d e) where
   setAnnotation ann (PartialOrdDeclaration _ a b c d) = PartialOrdDeclaration ann a b c d
 
+instance GetAnnotation ann (Phases ann p) where
+  getAnnotation (Phases ann _) = ann
+
+instance SetAnnotation ann (Phases ann' p) (Phases ann p) where
+  setAnnotation ann (Phases _ p) = Phases ann p
+
 --------------------------------------------------------------------------------
 --
 -- Names
