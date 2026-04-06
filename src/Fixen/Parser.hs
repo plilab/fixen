@@ -114,6 +114,7 @@ parseAST =
         <|> (TLPriority <$> parsePriority)
         <|> (TLQuery <$> parseQuery)
         <|> (TLInclude <$> parseInclude)
+        <|> (TLImport <$> parseImport)
 
 data TopLevel
   = TLExtern AST.Extern
@@ -123,6 +124,7 @@ data TopLevel
   | TLPriority AST.Priority
   | TLQuery AST.Query
   | TLInclude AST.Include
+  | TLImport AST.HsImport
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -163,6 +165,7 @@ partitionTopLevels mod_decl (x : xs) = do
     TLPriority p -> return rest {AST.priorities = p : AST.priorities rest}
     TLQuery q -> return rest {AST.queries = q : AST.queries rest}
     TLInclude i -> return rest {AST.includes = i : AST.includes rest}
+    TLImport i -> return rest {AST.hsImports = i : AST.hsImports rest}
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -451,3 +454,14 @@ parseInclude = do
     _ <- indented
     parseRawString
   return $ Include pos path
+
+-- | Parses an import My.Haskell.Module statement
+parseImport :: Parser AST.HsImport
+parseImport = do
+  (pos, mod_name) <- parsePositioned $ do
+    -- parse the include keyword. include statements must not be indented.
+    -- definitely need a try here.
+    _ <- P.try $ l $ L.nonIndented sc $ keyword "import"
+    _ <- indented
+    parseModuleName
+  return $ HsImport pos mod_name

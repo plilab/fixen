@@ -55,7 +55,7 @@ type Rule =
 
 type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
 
-type HsImport = Core.HsImport Position Text
+type HsImport = Core.HsImport Position ModuleName
 type Include = Core.Include Position Text
 
 type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
