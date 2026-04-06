@@ -40,7 +40,7 @@ module Fixen.IR.Core (
   HsImport (..),
   Include (..),
   Priority (..),
-  PriorityOrd (..),
+  PriorityConclusion (..),
   RuleInstantiation (..),
   Query (..),
   ModuleDeclaration (..),
@@ -208,6 +208,9 @@ data SimpleIdentifier α σ where
     -- ^ The name
     -> SimpleIdentifier ann name
   deriving (Show, Eq)
+
+instance (Eq a, Ord t) => Ord (SimpleIdentifier a t) where
+  SimpleIdentifier _ t <= SimpleIdentifier _ t' = t <= t'
 
 -- | The name of a module
 data ModuleName α ν where
@@ -516,30 +519,29 @@ data Include α π where
   deriving (Show, Eq)
 
 -- | A priority declaration
-data Priority α δ where
+data Priority α ε ω where
   Priority
-    :: forall ann decls
+    :: forall ann expr order
      . ann
     -- ^ The annotation
-    -> decls
-    -- ^ The declarations
-    -> Priority ann decls
+    -> expr
+    -- ^ The premise
+    -> order
+    -- ^ The conclusion of the priority assuming the premise is true
+    -> Priority ann expr order
   deriving (Show, Eq)
 
--- | The actual contents of the priority declaration, describing orders
--- between rule instances.
-data PriorityOrd α ε ι where
-  PriorityOrd
-    :: forall ann cond inst
+-- | The conclusion of a priority declaration
+data PriorityConclusion α ℓ ρ where
+  PriorityConclusion
+    :: forall ann lhs rhs
      . ann
     -- ^ The annotation
-    -> cond
-    -- ^ The condition
-    -> inst
-    -- ^ The LHS of the priority LHS <= RHS
-    -> inst
-    -- ^ The RHS of the priority LHS <= RHS
-    -> PriorityOrd ann cond inst
+    -> lhs
+    -- ^ The LHS of the priority declaration
+    -> rhs
+    -- ^ The RHS of the priority declaration
+    -> PriorityConclusion ann lhs rhs
   deriving (Show, Eq)
 
 -- | The instantiation of a rule, used for priority declarations.

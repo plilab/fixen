@@ -52,6 +52,7 @@ module Fixen.Parser.Token (
   keyword,
   keywordOp,
   turnstile,
+  ltOrSqSubsetEq,
 ) where
 
 import Control.Applicative.Combinators (
@@ -464,3 +465,7 @@ keywordOp s = do
 -- | Parses a turnstile @|-@ or @⊢@
 turnstile :: Parser Text
 turnstile = P.try (keywordOp "⊢") <|> keywordOp "|-"
+
+-- | Parses a partial order less than symbol @<@ or @⊏@
+ltOrSqSubsetEq :: Parser Text
+ltOrSqSubsetEq = P.try (keywordOp "<") <|> keywordOp "⊏"

@@ -32,6 +32,7 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Data.List.NonEmpty
+import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
@@ -109,12 +110,14 @@ parseAST =
         <|> (TLRelation <$> parseRelation)
         <|> (TLRule <$> parseRule)
         <|> (TLPartialOrd <$> parsePartialOrd)
+        <|> (TLPriority <$> parsePriority)
 
 data TopLevel
   = TLExtern AST.Extern
   | TLRelation AST.Relation
   | TLRule AST.Rule
   | TLPartialOrd AST.PartialOrdDeclaration
+  | TLPriority AST.Priority
 
 -- TODO: Might wanna deal with this portion too.
 partitionTopLevels :: AST.ModuleDeclaration -> [TopLevel] -> FixenPass FixenErrors AST.Program
@@ -122,7 +125,7 @@ partitionTopLevels mod_decl [] =
   return
     AST.Program
       { AST.hsBlocks = []
-      , AST.priorities = Nothing
+      , AST.priorities = []
       , AST.queries = []
       , AST.moduleName = mod_decl
       , AST.hsImports = []
@@ -137,6 +140,7 @@ partitionTopLevels mod_decl (x : xs) = do
   rest <- partitionTopLevels mod_decl xs
   case x of
     TLExtern e ->
+      -- only one extern declaration should be allowed; similar structure as Priority
       case AST.extern rest of
         Nothing -> return rest {AST.extern = Just e}
         Just e' ->
@@ -151,6 +155,7 @@ partitionTopLevels mod_decl (x : xs) = do
     TLRelation r -> return rest {AST.relations = r : AST.relations rest}
     TLRule r -> return rest {AST.rules = r : AST.rules rest}
     TLPartialOrd po -> return rest {AST.partialOrdDeclarations = po : AST.partialOrdDeclarations rest}
+    TLPriority p -> return rest {AST.priorities = p : AST.priorities rest}
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -232,7 +237,7 @@ parseRule = do
   return $ Rule pos name bv asm cond cnc
 
 data RulePremise
-  = RPAssumption AST.Assumption
+  = RPAssumption AST.Assumption -- order of assumptions and conditions
   | RPCondition AST.Condition
 
 partitionPremises
@@ -332,3 +337,60 @@ parsePartialOrdField
 parsePartialOrdField fieldName valueParser = do
   _ <- indented *> keyword fieldName *> indented *> keywordOp "=" *> indented -- / simplications
   valueParser
+
+-- | Parses priority declarations:
+--   priority:
+--     a <= a' |- addDist { a = a } <= addDist { a = a' }
+--
+-- Note that this should be just a single priority rule, i.e., if we want multiple rules,
+-- we should create another entire priority declaration. This is so that we do not have
+-- to deal with the indentation mess.
+parsePriority :: Parser AST.Priority
+parsePriority = do
+  (pos, (expr, concl)) <- parsePositioned $ do
+    -- Parse 'priority' keyword (must not be indented)
+    _ <- L.nonIndented sc $ keyword "priority"
+    _ <- indented *> keywordOp ":" *> indented
+    _ <- indented
+    -- Parse premises (left side of |-)
+    expr <- parseExpr indented
+    -- parse the turnstile
+    _ <- indented *> turnstile *> indented
+    -- Parse priority conclusion
+    concl <- parsePriorityConclusion
+    return (expr, concl)
+
+  return $ Priority pos expr concl
+
+-- | Parses priority conclusion like:
+--   "addDist { a = a } < addDist { a = a' }" or
+--   "addDist { } < assignI { }"
+parsePriorityConclusion :: Parser AST.PriorityConclusion
+parsePriorityConclusion = do
+  (pos, (lhs, rhs)) <- parsePositioned $ do
+    left <- parseRuleInstance
+    _ <- indented *> ltOrSqSubsetEq *> indented
+    right <- parseRuleInstance
+    return (left, right)
+  return $ PriorityConclusion pos lhs rhs
+
+-- | Parses a rule instance like: "addDist { a = a }" or "assignI { }"
+--   Returns (name, maybe substitutions)
+parseRuleInstance :: Parser AST.RuleInstantiation
+parseRuleInstance = do
+  (pos, (name, subs)) <- parsePositioned $ do
+    name <- parseLowerFirstSimpleIdentifier
+    _ <- indented *> keywordOp "{" *> indented
+    -- Parse optional substitutions
+    subst <- commaSepBy' parseSubstitution
+    _ <- indented *> keywordOp "}" *> indented
+    return (name, Map.fromList subst) -- Using Left/Right as a simple tagged union
+  return $ RuleInstantiation pos name subs
+
+-- | Parses a substitution like: "a = a"
+parseSubstitution :: Parser (AST.SimpleIdentifier, AST.SimpleIdentifier)
+parseSubstitution = do
+  left <- parseLowerFirstSimpleIdentifier
+  _ <- indented *> keywordOp "=" *> indented
+  right <- parseLowerFirstSimpleIdentifier
+  return (left, right)

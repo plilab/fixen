@@ -62,9 +62,9 @@ type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
 
 type RuleInstantiation = Core.RuleInstantiation Position SimpleIdentifier (Map SimpleIdentifier SimpleIdentifier)
 
-type PriorityOrd = Core.PriorityOrd Position Expr RuleInstantiation
+type PriorityConclusion = Core.PriorityConclusion Position RuleInstantiation RuleInstantiation
 
-type Priority = Core.Priority Position [PriorityOrd]
+type Priority = Core.Priority Position Expr PriorityConclusion
 
 type Query = Core.Query Position SimpleIdentifier Identifier [Core.Mode]
 
@@ -82,7 +82,7 @@ type Phases = Core.Phases Position [Core.Ruleset Position [SimpleIdentifier] :+:
 
 data Program = Program
   { hsBlocks :: [HsBlock]
-  , priorities :: Maybe Priority
+  , priorities :: [Priority]
   , queries :: [Query]
   , moduleName :: ModuleDeclaration
   , hsImports :: [HsImport]
