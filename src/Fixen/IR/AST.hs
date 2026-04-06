@@ -78,7 +78,7 @@ type PartialOrdDeclaration = Core.PartialOrdDeclaration Position SimpleIdentifie
 newtype EverythingElseRuleset = EverythingElseRuleset Position
   deriving (Show, Eq)
 
-type Phases = Core.Phases Position (Core.Ruleset Position [SimpleIdentifier] :+: EverythingElseRuleset)
+type Phases = Core.Phases Position [Core.Ruleset Position [SimpleIdentifier] :+: EverythingElseRuleset]
 
 data Program = Program
   { hsBlocks :: [HsBlock]
