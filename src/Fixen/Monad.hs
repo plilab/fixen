@@ -13,12 +13,14 @@ module Fixen.Monad where
 
 import Control.Monad
 import Control.Monad.Except qualified as Except
+import Control.Monad.IO.Class
 import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans.Maybe as Maybe
 import Data.List (foldl', partition)
 import Error.Diagnose.Diagnostic qualified as Diagnostic
 import Error.Diagnose.Report qualified as Report
 import Fixen.Data.AlaCarte
+import Prettyprinter
 
 -- * Pipeline monad
 
@@ -56,7 +58,7 @@ type Errored σ = σ :>: FixenErrors
 -- with no result, or if errors are present in the resulting state then it
 -- terminates with the errors. For a run that succeeds as long as the monad
 -- returns a value, see 'runFixenPass'' and 'runFixenPass'''.
-runFixenPass :: (Errored σ) => σ -> FixenPass σ α -> FixenM (α, σ)
+runFixenPass :: Errored σ => σ -> FixenPass σ α -> FixenM (α, σ)
 runFixenPass state monad = do
   (res, state') <- Except.ExceptT $ Right <$> State.runStateT (Maybe.runMaybeT monad) state
   -- Get the errors resulting from the state.
@@ -70,10 +72,26 @@ runFixenPass state monad = do
         then Except.liftEither (Left (mozErrorsDiagnostic errs))
         else return (res', state')
 
+-- | Same as 'runFixenPass', except that warnings are flushed automatically.
+runFixenPassFlushWarnings
+  :: Errored σ
+  => (forall m msg. (MonadIO m, Pretty msg) => Diagnostic.Diagnostic msg -> m ())
+  -> σ
+  -> FixenPass σ α
+  -> FixenM (α, σ)
+runFixenPassFlushWarnings error_printer state monad = do
+  (res, state') <- runFixenPass state monad
+  -- Get the errors resulting from the state.
+  let errs :: FixenErrors = (↓) state'
+  error_printer (mozErrorsDiagnostic errs)
+  let new_errs = mozResetErrors errs
+  let new_state = state' *<-: new_errs
+  return (res, new_state)
+
 -- | Runs a pass in the pipeline. If the pass terminated
 -- with no result then it
 -- terminates with the errors in the state.
-runFixenPass' :: (Errored σ) => σ -> FixenPass σ α -> FixenM (α, σ)
+runFixenPass' :: Errored σ => σ -> FixenPass σ α -> FixenM (α, σ)
 runFixenPass' state monad = do
   (res, state') <-
     Except.ExceptT $

@@ -53,13 +53,17 @@ main = do
   in_file_contents <-
     handle (readFileExceptionHandler in_file) $
       SIO.hGetContents' file_handle
-  ast <- runFixenM $ pipeline in_file in_file_contents
   -- output styles
   let out_style = if color then defaultStyle else unadornedStyle
-  let out_unicode = if unicode then WithUnicode else WithoutUnicode
+      out_unicode = if unicode then WithUnicode else WithoutUnicode
+      pretty_options =
+        if color
+          then defaultOutputOptionsDarkBg {outputOptionsCompact = True}
+          else defaultOutputOptionsNoColor {outputOptionsCompact = True}
+  ast <- runFixenM $ pipeline in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
     Left d -> printDiagnostic stderr out_unicode (TabSize 4) out_style d
-    Right a -> pPrintOpt CheckColorTty defaultOutputOptionsDarkBg {outputOptionsCompact = True} a
+    Right a -> pPrintOpt CheckColorTty pretty_options a
 
 -------------------------------------------------------------------------------
 --
