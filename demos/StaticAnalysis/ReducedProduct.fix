@@ -10,7 +10,6 @@ reducedExchangeI =  -- ...
 reducedExchangeP :: StateI -> StateP -> StateP
 reducedExchangeP =  -- ...
 ```
-}
 
 -- returns refined parity information from intervals 
 rule reducedExchangeP : StateBeforeP l st, StateBeforeI l st' 

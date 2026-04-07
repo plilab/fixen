@@ -24,6 +24,7 @@ import System.Exit (
   exitWith,
  )
 import System.IO qualified as SIO
+import Text.Pretty.Simple
 
 -------------------------------------------------------------------------------
 --
@@ -58,7 +59,7 @@ main = do
   let out_unicode = if unicode then WithUnicode else WithoutUnicode
   case ast of
     Left d -> printDiagnostic stderr out_unicode (TabSize 4) out_style d
-    Right a -> print a
+    Right a -> pPrintOpt CheckColorTty defaultOutputOptionsDarkBg {outputOptionsCompact = True} a
 
 -------------------------------------------------------------------------------
 --

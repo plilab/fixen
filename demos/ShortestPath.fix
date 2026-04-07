@@ -1,7 +1,8 @@
 module Demos.ShortestPath where
 
-rel DistTo : Vertex, *Dist
+rel DistTo : Vertex, Dist
 rel Edge : Vertex, Vertex, Dist
+
 
 ```hs
 type Vertex = String
@@ -18,6 +19,7 @@ distMlbs :: Dist -> Dist -> [Dist]
 distMlbs (D x) (D y) = [D (min x y)]
 ```
 
+
 partial ord Dist where
   type = Dist -- the underlying Dist type we declared earlier
   leq  = distLeq
@@ -29,8 +31,8 @@ rule addDist: DistTo a d, Edge a b d'
 
 -- Priorities for Dijkstra's
 priority:
-  (d1 + d1') >= (d2 + d2') 
-    |- addDist { d = d1, d' = d1' } <= addDist { d = d2, d' = d2' }
+  (d1 + d1') > (d2 + d2') 
+    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
 
 -- interface
 query DistTo as distTo - +

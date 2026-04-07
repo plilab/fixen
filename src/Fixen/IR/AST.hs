@@ -58,7 +58,7 @@ type Extern = Core.Extern Position (NonEmpty SimpleIdentifier)
 type HsImport = Core.HsImport Position ModuleName
 type Include = Core.Include Position Text
 
-type HsBlock = Core.HsBlock Position (Maybe SimpleIdentifier) Text
+type HsBlock = Core.HsBlock Position Text
 
 type RuleInstantiation = Core.RuleInstantiation Position SimpleIdentifier (Map SimpleIdentifier SimpleIdentifier)
 
@@ -87,17 +87,17 @@ type RulesetOrEverythingElse = ExplicitRuleset :+: EverythingElseRuleset
 type Phases = Core.Phases Position (NonEmpty RulesetOrEverythingElse)
 
 data Program = Program
-  { hsBlocks :: [HsBlock]
-  , priorities :: [Priority]
-  , queries :: [Query]
-  , moduleName :: ModuleDeclaration
+  { moduleName :: ModuleDeclaration
   , hsImports :: [HsImport]
+  , hsBlocks :: [HsBlock]
+  , includes :: [Include]
   , extern :: Maybe Extern
   , relations :: [Relation]
-  , rules :: [Rule]
-  , includes :: [Include]
-  , phases :: Maybe Phases
   , partialOrdDeclarations :: [PartialOrdDeclaration]
+  , rules :: [Rule]
+  , priorities :: [Priority]
+  , queries :: [Query]
+  , phases :: Maybe Phases
   }
   deriving (Show, Eq)
 

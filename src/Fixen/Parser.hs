@@ -33,6 +33,7 @@ import Control.Applicative.Combinators (
  )
 import Data.List.NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
@@ -64,11 +65,11 @@ parse
   -- ^ The contents of the file
   -> FixenPass FixenErrors AST.Program
 parse file_path contents = do
-  top_levels <- fixenParse parseProgram file_path contents
+  (mod_decl, top_levels) <- fixenParse parseProgram file_path contents
   -- TODO: We probably need to parse the module header, then the imports, then
   -- the rest of the program; otherwise, we probably can't instantiate the
   -- AST.Program type.
-  partitionTopLevels undefined top_levels
+  partitionTopLevels mod_decl top_levels
 
 --------------------------------------------------------------------------------
 --
@@ -99,8 +100,12 @@ fixenParse parser file_path contents = do
 --------------------------------------------------------------------------------
 
 -- | Parses the program with whitespaces and eof.
-parseProgram :: Parser [TopLevel]
-parseProgram = sc *> parseAST <* eof
+parseProgram :: Parser (AST.ModuleDeclaration, [TopLevel])
+parseProgram = do
+  mod_head <- l parseModuleDeclaration
+  top_levels <- l parseAST
+  _ <- eof
+  return (mod_head, top_levels)
 
 -- | Parses a 'AST.Program'.
 parseAST :: Parser [TopLevel]
@@ -115,6 +120,7 @@ parseAST =
         <|> (TLQuery <$> parseQuery)
         <|> (TLInclude <$> parseInclude)
         <|> (TLImport <$> parseImport)
+        <|> (TLHsBlock <$> parseHaskellCodeBlock)
         <|> (TLPhases <$> parsePhases)
 
 data TopLevel
@@ -122,6 +128,7 @@ data TopLevel
   | TLRelation AST.Relation
   | TLRule AST.Rule
   | TLPartialOrd AST.PartialOrdDeclaration
+  | TLHsBlock AST.HsBlock
   | TLPriority AST.Priority
   | TLQuery AST.Query
   | TLInclude AST.Include
@@ -183,6 +190,18 @@ partitionTopLevels mod_decl (x : xs) = do
               , (AST.getPosition p', This "another phase definition")
               ]
               [Note "each program can only have one phase declaration"]
+    TLHsBlock h -> return rest {AST.hsBlocks = h : AST.hsBlocks rest}
+
+-- | Parses a 'module My.Haskell.Module declaration'
+parseModuleDeclaration :: Parser AST.ModuleDeclaration
+parseModuleDeclaration = do
+  (pos, mod_decl) <- parsePositioned $ do
+    -- No need to `try` here. This is compulsory.
+    _ <- l $ L.nonIndented sc $ keyword "module"
+    m <- l parseModuleName
+    _ <- keyword "where"
+    return m
+  return $ ModuleDeclaration pos mod_decl
 
 -- | Parses a 'AST.Extern'.
 parseExtern :: Parser AST.Extern
@@ -381,7 +400,6 @@ parsePriority = do
     -- definitely need a try here.
     _ <- P.try $ l $ L.nonIndented sc $ keyword "priority"
     _ <- indented *> keywordOp ":" *> indented
-    _ <- indented
     -- Parse premises (left side of |-)
     expr <- parseExpr indented
     -- parse the turnstile
@@ -409,7 +427,7 @@ parsePriorityConclusion = do
 parseRuleInstance :: Parser AST.RuleInstantiation
 parseRuleInstance = do
   (pos, (name, subs)) <- parsePositioned $ do
-    name <- parseLowerFirstSimpleIdentifier
+    name <- l parseLowerFirstSimpleIdentifier
     -- Parse optional substitutions
     subst <- betweenCurlyBraces indented $ commaSepBy' parseSubstitution
     return (name, Map.fromList subst) -- Using Left/Right as a simple tagged union
@@ -510,3 +528,12 @@ parseEverythingElseRuleset :: Parser AST.EverythingElseRuleset
 parseEverythingElseRuleset = do
   (pos, _) <- parsePositioned $ keywordOp "*"
   return $ AST.EverythingElseRuleset pos
+
+parseHaskellCodeBlock :: Parser AST.HsBlock
+parseHaskellCodeBlock = do
+  (pos, c) <- parsePositioned $ do
+    _ <- P.try $ L.nonIndented sc $ keyword "```hs"
+    contents <- P.manyTill P.anySingle (keyword "```")
+    let pxy :: Proxy Text = Proxy
+    return $ P.tokensToChunk pxy contents
+  return $ HsBlock pos c

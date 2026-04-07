@@ -203,10 +203,11 @@ data SimpleIdentifier α σ where
   -- | A simple identifier
   SimpleIdentifier
     :: forall ann name
-     . ann
-    -- ^ The annotation
-    -> name
-    -- ^ The name
+     . { simpleIdentifierAnnotation :: ann
+        -- ^ The annotation
+       , simpleIdentifierName :: name
+        -- ^ The name
+       }
     -> SimpleIdentifier ann name
   deriving (Show, Eq)
 
@@ -218,10 +219,11 @@ data ModuleName α ν where
   -- | A module name
   ModuleName
     :: forall ann name
-     . ann
-    -- ^ The annotation
-    -> name
-    -- ^ The name
+     . { moduleNameAnnotation :: ann
+        -- ^ The annotation
+       , moduleNameName :: name
+        -- ^ The name
+       }
     -> ModuleName ann name
   deriving (Show, Eq)
 
@@ -230,12 +232,13 @@ data FullyQualifiedName α μ ν where
   -- | A fully-qualified name
   FullyQualifiedName
     :: forall ann mod name
-     . ann
-    -- ^ The annotation
-    -> mod
-    -- ^ The module
-    -> name
-    -- ^ The name
+     . { fqnAnnotation :: ann
+        -- ^ The annotation
+       , fqnModuleName :: mod
+        -- ^ The module
+       , fqnName :: name
+        -- ^ The name
+       }
     -> FullyQualifiedName ann mod name
   deriving (Show, Eq)
 
@@ -243,14 +246,16 @@ data Identifier α β χ δ where
   -- | A simple identifier
   IdentifierSimpleIdentifier
     :: forall ann mod fqn sim
-     . SimpleIdentifier ann sim
-    -- ^ The simple identifier
+     . { identifierSimpleIdentifier :: SimpleIdentifier ann sim
+        -- ^ The simple identifier
+       }
     -> Identifier ann mod fqn sim
   -- | A fully-qualified name
   IdentifierFullyQualifiedName
     :: forall ann mod fqn sim
-     . FullyQualifiedName ann mod fqn
-    -- ^ The fully qualified name
+     . { identifierFQN :: FullyQualifiedName ann mod fqn
+        -- ^ The fully qualified name
+       }
     -> Identifier ann mod fqn sim
   deriving (Show, Eq)
 
@@ -485,16 +490,14 @@ data Condition α ε where
   deriving (Show, Eq)
 
 -- | A Haskell source block in the program
-data HsBlock α ν β where
+data HsBlock α β where
   HsBlock
-    :: forall ann name body
+    :: forall ann body
      . ann
     -- ^ The annotation
-    -> name
-    -- ^ The name
     -> body
     -- ^ The body
-    -> HsBlock ann name body
+    -> HsBlock ann body
   deriving (Show, Eq)
 
 -- | A Haskell import statement in the program
@@ -747,9 +750,6 @@ instance Named (Relation α β π) β where
 
 instance Named (Rule α ν β π χ δ) ν where
   nameOf (Rule _ n _ _ _ _) = n
-
-instance Named (HsBlock α ν β) ν where
-  nameOf (HsBlock _ n _) = n
 
 instance Named (HsImport α σ) σ where
   nameOf (HsImport _ i) = i
