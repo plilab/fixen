@@ -30,6 +30,7 @@ module Fixen.IR.Core (
   FullyQualifiedName (..),
   Identifier (.., MkIdentifierSimple, MkIdentifierFQN),
   IdentifierLike (..),
+  IdentifierAsStringLike (..),
   Expr (..),
   Type (..),
   Relation (..),
@@ -53,7 +54,9 @@ module Fixen.IR.Core (
   Ruleset (..),
 ) where
 
-import Data.List.NonEmpty (NonEmpty)
+import Data.List (intercalate)
+import Data.List.NonEmpty (NonEmpty, toList)
+import Data.Text (Text, unpack)
 import Data.Typeable
 import Fixen.IR.Core.Annotations
 import GHC.TypeLits (KnownSymbol, Symbol)
@@ -302,6 +305,18 @@ instance IdentifierLike β δ => IdentifierLike (Identifier α χ β δ) δ wher
   identifier (MkIdentifierSimple _ n) = n
   identifier (MkIdentifierFQN _ _ n) = identifier n
 
+class IdentifierAsStringLike ι where
+  fullIdentifierAsString :: ι -> String
+
+instance IdentifierAsStringLike (SimpleIdentifier a Text) where
+  fullIdentifierAsString (SimpleIdentifier _ s) = unpack s
+
+instance IdentifierAsStringLike s => IdentifierAsStringLike (ModuleName a (NonEmpty s)) where
+  fullIdentifierAsString (ModuleName _ s) =
+    let s' = toList s
+        strings = fullIdentifierAsString <$> s'
+    in  intercalate "." strings
+
 data Expr α θ ι σ where
   -- | A name/variable expression
   ExprVar
@@ -504,10 +519,11 @@ data HsBlock α β where
 data HsImport α σ where
   HsImport
     :: forall ann imp
-     . ann
-    -- ^ The annotation
-    -> imp
-    -- ^ The import
+     . { hsImportAnnotation :: ann
+        -- ^ The annotation
+       , hsImportImport :: imp
+        -- ^ The import
+       }
     -> HsImport ann imp
   deriving (Show, Eq)
 
@@ -515,10 +531,11 @@ data HsImport α σ where
 data Include α π where
   Include
     :: forall ann path
-     . ann
-    -- ^ The annotation
-    -> path
-    -- ^ The path to the file to import
+     . { includeAnnotation :: ann
+        -- ^ The annotation
+       , includePath :: path
+        -- ^ The path to the file to import
+       }
     -> Include ann path
   deriving (Show, Eq)
 
@@ -606,10 +623,11 @@ data ModuleDeclaration α ν where
 data Extern α δ where
   Extern
     :: forall ann e
-     . ann
-    -- ^ The annotation
-    -> e
-    -- ^ The declarations
+     . { externAnnotation :: ann
+        -- ^ The annotation
+       , externSymbols :: e
+        -- ^ The declarations
+       }
     -> Extern ann e
   deriving (Show, Eq)
 
@@ -735,6 +753,9 @@ instance GetAnnotation ann (Phases ann p) where
 
 instance SetAnnotation ann (Phases ann' p) (Phases ann p) where
   setAnnotation ann (Phases _ p) = Phases ann p
+
+instance GetAnnotation ann (Include ann p) where
+  getAnnotation (Include ann _) = ann
 
 --------------------------------------------------------------------------------
 --

@@ -35,6 +35,7 @@ library
                       , Fixen.IR.ExplicitBoundVars
                       , Fixen.IR.Sorted
                       , Fixen.Monad
+                      , Fixen.ModuleSystem
                       , Fixen.Pipeline
                       , Fixen.Parser
                       , Fixen.Parser.Common

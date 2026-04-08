@@ -72,6 +72,9 @@ runFixenPass state monad = do
         then Except.liftEither (Left (mozErrorsDiagnostic errs))
         else return (res', state')
 
+fixenPassTry :: FixenPass s a -> FixenPass s (Maybe a)
+fixenPassTry fp = MaybeT $ Just <$> runMaybeT fp
+
 -- | Same as 'runFixenPass', except that warnings are flushed automatically.
 runFixenPassFlushWarnings
   :: Errored σ
@@ -124,6 +127,14 @@ runFixenPass'' state monad = do
 adapter :: ε -> FixenPass (σ :*: ε) a -> FixenPass σ (a, ε)
 adapter st' m = Maybe.MaybeT $ State.StateT $ \st ->
   (\(x, (y, z)) -> ((,z) <$> x, y)) <$> State.runStateT (Maybe.runMaybeT m) (st, st')
+
+-- | Fails with a string
+failS
+  :: (Errored σ, State.MonadState σ μ, MonadPlus μ)
+  => String
+  -> μ a
+failS msg =
+  failR (Report.Err Nothing msg [] [])
 
 -- | Fail fast with a report.
 failR
@@ -193,6 +204,18 @@ data FixenErrors = FixenErrors
 
 -- | Just a list of pairs mapping file paths to file contents.
 type FixenFileMap = [(FilePath, String)]
+
+fixenInsertFileMap :: Errored σ => FilePath -> String -> FixenPass σ ()
+fixenInsertFileMap fp s = do
+  st <- State.get
+  let errs :: FixenErrors = (↓) st
+      new_errs =
+        errs
+          { mozErrorsFileMap = (fp, s) : mozErrorsFileMap errs
+          , mozErrorsDiagnostic = Diagnostic.addFile (mozErrorsDiagnostic errs) fp s
+          }
+      new_state = st *<-: new_errs
+  State.put new_state
 
 -- | Clears all errors from a 'FixenErrors'.
 mozResetErrors :: FixenErrors -> FixenErrors

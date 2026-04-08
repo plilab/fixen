@@ -14,6 +14,8 @@ import Fixen.IR.AST
 import Prettyprinter
 
 -- import Fixen.BoundVarExplicitor (makeBoundVarsExplicit)
+
+import Fixen.ModuleSystem (getIncludes)
 import Fixen.Monad
 import Fixen.Parser (parse)
 
@@ -45,7 +47,9 @@ pipeline file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = mozEmptyErrors file_map
   (program, _) <- runFixenPassFlushWarnings error_printer init_errs (parse file_path (pack contents))
+  -- NOTE THAT IN SUBSEQUENT PASSES WE MUST USE THE RESULTING STATE THAT HAS THE NEW FILEMAP
+  (program', _) <- runFixenPassFlushWarnings error_printer init_errs (getIncludes program)
   -- (program', err_after2) <- runFixenPass err_after1 $ sort program
   -- let pp = makeBoundVarsExplicit program'
   -- (env, ess) <- runFixenPass err_after2 $ solveSymbols pp
-  return program
+  return program'

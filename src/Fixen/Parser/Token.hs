@@ -405,8 +405,7 @@ parseNonInfixOpIdentifier indent_check = do
 parseRawString :: Parser Text
 parseRawString =
   fmap pack $
-    l $
-      C.char '"' >> manyTill L.charLiteral (C.char '"')
+    C.char '"' >> manyTill L.charLiteral (C.char '"')
 
 -- | Parses a (signed) integer literal.
 parseRawInteger :: Parser Integer
