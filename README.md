@@ -1,5 +1,12 @@
 <a id="readme-top"></a>
 
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/whiteonblack.png">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/blackonwhite.png">
+  <img alt="Fixen Logo" src="./assets/blackonwhite.png">
+</picture>
+
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
