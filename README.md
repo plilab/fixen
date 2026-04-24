@@ -23,13 +23,14 @@
   </p>
 </div>
 
-
+[![Haskell][haskell-shield]][haskell-badge-url]
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
+
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -184,3 +185,5 @@ The Programming Languages Innovation Lab @ NUS: [https://github.com/plilab](http
 [license-url]: https://github.com/yonggqiii/fixen/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/fooyongqi
+[haskell-shield]: https://img.shields.io/badge/Haskell-5D4F85?style=for-the-badge&logo=haskell&logoColor=white
+[haskell-badge-url]: https://www.haskell.org
