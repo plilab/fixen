@@ -1,18 +1,13 @@
 <a id="readme-top"></a>
 
-
+<div align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/whiteonblack.png">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/blackonwhite.png">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/whiteonblack.png" width="60%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/blackonwhite.png" width="60%">
   <img alt="Fixen Logo" src="./assets/blackonwhite.png">
 </picture>
+</div>
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
 
 <br />
 <div align="center">
@@ -29,6 +24,12 @@
 </div>
 
 
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
+[![LinkedIn][linkedin-shield]][linkedin-url]
 
 <!-- TABLE OF CONTENTS -->
 <details>
