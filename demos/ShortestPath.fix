@@ -21,7 +21,7 @@ distMlbs (D x) (D y) = [D (min x y)]
 
 
 partial ord Dist where
-  type = Dist -- the underlying Dist type we declared earlier
+  type = Int -- the underlying Dist type we declared earlier
   leq  = distLeq
   mlbs = distMlbs
 

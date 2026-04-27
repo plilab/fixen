@@ -8,19 +8,15 @@
 module Fixen.Pipeline (pipeline) where
 
 import Control.Monad.IO.Class (MonadIO)
+import Data.IntMap.Strict qualified as Map
 import Data.Text
 import Error.Diagnose
+import Fixen.Data.NodeId
 import Fixen.IR.AST
-import Prettyprinter
-
--- import Fixen.BoundVarExplicitor (makeBoundVarsExplicit)
-
 import Fixen.ModuleSystem (getIncludes)
 import Fixen.Monad
 import Fixen.Parser (parse)
-
--- import Fixen.Sorter (sort)
--- import Fixen.SymbolSolver
+import Prettyprinter
 
 -- | The compilation pipeline. The code as a connector for each phase of
 -- the pipeline (which may use different monads):
@@ -45,11 +41,11 @@ pipeline
   -> FixenM Program
 pipeline file_path contents error_printer = do
   let file_map = [(file_path, contents)]
-      init_errs = mozEmptyErrors file_map
-  (program, _) <- runFixenPassFlushWarnings error_printer init_errs (parse file_path (pack contents))
+      init_errs = fixenEmptyErrors file_map
+      init_pos_env :: PositionEnv = Map.empty
+      init_node_id :: NodeId = 0
+      init_env = (init_pos_env, (init_node_id, init_errs))
+  (program, st) <- runFixenPassFlushWarnings error_printer init_env (parse file_path (pack contents))
   -- NOTE THAT IN SUBSEQUENT PASSES WE MUST USE THE RESULTING STATE THAT HAS THE NEW FILEMAP
-  (program', _) <- runFixenPassFlushWarnings error_printer init_errs (getIncludes program)
-  -- (program', err_after2) <- runFixenPass err_after1 $ sort program
-  -- let pp = makeBoundVarsExplicit program'
-  -- (env, ess) <- runFixenPass err_after2 $ solveSymbols pp
+  (program', _) <- runFixenPassFlushWarnings error_printer st (getIncludes program)
   return program'

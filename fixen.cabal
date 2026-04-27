@@ -24,17 +24,52 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall -Werror
 
+-- This library is written by Mesabloo; LICENSE file is found in the diagnose/
+-- directory. We download the source code of this library and include it here
+-- to bump version dependencies (this library appears to not have been
+-- maintained for several years now).
+library diagnose
+    import:               warnings
+    exposed-modules:      Error.Diagnose
+                        , Error.Diagnose.Diagnostic
+                        , Error.Diagnose.Position
+                        , Error.Diagnose.Pretty
+                        , Error.Diagnose.Report
+                        , Error.Diagnose.Style
+                        , Error.Diagnose.Compat.Megaparsec
+    other-modules:        Data.List.Safe
+                        , Error.Diagnose.Compat.Hints
+                        , Error.Diagnose.Diagnostic.Internal
+                        , Error.Diagnose.Report.Internal
+    hs-source-dirs:       diagnose
+    default-extensions:   OverloadedStrings
+                        , LambdaCase
+                        , BlockArguments
+    build-depends:        array==0.5.8.0
+                        , base==4.22.0.0
+                        , containers==0.8
+                        , data-default==0.8.0.2
+                        , dlist==1.0
+                        , hashable==1.5.1.0
+                        , megaparsec==9.7.0
+                        , prettyprinter==1.7.1
+                        , prettyprinter-ansi-terminal==1.1.3
+                        , unordered-containers==0.2.21
+                        , wcwidth==0.0.2
+    default-language:     Haskell2010
+
 library 
     -- Import common warning flags.
     import:             warnings
-    exposed-modules:    Fixen.BoundVarExplicitor
-                      , Fixen.Data.AlaCarte
+    exposed-modules:    Fixen.Data.NodeId
                       , Fixen.IR.AST
                       , Fixen.IR.Core
-                      , Fixen.IR.Core.Annotations
-                      , Fixen.IR.ExplicitBoundVars
-                      , Fixen.IR.Sorted
                       , Fixen.Monad
+                      , Fixen.Monad.Env
+                      , Fixen.Monad.Env.Errors
+                      , Fixen.Monad.Env.NodeId
+                      , Fixen.Monad.Env.Position
+                      , Fixen.Monad.Type
                       , Fixen.ModuleSystem
                       , Fixen.Pipeline
                       , Fixen.Parser
@@ -43,19 +78,20 @@ library
                       , Fixen.Parser.Token
                       , Fixen.Parser.Type
                       , Fixen.SymbolSolver
-    build-depends:      base ^>=4.19.2.0
-                      , filepath ^>=1.4.301.0
-                      , diagnose ^>=2.5.1
-                      , megaparsec ^>=9.7.0
-                      , mtl ^>=2.3.1
-                      , transformers ^>=0.6.1.0
-                      , containers ^>=0.6.8
-                      , parser-combinators ^>=1.3.0
-                      , prettyprinter ^>=1.7.1
-                      , text ^>=2.0
-                      , directory
-    hs-source-dirs:   src
-    default-language: GHC2021
+    build-depends:      base==4.22.0.0
+                      , containers==0.8
+                      , directory==1.3.10.1
+                      , filepath==1.5.5.0
+                      , fixen:diagnose 
+                      , megaparsec==9.7.0
+                      , mtl==2.3.2
+                      , parser-combinators==1.3.1
+                      , prettyprinter==1.7.1
+                      , prettyprinter-ansi-terminal==1.1.3
+                      , text==2.1.3
+                      , transformers==0.6.3.0
+    hs-source-dirs:     src
+    default-language:   GHC2021
 
 
 executable fixen
@@ -74,19 +110,19 @@ executable fixen
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.19.2.0
-                    , optparse-applicative ^>=0.18.1.0
-                    , filepath ^>=1.4.301.0
-                    , diagnose ^>=2.5.1
-                    , megaparsec ^>=9.7.0
-                    , mtl ^>=2.3.1
-                    , transformers ^>=0.6.1.0
-                    , containers ^>=0.6.8
-                    , parser-combinators ^>=1.3.0
-                    , text ^>=2.0
+    build-depends:    base 
+                    , optparse-applicative
+                    , filepath 
+                    , fixen:diagnose 
+                    , megaparsec 
+                    , mtl 
+                    , transformers
+                    , containers
+                    , parser-combinators 
+                    , text 
                     , directory
-                    , pretty-simple
-                    , prettyprinter ^>=1.7.1
+                    , prettyprinter
+                    , prettyprinter-ansi-terminal
                     , fixen
 
     -- Directories containing source files.
@@ -101,16 +137,16 @@ test-suite parser-tests
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: Fixen/ParserTest.hs
-  build-depends:    base ^>=4.19.2.0
-                    , optparse-applicative ^>=0.18.1.0
-                    , filepath ^>=1.4.301.0
-                    , diagnose ^>=2.5.1
-                    , megaparsec ^>=9.7.0
-                    , mtl ^>=2.3.1
-                    , transformers ^>=0.6.1.0
-                    , containers ^>=0.6.8
-                    , parser-combinators ^>=1.3.0
-                    , text ^>=2.0
+  build-depends:    base 
+                    , optparse-applicative
+                    , filepath 
+                    , fixen:diagnose 
+                    , megaparsec
+                    , mtl 
+                    , transformers 
+                    , containers 
+                    , parser-combinators
+                    , text
                     , directory
                     , tasty
                     , tasty-hunit
@@ -132,9 +168,9 @@ benchmark shortest-path
       benchmarks
   default-extensions:
       OverloadedStrings
-  build-depends:      base ^>=4.19.2.0
-                    , containers ^>=0.6.8
-                    , pqueue ^>=1.5.0.0
+  build-depends:      base
+                    , containers 
+                    , pqueue 
   default-language: GHC2021
 
 benchmark pareto
@@ -148,7 +184,7 @@ benchmark pareto
       benchmarks
   default-extensions:
       OverloadedStrings
-  build-depends:      base ^>=4.19.2.0
-                    , containers ^>=0.6.8
-                    , pqueue ^>=1.5.0.0
+  build-depends:      base 
+                    , containers
+                    , pqueue 
   default-language: GHC2021
