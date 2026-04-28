@@ -555,7 +555,7 @@ parseConclusion = parsePositioned $ do
   -- Verify proper indentation before the arguments
   _ <- indented
   -- Parse zero or more expression arguments with indentation checking
-  args <- manyI' (parseExpr indented)
+  args <- manyI' (parseParenExpr indented)
   -- Allocate a fresh node ID and construct the Relation AST node
   i <- fixenGetNewNodeId
   return $ AST.Relation i header args
