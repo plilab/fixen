@@ -69,7 +69,7 @@ import Fixen.IR.Core as D (
   , priorities
   , queries
   , phases
- )
+  )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter
 import Prettyprinter.Render.Terminal
@@ -344,12 +344,14 @@ type Program =
     (Maybe Phases)
     -- ^ Phase declarations (optional; 'Nothing' if no phases declared).
 
+-------------------------------------------------------------------------------
+-- Pretty-printing
+-------------------------------------------------------------------------------
+
 -- | Pretty-print a list of items as a vertical list with dash prefixes.
 --
 --   Each item is rendered on its own line, indented by 2 spaces and
---   prefixed with a dash (\"- \"). Items are separated by line breaks.
---   Used internally by other pretty-printing functions to format
---   lists of sub-elements.
+--   prefixed with a dash (\"- \").
 --
 --   @
 --   - item1
@@ -357,10 +359,277 @@ type Program =
 --   - item3
 --   @
 prettyList' :: [Doc ann] -> Doc ann
-prettyList' items = vsep (formatItem <$> items)
+prettyList' items = sep (formatItem <$> items)
   where
-    -- | Format a single item: indent by 2 spaces and prefix with a dash.
     formatItem item = hang 2 (pretty "-" <+> item)
+
+-- | Format an identifier with its 'NodeId' as a compact @N suffix.
+--
+--   @
+--   Dist@42
+--   x@5
+--   @
+prettyId :: NodeId -> Text -> Doc ann
+prettyId n name = pretty name <> pretty "@" <> pretty n
+
+-- | Pretty-print an 'Expr' with syntax highlighting.
+--
+--   * Variables — plain text
+--   * Integer literals — green
+--   * String literals — yellow
+--   * Operators (<=, <, +, -, *, etc.) — bold cyan
+prettyExpr :: Expr -> Doc AnsiStyle
+prettyExpr (Core.ExprVar _ (Core.MkIdentifierSimple _ n)) = pretty n
+prettyExpr (Core.ExprVar _ (Core.MkIdentifierFQN _ _ n)) = pretty (Core.fullIdentifier n)
+prettyExpr (Core.ExprApp _ f a) = lparen <> prettyExpr f <+> prettyExpr a <> rparen
+prettyExpr (Core.ExprIntLit _ i) = annotate (color Green) $ pretty i
+prettyExpr (Core.ExprStrLit _ s) = annotate (color Yellow) $ pretty (show s)
+prettyExpr (Core.ExprTuple _ f rs) =
+  lparen <> prettyExpr f <> comma <> prettyExpr (Data.List.NonEmpty.head rs)
+    <> Prelude.foldr (\r acc -> comma <+> prettyExpr r <> acc) mempty (Data.List.NonEmpty.toList rs)
+    <> rparen
+prettyExpr (Core.ExprList _ ls) = lbracket <> sep (punctuate comma (prettyExpr <$> ls)) <> rbracket
+prettyExpr (Core.ExprUnit _) = lparen <> rparen
+
+-- | Pretty-print an 'Assumption' (relation applied to variable names).
+--
+--   @
+--   Dist@42 x, y
+--   Edge@43 a, b, d
+--   @
+prettyAssumption :: Assumption -> Doc AnsiStyle
+prettyAssumption (Core.Relation _ name args) =
+  annotate (color Red) (pretty (Core.fullIdentifier name))
+    <+> sep [pretty (Core.fullIdentifier a) | a <- args]
+
+-- | Pretty-print a 'Conclusion' (the |- part of a rule).
+--
+--   @
+--   |- Dist@42 x (y + 1)
+--   @
+prettyConclusion :: Conclusion -> Doc AnsiStyle
+prettyConclusion (Core.Relation _ name args) =
+  annotate bold (pretty "|-") <+> annotate (color Red) (pretty (Core.fullIdentifier name))
+    <+> sep (prettyExpr <$> args)
+
+-- | Pretty-print a 'Condition' (an @if@ guard).
+--
+--   @
+--   if x <= y
+--   @
+prettyCondition :: Condition -> Doc AnsiStyle
+prettyCondition (Core.Condition _ expr) =
+  annotate bold (pretty "if") <+> prettyExpr expr
+
+-- | Pretty-print a 'Rule' with structured, multi-line output.
+--
+--   @
+--   rule addDist@34
+--     boundVars: a, b, d, d'
+--     assumptions:
+--       Dist@34 a, d
+--       Edge@34 a, b, d'
+--     conditions:
+--     conclusion:
+--       |- Dist@35 b (d + d')
+--   @
+prettyRule :: Rule -> Doc AnsiStyle
+prettyRule (Core.Rule _ name vars assumps conds concl) =
+  let name_doc = case name of
+        Nothing -> mempty
+        Just n  -> pretty " " <> annotate (color Red) (pretty (Core.fullIdentifier n))
+      vars_doc = pretty "boundVars:" <+> sep [pretty (Core.fullIdentifier v) | v <- vars]
+      assump_doc = pretty "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
+      cond_doc = pretty "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
+      concl_doc = pretty "conclusion:" <> line <> indent 2 (prettyConclusion concl)
+  in  annotate bold (pretty "rule") <> name_doc
+        <> line <> indent 2 vars_doc
+        <> line <> indent 2 assump_doc
+        <> line <> indent 2 cond_doc
+        <> line <> indent 2 concl_doc
+
+-- | Pretty-print a 'RuleInstance' (rule with variable substitution map).
+--
+--   @
+--   addDist@7 { d = d1, d' = d1' }
+--   @
+prettyRuleInstance :: RuleInstance -> Doc AnsiStyle
+prettyRuleInstance (Core.RuleInstance _ rule m) =
+  if Data.Map.Strict.null m
+    then annotate (color Red) (pretty (Core.fullIdentifier rule))
+    else annotate (color Red) (pretty (Core.fullIdentifier rule))
+      <> pretty " {"
+      <> sep (punctuate comma [pretty (Core.fullIdentifier k) <> pretty " = " <> pretty (Core.fullIdentifier v) | (k, v) <- Data.Map.Strict.toAscList m])
+      <> pretty " }"
+
+-- | Pretty-print a 'PriorityConclusion' (lhs @op@ rhs).
+--
+--   @
+--   addDist@7 <= addDist@8
+--   @
+prettyPriorityConclusion :: PriorityConclusion -> Doc AnsiStyle
+prettyPriorityConclusion (Core.PriorityConclusion _ lhs rhs) =
+  prettyRuleInstance lhs
+    <> pretty " "
+    <> annotate bold (pretty "<=")
+    <> pretty " "
+    <> prettyRuleInstance rhs
+
+-- | Pretty-print a 'Priority' declaration.
+--
+--   @
+--   priority:
+--     (d1 + d1') > (d2 + d2') |- addDist@7 <= addDist@8
+--   @
+prettyPriority :: Priority -> Doc AnsiStyle
+prettyPriority (Core.Priority _ premise concl) =
+  annotate bold (pretty "priority:")
+    <> line
+    <> indent 2 (prettyExpr premise <> pretty " |- " <> prettyPriorityConclusion concl)
+
+-- | Pretty-print a 'QueryMode' (@+@ for input, @-@ for output).
+prettyQueryMode :: QueryMode -> Doc AnsiStyle
+prettyQueryMode Core.Input{} = annotate (color Green) (pretty "+")
+prettyQueryMode Core.Output{} = annotate (color Green) (pretty "-")
+
+-- | Pretty-print a 'Query' declaration.
+--
+--   @
+--   query DistTo@9 as distTo@10 - +
+--   @
+prettyQuery :: Query -> Doc AnsiStyle
+prettyQuery (Core.Query _ rel qname modes) =
+  annotate bold (pretty "query")
+    <+> annotate (color Red) (pretty (Core.fullIdentifier rel))
+    <> pretty " as "
+    <> annotate (color Red) (pretty (Core.fullIdentifier qname))
+    <+> sep (prettyQueryMode <$> Data.List.NonEmpty.toList modes)
+
+-- | Pretty-print a 'RulesetOrEverythingElse'.
+--
+--   @
+--   { rule1@1, rule2@2 }
+--   *
+--   @
+prettyRulesetOrEverythingElse :: RulesetOrEverythingElse -> Doc AnsiStyle
+prettyRulesetOrEverythingElse (Left (Core.Ruleset _ rules)) =
+  lbrace <> sep (punctuate comma [pretty (Core.fullIdentifier r) <> pretty "@" <> pretty (Core.simpleIdentifierNodeId r) | r <- Data.List.NonEmpty.toList rules]) <> rbrace
+prettyRulesetOrEverythingElse (Right (EverythingElseRuleset n)) =
+  annotate bold (pretty "*") <> pretty "@" <> pretty n
+
+-- | Pretty-print 'Phases' declarations.
+--
+--   @
+--   phases:
+--     { rule1@1, rule2@2 }
+--     { rule3@3 }
+--     *@4
+--   @
+prettyPhases :: Phases -> Doc AnsiStyle
+prettyPhases (Core.Phases _ phases) =
+  annotate bold (pretty "phases:")
+    <> line
+    <> indent 2 (vsep (prettyRulesetOrEverythingElse <$> Data.List.NonEmpty.toList phases))
+
+-- | Pretty-print an entire 'Program' with syntax highlighting.
+--
+--   Renders the complete Fixen program AST as a multi-line document
+--   with colored, structured output. All sections are rendered with
+--   blank-line separators between them. Sections with empty lists
+--   are omitted entirely.
+--
+--   /Color scheme./
+--
+--   * Keywords (@module@, @rule@, @relation@, etc.) — bold blue
+--   * Identifiers (relation names, rule names, variables) — red
+--   * Types — red and bold
+--   * Integer literals — green
+--   * String literals — yellow
+--   * Operators (@if@, @|-@, @<=@, @+@, @-@) — bold cyan
+prettyProgram :: Program -> Doc AnsiStyle
+prettyProgram
+  Program
+    { moduleName = module_name
+    , hsImports = hs_imports
+    , hsBlocks = hs_blocks
+    , includes = p_includes
+    , extern = p_extern
+    , relations = p_relations
+    , partialOrdDeclarations = partial_ords
+    , rules = p_rules
+    , priorities = p_priorities
+    , queries = p_queries
+    , phases = p_phases
+    } =
+    let
+        mod_doc =
+          annotate (color Green <> bold)
+            ( pretty "module"
+                <+> pretty (Core.fullIdentifier (Core.nameOf module_name))
+            )
+
+        imports_doc =
+          if Prelude.null hs_imports
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "imports") <> colon
+              <> line <> indent 2 (prettyList' (prettyHsImport <$> hs_imports))
+
+        hs_blocks_doc =
+          if Prelude.null hs_blocks
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "haskell source blocks") <> colon
+              <> line <> indent 2 (prettyList' (prettyHsBlock <$> hs_blocks))
+
+        include_doc =
+          if Prelude.null p_includes
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "includes") <> colon
+              <> line <> indent 2 (prettyList' (prettyInclude <$> p_includes))
+
+        extern_doc =
+          if Prelude.null p_extern
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "extern") <> colon
+              <> line <> indent 2 (prettyList' (prettyExtern <$> p_extern))
+
+        relations_doc =
+          if Prelude.null p_relations
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "relations") <> colon
+              <> line <> indent 2 (prettyList' (prettyRelation <$> p_relations))
+
+        pord_doc =
+          if Prelude.null partial_ords
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "lattice declarations") <> colon
+              <> line <> indent 2 (prettyList' (prettyPartialOrd <$> partial_ords))
+
+        rules_doc =
+          if Prelude.null p_rules
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "rules") <> colon
+              <> line <> indent 2 (prettyList' (prettyRule <$> p_rules))
+
+        priorities_doc =
+          if Prelude.null p_priorities
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "priorities") <> colon
+              <> line <> indent 2 (prettyList' (prettyPriority <$> p_priorities))
+
+        queries_doc =
+          if Prelude.null p_queries
+            then mempty
+            else line <> annotate (color Blue <> bold) (pretty "queries") <> colon
+              <> line <> indent 2 (prettyList' (prettyQuery <$> p_queries))
+
+        phases_doc =
+          case p_phases of
+            Nothing -> mempty
+            Just p  -> line <> annotate (color Blue <> bold) (pretty "phases") <> colon
+              <> line <> indent 2 (prettyPhases p)
+    in  mod_doc <> imports_doc <> hs_blocks_doc <> include_doc <> extern_doc
+           <> relations_doc <> pord_doc <> rules_doc <> priorities_doc
+           <> queries_doc <> phases_doc
 
 -- | Pretty-print a 'HsImport' node.
 --
@@ -509,100 +778,3 @@ prettyExtern :: Extern -> Doc AnsiStyle
 --   with their node IDs.
 prettyExtern (Core.Extern _ ls) =
             line <> annotate (color Blue <> bold) (pretty "extern") <> colon <> line <> indent 2 (prettyList' (prettySimpleIdentifierWithAnnotation <$> (Data.List.NonEmpty.toList ls)))
-
--- | Pretty-print an entire 'Program' with syntax highlighting.
---
---   Renders the complete Fixen program AST as a multi-line document
---   with colored, structured output. The program is rendered section by
---   section in the following order:
---
---   1. /Module declaration/ — rendered in green and bold
---   2. /Imports/ — rendered in blue and bold, with each import on its own line
---   3. /Haskell source blocks/ — rendered in blue and bold, with each block on its own line
---   4. /Includes/ — rendered in blue and bold, with each include on its own line
---   5. /Extern declarations/ — rendered in blue and bold, with each symbol on its own line
---   6. /Relation declarations/ — rendered with full formatting via 'prettyRelation'
---   7. /Partial order / lattice declarations/ — rendered with full formatting via 'prettyPartialOrd'
---
---   Sections with empty lists are omitted entirely.
---
---   Note: Rules, priorities, queries, and phases are currently commented
---   out in the output. They can be enabled by uncommenting the corresponding
---   pattern-match fields and documentation lines below.
-prettyProgram :: Program -> Doc AnsiStyle
--- | Pattern-match on all fields of the 'Program' record.
---   The fields for rules, priorities, queries, and phases are
---   currently commented out so they do not appear in output.
-prettyProgram
-  Program
-    { moduleName = module_name
-    , hsImports = hs_imports
-    , hsBlocks = hs_blocks
-    , includes = p_includes
-    , extern = p_extern
-    , relations = p_relations
-    , partialOrdDeclarations = partial_ords
-    -- , rules = p_rules
-    -- , priorities = p_priorities
-    -- , queries = p_queries
-    -- , phases = p_phases
-    } =
-    let
-        -- | The module declaration line, rendered in green and bold.
-        --   Example output: @module My.Haskell.Module@
-        mod_doc =
-              annotate
-                (color Green <> bold)
-                ( pretty "module"
-                    <+> pretty
-                      (Core.fullIdentifier (Core.nameOf module_name))
-                )
-        -- | The imports section. Only rendered if there are imports.
-        --   Each import is rendered via 'prettyHsImport' with a dash prefix.
-        imports_doc =
-          if Prelude.null hs_imports
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "imports") <> colon <> line <> indent 2 (prettyList' (prettyHsImport <$> hs_imports))
-        -- | The Haskell source blocks section. Only rendered if there are blocks.
-        --   Each block is rendered via 'prettyHsBlock' with a dash prefix.
-        hs_blocks_doc =
-          if Prelude.null hs_blocks
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "haskell source blocks") <> colon <> line <> indent 2 (prettyList' (prettyHsBlock <$> hs_blocks))
-        -- | The includes section. Only rendered if there are includes.
-        --   Each include is rendered via 'prettyInclude' with a dash prefix.
-        include_doc =
-          if Prelude.null p_includes
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "includes") <> colon <> line <> indent 2 (prettyList' (prettyInclude <$> p_includes))
-        -- | The extern section. Only rendered if there are extern symbols.
-        --   Each symbol is rendered via 'prettyExtern' with a dash prefix.
-        extern_doc =
-          if Prelude.null p_extern
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "extern") <> colon <> line <> indent 2 (prettyList' (prettyExtern <$> p_extern))
-
-        -- Note: the commented-out code below was an earlier alternative
-        -- implementation for rendering extern symbols individually.
-        -- It is no longer used since 'prettyExtern' handles the formatting.
-        -- case p_extern of
-        --   Nothing -> mempty
-        --   Just e ->
-        --     line <> annotate (color Blue <> bold) (pretty "extern") <> colon <> line <> indent 2 (prettyList' (prettySimpleIdentifierWithAnnotation <$> (Data.List.NonEmpty.toList (Core.externSymbols e))))
-        -- | The relations section. Only rendered if there are relations.
-        --   Each relation is rendered via 'prettyRelation' with full formatting.
-        relations_doc =
-          if Prelude.null p_relations
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "relations") <> colon <> line <> indent 2 (prettyList' (prettyRelation <$> p_relations))
-        -- | The partial order / lattice declarations section. Only rendered
-        --   if there are partial ord declarations. Each is rendered via
-        --   'prettyPartialOrd' with full formatting.
-        pord_doc =
-          if Prelude.null partial_ords
-            then mempty
-            else line <> annotate (color Blue <> bold) (pretty "lattice declarations") <> colon <> line <> indent 2 (prettyList' (prettyPartialOrd <$> partial_ords))
-    -- | Concatenate all sections in order. Empty sections contribute
-    --   'mempty' (nothing), so they are effectively skipped.
-    in  mod_doc <> imports_doc <> hs_blocks_doc <> include_doc <> extern_doc <> relations_doc <> pord_doc
-

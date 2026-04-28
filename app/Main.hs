@@ -17,13 +17,13 @@ import Error.Diagnose (
   unadornedStyle,
  )
 
--- import Fixen.IR.AST
+import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Pipeline
 
--- import Prettyprinter
--- import Prettyprinter.Render.Terminal qualified as PT
--- import Prettyprinter.Render.Text
+import Prettyprinter
+import Prettyprinter.Render.Terminal qualified as PT
+import Prettyprinter.Render.Text
 import System.Directory (canonicalizePath)
 import System.Exit (
   ExitCode (..),
@@ -70,7 +70,7 @@ main = do
   ast <- runFixenM $ pipeline in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
     Left d -> printDiagnostic stderr out_unicode (TabSize 4) out_style d
-    Right a -> print a -- if color then PT.putDoc (prettyProgram a) else putDoc (unAnnotate (prettyProgram a)) -- pPrintOpt CheckColorTty pretty_options a
+    Right a -> if color then PT.putDoc (prettyProgram a) else putDoc (unAnnotate (prettyProgram a)) -- pPrintOpt CheckColorTty pretty_options a
 
 -------------------------------------------------------------------------------
 --
