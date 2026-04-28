@@ -220,26 +220,26 @@ parseAST =
 --   is used during the initial parsing phase before declarations are
 --   partitioned into the structured 'AST.Program' type.
 data TopLevel
-  = TLExtern AST.Extern
-  -- ^ An 'extern' declaration listing symbols defined in Haskell
-  | TLRelation AST.Relation
-  -- ^ A 'rel' declaration defining a relation (fact type)
-  | TLRule AST.Rule
-  -- ^ A 'rule' declaration defining inference rules
-  | TLPartialOrd AST.PartialOrdDeclaration
-  -- ^ A 'partial ord' declaration defining a partial order on a type
-  | TLHsBlock AST.HsBlock
-  -- ^ A Haskell code block (```hs … ```)
-  | TLPriority AST.Priority
-  -- ^ A 'priority' declaration defining ordering between rule instances
-  | TLQuery AST.Query
-  -- ^ A 'query' declaration specifying a query mode for a relation
-  | TLInclude AST.Include
-  -- ^ An 'include' statement importing another Fixen file
-  | TLImport AST.HsImport
-  -- ^ An 'import' statement importing a Haskell module
-  | TLPhases AST.Phases
-  -- ^ A 'phases' declaration defining multi-phase rule execution
+  = -- | An 'extern' declaration listing symbols defined in Haskell
+    TLExtern AST.Extern
+  | -- | A 'rel' declaration defining a relation (fact type)
+    TLRelation AST.Relation
+  | -- | A 'rule' declaration defining inference rules
+    TLRule AST.Rule
+  | -- | A 'partial ord' declaration defining a partial order on a type
+    TLPartialOrd AST.PartialOrdDeclaration
+  | -- | A Haskell code block (```hs … ```)
+    TLHsBlock AST.HsBlock
+  | -- | A 'priority' declaration defining ordering between rule instances
+    TLPriority AST.Priority
+  | -- | A 'query' declaration specifying a query mode for a relation
+    TLQuery AST.Query
+  | -- | An 'include' statement importing another Fixen file
+    TLInclude AST.Include
+  | -- | An 'import' statement importing a Haskell module
+    TLImport AST.HsImport
+  | -- | A 'phases' declaration defining multi-phase rule execution
+    TLPhases AST.Phases
 
 -- | Distributes a flat list of 'TopLevel' declarations into the structured
 -- 'AST.Program' type, placing each declaration into its appropriate field.
@@ -280,16 +280,16 @@ partitionTopLevels mod_decl (x : xs) = do
       e_pos <- fixenGetPosition e
       case AST.extern rest of
         [] -> return rest {AST.extern = e : AST.extern rest} -- first extern — just add it
-        (e' : _) -> do -- multiple externs — warn and use the last one
+        (e' : _) -> do
+          -- multiple externs — warn and use the last one
           e'_pos <- fixenGetPosition e'
-          accumR $
-            Warn
-              Nothing
-              "multiple extern declarations"
-              [ (e_pos, Where "an extern definition")
-              , (e'_pos, This "another extern definition")
-              ]
-              [Note "each program should only have one extern declaration", Hint "combine these extern declarations?"]
+          accumWarn
+            Nothing
+            "multiple extern declarations"
+            [ (e_pos, Where "an extern definition")
+            , (e'_pos, This "another extern definition")
+            ]
+            [Note "each program should only have one extern declaration", Hint "combine these extern declarations?"]
           return rest {AST.extern = e : AST.extern rest}
     TLRelation r -> return rest {AST.relations = r : AST.relations rest} -- add relation
     TLRule r -> return rest {AST.rules = r : AST.rules rest} -- add rule
@@ -303,17 +303,17 @@ partitionTopLevels mod_decl (x : xs) = do
       -- Phases: validate that there's at most one (fatal error if multiple)
       case AST.phases rest of
         Nothing -> return rest {AST.phases = Just p} -- first phases — just add it
-        Just p' -> do -- multiple phases — fatal error
+        Just p' -> do
+          -- multiple phases — fatal error
           p_pos <- fixenGetPosition p
           p'_pos <- fixenGetPosition p'
-          failR $
-            Err
-              Nothing
-              "syntax error"
-              [ (p_pos, Where "a phase definition")
-              , (p'_pos, This "another phase definition")
-              ]
-              [Note "each program can only have one phase declaration"]
+          failErr
+            Nothing
+            "syntax error"
+            [ (p_pos, Where "a phase definition")
+            , (p'_pos, This "another phase definition")
+            ]
+            [Note "each program can only have one phase declaration"]
     TLHsBlock h -> return rest {AST.hsBlocks = h : AST.hsBlocks rest} -- add Haskell block
 
 --------------------------------------------------------------------------------
@@ -427,7 +427,7 @@ parseRelation = parsePositioned $ do
       -- Parse one or more comma-separated types with indentation checking
       args <- commaSepBy1' (parseType indented)
       return $ toList args -- convert NonEmpty list to regular list
-  -- Allocate a fresh node ID and construct the Relation AST node
+      -- Allocate a fresh node ID and construct the Relation AST node
   i <- fixenGetNewNodeId
   return $ AST.Relation i name args
 
@@ -467,7 +467,7 @@ parseRule = parsePositioned $ do
     case idents of
       [] -> return (Nothing, []) -- no identifiers — unnamed rule
       (x : xs) -> return (Just x, xs) -- first is name, rest are bound variables
-  -- Parse the colon separator with indentation checks on both sides
+      -- Parse the colon separator with indentation checks on both sides
   _ <- indented *> keywordOp ":" *> indented
   -- Parse the premises (assumptions and conditions), separated by commas
   -- 'partitionPremises' separates them into assumptions and conditions
@@ -495,7 +495,7 @@ parseRule = parsePositioned $ do
 --   values into two groups: assumptions first, then conditions.
 data RulePremise
   = RPAssumption AST.Assumption -- a relation assumption (e.g. MyFact a b)
-  | RPCondition AST.Condition   -- an 'if' condition (e.g. if a <= b)
+  | RPCondition AST.Condition -- an 'if' condition (e.g. if a <= b)
 
 -- | Separates a list of 'RulePremise' values into assumptions and conditions.
 --
@@ -515,7 +515,7 @@ partitionPremises (x : xs) =
   let (as, cs) = partitionPremises xs
   in  case x of
         RPAssumption a -> (a : as, cs) -- add to assumptions
-        RPCondition c  -> (as, c : cs) -- add to conditions
+        RPCondition c -> (as, c : cs) -- add to conditions
 
 -- | Parses a single premise within a rule body. A premise is either:
 --
@@ -674,8 +674,10 @@ parsePartialOrd = parsePositioned $ do
 --   keyword "type"  ->  keywordOp "="  ->  parseType indented
 --   @
 parsePartialOrdField
-  :: Text -- ^ Field name ("type", "leq", or "mlbs")
-  -> Parser a -- ^ Parser for the field value
+  :: Text
+  -- ^ Field name ("type", "leq", or "mlbs")
+  -> Parser a
+  -- ^ Parser for the field value
   -> Parser a
 parsePartialOrdField fieldName valueParser = do
   -- Parse: fieldName = value, with indentation checks between all components

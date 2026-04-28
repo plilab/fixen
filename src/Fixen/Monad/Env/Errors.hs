@@ -37,8 +37,14 @@
 --       to the state without failing, allowing a pass to collect multiple
 --       diagnostics before terminating. The 'runFixenPass' family checks
 --       for accumulated errors and fails if any are present.
---
-module Fixen.Monad.Env.Errors where
+module Fixen.Monad.Env.Errors (
+  module Fixen.Monad.Env.Errors,
+  Diagnostic,
+  Position (..),
+  Marker (..),
+  Note (..),
+  Report (..),
+) where
 
 import Control.Monad (
   MonadPlus,
@@ -69,11 +75,14 @@ import Error.Diagnose.Diagnostic (
   addReport,
   reportsOf,
  )
+import Error.Diagnose.Position (Position (..))
 import Error.Diagnose.Report (
-  Report (Err),
+  Marker (..),
+  Note (..),
+  Report (Err, Warn),
  )
 import Fixen.Monad.Type
-import Prettyprinter
+import Prettyprinter (Pretty)
 
 -------------------------------------------------------------------------------
 -- Errors
@@ -197,8 +206,8 @@ fixenHasErrors FixenErrors {fixenErrorsDiagnostic = b} =
               _ -> False
           )
           rep
-  -- Return True if there is at least one error
-  in  not (null errs)
+  in  -- Return True if there is at least one error
+      not (null errs)
 
 -- | Combine two 'FixenErrors' by merging both their file maps and diagnostics.
 --
@@ -242,10 +251,10 @@ runFixenPass state monad = do
     -- The pass returned a value — check if there are accumulated errors
     Just res' ->
       if fixenHasErrors errs
-        -- Errors were accumulated silently — fail with them
-        then liftEither (Left (fixenErrorsDiagnostic errs))
-        -- No errors — return the result and the final state
-        else return (res', state')
+        then -- Errors were accumulated silently — fail with them
+          liftEither (Left (fixenErrorsDiagnostic errs))
+        else -- No errors — return the result and the final state
+          return (res', state')
 
 -- | Wrap a pass result in 'Just', converting a hard failure ('Nothing')
 -- into a soft failure ('Just Nothing').
@@ -352,10 +361,10 @@ failS
 failS msg =
   failR (Err Nothing msg [] [])
 
--- | Fail the pass with a 'Report', accumulating it first.
+-- | Fail the pass with a 'Report'.
 --
 --   This is the core failure function: it calls 'accumR' to add the
---   report to the error accumulator, then short-circuits via 'mzero'.
+--   report to the error accumulator, then fails fast via 'mzero'.
 --   Use this when you have a structured 'Report' (with positions, notes,
 --   etc.) that you want to include in the diagnostic output.
 failR
@@ -365,7 +374,22 @@ failR
   -> μ a
 failR rep = accumR rep >> mzero
 
--- | Fail the pass with a 'Diagnostic', accumulating it first.
+-- | Fail the pass with an error message. Internally, this calls 'failR'.
+failErr
+  :: (Errored σ, MonadState σ μ, MonadPlus μ)
+  => Maybe String
+  -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
+  -> String
+  -- ^ The error message, shown at the very top
+  -> [(Position, Marker String)]
+  -- ^ A list associating positions with markers
+  -> [Note String]
+  -- ^ A potentially empty list of notes/hints added to the end of the report
+  -- ^ The error report
+  -> μ a
+failErr err_code err_msg markers notes = failR $ Err err_code err_msg markers notes
+
+-- | Fail the pass with a 'Diagnostic'.
 --
 --   Like 'failR' but accepts a full 'Diagnostic' (which may contain
 --   multiple reports). Use this when you have a pre-built diagnostic
@@ -412,7 +436,7 @@ failIfErrored = do
 --   multiple 'accumR' calls can be made, and the errors are combined
 --   via the 'Semigroup' instance.
 accumR
-  :: (MonadState σ μ, σ :>: FixenErrors)
+  :: (MonadState σ μ, Errored σ)
   => Report String
   -- ^ The report to add
   -> μ ()
@@ -431,6 +455,41 @@ accumR rep = do
       new_state = fixen_state *<-: new_errs
   -- Write the updated state back
   put new_state
+
+-- | Add an error to the error accumulator __without failing__.
+--
+--   This is the non-fatal counterpart to 'failErr'. It retrieves the
+--   current state, extracts the 'FixenErrors', adds the report to the
+--   diagnostic, and writes the updated state back. Internally, it uses 'accumR'.
+accumErr
+  :: (Errored σ, MonadState σ μ)
+  => Maybe String
+  -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
+  -> String
+  -- ^ The error message, shown at the very top
+  -> [(Position, Marker String)]
+  -- ^ A list associating positions with markers
+  -> [Note String]
+  -- ^ A potentially empty list of notes/hints added to the end of the report
+  -- ^ The error report
+  -> μ ()
+accumErr err_code err_msg markers notes = accumR $ Err err_code err_msg markers notes
+
+-- | Add a warning to the error accumulator __without failing__. Internally,
+-- it uses 'accumR'.
+accumWarn
+  :: (Errored σ, MonadState σ μ)
+  => Maybe String
+  -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
+  -> String
+  -- ^ The warning message, shown at the very top
+  -> [(Position, Marker String)]
+  -- ^ A list associating positions with markers
+  -> [Note String]
+  -- ^ A potentially empty list of notes/hints added to the end of the report
+  -- ^ The error report
+  -> μ ()
+accumWarn err_code err_msg markers notes = accumR $ Warn err_code err_msg markers notes
 
 -- | Add a 'Diagnostic' to the error accumulator __without failing__.
 --
