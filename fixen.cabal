@@ -22,7 +22,7 @@ extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-    ghc-options: -Wall -Werror
+    ghc-options: -Wall 
 
 -- This library is written by Mesabloo; LICENSE file is found in the diagnose/
 -- directory. We download the source code of this library and include it here
@@ -64,13 +64,14 @@ library
     exposed-modules:    Fixen.Data.NodeId
                       , Fixen.IR.AST
                       , Fixen.IR.Core
+                      , Fixen.ModuleSystem
                       , Fixen.Monad
                       , Fixen.Monad.Env
                       , Fixen.Monad.Env.Errors
                       , Fixen.Monad.Env.NodeId
                       , Fixen.Monad.Env.Position
+                      , Fixen.Monad.Env.Symbol
                       , Fixen.Monad.Type
-                      , Fixen.ModuleSystem
                       , Fixen.Pipeline
                       , Fixen.Parser
                       , Fixen.Parser.Common
@@ -78,6 +79,14 @@ library
                       , Fixen.Parser.Token
                       , Fixen.Parser.Type
                       , Fixen.SymbolSolver
+                      , Fixen.SymbolSolver.Common
+                      , Fixen.SymbolSolver.Extern
+                      , Fixen.SymbolSolver.PartialOrdDeclaration
+                      , Fixen.SymbolSolver.Prelude
+                      , Fixen.SymbolSolver.Query
+                      , Fixen.SymbolSolver.Relation
+                      , Fixen.SymbolSolver.Rule
+                      , Fixen.SymbolSolver.Validation
     build-depends:      base==4.22.0.0
                       , containers==0.8
                       , directory==1.3.10.1
@@ -90,6 +99,7 @@ library
                       , prettyprinter-ansi-terminal==1.1.3
                       , text==2.1.3
                       , transformers==0.6.3.0
+                      , lens
     hs-source-dirs:     src
     default-language:   GHC2021
 

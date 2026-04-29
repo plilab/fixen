@@ -22,7 +22,6 @@
 --     (':+:', ':*:', ':<:', ':>:') used to build the state type @σ@
 --     in an ala-carte style, allowing each pass to declare only the
 --     pieces of state it needs.
---
 module Fixen.Monad.Type where
 
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -110,7 +109,9 @@ type FixenPass σ α = MaybeT (StateT σ IO) α
 --   @a :+: (b :+: c)@. The left argument should not itself be a sum.
 type (:+:) = Either
 
-infixr 3 :+:
+type (⊕) = Either
+
+infixr 3 :+:, ⊕
 
 -------------------------------------------------------------------------------
 -- Product types
@@ -125,7 +126,9 @@ infixr 3 :+:
 --   @a :*: (b :*: c)@. The left argument should not itself be a product.
 type (:*:) = (,)
 
-infixr 3 :*:
+type (×) = (,)
+
+infixr 3 :*:, ×
 
 -------------------------------------------------------------------------------
 -- Injection class

@@ -71,8 +71,8 @@ priority:
   |- addDist { } <= assignI { }
 
 -- queries for this exported module.
-query DistTo as distTo - +
-query DistTo as distLessThan + -
+query distTo: DistTo - +
+query distLessThan: DistTo + -
 
 -- Stages/Phase/Some other keyword to denote what we want
 phases: [

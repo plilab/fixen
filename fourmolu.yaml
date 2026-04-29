@@ -12,7 +12,7 @@ haddock-style: single-line
 haddock-style-module: single-line
 haddock-location-signature: leading
 let-style: inline
-in-style: left-align
+in-style: right-align
 if-style: indented
 single-constraint-parens: never
 single-deriving-parens: never

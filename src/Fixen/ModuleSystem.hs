@@ -27,6 +27,7 @@
 module Fixen.ModuleSystem where
 
 import Control.Exception qualified as Exception
+import Control.Monad (when)
 import Control.Monad.State
 import Data.Set qualified as Set
 import Data.Text (pack, unpack)
@@ -57,6 +58,9 @@ import System.IO (readFile')
 --   relations, and other constructs from the original file and all
 --   transitive includes.
 --
+--   /Checks./ The result is also checked for having the minimum declarations
+--   required to generate a solver, using 'highLevelStructuralChecks'.
+--
 --   /Error handling./ If the file map is empty or contains more than one
 --   entry, this function fails with an assertion error (this should never
 --   happen in normal operation since the parser always records exactly one
@@ -84,7 +88,9 @@ getIncludes in_program = do
     mapM (resolveIncludeToPath file_path_of_in_program) $
       AST.includes in_program
   -- Step 4: Enter the recursive processing loop.
-  loop in_program visited_set in_program_includes
+  result <- loop in_program visited_set in_program_includes
+  -- Step 5: Perform high-level structural checks on the final result.
+  highLevelStructuralChecks result
 
 -- | Resolve a path written in an @include@ statement into a canonical
 -- absolute file path.
@@ -152,18 +158,18 @@ loop :: AST.Program -> Set.Set FilePath -> [(FilePath, AST.Include)] -> FixenPas
 
 -- | Base case: no more includes to process. Return the accumulated program.
 loop in_prog _ [] = return in_prog
--- \| Process the next include in the queue.
+--  Process the next include in the queue.
 loop in_prog v ((p, i) : ps)
-  -- \| Already visited: skip this file to avoid cycles and duplicates.
+  -- Already visited: skip this file to avoid cycles and duplicates.
   | p `Set.member` v = loop in_prog v ps
   | otherwise = do
       -- Step 1: Read the file contents safely (with error handling).
       f <- safeReadFile p i
       case f of
-        -- \| Read failed (file not found, permission error, etc.):
-        --   mark as visited and continue with remaining includes.
+        -- Read failed (file not found, permission error, etc.):
+        -- mark as visited and continue with remaining includes.
         Nothing -> loop in_prog (p `Set.insert` v) ps
-        -- \| Read succeeded: proceed to parse and combine.
+        -- Read succeeded: proceed to parse and combine.
         Just c -> do
           -- Step 2: Record the file contents in the file map so the
           -- parser can correlate errors with source positions.
@@ -172,11 +178,11 @@ loop in_prog v ((p, i) : ps)
           -- fails, the error is accumulated and we continue.
           parse_result <- fixenPassTry (parse p (pack c))
           case parse_result of
-            -- \| Parse failed: mark as visited and continue with remaining includes.
+            -- Parse failed: mark as visited and continue with remaining includes.
             Nothing ->
               loop in_prog (p `Set.insert` v) ps
-            -- \| Parse succeeded: combine the parsed program with the
-            --   accumulated program, resolve its includes, and continue.
+            -- Parse succeeded: combine the parsed program with the
+            -- accumulated program, resolve its includes, and continue.
             Just parsed_prog -> do
               -- Merge the newly parsed program into the accumulated one.
               let new_prog = combineProgram in_prog parsed_prog
@@ -242,7 +248,7 @@ combineProgram in_prog new_prog =
       total_imports = new_imports ++ AST.hsImports in_prog
       total_hs_blocks = new_hs_blocks ++ AST.hsBlocks in_prog
       total_externs = new_externs ++ AST.extern in_prog
-  in  -- Produce a new program with merged fields, preserving all other fields
+   in -- Produce a new program with merged fields, preserving all other fields
       -- (module name, includes, queries, priorities, phases) from in_prog.
       in_prog
         { AST.rules = total_rules
@@ -285,9 +291,9 @@ safeReadFile file_path include = do
   -- Attempt to read the file, catching any IOException.
   result <- liftIO $ Exception.try (readFile' file_path)
   case result of
-    -- \| Read succeeded: return the contents wrapped in 'Just'.
+    -- Read succeeded: return the contents wrapped in 'Just'.
     Right !content -> return (Just content)
-    -- \| Read failed: accumulate an error and return 'Nothing'.
+    -- Read failed: accumulate an error and return 'Nothing'.
     -- We do NOT fail fast here — other includes may still be processed
     -- so that all I/O errors can be reported in a single pass.
     Left (e :: Exception.IOException) -> do
@@ -313,3 +319,23 @@ safeReadFile file_path include = do
           ]
       -- Return Nothing to signal the caller to skip this file.
       return Nothing
+
+-- | Perform high-level structural checks of the final result. Essentially,
+-- every program must have:
+-- 1. At least one relation
+-- 2. At least one rule
+highLevelStructuralChecks :: AST.Program -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) AST.Program
+highLevelStructuralChecks prog = do
+  when (Prelude.length (AST.relations prog) == 0) $
+    accumErr
+      Nothing
+      "no rel declarations found"
+      []
+      [Note "all programs must have at least one rel declaration"]
+  when (Prelude.length (AST.rules prog) == 0) $
+    accumErr
+      Nothing
+      "no rule declarations found"
+      []
+      [Note "all programs must have at least one rule declaration"]
+  return prog

@@ -513,7 +513,7 @@ partitionPremises [] = ([], []) -- base case: empty list
 partitionPremises (x : xs) =
   -- Recurse on the tail, then prepend the current premise to the appropriate group
   let (as, cs) = partitionPremises xs
-  in  case x of
+   in case x of
         RPAssumption a -> (a : as, cs) -- add to assumptions
         RPCondition c -> (as, c : cs) -- add to conditions
 
@@ -553,7 +553,7 @@ parseConclusion = parsePositioned $ do
   -- Parse the capitalized fact name (conclusions are constructor-like)
   header <- parseCapitalizedSimpleIdentifier
   -- Verify proper indentation before the arguments
-  _ <- indented
+  -- _ <- indented
   -- Parse zero or more expression arguments with indentation checking
   args <- manyI' (parseParenExpr indented)
   -- Allocate a fresh node ID and construct the Relation AST node
@@ -806,23 +806,37 @@ parseQuery = parsePositioned $ do
   _ <- P.try $ l $ L.nonIndented sc $ keyword "query"
   -- Verify proper indentation before the relation name
   _ <- indented
-  -- Parse the relation name (capitalized identifier)
-  relation <- parseCapitalizedSimpleIdentifier
-  -- Verify proper indentation before 'as'
-  _ <- indented
-  -- Parse the 'as' keyword
-  _ <- keyword "as"
-  -- Verify proper indentation before the query name
-  _ <- indented
   -- Parse the query name (lowercase identifier)
   name <- parseLowerFirstSimpleIdentifier
-  -- Verify proper indentation before the modes
-  _ <- indented
-  -- Parse one or more mode symbols (+ or -) with indentation checking
-  modes <- someI' parseQueryMode
+  -- Parse the colon separator with indentation checks
+  _ <- indented *> keywordOp ":" *> indented
+  -- Parse the relation with modes
+  relation <- parseQueriedRelation
   -- Allocate a fresh node ID and construct the Query AST node
   i <- fixenGetNewNodeId
-  return $ AST.Query i relation name modes
+  return $ AST.Query i relation name
+
+-- | Parses the relation part within a query declaration: a relation name
+-- applied to 'QueryMode's.
+--
+-- @
+-- MyFact - +
+-- @
+--
+-- The relation name must be capitalized (since relations are
+-- constructor-like), and the arguments must be query modes.
+parseQueriedRelation :: Parser AST.QueriedRelation
+parseQueriedRelation = parsePositioned $ do
+  -- Verify proper indentation before the assumption
+  _ <- indented
+  -- Parse the capitalized relation name
+  -- Use 'P.try' so we can backtrack if this is actually a condition
+  header <- P.try parseCapitalizedSimpleIdentifier
+  -- Parse zero or more lowercase-starting simple identifiers as arguments
+  args <- manyI' parseQueryMode
+  -- Allocate a fresh node ID and construct the Assumption AST node
+  i <- fixenGetNewNodeId
+  return $ AST.Relation i header args
 
 -- | Parses a single mode symbol: @+@ (input) or @-@ (output).
 --

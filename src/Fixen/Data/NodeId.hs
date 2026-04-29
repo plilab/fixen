@@ -23,8 +23,9 @@
 --     The 'HasNodeId' class is implemented by virtually every IR data type
 --     (see 'Fixen.IR.Core') so that generic code can uniformly access the
 --     identifier of any node.
---
 module Fixen.Data.NodeId where
+
+import Data.List.NonEmpty
 
 -- | A unique identifier assigned to every construct in the Fixen IR.
 --
@@ -68,3 +69,30 @@ class HasNodeId α where
   --     getNodeId = myTypeNodeId   -- point-free
   --   @
   getNodeId :: α -> NodeId
+
+instance HasNodeId NodeId where
+  getNodeId = id
+
+-- | We want to ensure that we can compare two items for equality modulo having
+-- different 'NodeId's. This is used to equate things together for easy comparison.
+class EqModuloNodeId α where
+  -- | Equality modulo 'NodeId's.
+  (===) :: α -> α -> Bool
+  a === b = not (a /== b)
+
+  -- | Disequality modulo 'NodeId's.
+  (/==) :: α -> α -> Bool
+  a /== b = not (a === b)
+
+  {-# MINIMAL (===) | (/==) #-}
+
+infix 4 ===
+infix 4 /==
+
+instance EqModuloNodeId α => EqModuloNodeId [α] where
+  [] === [] = True
+  (x : xs) === (y : ys) = x === y && xs === ys
+  _ === _ = False
+
+instance EqModuloNodeId α => EqModuloNodeId (NonEmpty α) where
+  (x :| xs) === (y :| ys) = x === y && xs === ys

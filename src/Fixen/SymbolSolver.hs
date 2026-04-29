@@ -1,10 +1,144 @@
-{-# LANGUAGE DataKinds #-}
+-- {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE TypeAbstractions #-}
+
+-- {-# LANGUAGE PatternSynonyms #-}
+-- {-# LANGUAGE ViewPatterns #-}
+-- {-# LANGUAGE TypeAbstractions #-}
 
 module Fixen.SymbolSolver where
+
+-- import Data.Text
+
+import Control.Monad (foldM, forM_, when)
+import Data.Function ((&))
+import Data.Functor ((<&>))
+import Data.IntSet qualified as IntSet
+import Data.List (nubBy)
+import Data.List.NonEmpty
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text
+import Fixen.Data.NodeId
+import Fixen.IR.AST
+import Fixen.Monad
+import Fixen.SymbolSolver.Common
+import Fixen.SymbolSolver.PartialOrdDeclaration
+import Fixen.SymbolSolver.Prelude
+import Fixen.SymbolSolver.Query
+import Fixen.SymbolSolver.Relation
+
+solveSymbols :: Program -> FixenPass SymbolState SymbolEnv
+solveSymbols prog = do
+  env_with_rels_and_pords <-
+    pure emptySymbolEnv
+      -- gather partial ord declarations
+      >>= foldMWith initEnvWithPartialOrd (partialOrdDeclarations prog)
+      -- gather relations
+      >>= foldMWith initEnvWithRelation (relations prog)
+  -- flush all errors, and continue. Now, we are certain that the relations and partialOrdDeclarations
+  -- are correctly added to the symbol environment.
+  failIfErrored
+  env_with_queries <- foldM initEnvWithQuery env_with_rels_and_pords (queries prog)
+  return env_with_queries
+
+-- initEnvWithRule :: SymbolEnv -> Rule -> FixenPass SymbolState SymbolEnv
+-- initEnvWithRule env r = do
+--   -- get the bound variables.
+--   rule_bound_vars <- getRuleBoundVars env r
+--   warnUnusedBoundVars r rule_bound_vars
+--   undefined
+--
+-- -- | Obtains the bound variables of the rule. If they were not defined
+-- -- by the user, they will be inferred from assumptions of the rule. Duplicate
+-- -- bound variables will cause errors. Variables whose name shadows external
+-- -- symbols (including prelude terms) will throw warnings
+-- getRuleBoundVars :: SymbolEnv -> Rule -> FixenPass SymbolState [SimpleIdentifier]
+-- getRuleBoundVars env r = do
+--   -- get the bound variables.
+--   let rule_bound_vars =
+--         case Fixen.IR.AST.ruleBoundVars r of
+--           [] -> getAssumptionVariables r
+--           v -> v
+--       -- time to look for duplicate bound variables (that happens when users
+--       -- specify bound variables and misspelled them probably)
+--       freq_map =
+--         rule_bound_vars
+--           <&> (\i -> Map.singleton (simpleIdentifier i) (Set.singleton i))
+--           & Map.unionsWith Set.union
+--       -- filter the values
+--       dup_vars =
+--         freq_map
+--           & Map.filter (\x -> Set.size x > 1)
+--           & Map.toList
+--           <&> snd
+--   -- Get the unique bound variables after throwing errors
+--   nub_bv <-
+--     if not (Prelude.null dup_vars)
+--       then do
+--         -- handle the errors
+--         forM_ dup_vars handleDupErrors
+--         return $ Data.List.nubBy (===) rule_bound_vars
+--       else return rule_bound_vars
+--   forM_ nub_bv (warnBoundVarExtern env)
+--   return nub_bv
+--
+-- getAssumptionVariables :: Rule -> [SimpleIdentifier]
+-- getAssumptionVariables r =
+--   -- get the assumptions
+--   Fixen.IR.AST.ruleAssumptions r
+--     -- get the relation parameters
+--     <&> relationParams
+--     -- concatenate them to get one giant list of simple identifiers
+--     & Prelude.concat
+--     -- get the unique ones
+--     & Data.List.nubBy (===)
+--
+-- warnUnusedBoundVars :: Rule -> [SimpleIdentifier] -> FixenPass SymbolState ()
+-- warnUnusedBoundVars rule bvs = do
+--   let used = getAssumptionVariables rule
+--       unused = Prelude.filter (not . (`Prelude.elem` used)) bvs
+--   forM_ unused warnUnusedBoundVar
+--
+-- warnUnusedBoundVar :: SimpleIdentifier -> FixenPass SymbolState ()
+-- warnUnusedBoundVar i = do
+--   pos <- fixenGetPosition i
+--   accumWarn
+--     Nothing
+--     "unused variable"
+--     [(pos, This "variable")]
+--     []
+--
+-- warnBoundVarExtern :: SymbolEnv -> SimpleIdentifier -> FixenPass SymbolState ()
+-- warnBoundVarExtern env i =
+--   case (externInfo $ info env) Map.!? simpleIdentifier i of
+--     Just t -> do
+--       pos <- fixenGetPosition i
+--       pos' <- fixenGetPosition t
+--       accumWarn
+--         Nothing
+--         "name shadowing"
+--         [(pos, This "variable"), (pos', Where "external symbol")]
+--         [Hint "change the name of this variable"]
+--     Nothing -> do
+--       if simpleIdentifier i `Set.member` preludeTerms
+--         then do
+--           pos <- fixenGetPosition i
+--           accumWarn
+--             Nothing
+--             "potential name clash with Prelude terms"
+--             [(pos, This "variable")]
+--             [Hint "hide this name from the Prelude import, or change the name of this variable"]
+--         else return ()
+--
+-- handleDupErrors :: Set.Set SimpleIdentifier -> FixenPass SymbolState ()
+-- handleDupErrors s = do
+--   poss <- mapM fixenGetPosition (Set.toList s)
+--   let errs = (\pos -> (pos, This "variable")) <$> poss
+--   accumErr
+--     Nothing
+--     "duplicate variable names"
+--     errs
+--     [Note "queries cannot share names with \"external\" terms used in the program (these include other queries)"]
 
 -- The symbol solver must perform two things:
 -- 1. Make sure every var is either locally bound or extern, not neither.
@@ -89,243 +223,7 @@ module Fixen.SymbolSolver where
 -- data Reason = Reason Position Position
 --   deriving (Show, Eq)
 --
--- preludeTermsCons :: Set.Set Text
--- preludeTermsCons =
---   Set.fromList
---     [ "Bool"
---     , "False"
---     , "True"
---     , "Maybe"
---     , "Nothing"
---     , "Just"
---     , "Either"
---     , "Left"
---     , "Right"
---     , "Ordering"
---     , "LT"
---     , "EQ"
---     , "GT"
---     , "Char"
---     , "String"
---     , "Eq"
---     , "Ord"
---     , "Enum"
---     , "Int"
---     , "Integer"
---     , "Float"
---     , "Double"
---     , "Rational"
---     , "Ratio"
---     , "Integer"
---     , "Word"
---     , "Num"
---     , "Real"
---     , "Integral"
---     , "Fractional"
---     , "Floating"
---     , "RealFrac"
---     , "RealFloat"
---     , "Semigroup"
---     , "Monoid"
---     , "Functor"
---     , "Applicative"
---     , "Monad"
---     , "MonadFail"
---     , "Foldable"
---     , "Traversable"
---     , "ShowS"
---     , "Show"
---     , "ReadS"
---     , "Read"
---     , "IO"
---     , "FilePath"
---     , "IOError"
---     , "IOException"
---     ]
---
--- preludeTerms :: Set.Set Text
--- preludeTerms =
---   Set.fromList
---     [ "not"
---     , "otherwise"
---     , "maybe"
---     , "either"
---     , "fst"
---     , "snd"
---     , "curry"
---     , "uncurry"
---     , "compare"
---     , "max"
---     , "min"
---     , "succ"
---     , "pred"
---     , "toEnum"
---     , "fromEnum"
---     , "enumFrom"
---     , "enumFromThen"
---     , "enumFromTo"
---     , "enumFromThenTo"
---     , "minBound"
---     , "maxBound"
---     , "negate"
---     , "abs"
---     , "signum"
---     , "fromInteger"
---     , "toRational"
---     , "quot"
---     , "rem"
---     , "div"
---     , "mod"
---     , "quotRem"
---     , "divMod"
---     , "toInteger"
---     , "recip"
---     , "fromRational"
---     , "pi"
---     , "exp"
---     , "log"
---     , "sqrt"
---     , "logBase"
---     , "sin"
---     , "cos"
---     , "tan"
---     , "asin"
---     , "acos"
---     , "atan"
---     , "sinh"
---     , "cosh"
---     , "tanh"
---     , "asinh"
---     , "acosh"
---     , "atanh"
---     , "properFraction"
---     , "truncate"
---     , "round"
---     , "ceiling"
---     , "floor"
---     , "floatRadix"
---     , "floatDigits"
---     , "floatRange"
---     , "decodeFloat"
---     , "encodeFloat"
---     , "exponent"
---     , "significand"
---     , "scaleFloat"
---     , "isNaN"
---     , "isInfinite"
---     , "isDenormalized"
---     , "isNegativeZero"
---     , "isIEEE"
---     , "atan2"
---     , "subtract"
---     , "even"
---     , "odd"
---     , "gcd"
---     , "lcm"
---     , "fromIntegral"
---     , "realToFrac"
---     , "mempty"
---     , "mappend"
---     , "mconcat"
---     , "fmap"
---     , "pure"
---     , "return"
---     , "fail"
---     , "mapM_"
---     , "sequence_"
---     , "foldMap"
---     , "foldl"
---     , "foldr"
---     , "foldl'"
---     , "foldr1"
---     , "foldl1"
---     , "elem"
---     , "maximum"
---     , "minimum"
---     , "sum"
---     , "product"
---     , "traverse"
---     , "sequenceA"
---     , "mapM"
---     , "sequence"
---     , "id"
---     , "const"
---     , "flip"
---     , "until"
---     , "asTypeOf"
---     , "error"
---     , "errorWithoutStackTrace"
---     , "undefined"
---     , "seq"
---     , "map"
---     , "filter"
---     , "head"
---     , "last"
---     , "tail"
---     , "init"
---     , "null"
---     , "length"
---     , "and"
---     , "or"
---     , "any"
---     , "all"
---     , "concat"
---     , "concatMap"
---     , "scanl"
---     , "scanl1"
---     , "scanr1"
---     , "iterate"
---     , "repeat"
---     , "replicate"
---     , "cycle"
---     , "take"
---     , "drop"
---     , "takeWhile"
---     , "dropWhile"
---     , "span"
---     , "break"
---     , "splitAt"
---     , "notElem"
---     , "lookup"
---     , "zip"
---     , "zip3"
---     , "zipWith"
---     , "zipWith3"
---     , "unzip"
---     , "unzip3"
---     , "lines"
---     , "words"
---     , "unlines"
---     , "unwords"
---     , "showsPrec"
---     , "show"
---     , "showList"
---     , "shows"
---     , "showChar"
---     , "showString"
---     , "showParen"
---     , "readsPrec"
---     , "readList"
---     , "reads"
---     , "readParen"
---     , "read"
---     , "lex"
---     , "putChar"
---     , "putStr"
---     , "putStrLn"
---     , "print"
---     , "getChar"
---     , "getLine"
---     , "getContents"
---     , "interact"
---     , "readFile"
---     , "writeFile"
---     , "readIO"
---     , "readLn"
---     , "ioError"
---     , "userError"
---     ]
---
+
 -- solveSymbols :: E.Program -> FixenPass FixenErrors SymbolEnv
 -- solveSymbols pgm = do
 --   let env = SymbolEnv Map.empty Map.empty Map.empty

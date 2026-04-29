@@ -70,7 +70,7 @@ main = do
   ast <- runFixenM $ pipeline in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
     Left d -> printDiagnostic stderr out_unicode (TabSize 4) out_style d
-    Right a -> if color then PT.putDoc (prettyProgram a) else putDoc (unAnnotate (prettyProgram a)) -- pPrintOpt CheckColorTty pretty_options a
+    Right a -> print a -- if color then PT.putDoc (prettyProgram a) else putDoc (unAnnotate (prettyProgram a)) -- pPrintOpt CheckColorTty pretty_options a
 
 -------------------------------------------------------------------------------
 --

@@ -3,14 +3,8 @@ module Demos.ShortestPath where
 rel DistTo : Vertex, Dist
 rel Edge : Vertex, Vertex, Dist
 
-
 ```hs
 type Vertex = String
-
-data Dist = D Int deriving (Show, Eq)
-
-instance Num Dist where
-  D x + D y = D (x + y)
 
 distLeq :: Dist -> Dist -> Bool
 distLeq (D x) (D y) = x <= y
@@ -18,7 +12,6 @@ distLeq (D x) (D y) = x <= y
 distMlbs :: Dist -> Dist -> [Dist]
 distMlbs (D x) (D y) = [D (min x y)]
 ```
-
 
 partial ord Dist where
   type = Int -- the underlying Dist type we declared earlier
@@ -35,7 +28,7 @@ priority:
     |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
 
 -- interface
-query DistTo as distTo - +
-query DistTo as distLessThan + -
+query distTo: DistTo - +
+query distLessThan: DistTo + -
 
 

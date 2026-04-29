@@ -90,7 +90,7 @@ module Fixen.IR.Core (
 
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Text (Text, append, cons, intercalate, pack)
-import Fixen.Data.NodeId (HasNodeId (..), NodeId)
+import Fixen.Data.NodeId (EqModuloNodeId (..), HasNodeId (..), NodeId)
 
 import GHC.Natural (Natural)
 
@@ -143,6 +143,11 @@ data SimpleIdentifier = SimpleIdentifier
   }
   deriving (Show, Eq)
 
+-- | 'SimpleIdentifier's are equal modulo 'NodeId's whenever their
+-- texts are equal
+instance EqModuloNodeId SimpleIdentifier where
+  a === b = simpleIdentifierName a == simpleIdentifierName b
+
 -- | Order simple identifiers lexicographically by their name.
 instance Ord SimpleIdentifier where
   SimpleIdentifier {simpleIdentifierName = n} <= SimpleIdentifier {simpleIdentifierName = n'} = n <= n'
@@ -184,6 +189,10 @@ instance IdentifierLike ModuleName where
   simpleIdentifier m = Data.Text.intercalate (pack ".") (toList $ simpleIdentifier <$> moduleNameName m)
   fullIdentifier = simpleIdentifier
 
+-- | 'ModuleName's are equal modulo 'NodeIds' whenever their names are.
+instance EqModuloNodeId ModuleName where
+  a === b = moduleNameName a === moduleNameName b
+
 -- | A fully-qualified name in the program, consisting of a 'ModuleName'
 -- prefix and a final 'SimpleIdentifier'.
 --
@@ -205,6 +214,11 @@ data FullyQualifiedName = FullyQualifiedName
 -- | A 'FullyQualifiedName' is its own node ID.
 instance HasNodeId FullyQualifiedName where
   getNodeId = fqnNodeId
+
+-- | 'FullyQualifiedName's are equal modulo 'NodeId's whenever their
+-- module names and names are.
+instance EqModuloNodeId FullyQualifiedName where
+  a === b = fqnModuleName a === fqnModuleName b && fqnName a === fqnName b
 
 -- | A 'FullyQualifiedName' is 'IdentifierLike': its simple name is
 -- the final component, and its full name is the module prefix joined
@@ -281,6 +295,12 @@ instance IdentifierLike Identifier where
   fullIdentifier (IdentifierSimpleIdentifier i) = fullIdentifier i
   fullIdentifier (IdentifierFullyQualifiedName i) = fullIdentifier i
 
+-- | 'Identifier's are equal modulo 'NodeIds' whenever their components are.
+instance EqModuloNodeId Identifier where
+  MkIdentifierSimple _ s === MkIdentifierSimple _ t = s == t
+  MkIdentifierFQN _ a b === MkIdentifierFQN _ c d = a === c && b === d
+  _ === _ = False
+
 -- | An expression in the Fixen language.
 --
 --   Expressions appear in rule conditions, priority premises, and
@@ -295,7 +315,6 @@ data Expr where
     -> Identifier
     -- ^ The identifier being referenced.
     -> Expr
-
   -- | A function application expression (@f x@).
   ExprApp
     :: NodeId
@@ -305,7 +324,6 @@ data Expr where
     -> Expr
     -- ^ The argument.
     -> Expr
-
   -- | An integer literal expression.
   ExprIntLit
     :: NodeId
@@ -313,7 +331,6 @@ data Expr where
     -> Integer
     -- ^ The integer value.
     -> Expr
-
   -- | A string literal expression.
   ExprStrLit
     :: NodeId
@@ -321,7 +338,6 @@ data Expr where
     -> Text
     -- ^ The string value.
     -> Expr
-
   -- | A tuple expression. The tuple must have at least two elements.
   ExprTuple
     :: NodeId
@@ -331,7 +347,6 @@ data Expr where
     -> NonEmpty Expr
     -- ^ The remaining elements of the tuple (non-empty, ensuring at least 2 total).
     -> Expr
-
   -- | A list expression.
   ExprList
     :: NodeId
@@ -339,13 +354,11 @@ data Expr where
     -> [Expr]
     -- ^ The elements of the list (may be empty).
     -> Expr
-
   -- | The unit value @()@.
   ExprUnit
     :: NodeId
     -- ^ The 'NodeId' for source position tracking.
     -> Expr
-
   deriving (Show, Eq)
 
 -- | Every 'Expr' constructor carries a 'NodeId' for source position tracking.
@@ -357,6 +370,17 @@ instance HasNodeId Expr where
   getNodeId (ExprTuple u _ _) = u
   getNodeId (ExprList u _) = u
   getNodeId (ExprUnit u) = u
+
+-- | 'Expr's are equal modulo 'NodeId's whenever their components are.
+instance EqModuloNodeId Expr where
+  ExprVar _ v === ExprVar _ v' = v === v'
+  ExprApp _ f x === ExprApp _ f' x' = f === f' && x === x'
+  ExprIntLit _ i === ExprIntLit _ i' = i == i'
+  ExprStrLit _ s === ExprStrLit _ s' = s == s'
+  ExprTuple _ h t === ExprTuple _ h' t' = h === h' && t === t'
+  ExprList _ l === ExprList _ l' = l === l'
+  ExprUnit _ === ExprUnit _ = True
+  _ === _ = False
 
 -- | A type in the Fixen language.
 --
@@ -371,7 +395,6 @@ data Type where
     -> Identifier
     -- ^ The type name.
     -> Type
-
   -- | Type application (@T1 T2@), representing a type constructor applied
   -- to an argument type.
   TypeApp
@@ -382,7 +405,6 @@ data Type where
     -> Type
     -- ^ The argument type (RHS).
     -> Type
-
   -- | A list type (@[a]@). This is a built-in type, distinct from
   -- generic type application, for convenience in pretty-printing and
   -- code generation.
@@ -392,7 +414,6 @@ data Type where
     -> Type
     -- ^ The element type.
     -> Type
-
   -- | A tuple type (@(a, b, ...)@). This is a built-in type, distinct
   -- from generic type application, for convenience in pretty-printing
   -- and code generation. The tuple must have at least two elements.
@@ -404,13 +425,11 @@ data Type where
     -> NonEmpty Type
     -- ^ The types of the remaining elements (non-empty, ensuring at least 2 total).
     -> Type
-
   -- | The unit type @()@.
   TypeUnit
     :: NodeId
     -- ^ The 'NodeId' for source position tracking.
     -> Type
-
   -- | A natural number literal type (e.g. @0@, @1@, @42@).
   TypeNatLit
     :: NodeId
@@ -418,7 +437,6 @@ data Type where
     -> Natural
     -- ^ The natural number value.
     -> Type
-
   -- | A string/symbol literal type (e.g. @@"foo"@@).
   TypeSymbolLit
     :: NodeId
@@ -426,7 +444,6 @@ data Type where
     -> Text
     -- ^ The symbol/string value.
     -> Type
-
   deriving (Show, Eq)
 
 -- | Every 'Type' constructor carries a 'NodeId' for source position tracking.
@@ -438,6 +455,17 @@ instance HasNodeId Type where
   getNodeId (TypeUnit u) = u
   getNodeId (TypeTuple u _ _) = u
   getNodeId (TypeList u _) = u
+
+-- | 'Type's are equal modulo 'NodeId's whenever their components are.
+instance EqModuloNodeId Type where
+  TypeName _ v === TypeName _ v' = v === v'
+  TypeApp _ f x === TypeApp _ f' x' = f === f' && x === x'
+  TypeNatLit _ i === TypeNatLit _ i' = i == i'
+  TypeSymbolLit _ s === TypeSymbolLit _ s' = s == s'
+  TypeTuple _ h t === TypeTuple _ h' t' = h === h' && t === t'
+  TypeList _ l === TypeList _ l' = l === l'
+  TypeUnit _ === TypeUnit _ = True
+  _ === _ = False
 
 --------------------------------------------------------------------------------
 --
@@ -488,6 +516,10 @@ instance HasNodeId (Relation β π) where
 instance Named (Relation β π) β where
   nameOf = relationName
 
+-- | 'Relation's are equal modulo 'NodeId's whenever their components are.
+instance (EqModuloNodeId β, EqModuloNodeId π) => EqModuloNodeId (Relation β π) where
+  r === r' = relationName r === relationName r' && relationParams r === relationParams r'
+
 -- | A rule declaration in the program.
 --
 --   Rules define inference: given a set of assumptions and conditions,
@@ -522,6 +554,23 @@ data Rule ν β π χ δ = Rule
   -- ^ The conclusion (a relation applied to expressions).
   }
   deriving (Show, Eq)
+
+-- | 'Rule's are equal modulo 'NodeId's whenever their components are.
+instance
+  ( EqModuloNodeId ν
+  , EqModuloNodeId β
+  , EqModuloNodeId π
+  , EqModuloNodeId χ
+  , EqModuloNodeId δ
+  )
+  => EqModuloNodeId (Rule ν β π χ δ)
+  where
+  r === r' =
+    ruleName r === ruleName r'
+      && ruleBoundVars r === ruleBoundVars r'
+      && ruleAssumptions r === ruleAssumptions r'
+      && ruleConditions r === ruleConditions r'
+      && ruleConclusion r === ruleConclusion r'
 
 -- | A 'Rule' is its own node ID.
 instance HasNodeId (Rule ν β π χ δ) where
@@ -708,24 +757,22 @@ instance Named (RuleInstance ρ μ) ρ where
 --   @
 --   query DistTo as distTo - +
 --   @
-data Query ρ ν μ = Query
+data Query ρ ν = Query
   { queryNodeId :: NodeId
   -- ^ The 'NodeId' for source position tracking.
   , queryRel :: ρ
   -- ^ The relation being queried.
   , queryName :: ν
   -- ^ The query name (lowercase identifier for reference).
-  , queryModes :: μ
-  -- ^ The input/output modes for each argument of the relation.
   }
   deriving (Show, Eq)
 
 -- | A 'Query' is named by its query name.
-instance Named (Query ρ ν μ) ν where
+instance Named (Query ρ ν) ν where
   nameOf = queryName
 
 -- | A 'Query' is its own node ID.
-instance HasNodeId (Query ρ ν μ) where
+instance HasNodeId (Query ρ ν) where
   getNodeId = queryNodeId
 
 -- | The mode of a query argument: input (@+@) or output (@-@).

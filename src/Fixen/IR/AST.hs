@@ -39,8 +39,10 @@ import Fixen.IR.Core as D (
   Expr(..),
   Type(..),
   ModuleName(..),
+  Named(..),
   FullyQualifiedName(..),
   Identifier(..),
+  IdentifierLike(..),
   data Condition,
   data Extern,
   data HsBlock,
@@ -69,6 +71,13 @@ import Fixen.IR.Core as D (
   , priorities
   , queries
   , phases
+  , partialOrdDeclarationType
+  , partialOrdDeclarationLeq
+  , partialOrdDeclarationMlbs
+  , relationParams
+  , queryRel
+  , ruleBoundVars
+  , ruleAssumptions
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter
@@ -215,16 +224,23 @@ type PriorityConclusion = Core.PriorityConclusion RuleInstance RuleInstance
 --   @
 type Priority = Core.Priority Core.Expr PriorityConclusion
 
+-- | A relation that is queried.
+--
+-- This is 'Core.Relation' instantiated with:
+--
+-- * 'Core.SimpleIdentifier' for the relation name
+-- * '[Core.QueryMode]' for the arguments
+type QueriedRelation = Core.Relation Core.SimpleIdentifier [Core.QueryMode]
+
 -- | A query declaration as produced by the parser.
 --
 --   This is 'Core.Query' instantiated with:
 --
---   * 'Core.SimpleIdentifier' for the relation name
+--   * 'QueriedRelation' for the queried relation
 --   * 'Core.SimpleIdentifier' for the query name
---   * 'NonEmpty Core.QueryMode' for the input/output modes
 --
 --   Example: @query DistTo as distTo - +@
-type Query = Core.Query Core.SimpleIdentifier Core.SimpleIdentifier (NonEmpty Core.QueryMode)
+type Query = Core.Query QueriedRelation Core.SimpleIdentifier
 
 -- | A module declaration as produced by the parser.
 --
@@ -359,7 +375,7 @@ type Program =
 --   - item3
 --   @
 prettyList' :: [Doc ann] -> Doc ann
-prettyList' items = sep (formatItem <$> items)
+prettyList' items = vsep (formatItem <$> items)
   where
     formatItem item = hang 2 (pretty "-" <+> item)
 
@@ -495,15 +511,15 @@ prettyQueryMode Core.Output{} = annotate (color Green) (pretty "-")
 -- | Pretty-print a 'Query' declaration.
 --
 --   @
---   query DistTo@9 as distTo@10 - +
+--   query distTo: DistTo@10 - +
 --   @
 prettyQuery :: Query -> Doc AnsiStyle
-prettyQuery (Core.Query _ rel qname modes) =
+prettyQuery (Core.Query _ rel qname) =
   annotate bold (pretty "query")
-    <+> annotate (color Red) (pretty (Core.fullIdentifier rel))
-    <> pretty " as "
-    <> annotate (color Red) (pretty (Core.fullIdentifier qname))
-    <+> sep (prettyQueryMode <$> Data.List.NonEmpty.toList modes)
+    <+> annotate (color Red) (pretty (Core.fullIdentifier qname))
+    <> pretty ": "
+    <> annotate (color Red) (pretty (Core.fullIdentifier $ nameOf rel))
+    <+> sep (prettyQueryMode <$> (relationParams rel))
 
 -- | Pretty-print a 'RulesetOrEverythingElse'.
 --

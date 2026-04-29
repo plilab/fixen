@@ -12,10 +12,12 @@ import Data.IntMap.Strict qualified as Map
 import Data.Text
 import Error.Diagnose
 import Fixen.Data.NodeId
-import Fixen.IR.AST
+
+-- import Fixen.IR.AST
 import Fixen.ModuleSystem (getIncludes)
 import Fixen.Monad
 import Fixen.Parser (parse)
+import Fixen.SymbolSolver
 import Prettyprinter
 
 -- | The compilation pipeline. The code as a connector for each phase of
@@ -38,7 +40,7 @@ pipeline
   -> String
   -- ^ The contents of the compiled file
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
-  -> FixenM Program
+  -> FixenM SymbolEnv
 pipeline file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = fixenEmptyErrors file_map
@@ -47,5 +49,6 @@ pipeline file_path contents error_printer = do
       init_env = (init_pos_env, (init_node_id, init_errs))
   (program, st) <- runFixenPassFlushWarnings error_printer init_env (parse file_path (pack contents))
   -- NOTE THAT IN SUBSEQUENT PASSES WE MUST USE THE RESULTING STATE THAT HAS THE NEW FILEMAP
-  (program', _) <- runFixenPassFlushWarnings error_printer st (getIncludes program)
-  return program'
+  (program', st') <- runFixenPassFlushWarnings error_printer st (getIncludes program)
+  (env, _) <- runFixenPassFlushWarnings error_printer st' (solveSymbols program')
+  return env
