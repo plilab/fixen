@@ -1,7 +1,6 @@
 module Fixen.SymbolSolver.PartialOrdDeclaration where
 
 import Control.Lens
-import Control.Monad
 import Data.Set qualified as Set
 import Fixen.IR.AST
 import Fixen.Monad

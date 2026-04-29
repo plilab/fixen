@@ -7,23 +7,11 @@
 
 module Fixen.SymbolSolver where
 
--- import Data.Text
-
-import Control.Monad (foldM, forM_, when)
-import Data.Function ((&))
-import Data.Functor ((<&>))
-import Data.IntSet qualified as IntSet
-import Data.List (nubBy)
-import Data.List.NonEmpty
-import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
-import Data.Text
-import Fixen.Data.NodeId
+import Control.Monad (foldM)
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.PartialOrdDeclaration
-import Fixen.SymbolSolver.Prelude
 import Fixen.SymbolSolver.Query
 import Fixen.SymbolSolver.Relation
 

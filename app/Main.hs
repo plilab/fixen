@@ -17,13 +17,13 @@ import Error.Diagnose (
   unadornedStyle,
  )
 
-import Fixen.IR.AST
+-- import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Pipeline
 
-import Prettyprinter
-import Prettyprinter.Render.Terminal qualified as PT
-import Prettyprinter.Render.Text
+-- import Prettyprinter
+-- import Prettyprinter.Render.Terminal qualified as PT
+-- import Prettyprinter.Render.Text
 import System.Directory (canonicalizePath)
 import System.Exit (
   ExitCode (..),

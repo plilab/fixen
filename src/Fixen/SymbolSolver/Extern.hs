@@ -1,8 +1,6 @@
 module Fixen.SymbolSolver.Extern where
 
 import Control.Lens
-import Control.Monad.IO.Class
-import Data.Text
 import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
