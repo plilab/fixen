@@ -380,7 +380,7 @@ getAssumptionVariables r =
     & filter (\i -> simpleIdentifier i /= "_")
 
 validateRelationsInRule :: SymbolValidator Rule
-validateRelationsInRule = validate [matchRelationsArity]
+validateRelationsInRule = validate [matchRelationsArity, checkForRelationsWithAllHoles]
   where
     matchRelationsArity :: SymbolRule Rule
     matchRelationsArity r env = do
@@ -389,6 +389,21 @@ validateRelationsInRule = validate [matchRelationsArity]
       asm_rep <- mapM (\a -> relationExistsAndHasRightArity a "assumption" env) asms
       concl_rep <- relationExistsAndHasRightArity concl "conclusion" env
       return $ concat $ concl_rep : asm_rep
+    checkForRelationsWithAllHoles :: SymbolRule Rule
+    checkForRelationsWithAllHoles r _ = do
+      let asms_all_holes = ruleAssumptions r <&> relationParams <&> fmap simpleIdentifier & zip (ruleAssumptions r) & filter (\(_, ls) -> all (== "_") ls) <&> fst
+      forM asms_all_holes $ \asm -> do
+        pos <- fixenGetPosition asm
+        return $
+          Err
+            Nothing
+            "premise with all holes"
+            [(pos, This "premise")]
+            [ Note
+                "premises cannot have only holes"
+            , Hint
+                "remove this premise from the rule"
+            ]
 
 checkUnboundVariable :: RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkUnboundVariable mp = do
