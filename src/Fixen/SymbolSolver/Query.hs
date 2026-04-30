@@ -24,6 +24,7 @@ validateQuery = validate rules
       , againstExtern
       , matchRelationArity
       , againstPrelude
+      , againstFixen
       ]
 
     againstOtherQueries =
@@ -39,6 +40,10 @@ validateQuery = validate rules
     againstPrelude =
       validateNamed
         (validateAgainstPreludeLowercase "query declaration" "query declaration")
+
+    againstFixen =
+      validateNamed
+        (validateAgainstFixenLowercase "query declaration" "query declaration")
 
     matchRelationArity :: SymbolRule Query
     matchRelationArity q env =

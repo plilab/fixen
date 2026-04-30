@@ -131,9 +131,10 @@ parseRawLowerHsIdentifierString = do
       (:)
         <$> (C.lowerChar <|> P.single '_') -- first char: lowercase letter or underscore
         <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-  -- Reject the parse if the resulting string matches a reserved keyword
+        -- Reject the parse if the resulting string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error indicating the keyword was unexpected
+
       P.parseError
         ( P.FancyError
             offset_start
@@ -176,9 +177,10 @@ parseRawAnyCaseHsIdentifierString = do
       (:)
         <$> (C.lowerChar <|> P.single '_' <|> C.upperChar) -- first char: any case letter or underscore
         <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-  -- Reject if the string matches a reserved keyword
+        -- Reject if the string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error for the reserved keyword
+
       P.parseError
         ( P.FancyError
             offset_start
@@ -209,6 +211,7 @@ parseRawOpIdentifierString = do
   -- Reject if the string matches a reserved operator
   if str `elem` reservedOps
     then -- emit a parse error for the reserved operator
+
       P.parseError
         ( P.FancyError
             offset_start
@@ -334,8 +337,7 @@ parseCapitalizedFQN = do
   case ls of
     -- Accept only if there are at least two components (module + name)
     (x : x' : ls') -> do
-      let
-          -- Split into first component and the remaining non-empty tail
+      let -- Split into first component and the remaining non-empty tail
           (first_ident, remaining_idents) = (x, x' NE.:| ls')
           -- The module name comprises all components except the last one
           mod_name = first_ident NE.:| NE.init remaining_idents
@@ -346,8 +348,7 @@ parseCapitalizedFQN = do
       m_last_pos <- fixenGetPosition (NE.last mod_name)
       -- Get source position for the final name component
       name_pos <- fixenGetPosition name
-      let
-          -- The module name position spans from the start of the first
+      let -- The module name position spans from the start of the first
           -- component to the end of the last module name component
           m_pos =
             Position
@@ -626,9 +627,37 @@ opChars = ":!#$%&*+./<=>?@\\^|-~"
 --   'parseRawLowerHsIdentifierString' and 'parseRawAnyCaseHsIdentifierString'
 --   parsers will reject it with a parse error.
 --
---   Currently contains: @\"if\"@
+--   Currently contains all Haskell keywords
 reserved :: [Text]
-reserved = ["if"]
+reserved =
+  [ "if"
+  , "then"
+  , "else"
+  , "data"
+  , "type"
+  , "family"
+  , "import"
+  , "module"
+  , "where"
+  , "class"
+  , "instance"
+  , "case"
+  , "of"
+  , "let"
+  , "in"
+  , "newtype"
+  , "deriving"
+  , "qualified"
+  , "as"
+  , "hiding"
+  , "do"
+  , "infix"
+  , "infixl"
+  , "infixr"
+  , "foreign"
+  , "proc"
+  , "rec"
+  ]
 
 -- | Reserved operator symbols that cannot be used as operator identifiers.
 --

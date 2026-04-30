@@ -2,13 +2,18 @@ module Fixen.SymbolSolver.Rule where
 
 import Control.Lens
 import Control.Monad
+
+-- import Control.Monad.IO.Class
+
 import Data.List
 import Data.Map.Strict qualified as Map
+import Data.Maybe
 import Data.Set qualified as Set
 import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
+import Fixen.SymbolSolver.Extern (initEnvWithExternSymbol)
 import Fixen.SymbolSolver.Prelude
 import Fixen.SymbolSolver.Validation
 import Prelude.Unicode
@@ -28,23 +33,31 @@ initEnvWithRule env r = do
         then return env
         else do
           let (unused, bvs) = Map.partition (\(_, ls) -> null ls) var_usage_info
-          warnUnusedBoundVars (fst . snd <$> Map.toList unused)
-          -- liftIO $ print bvs
+          warnUnusedBoundVars (fst ∘ snd <$> Map.toList unused)
           -- actual bound vars is bvs
           -- initialize the rule info
-          let lv_info = mkLocalVarInfo bvs
-              rul_info =
+          fvs_in_assumptions <- checkFreeVarsInAssumptions r bvs
+          if fvs_in_assumptions
+            then return env
+            else do
+              let lv_info = mkLocalVarInfo bvs
+                  fvs = getFreeVars r bvs
+              -- for now, insert the rule info into the env directly.
+
+              rul_info <-
                 RuleInfo
                   { _ruleDeclaration = r
                   , _ruleBoundVars = lv_info
                   }
-          -- for now, insert the rule info into the env directly.
-          -- TODO: Typecheck
-          -- TODO: GetMatchInfo
-          -- TODO: Warn name shadowing
-          -- TODO: Add free vars to extern
-          -- TODO: Ensure no free vars are in assumptions
-          return $ env & infoMap . ruleInfoMap . at (getNodeId r) ?~ rul_info
+                  & typeCheck env
+              -- TODO: GetMatchInfo
+              -- TODO: Warn name shadowing
+              env
+                & infoMap
+                  ∘ ruleInfoMap
+                  ∘ at (getNodeId r)
+                  ?~ rul_info
+                & foldMWith initEnvWithExternSymbol fvs
   where
     mkLocalVarInfo mp =
       let mp' = \(v, u) ->
@@ -54,6 +67,122 @@ initEnvWithRule env r = do
               , _localVarVar = v
               }
        in mp' <$> mp
+
+typeCheck :: SymbolEnv -> RuleInfo -> FixenPass SymbolState RuleInfo
+typeCheck env RuleInfo {_ruleDeclaration = r, _ruleBoundVars = mp} = do
+  let type_candidates =
+        mp
+          <&> _localVarUsage -- get the usage map
+          <&> assumptionsOnly -- let's deal with the assumptions first
+          <&> catMaybes -- eliminating non assumption uses
+          <&> (fmap (mapIndicesToType env r)) -- map each usage to a type
+  mp' <- foldListMap (typeCheckType r) mp type_candidates
+  -- TODO: type check conclusion
+
+  return $ RuleInfo {_ruleDeclaration = r, _ruleBoundVars = mp'}
+  where
+    assumptionsOnly = fmap f
+    f (UsedInAssumption i j) = Just (i, j)
+    f _ = Nothing
+
+foldListMap :: (Monad m, Foldable f) => (a -> k -> b -> m a) -> a -> Map.Map k (f b) -> m a
+foldListMap f e m = foldMWithKey f' e m
+  where
+    f' a k ls = foldM (\a' b' -> f a' k b') a ls
+
+    foldMWithKey :: Monad m => (a -> k -> b -> m a) -> a -> Map.Map k b -> m a
+    foldMWithKey f1 e1 m1 = foldM (\a' (k, b) -> f1 a' k b) e1 (Map.toList m1)
+
+typeCheckType :: Rule -> RepresentativeMap LocalVarInfo -> Representative -> (Int, Int, Type) -> FixenPass SymbolState (RepresentativeMap LocalVarInfo)
+typeCheckType rule mp v_repr (i, j, t) = do
+  let curr_info = mp Map.! v_repr
+      curr_type = curr_info ^. localVarType
+  case curr_type of
+    Bottom -> return mp
+    Dynamic ->
+      -- update the map
+      return $ Map.insert v_repr (curr_info & localVarType .~ ActualType t (TypedViaAssumption i j)) mp
+    ActualType t' evidence ->
+      if t === t'
+        then return mp
+        else case evidence of
+          TypedViaAssumption i' j' -> do
+            let original_asm = rule & ruleAssumptions & (!! i')
+                original_var = original_asm & relationParams & (!! j')
+                curr_asm = rule & ruleAssumptions & (!! i)
+                curr_var = curr_asm & relationParams & (!! j)
+            original_var_pos <- fixenGetPosition original_var
+            original_ty_pos <- fixenGetPosition t'
+            curr_asm_pos <- fixenGetPosition curr_asm
+            curr_var_pos <- fixenGetPosition curr_var
+            curr_ty_pos <- fixenGetPosition t
+            accumErr
+              Nothing
+              "type mismatch"
+              [ (original_var_pos, Where "another occurrence of this variable")
+              , (original_ty_pos, Where "has another type")
+              , (curr_var_pos, This "this variable")
+              , (curr_asm_pos, Where "this assumption")
+              , (curr_ty_pos, Where "has this type")
+              ]
+              [Note "matched variables must have the same type!"]
+            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+          TypedViaConclusion i' -> do
+            let original_var = rule & ruleConclusion & relationParams & (!! i')
+                curr_asm = rule & ruleAssumptions & (!! i)
+                curr_var = curr_asm & relationParams & (!! j)
+            original_var_pos <- fixenGetPosition original_var
+            original_ty_pos <- fixenGetPosition t'
+            curr_asm_pos <- fixenGetPosition curr_asm
+            curr_var_pos <- fixenGetPosition curr_var
+            curr_ty_pos <- fixenGetPosition t
+            accumErr
+              Nothing
+              "type mismatch"
+              [ (original_var_pos, Where "another occurrence of this variable in the conclusion")
+              , (original_ty_pos, Where "has another type")
+              , (curr_var_pos, This "this variable")
+              , (curr_asm_pos, Where "this assumption")
+              , (curr_ty_pos, Where "has this type")
+              ]
+              [Note "matched variables must have the same type!"]
+            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+
+mapIndicesToType :: SymbolEnv -> Rule -> (Int, Int) -> (Int, Int, Type)
+mapIndicesToType env r (i, j) =
+  let rel_name =
+        ruleAssumptions r !! i
+          & relationName
+          & simpleIdentifier
+   in (env ^. infoMap . relationInfoMap)
+        & (Map.! rel_name)
+        & (^. relationDeclaration)
+        & relationParams
+        & (!! j)
+        & (i,j,)
+
+getFreeVars :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> [SimpleIdentifier]
+getFreeVars r mp =
+  let conds = ruleConditions r <&> conditionExpr <&> getAllExprNames <&> Set.toList & concat
+      conc = ruleConclusion r & relationParams <&> getAllExprNames <&> Set.toList & concat
+      all_vars = conds ++ conc
+   in filter ((`Map.notMember` mp) ∘ simpleIdentifier) all_vars
+
+checkFreeVarsInAssumptions :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
+checkFreeVarsInAssumptions r mp = do
+  let asms = ruleAssumptions r <&> relationParams & concat & filter (\i -> simpleIdentifier i `Map.notMember` mp)
+  if (¬) (null asms)
+    then do
+      pos <- mapM fixenGetPosition asms
+      accumErr
+        Nothing
+        "free variables in premise"
+        ((,This "free variable") <$> pos)
+        [ Note "fact-based premises can only contain rule parameters"
+        , Hint "add these variables as rule parameters"
+        ]
+      return True
+    else return False
 
 getBoundVarUsageInfo :: Rule -> SimpleIdentifier -> RepresentativeMap (SimpleIdentifier, [UsageInfo])
 getBoundVarUsageInfo r v =
@@ -93,7 +222,7 @@ getBoundVarUsageInfoFromCondition i c =
 getBoundVarUsageInfoFromConclusion :: SimpleIdentifier -> Conclusion -> [UsageInfo]
 getBoundVarUsageInfoFromConclusion i c =
   let p = relationParams c
-      n = simpleIdentifier <$> (Set.toList $ Set.unions $ getAllExprNames <$> p)
+      n = p <&> getAllExprNames & Set.unions & Set.toList <&> simpleIdentifier
    in if simpleIdentifier i ∈ n then [UsedInConclusion] else []
 
 -- | Obtains the bound variables of the rule. If they were not defined

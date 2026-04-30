@@ -130,6 +130,20 @@ validateAgainstPreludeCapitalized this_msg decl_type repr i _ =
         ]
     else return []
 
+validateAgainstFixenCapitalized :: String -> String -> GenericRepresentativeRule a
+validateAgainstFixenCapitalized this_msg decl_type repr i _ =
+  if repr `Set.member` fixenTypesCons
+    then do
+      pos <- fixenGetPosition i
+      return
+        [ Err
+            Nothing
+            "name clash with Fixen-generated symbol"
+            [(pos, This this_msg)]
+            [Note $ "change the name of this " ++ decl_type]
+        ]
+    else return []
+
 validateAgainstPreludeLowercase :: String -> String -> GenericRepresentativeRule a
 validateAgainstPreludeLowercase this_msg decl_type repr i _ =
   if repr `Set.member` preludeTerms
@@ -141,6 +155,20 @@ validateAgainstPreludeLowercase this_msg decl_type repr i _ =
             "potential name clash with Prelude symbols"
             [(pos, This this_msg)]
             [Hint $ "hide this name from the Prelude import, or change the name of this " ++ decl_type]
+        ]
+    else return []
+
+validateAgainstFixenLowercase :: String -> String -> GenericRepresentativeRule a
+validateAgainstFixenLowercase this_msg decl_type repr i _ =
+  if repr `Set.member` fixenTerms
+    then do
+      pos <- fixenGetPosition i
+      return
+        [ Err
+            Nothing
+            "name clash with Fixen-generated symbol"
+            [(pos, This this_msg)]
+            [Note $ "change the name of this " ++ decl_type]
         ]
     else return []
 

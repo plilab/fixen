@@ -61,7 +61,13 @@ initEnvWithRelation env r = do
 validateRelation :: SymbolValidator Relation
 validateRelation = validate rules
   where
-    rules = [againstOtherRelations, againstPartialOrd, againstExtern, againstPrelude]
+    rules =
+      [ againstOtherRelations
+      , againstPartialOrd
+      , againstExtern
+      , againstPrelude
+      , againstFixenCapitalized
+      ]
     againstOtherRelations =
       validateNamed
         (validateAgainstRelation "another rel with the same name")
@@ -77,3 +83,5 @@ validateRelation = validate rules
         )
     againstPrelude =
       validateNamed (validateAgainstPreludeCapitalized "rel declaration" "rel declaration")
+    againstFixenCapitalized =
+      validateNamed (validateAgainstFixenCapitalized "rel declaration" "rel declaration")

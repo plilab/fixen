@@ -171,12 +171,17 @@ relationArgMatchInfo = lens _relationArgMatchInfo (\ri r -> ri {_relationArgMatc
 data TypeLattice
   = Dynamic
   | ActualType
-      Representative
-      -- ^ The RelationArg
-      Assumption
+      Type
+      -- ^ The actual 'Type'
+      TypeEvidence
       -- ^ First discovered usage that gives us information about why the type
       -- is as such
-  | Top
+  | Bottom
+  deriving (Show, Eq)
+
+data TypeEvidence
+  = TypedViaAssumption Int Int
+  | TypedViaConclusion Int
   deriving (Show, Eq)
 
 data LocalVarInfo = LocalVarInfo

@@ -240,3 +240,19 @@ preludeTerms =
     , "zipWith"
     , "zipWith3"
     ]
+
+fixenTerms :: Set Text
+fixenTerms =
+  fromList
+    [ "step"
+    , "compute"
+    , "evaluate"
+    ]
+
+fixenTypesCons :: Set Text
+fixenTypesCons =
+  fromList
+    [ "Database"
+    , "RuleInstance"
+    , "Fact"
+    ]

@@ -28,7 +28,12 @@ initEnvWithExternSymbol env i = do
 validateExternSymbol :: SymbolValidator SimpleIdentifier
 validateExternSymbol = validate rules
   where
-    rules = [againstRelations, againstQueries]
+    rules =
+      [ againstRelations
+      , againstQueries
+      , againstFixenUpperCase
+      , againstFixenLowerCase
+      ]
     againstRelations :: SymbolRule SimpleIdentifier
     againstRelations i env =
       validateAgainstRelation
@@ -39,6 +44,21 @@ validateExternSymbol = validate rules
     againstQueries i env =
       validateAgainstQuery
         "an existing use of the same name"
+        (simpleIdentifier i)
+        i
+        env
+    againstFixenUpperCase i env =
+      validateAgainstFixenCapitalized
+        "external symbol"
+        "external symbol"
+        (simpleIdentifier i)
+        i
+        env
+
+    againstFixenLowerCase i env =
+      validateAgainstFixenLowercase
+        "external symbol"
+        "external symbol"
         (simpleIdentifier i)
         i
         env

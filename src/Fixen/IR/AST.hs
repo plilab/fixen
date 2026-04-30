@@ -81,6 +81,7 @@ import Fixen.IR.Core as D (
   , ruleConditions
   , ruleConclusion
   , conditionExpr
+  , relationName
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter
