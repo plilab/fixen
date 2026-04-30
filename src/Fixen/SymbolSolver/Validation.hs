@@ -1,6 +1,10 @@
 module Fixen.SymbolSolver.Validation where
 
 import Control.Lens
+import Control.Monad
+import Control.Monad.IO.Class
+import Data.IntMap qualified as IntMap
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Fixen.Data.NodeId
 import Fixen.IR.AST
@@ -94,6 +98,49 @@ validateAgainstExtern this_msg notes repr i env = do
             "duplicate names!"
             [(pos', This this_msg), (pos, Where "use of an external symbol with the same name")]
             notes
+        ]
+
+warnNameShadowingAgainstBoundVar :: String -> GenericRepresentativeRule a
+warnNameShadowingAgainstBoundVar where_msg repr i env = do
+  let matching_bvs =
+        env
+          ^. infoMap . ruleInfoMap
+          & IntMap.toList
+          <&> snd
+          <&> (^. Fixen.Monad.ruleBoundVars)
+          <&> Map.toList
+          & concat
+          <&> (\(r, inf) -> (r, _localVarVar inf))
+          & filter (\(r, _) -> r == repr)
+  -- liftIO $ print matching_bvs
+  forM matching_bvs $ \(_, s) -> do
+    pos <- fixenGetPosition i
+    pos' <- fixenGetPosition s
+    return $
+      Warn
+        Nothing
+        "name shadowing"
+        [(pos', This "rule parameter"), (pos, Where where_msg)]
+        [Hint "change the name of the rule parameter"]
+
+warnNameShadowingAgainstExtern :: GenericRepresentativeRule a
+warnNameShadowingAgainstExtern repr i env = do
+  let extern_maybe =
+        env
+          ^. infoMap
+            . externInfoMap
+            . at repr
+  case extern_maybe of
+    Nothing -> return []
+    Just e_id -> do
+      pos <- fixenGetPosition e_id
+      pos' <- fixenGetPosition i
+      return
+        [ Warn
+            Nothing
+            "name shadowing"
+            [(pos', This "rule parameter"), (pos, Where "use of an external symbol with the same name")]
+            [Hint "change the name of the rule parameter"]
         ]
 
 validateAgainstQuery :: String -> GenericRepresentativeRule a

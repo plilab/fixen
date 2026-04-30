@@ -33,6 +33,7 @@ validateExternSymbol = validate rules
       , againstQueries
       , againstFixenUpperCase
       , againstFixenLowerCase
+      , againstRuleParams
       ]
     againstRelations :: SymbolRule SimpleIdentifier
     againstRelations i env =
@@ -59,6 +60,12 @@ validateExternSymbol = validate rules
       validateAgainstFixenLowercase
         "external symbol"
         "external symbol"
+        (simpleIdentifier i)
+        i
+        env
+    againstRuleParams i env =
+      warnNameShadowingAgainstBoundVar
+        "use of the same name"
         (simpleIdentifier i)
         i
         env

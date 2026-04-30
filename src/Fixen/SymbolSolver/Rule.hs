@@ -1,10 +1,7 @@
-module Fixen.SymbolSolver.Rule where
+module Fixen.SymbolSolver.Rule (initEnvWithRule) where
 
 import Control.Lens
 import Control.Monad
-
--- import Control.Monad.IO.Class
-
 import Data.List
 import Data.Map.Strict qualified as Map
 import Data.Maybe
@@ -14,7 +11,6 @@ import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Extern (initEnvWithExternSymbol)
-import Fixen.SymbolSolver.Prelude
 import Fixen.SymbolSolver.Validation
 import Prelude.Unicode
 
@@ -34,6 +30,8 @@ initEnvWithRule env r = do
         else do
           let (unused, bvs) = Map.partition (\(_, ls) -> null ls) var_usage_info
           warnUnusedBoundVars (fst ∘ snd <$> Map.toList unused)
+          forM_ (Map.toList bvs) $ \(rep, (i, _)) ->
+            validate [warnNameShadowingAgainstExtern rep] i env
           -- actual bound vars is bvs
           -- initialize the rule info
           fvs_in_assumptions <- checkFreeVarsInAssumptions r bvs
@@ -50,14 +48,13 @@ initEnvWithRule env r = do
                   , _ruleBoundVars = lv_info
                   }
                   & typeCheck env
-              -- TODO: GetMatchInfo
-              -- TODO: Warn name shadowing
               env
                 & infoMap
                   ∘ ruleInfoMap
                   ∘ at (getNodeId r)
                   ?~ rul_info
                 & foldMWith initEnvWithExternSymbol fvs
+                <&> insertMatchInfo r bvs
   where
     mkLocalVarInfo mp =
       let mp' = \(v, u) ->
@@ -68,22 +65,63 @@ initEnvWithRule env r = do
               }
        in mp' <$> mp
 
+insertMatchInfo :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> SymbolEnv -> SymbolEnv
+insertMatchInfo r mp e = foldl' mkMatched e all_usages
+  where
+    all_usages =
+      mp
+        & Map.toList
+        <&> snd
+        <&> snd
+        <&> fmap assumptionsOnly
+        <&> catMaybes
+        & filter ((> 1) . length)
+        & concat
+    assumptionsOnly (UsedInAssumption i j) = Just (i, j)
+    assumptionsOnly _ = Nothing
+    mkMatched :: SymbolEnv -> (Int, Int) -> SymbolEnv
+    mkMatched env (i, j) =
+      let rel_name =
+            r
+              & ruleAssumptions
+              & (!! i)
+              & relationName
+              & simpleIdentifier
+       in env
+            & infoMap
+              . relationInfoMap
+              . ix rel_name
+              . relationArgMatchInfo
+              %~ setMatched
+      where
+        setMatched ls = take j ls ++ (Matched : drop (j + 1) ls)
+
 typeCheck :: SymbolEnv -> RuleInfo -> FixenPass SymbolState RuleInfo
 typeCheck env RuleInfo {_ruleDeclaration = r, _ruleBoundVars = mp} = do
-  let type_candidates =
+  let asm_type_candidates =
         mp
           <&> _localVarUsage -- get the usage map
           <&> assumptionsOnly -- let's deal with the assumptions first
           <&> catMaybes -- eliminating non assumption uses
           <&> (fmap (mapIndicesToType env r)) -- map each usage to a type
+      conc_args = ruleConclusion r & relationParams
+      conc_type_candidates =
+        zip [0 .. length conc_args] conc_args
+          & varsOnly
+          & catMaybes
+          & Map.fromList
+          <&> (fmap (mapIndicesToType env r))
+      type_candidates = Map.unionWith (++) asm_type_candidates conc_type_candidates
   mp' <- foldListMap (typeCheckType r) mp type_candidates
-  -- TODO: type check conclusion
-
   return $ RuleInfo {_ruleDeclaration = r, _ruleBoundVars = mp'}
   where
     assumptionsOnly = fmap f
-    f (UsedInAssumption i j) = Just (i, j)
+    f (UsedInAssumption i j) = Just $ Left (i, j)
     f _ = Nothing
+    varsOnly = fmap g
+    g (i, ExprVar _ (IdentifierSimpleIdentifier s))
+      | simpleIdentifier s `Map.member` mp = Just $ (simpleIdentifier s, [Right i])
+    g (_, _) = Nothing
 
 foldListMap :: (Monad m, Foldable f) => (a -> k -> b -> m a) -> a -> Map.Map k (f b) -> m a
 foldListMap f e m = foldMWithKey f' e m
@@ -93,8 +131,8 @@ foldListMap f e m = foldMWithKey f' e m
     foldMWithKey :: Monad m => (a -> k -> b -> m a) -> a -> Map.Map k b -> m a
     foldMWithKey f1 e1 m1 = foldM (\a' (k, b) -> f1 a' k b) e1 (Map.toList m1)
 
-typeCheckType :: Rule -> RepresentativeMap LocalVarInfo -> Representative -> (Int, Int, Type) -> FixenPass SymbolState (RepresentativeMap LocalVarInfo)
-typeCheckType rule mp v_repr (i, j, t) = do
+typeCheckType :: Rule -> RepresentativeMap LocalVarInfo -> Representative -> (Either (Int, Int) Int, Type) -> FixenPass SymbolState (RepresentativeMap LocalVarInfo)
+typeCheckType rule mp v_repr (Left (i, j), t) = do
   let curr_info = mp Map.! v_repr
       curr_type = curr_info ^. localVarType
   case curr_type of
@@ -147,9 +185,58 @@ typeCheckType rule mp v_repr (i, j, t) = do
               ]
               [Note "matched variables must have the same type!"]
             return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+typeCheckType rule mp v_repr (Right i, t) = do
+  let curr_info = mp Map.! v_repr
+      curr_type = curr_info ^. localVarType
+  case curr_type of
+    Bottom -> return mp
+    Dynamic ->
+      -- update the map
+      return $ Map.insert v_repr (curr_info & localVarType .~ ActualType t (TypedViaConclusion i)) mp
+    ActualType t' evidence ->
+      if t === t'
+        then return mp
+        else case evidence of
+          TypedViaAssumption i' j' -> do
+            let original_asm = rule & ruleAssumptions & (!! i')
+                original_var = original_asm & relationParams & (!! j')
+                curr_conc = rule & ruleConclusion
+                curr_var = curr_conc & relationParams & (!! i)
+            original_var_pos <- fixenGetPosition original_var
+            original_ty_pos <- fixenGetPosition t'
+            curr_var_pos <- fixenGetPosition curr_var
+            curr_ty_pos <- fixenGetPosition t
+            accumErr
+              Nothing
+              "type mismatch"
+              [ (original_var_pos, Where "another occurrence of this variable")
+              , (original_ty_pos, Where "has another type")
+              , (curr_var_pos, This "this variable in the conclusion")
+              , (curr_ty_pos, Where "has this type")
+              ]
+              [Note "matched variables must have the same type!"]
+            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+          TypedViaConclusion i' -> do
+            let original_var = rule & ruleConclusion & relationParams & (!! i')
+                curr_conc = rule & ruleConclusion
+                curr_var = curr_conc & relationParams & (!! i)
+            original_var_pos <- fixenGetPosition original_var
+            original_ty_pos <- fixenGetPosition t'
+            curr_var_pos <- fixenGetPosition curr_var
+            curr_ty_pos <- fixenGetPosition t
+            accumErr
+              Nothing
+              "type mismatch"
+              [ (original_var_pos, Where "another occurrence of this variable in the conclusion")
+              , (original_ty_pos, Where "has another type")
+              , (curr_var_pos, This "this variable in the conclusion")
+              , (curr_ty_pos, Where "has this type")
+              ]
+              [Note "matched variables must have the same type!"]
+            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
 
-mapIndicesToType :: SymbolEnv -> Rule -> (Int, Int) -> (Int, Int, Type)
-mapIndicesToType env r (i, j) =
+mapIndicesToType :: SymbolEnv -> Rule -> Either (Int, Int) Int -> (Either (Int, Int) Int, Type)
+mapIndicesToType env r (Left (i, j)) =
   let rel_name =
         ruleAssumptions r !! i
           & relationName
@@ -159,7 +246,18 @@ mapIndicesToType env r (i, j) =
         & (^. relationDeclaration)
         & relationParams
         & (!! j)
-        & (i,j,)
+        & (Left (i, j),)
+mapIndicesToType env r (Right i) =
+  let rel_name =
+        ruleConclusion r
+          & relationName
+          & simpleIdentifier
+   in (env ^. infoMap . relationInfoMap)
+        & (Map.! rel_name)
+        & (^. relationDeclaration)
+        & relationParams
+        & (!! i)
+        & (Right i,)
 
 getFreeVars :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> [SimpleIdentifier]
 getFreeVars r mp =
@@ -288,28 +386,6 @@ warnUnusedBoundVars ls = do
       "unused parameter"
       ((,This "variable") <$> pos)
       [Hint "remove these parameters"]
-
-warnBoundVarExtern :: SymbolEnv -> SimpleIdentifier -> FixenPass SymbolState ()
-warnBoundVarExtern env i =
-  case env ^. infoMap . externInfoMap . at (simpleIdentifier i) of
-    Just t -> do
-      pos <- fixenGetPosition i
-      pos' <- fixenGetPosition t
-      accumWarn
-        Nothing
-        "name shadowing"
-        [(pos, This "variable"), (pos', Where "external symbol")]
-        [Hint "change the name of this variable"]
-    Nothing -> do
-      if simpleIdentifier i `Set.member` preludeTerms
-        then do
-          pos <- fixenGetPosition i
-          accumWarn
-            Nothing
-            "potential name clash with Prelude terms"
-            [(pos, This "variable")]
-            [Hint "hide this name from the Prelude import, or change the name of this variable"]
-        else return ()
 
 validateRelationsInRule :: SymbolValidator Rule
 validateRelationsInRule = validate [matchRelationsArity]

@@ -140,7 +140,7 @@ emptyInfoMap =
 data Kind = Discrete | PartiallyOrdered
   deriving (Show, Eq)
 
-data RelationArgMatchInfo = Unmatched | Matched NodeId NodeId
+data RelationArgMatchInfo = Unmatched | Matched
   deriving
     (Show, Eq)
 
