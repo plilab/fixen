@@ -88,6 +88,7 @@ library
                       , Fixen.SymbolSolver.Rule
                       , Fixen.SymbolSolver.Validation
     build-depends:      base==4.22.0.0
+                      , base-unicode-symbols==0.2.4.2
                       , containers==0.8
                       , directory==1.3.10.1
                       , filepath==1.5.5.0
