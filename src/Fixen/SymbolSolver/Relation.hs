@@ -10,7 +10,7 @@ import Fixen.SymbolSolver.Validation
 
 initEnvWithRelation :: SymbolEnv -> Relation -> FixenPass SymbolState SymbolEnv
 initEnvWithRelation env r = do
-  validateRelation r env
+  _ <- validateRelation r env
   env
     & insertRelationParamTypesAsDiscrete
     & insertRelation

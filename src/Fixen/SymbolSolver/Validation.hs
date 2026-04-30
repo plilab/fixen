@@ -11,14 +11,15 @@ import Fixen.SymbolSolver.Prelude
 
 type SymbolRule a = a -> SymbolEnv -> FixenPass SymbolState [Report String]
 
-type SymbolValidator a = a -> SymbolEnv -> FixenPass SymbolState ()
+type SymbolValidator a = a -> SymbolEnv -> FixenPass SymbolState Bool
 
 type GenericRepresentativeRule a = HasNodeId a => Representative -> SymbolRule a
 
-validate :: [SymbolRule a] -> a -> SymbolEnv -> FixenPass SymbolState ()
+validate :: [SymbolRule a] -> a -> SymbolEnv -> FixenPass SymbolState Bool
 validate rules subject env = do
   reports <- sequence $ (\f -> f subject env) <$> rules
   mapM_ accumR (concat reports)
+  return $ not $ null reports
 
 validateNamed :: (HasNodeId a, Named a n, IdentifierLike n) => GenericRepresentativeRule a -> SymbolRule a
 validateNamed r i env = r (simpleIdentifier $ nameOf i) i env

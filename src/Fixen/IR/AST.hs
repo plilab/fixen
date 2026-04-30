@@ -78,6 +78,9 @@ import Fixen.IR.Core as D (
   , queryRel
   , ruleBoundVars
   , ruleAssumptions
+  , ruleConditions
+  , ruleConclusion
+  , conditionExpr
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter

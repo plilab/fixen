@@ -17,7 +17,7 @@ initEnvWithExternSymbol env i = do
     Just _ -> return env
     Nothing -> do
       -- validate if this extern symbol is okay to insert
-      validateExternSymbol i env
+      _ <- validateExternSymbol i env
       return $
         env
           & infoMap

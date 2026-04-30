@@ -184,16 +184,16 @@ parseProgram = do
 
 -- | Parses a list of top-level declarations. Each declaration is one of:
 --
---   * 'extern' declarations
---   * 'rel' (relation) declarations
---   * 'rule' declarations
---   * 'partial ord' declarations
---   * 'priority' declarations
---   * 'query' declarations
---   * 'include' statements
---   * 'import' statements
+--   * @extern@ declarations
+--   * @rel@ (relation) declarations
+--   * @rule@ declarations
+--   * @partial ord@ declarations
+--   * @priority@ declarations
+--   * @query@ declarations
+--   * @include@ statements
+--   * @import@ statements
 --   * Haskell code blocks (```hs … ```)
---   * 'phases' declarations
+--   * @phases@ declarations
 --
 --   Each item is parsed independently with whitespace consumed after it.
 --   At least one top-level declaration is required.
@@ -385,9 +385,7 @@ parseExtern = do
 -- | Parses a relation declaration:
 --
 --   @
---   rel RelationName
---       : Type1,
---       Type2
+--   rel RelationName: Type1, Type2
 --   @
 --
 --   The 'rel' keyword must not be indented. The relation name must be
@@ -403,9 +401,7 @@ parseExtern = do
 --   Example with arguments:
 --
 --   @
---   rel Dist
---       : Integer,
---       Integer
+--   rel Dist: Integer, Integer
 --   @
 parseRelation :: Parser AST.Relation
 parseRelation = parsePositioned $ do
@@ -434,11 +430,11 @@ parseRelation = parsePositioned $ do
 -- | Parses a rule declaration:
 --
 --   @
---   rule ruleName [boundVar1 boundVar2 ...]:
---       assumption1,
---       assumption2,
---       if condition,
---       |- conclusion Fact arg1 arg2
+--   rule [ruleName boundVar1 boundVar2 ...]:
+--       assumption1
+--     , assumption2
+--     , if condition
+--    |- conclusion
 --   @
 --
 --   The 'rule' keyword must not be indented. A rule consists of:
@@ -451,7 +447,7 @@ parseRelation = parsePositioned $ do
 --   5. A conclusion (a capitalized fact name followed by expression arguments)
 --
 --   The turnstile (@|-@) is a keyword operator, not a regular operator,
---   so it can be used directly in expressions when parenthesized.
+--   so it can be used in expressions only when parenthesized.
 --   For example: @if (a |- b) |- Fact a (b |- a)@
 parseRule :: Parser AST.Rule
 parseRule = parsePositioned $ do

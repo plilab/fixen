@@ -7,13 +7,14 @@
 
 module Fixen.SymbolSolver where
 
-import Control.Monad (foldM)
+-- import Control.Monad (foldM)
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.PartialOrdDeclaration
 import Fixen.SymbolSolver.Query
 import Fixen.SymbolSolver.Relation
+import Fixen.SymbolSolver.Rule
 
 solveSymbols :: Program -> FixenPass SymbolState SymbolEnv
 solveSymbols prog = do
@@ -26,7 +27,10 @@ solveSymbols prog = do
   -- flush all errors, and continue. Now, we are certain that the relations and partialOrdDeclarations
   -- are correctly added to the symbol environment.
   failIfErrored
-  env_with_queries <- foldM initEnvWithQuery env_with_rels_and_pords (queries prog)
+  env_with_queries <-
+    pure env_with_rels_and_pords
+      >>= foldMWith initEnvWithQuery (queries prog)
+      >>= foldMWith initEnvWithRule (rules prog)
   return env_with_queries
 
 -- initEnvWithRule :: SymbolEnv -> Rule -> FixenPass SymbolState SymbolEnv
@@ -36,98 +40,6 @@ solveSymbols prog = do
 --   warnUnusedBoundVars r rule_bound_vars
 --   undefined
 --
--- -- | Obtains the bound variables of the rule. If they were not defined
--- -- by the user, they will be inferred from assumptions of the rule. Duplicate
--- -- bound variables will cause errors. Variables whose name shadows external
--- -- symbols (including prelude terms) will throw warnings
--- getRuleBoundVars :: SymbolEnv -> Rule -> FixenPass SymbolState [SimpleIdentifier]
--- getRuleBoundVars env r = do
---   -- get the bound variables.
---   let rule_bound_vars =
---         case Fixen.IR.AST.ruleBoundVars r of
---           [] -> getAssumptionVariables r
---           v -> v
---       -- time to look for duplicate bound variables (that happens when users
---       -- specify bound variables and misspelled them probably)
---       freq_map =
---         rule_bound_vars
---           <&> (\i -> Map.singleton (simpleIdentifier i) (Set.singleton i))
---           & Map.unionsWith Set.union
---       -- filter the values
---       dup_vars =
---         freq_map
---           & Map.filter (\x -> Set.size x > 1)
---           & Map.toList
---           <&> snd
---   -- Get the unique bound variables after throwing errors
---   nub_bv <-
---     if not (Prelude.null dup_vars)
---       then do
---         -- handle the errors
---         forM_ dup_vars handleDupErrors
---         return $ Data.List.nubBy (===) rule_bound_vars
---       else return rule_bound_vars
---   forM_ nub_bv (warnBoundVarExtern env)
---   return nub_bv
---
--- getAssumptionVariables :: Rule -> [SimpleIdentifier]
--- getAssumptionVariables r =
---   -- get the assumptions
---   Fixen.IR.AST.ruleAssumptions r
---     -- get the relation parameters
---     <&> relationParams
---     -- concatenate them to get one giant list of simple identifiers
---     & Prelude.concat
---     -- get the unique ones
---     & Data.List.nubBy (===)
---
--- warnUnusedBoundVars :: Rule -> [SimpleIdentifier] -> FixenPass SymbolState ()
--- warnUnusedBoundVars rule bvs = do
---   let used = getAssumptionVariables rule
---       unused = Prelude.filter (not . (`Prelude.elem` used)) bvs
---   forM_ unused warnUnusedBoundVar
---
--- warnUnusedBoundVar :: SimpleIdentifier -> FixenPass SymbolState ()
--- warnUnusedBoundVar i = do
---   pos <- fixenGetPosition i
---   accumWarn
---     Nothing
---     "unused variable"
---     [(pos, This "variable")]
---     []
---
--- warnBoundVarExtern :: SymbolEnv -> SimpleIdentifier -> FixenPass SymbolState ()
--- warnBoundVarExtern env i =
---   case (externInfo $ info env) Map.!? simpleIdentifier i of
---     Just t -> do
---       pos <- fixenGetPosition i
---       pos' <- fixenGetPosition t
---       accumWarn
---         Nothing
---         "name shadowing"
---         [(pos, This "variable"), (pos', Where "external symbol")]
---         [Hint "change the name of this variable"]
---     Nothing -> do
---       if simpleIdentifier i `Set.member` preludeTerms
---         then do
---           pos <- fixenGetPosition i
---           accumWarn
---             Nothing
---             "potential name clash with Prelude terms"
---             [(pos, This "variable")]
---             [Hint "hide this name from the Prelude import, or change the name of this variable"]
---         else return ()
---
--- handleDupErrors :: Set.Set SimpleIdentifier -> FixenPass SymbolState ()
--- handleDupErrors s = do
---   poss <- mapM fixenGetPosition (Set.toList s)
---   let errs = (\pos -> (pos, This "variable")) <$> poss
---   accumErr
---     Nothing
---     "duplicate variable names"
---     errs
---     [Note "queries cannot share names with \"external\" terms used in the program (these include other queries)"]
-
 -- The symbol solver must perform two things:
 -- 1. Make sure every var is either locally bound or extern, not neither.
 -- 2. Make sure there are no name clashes:

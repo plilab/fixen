@@ -9,7 +9,7 @@ import Fixen.SymbolSolver.Validation
 -- | Invariant: relations must have been inserted in the environment
 initEnvWithQuery :: SymbolEnv -> Query -> FixenPass SymbolState SymbolEnv
 initEnvWithQuery env q = do
-  validateQuery q env
+  _ <- validateQuery q env
   let q_repr = simpleIdentifier $ nameOf q
   -- perform the insertion if it doesn't already exist
   case env ^. infoMap . queryInfoMap . at q_repr of

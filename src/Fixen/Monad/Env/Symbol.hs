@@ -52,7 +52,7 @@ data InfoMap = InfoMap
   -- partially ordered. Here, keys are type representatives.
   , _partialOrdInfoMap :: RepresentativeMap PartialOrdDeclaration
   -- ^ Information about 'PartialOrdDeclaration's.
-  , _ruleInfoMap :: RepresentativeMap RuleInfo
+  , _ruleInfoMap :: IntMap RuleInfo
   -- ^ Information about 'Rule's
   , _queryInfoMap :: RepresentativeMap Query
   , _externInfoMap :: RepresentativeMap NodeId
@@ -76,7 +76,7 @@ relationParamKindInfoMap = lens _relationParamKindInfoMap (\im i -> im {_relatio
 partialOrdInfoMap :: Lens' InfoMap (RepresentativeMap PartialOrdDeclaration)
 partialOrdInfoMap = lens _partialOrdInfoMap (\im i -> im {_partialOrdInfoMap = i})
 
-ruleInfoMap :: Lens' InfoMap (RepresentativeMap RuleInfo)
+ruleInfoMap :: Lens' InfoMap (IntMap RuleInfo)
 ruleInfoMap = lens _ruleInfoMap (\im i -> im {_ruleInfoMap = i})
 
 queryInfoMap :: Lens' InfoMap (RepresentativeMap Query)
@@ -132,7 +132,7 @@ emptyInfoMap =
     { _relationInfoMap = Map.empty
     , _relationParamKindInfoMap = Map.empty
     , _partialOrdInfoMap = Map.empty
-    , _ruleInfoMap = Map.empty
+    , _ruleInfoMap = IntMap.empty
     , _queryInfoMap = Map.empty
     , _externInfoMap = Map.empty
     }
@@ -181,16 +181,29 @@ data TypeLattice
 
 data LocalVarInfo = LocalVarInfo
   { _localVarType :: TypeLattice
-  , _localVarScope :: Representative
+  , _localVarUsage :: [UsageInfo]
   -- ^ Where it is declared (rule/priority representative).
+  , _localVarVar :: SimpleIdentifier
+  -- ^ Where the variable appears. It could be one of the arguments in an
+  -- assumption (if no explicit local vars were provided), or one of the
+  -- variables explicitly specified as a rule local variable
   }
+  deriving (Show, Eq)
+
+data UsageInfo
+  = UsedInAssumption Int Int
+  | UsedInCondition
+  | UsedInConclusion
   deriving (Show, Eq)
 
 localVarType :: Lens' LocalVarInfo TypeLattice
 localVarType = lens _localVarType (\lv t -> lv {_localVarType = t})
 
-localVarScope :: Lens' LocalVarInfo Representative
-localVarScope = lens _localVarScope (\lv t -> lv {_localVarScope = t})
+localVarUsage :: Lens' LocalVarInfo [UsageInfo]
+localVarUsage = lens _localVarUsage (\lv t -> lv {_localVarUsage = t})
+
+localVarVar :: Lens' LocalVarInfo SimpleIdentifier
+localVarVar = lens _localVarVar (\lv t -> lv {_localVarVar = t})
 
 emptySymbolEnv :: SymbolEnv
 emptySymbolEnv =

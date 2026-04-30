@@ -22,6 +22,16 @@ getAllTypeNames _ = Set.empty
 getAllTypeNamesList :: [Type] -> Set.Set SimpleIdentifier
 getAllTypeNamesList = Set.unions . fmap getAllTypeNames -- Prelude.foldl' (\m t -> m <> (getAllTypeNames t)) Set.empty
 
+getAllExprNames :: Expr -> Set.Set SimpleIdentifier
+getAllExprNames (ExprVar _ (IdentifierSimpleIdentifier n)) = Set.singleton n
+getAllExprNames (ExprApp _ lhs rhs) = getAllExprNames lhs <> getAllExprNames rhs
+getAllExprNames (ExprList _ t) = getAllExprNamesList t
+getAllExprNames (ExprTuple _ hd tl) = (getAllExprNames hd) <> (getAllExprNamesList (Data.List.NonEmpty.toList tl))
+getAllExprNames _ = Set.empty
+
+getAllExprNamesList :: [Expr] -> Set.Set SimpleIdentifier
+getAllExprNamesList = Set.unions . fmap getAllExprNames -- Prelude.foldl' (\m t -> m <> (getAllExprNames t)) Set.empty
+
 getSimpleIdentifierFromIdentifier :: Identifier -> Set.Set SimpleIdentifier
 getSimpleIdentifierFromIdentifier (IdentifierSimpleIdentifier i) = Set.singleton i
 getSimpleIdentifierFromIdentifier _ = Set.empty

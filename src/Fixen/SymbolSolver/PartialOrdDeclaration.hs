@@ -10,7 +10,7 @@ import Fixen.SymbolSolver.Validation
 
 initEnvWithPartialOrd :: SymbolEnv -> PartialOrdDeclaration -> FixenPass SymbolState SymbolEnv
 initEnvWithPartialOrd env p = do
-  validatePartialOrd p env
+  _ <- validatePartialOrd p env
   env
     & insertPartialOrdInfo
     & insertRelationParamKindInfo
