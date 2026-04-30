@@ -39,6 +39,7 @@ module Fixen.Parser.Token (
   parseRawLowerHsIdentifierString,
   parseRawCapitalizedHsIdentifierString,
   parseRawAnyCaseHsIdentifierString,
+  parseRawAnyCaseHsIdentifierStringNotHole,
 
   -- ** Operator identifier strings
   parseRawOpChar,
@@ -47,6 +48,7 @@ module Fixen.Parser.Token (
   -- * Identifier parsers
   -- $id
   parseLowerFirstSimpleIdentifier,
+  parseLowerFirstSimpleIdentifierOrHole,
   parseCapitalizedSimpleIdentifier,
   parseCapitalizedFQN,
   parseLowerFirstFQN,
@@ -116,10 +118,51 @@ import Text.Megaparsec.Pos qualified as MPos
 -- identifier characters (alphanumeric, underscore, apostrophe). The parsed
 -- string must not match any entry in 'reserved'.
 --
+-- It also rejects holes @_@.
+--
 -- Examples: @hello@ (accepted), @x'@ (accepted), @_123X@ (accepted),
---           @Int@ (rejected — starts with uppercase), @if@ (rejected — reserved)
+--           @Int@ (rejected—starts with uppercase), @if@ (rejected — reserved),
+--           @_@ (rejected—hole)
 parseRawLowerHsIdentifierString :: Parser Text
 parseRawLowerHsIdentifierString = do
+  -- Capture the current byte offset so we can report errors at the
+  -- correct source position if the result turns out to be a reserved keyword
+  offset_start <- P.getOffset
+  -- Parse the identifier: first character must be lowercase or underscore,
+  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
+  -- Then convert the resulting [Char] to a Text value
+  str <-
+    fmap pack $
+      (:)
+        <$> (C.lowerChar <|> P.single '_') -- first char: lowercase letter or underscore
+        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
+        -- Reject the parse if the resulting string matches a reserved keyword
+  if str `elem` reserved
+    then -- emit a parse error indicating the keyword was unexpected
+
+      P.parseError
+        ( P.FancyError
+            offset_start
+            ( Set.singleton
+                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
+            )
+        )
+    else
+      if str == "_"
+        then
+          P.parseError
+            ( P.FancyError
+                offset_start
+                ( Set.singleton
+                    (ErrorFail $ "unexpected hole _")
+                )
+            )
+        else return str -- accept the parsed string
+
+-- | Same as 'parseRawLowerHsIdentifierString', except that it also accepts
+-- the hole @_@.
+parseRawLowerHsIdentifierStringOrHole :: Parser Text
+parseRawLowerHsIdentifierStringOrHole = do
   -- Capture the current byte offset so we can report errors at the
   -- correct source position if the result turns out to be a reserved keyword
   offset_start <- P.getOffset
@@ -164,8 +207,10 @@ parseRawCapitalizedHsIdentifierString =
 -- identifier characters. The parsed string must not match any entry in
 -- 'reserved'.
 --
+-- It also rejects holes @_@.
+--
 -- Examples: @hello@ (accepted), @Hello@ (accepted), @_123@ (accepted),
---           @if@ (rejected — reserved)
+--           @if@ (rejected—reserved), @_@ (rejected—hole).
 parseRawAnyCaseHsIdentifierString :: Parser Text
 parseRawAnyCaseHsIdentifierString = do
   -- Capture the current byte offset for error reporting
@@ -188,7 +233,53 @@ parseRawAnyCaseHsIdentifierString = do
                 (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
             )
         )
-    else return str -- accept the parsed string
+    else
+      if str == "_"
+        then
+          P.parseError
+            ( P.FancyError
+                offset_start
+                ( Set.singleton
+                    (ErrorFail $ "unexpected hole _")
+                )
+            )
+        else return str -- accept the parsed string
+
+-- | Same as 'parseRawAnyCaseHsIdentifierString' except that the hole
+-- @_@ is rejected.
+parseRawAnyCaseHsIdentifierStringNotHole :: Parser Text
+parseRawAnyCaseHsIdentifierStringNotHole = do
+  -- Capture the current byte offset for error reporting
+  offset_start <- P.getOffset
+  -- Parse the identifier: first char is lowercase, uppercase, or underscore;
+  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
+  str <-
+    fmap pack $
+      (:)
+        <$> (C.lowerChar <|> P.single '_' <|> C.upperChar) -- first char: any case letter or underscore
+        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
+        -- Reject if the string matches a reserved keyword
+  if str `elem` reserved
+    then -- emit a parse error for the reserved keyword
+
+      P.parseError
+        ( P.FancyError
+            offset_start
+            ( Set.singleton
+                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
+            )
+        )
+    else
+      if str == "_"
+        then
+          P.parseError
+            ( P.FancyError
+                offset_start
+                ( Set.singleton
+                    (ErrorFail $ "unexpected reserved hole _")
+                )
+            )
+        else return str -- accept the parsed string
 
 -- | Parses a single character from the set of valid Haskell operator
 -- characters defined in 'opChars'. Each character in 'opChars' is wrapped
@@ -259,6 +350,17 @@ parseLowerFirstSimpleIdentifier :: Parser AST.SimpleIdentifier
 parseLowerFirstSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
   str <- parseRawLowerHsIdentifierString
+  -- Allocate a fresh node ID for the AST node
+  i <- fixenGetNewNodeId
+  -- Construct and return the SimpleIdentifier AST node
+  return $ AST.SimpleIdentifier i str
+
+-- | Same as 'parseLowerFirstSimpleIdentifier', except that it accepts
+-- the hole @_@.
+parseLowerFirstSimpleIdentifierOrHole :: Parser AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
+  -- Parse the raw identifier string (lowercase-first, not reserved)
+  str <- parseRawLowerHsIdentifierStringOrHole
   -- Allocate a fresh node ID for the AST node
   i <- fixenGetNewNodeId
   -- Construct and return the SimpleIdentifier AST node

@@ -579,8 +579,9 @@ parseAssumption = parsePositioned $ do
   header <- P.try parseCapitalizedSimpleIdentifier
   -- Verify proper indentation before the arguments
   _ <- indented
-  -- Parse zero or more lowercase-starting simple identifiers as arguments
-  args <- manyI' parseLowerFirstSimpleIdentifier
+  -- Parse zero or more lowercase-starting simple identifiers as arguments.
+  -- This is the **only** place that holes are accepted.
+  args <- manyI' parseLowerFirstSimpleIdentifierOrHole
   -- Allocate a fresh node ID and construct the Assumption AST node
   i <- fixenGetNewNodeId
   return $ AST.Relation i header args

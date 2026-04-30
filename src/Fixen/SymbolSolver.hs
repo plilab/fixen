@@ -23,4 +23,7 @@ solveSymbols prog = do
     pure env_with_rels_and_pords
       >>= foldMWith initEnvWithQuery (queries prog)
       >>= foldMWith initEnvWithRule (rules prog)
+  failIfErrored
+  -- TODO: Priorities + check for unused rule params
+  -- TODO: Phases
   return env_with_queries

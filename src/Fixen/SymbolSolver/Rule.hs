@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Fixen.SymbolSolver.Rule (initEnvWithRule) where
 
 import Control.Lens
@@ -28,18 +30,16 @@ initEnvWithRule env r = do
       if any_vars_unbound
         then return env
         else do
-          let (unused, bvs) = Map.partition (\(_, ls) -> null ls) var_usage_info
-          warnUnusedBoundVars (fst ∘ snd <$> Map.toList unused)
-          forM_ (Map.toList bvs) $ \(rep, (i, _)) ->
+          forM_ (Map.toList var_usage_info) $ \(rep, (i, _)) ->
             validate [warnNameShadowingAgainstExtern rep] i env
           -- actual bound vars is bvs
           -- initialize the rule info
-          fvs_in_assumptions <- checkFreeVarsInAssumptions r bvs
+          fvs_in_assumptions <- checkFreeVarsInAssumptions r var_usage_info
           if fvs_in_assumptions
             then return env
             else do
-              let lv_info = mkLocalVarInfo bvs
-                  fvs = getFreeVars r bvs
+              let lv_info = mkLocalVarInfo var_usage_info
+                  fvs = getFreeVars r var_usage_info
               -- for now, insert the rule info into the env directly.
 
               rul_info <-
@@ -54,7 +54,7 @@ initEnvWithRule env r = do
                   ∘ at (getNodeId r)
                   ?~ rul_info
                 & foldMWith initEnvWithExternSymbol fvs
-                <&> insertMatchInfo r bvs
+                <&> insertMatchInfo r var_usage_info
   where
     mkLocalVarInfo mp =
       let mp' = \(v, u) ->
@@ -264,14 +264,14 @@ getFreeVars r mp =
   let conds = ruleConditions r <&> conditionExpr <&> getAllExprNames <&> Set.toList & concat
       conc = ruleConclusion r & relationParams <&> getAllExprNames <&> Set.toList & concat
       all_vars = conds ++ conc
-   in filter ((`Map.notMember` mp) ∘ simpleIdentifier) all_vars
+   in filter ((/= "_") . simpleIdentifier) $ filter ((`Map.notMember` mp) ∘ simpleIdentifier) all_vars
 
 checkFreeVarsInAssumptions :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkFreeVarsInAssumptions r mp = do
-  let asms = ruleAssumptions r <&> relationParams & concat & filter (\i -> simpleIdentifier i `Map.notMember` mp)
-  if (¬) (null asms)
+  let fvs = ruleAssumptions r <&> relationParams & concat & filter (\i -> simpleIdentifier i /= "_" && simpleIdentifier i `Map.notMember` mp)
+  if (¬) (null fvs)
     then do
-      pos <- mapM fixenGetPosition asms
+      pos <- mapM fixenGetPosition fvs
       accumErr
         Nothing
         "free variables in premise"
@@ -376,16 +376,8 @@ getAssumptionVariables r =
     & Prelude.concat
     -- get the unique ones
     & Data.List.nubBy (===)
-
-warnUnusedBoundVars :: [SimpleIdentifier] -> FixenPass SymbolState ()
-warnUnusedBoundVars ls = do
-  when (not (null ls)) $ do
-    pos <- mapM fixenGetPosition ls
-    accumWarn
-      Nothing
-      "unused parameter"
-      ((,This "variable") <$> pos)
-      [Hint "remove these parameters"]
+    -- eliminate holes
+    & filter (\i -> simpleIdentifier i /= "_")
 
 validateRelationsInRule :: SymbolValidator Rule
 validateRelationsInRule = validate [matchRelationsArity]
