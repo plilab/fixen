@@ -15,12 +15,12 @@ partial ord StateP where
   mlbs = statePMlbs
 
 rule assignInitP : Assign l x e   |- StateBeforeP l empty
-rule condInitP   : Cond l jlt jlf |- StateBeforeP l empty
+rule condInitP   : Cond l e jlt jlf |- StateBeforeP l empty
 rule varInitP    : Var l x        |- StateBeforeP l empty
 
 -- actual transfer functions
 rule assignStepP :
-  Assign l x e, StateBeforeP l s, Seq l l', StateBeforeP l' s'
+  Assign l x e, StateBeforeP l st, Seq l l', StateBeforeP l' st'
   -----------------------------------------------------------
   |- StateBeforeP l' (joinP (insertP x (evalP e st) st) st')
 

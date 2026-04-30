@@ -14,12 +14,12 @@ partial ord StateI where
 rel StateBeforeI: Nat, StateI
 
 rule assignInitI : Assign l x e   |- StateBeforeI l emptyI
-rule condInitI   : Cond l jlt jlf |- StateBeforeI l emptyI
+rule condInitI   : Cond l e jlt jlf |- StateBeforeI l emptyI
 rule varInitI    : Var l x        |- StateBeforeI l emptyI
 
 -- actual transfer functions
 rule assignStepI :
-  Assign l x e, StateBeforeI l s, Seq l l', StateBeforeI l' s'
+  Assign l x e, StateBeforeI l st, Seq l l', StateBeforeI l' st'
   -----------------------------------------------------------
   |- StateBeforeI l' (joinI (insertI x (evalI e st) st) st')
 
