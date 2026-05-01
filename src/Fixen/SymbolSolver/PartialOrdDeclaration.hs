@@ -7,6 +7,7 @@ import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Extern
 import Fixen.SymbolSolver.Validation
+import Prelude.Unicode
 
 initEnvWithPartialOrd :: SymbolEnv -> PartialOrdDeclaration -> FixenPass SymbolState SymbolEnv
 initEnvWithPartialOrd env p = do
@@ -23,22 +24,15 @@ initEnvWithPartialOrd env p = do
     mlb_symb = getSimpleIdentifierFromIdentifier $ partialOrdDeclarationMlbs p
     insertPartialOrdInfo e =
       -- do not insert if already exists
-      case e ^. infoMap . partialOrdInfoMap . at repr of
+      case e ^. partialOrdMap ∘ at repr of
         Just _ -> e
         Nothing ->
-          e
-            & infoMap
-              . partialOrdInfoMap
-              . at repr
-              ?~ p
+          e & partialOrdMap ∘ at repr ?~ p
     insertRelationParamKindInfo =
       -- unconditionally insert the partial order (i.e., join it with
       -- whatever is inside, just in case it was intiialized as being
       -- discrete)
-      infoMap
-        . relationParamKindInfoMap
-        . at repr
-        ?~ PartiallyOrdered
+      relationParamKindMap ∘ at repr ?~ PartiallyOrdered
 
 validatePartialOrd :: SymbolValidator PartialOrdDeclaration
 validatePartialOrd = validate rules

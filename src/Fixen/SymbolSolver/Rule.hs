@@ -50,10 +50,7 @@ initEnvWithRule env r = do
                   }
                   & typeCheck env
               env
-                & infoMap
-                  ∘ ruleInfoMap
-                  ∘ at (getNodeId r)
-                  ?~ rul_info
+                & ruleMap ∘ at (getNodeId r) ?~ rul_info
                 & foldMWith initEnvWithExternSymbol fvs
                 <&> insertMatchInfo r var_usage_info
   where
@@ -66,7 +63,7 @@ initEnvWithRule env r = do
               }
        in mp' <$> mp
 
-insertMatchInfo :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> SymbolEnv -> SymbolEnv
+insertMatchInfo :: Rule -> NameMap (SimpleIdentifier, [UsageInfo]) -> SymbolEnv -> SymbolEnv
 insertMatchInfo r mp e = foldl' mkMatched e all_usages
   where
     all_usages =
@@ -89,8 +86,7 @@ insertMatchInfo r mp e = foldl' mkMatched e all_usages
               & relationName
               & simpleIdentifier
        in env
-            & infoMap
-              . relationInfoMap
+            & relationMap
               . ix rel_name
               . relationArgMatchInfo
               %~ setMatched
@@ -132,7 +128,7 @@ foldListMap f e m = foldMWithKey f' e m
     foldMWithKey :: Monad m => (a -> k -> b -> m a) -> a -> Map.Map k b -> m a
     foldMWithKey f1 e1 m1 = foldM (\a' (k, b) -> f1 a' k b) e1 (Map.toList m1)
 
-typeCheckType :: Rule -> RepresentativeMap LocalVarInfo -> Representative -> (Either (Int, Int) Int, Type) -> FixenPass SymbolState (RepresentativeMap LocalVarInfo)
+typeCheckType :: Rule -> NameMap LocalVarInfo -> Name -> (Either (Int, Int) Int, Type) -> FixenPass SymbolState (NameMap LocalVarInfo)
 typeCheckType rule mp v_repr (Left (i, j), t) = do
   let curr_info = mp Map.! v_repr
       curr_type = curr_info ^. localVarType
@@ -242,7 +238,7 @@ mapIndicesToType env r (Left (i, j)) =
         ruleAssumptions r !! i
           & relationName
           & simpleIdentifier
-   in (env ^. infoMap . relationInfoMap)
+   in (env ^. relationMap)
         & (Map.! rel_name)
         & (^. relationDeclaration)
         & relationParams
@@ -253,21 +249,21 @@ mapIndicesToType env r (Right i) =
         ruleConclusion r
           & relationName
           & simpleIdentifier
-   in (env ^. infoMap . relationInfoMap)
+   in (env ^. relationMap)
         & (Map.! rel_name)
         & (^. relationDeclaration)
         & relationParams
         & (!! i)
         & (Right i,)
 
-getFreeVars :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> [SimpleIdentifier]
+getFreeVars :: Rule -> NameMap (SimpleIdentifier, [UsageInfo]) -> [SimpleIdentifier]
 getFreeVars r mp =
   let conds = ruleConditions r <&> conditionExpr <&> getAllExprNames <&> Set.toList & concat
       conc = ruleConclusion r & relationParams <&> getAllExprNames <&> Set.toList & concat
       all_vars = conds ++ conc
    in filter ((/= "_") . simpleIdentifier) $ filter ((`Map.notMember` mp) ∘ simpleIdentifier) all_vars
 
-checkFreeVarsInAssumptions :: Rule -> RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
+checkFreeVarsInAssumptions :: Rule -> NameMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkFreeVarsInAssumptions r mp = do
   let fvs = ruleAssumptions r <&> relationParams & concat & filter (\i -> simpleIdentifier i /= "_" && simpleIdentifier i `Map.notMember` mp)
   if (¬) (null fvs)
@@ -283,7 +279,7 @@ checkFreeVarsInAssumptions r mp = do
       return True
     else return False
 
-getBoundVarUsageInfo :: Rule -> SimpleIdentifier -> RepresentativeMap (SimpleIdentifier, [UsageInfo])
+getBoundVarUsageInfo :: Rule -> SimpleIdentifier -> NameMap (SimpleIdentifier, [UsageInfo])
 getBoundVarUsageInfo r v =
   -- walk the assumptions
   let asms = ruleAssumptions r
@@ -417,8 +413,7 @@ validateRelationsInRule =
         Just n -> do
           let conflicting_rule_names =
                 env
-                  ^. infoMap
-                    . ruleInfoMap
+                  ^. ruleMap
                   & IntMap.toList
                   <&> snd
                   <&> (^. ruleDeclaration)
@@ -440,7 +435,7 @@ validateRelationsInRule =
                     ]
                 ]
 
-checkUnboundVariable :: RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
+checkUnboundVariable :: NameMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkUnboundVariable mp = do
   let unbounds = Map.filter isUnbound mp
   unbounds

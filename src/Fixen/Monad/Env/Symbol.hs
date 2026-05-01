@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Fixen.Monad.Env.Symbol where
 
@@ -6,92 +7,108 @@ import Control.Applicative
 import Control.Lens
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
+import Data.IntSet (IntSet)
 import Data.List.NonEmpty (toList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Data.Text
 import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad.Type
 import Prelude hiding (concat, show)
 
--- everything can be mapped to some string that uniquely identifies it
--- the string is the node's representative.
--- Every node has an ID that maps to the representative.
--- Every representative has attached information.
--- Representatives are internal; they should not need to be used by users.
+-- | The name of stuff.
+type Name = Text
+
+-- | 'NameMap's map names of stuff ('Name') onto other stuff.
+type NameMap = Map Name
+
+-- | 'NodeMap's map node IDs ('NodeId') onto stuff.
+type NodeMap = IntMap
+
+-- | 'NodeSet's are sets of node IDs ('NodeId').
+type NodeSet = IntSet
 
 data SymbolEnv = SymbolEnv
-  { _infoMap :: InfoMap
-  -- ^ Information for a representative
-  , _nodeMap :: NodeMap
-  -- ^ Maps nodes to representatives
+  { _relationMap :: NameMap RelationInfo
+  -- ^ Information about relation symbols
+  , _relationParamKindMap :: NameMap Kind
+  -- ^ Kind information about the "types" (more accurately, relation parameters)
+  , _partialOrdMap :: NameMap PartialOrdDeclaration
+  -- ^ Information about partial ord symbols
+  , _ruleMap :: NodeMap RuleInfo
+  -- ^ Information about rules. Importantly, rules may not be named,
+  -- so we use their node IDs to keep track of them.
+  , _queryMap :: NameMap Query
+  -- ^ Information about query symbols
+  , _externMap :: NameMap NodeId
+  -- ^ Information about extern symbols. Each name is mapped to the node ID of
+  -- its first occurrence.
+  , _phaseInfo :: [NodeSet]
+  -- ^ Information about phases of the program.
   }
   deriving (Show, Eq)
 
-infoMap :: Lens' SymbolEnv InfoMap
-infoMap = lens _infoMap (\env i -> env {_infoMap = i})
-
-nodeMap :: Lens' SymbolEnv NodeMap
-nodeMap = lens _nodeMap (\env i -> env {_nodeMap = i})
-
-type Representative = Text
-type RepresentativeMap = Map Representative
-type NodeMap = IntMap Representative
-
-data InfoMap = InfoMap
-  { _relationInfoMap :: RepresentativeMap RelationInfo
-  -- ^ Information about 'Relation's. Keys are relation names.
-  -- Values store:
-  -- 1. The 'Relation' declaration,
-  -- 2. Information about whether relation argument positions are ever
-  --    matched in any rule.
-  , _relationParamKindInfoMap :: RepresentativeMap Kind
-  -- ^ "Relation parameters" are types that appear in relation declarations.
-  -- This stores their 'Kind' information, i.e., if they are discrete or
-  -- partially ordered. Here, keys are type representatives.
-  , _partialOrdInfoMap :: RepresentativeMap PartialOrdDeclaration
-  -- ^ Information about 'PartialOrdDeclaration's.
-  , _ruleInfoMap :: IntMap RuleInfo
-  -- ^ Information about 'Rule's
-  , _queryInfoMap :: RepresentativeMap Query
-  , _externInfoMap :: RepresentativeMap NodeId
-  -- ^ We need this to obtain clashes between names and those that will likely
-  -- appear in the source code. Each key is a name, and the value is just one
-  -- occurrence in the program; this is enough to throw an error to the user.
-  -- these do not ever have fully qualified names.
-  --
-  -- Anyway, this is only a best effort at finding external names. It is up
-  -- to the user to write Fixen programs properly to obtain compilable Haskell
-  -- source.
-  , _phaseInfo :: [Set NodeId]
+data RelationInfo = RelationInfo
+  { _relationDeclaration :: Relation
+  , _relationArgMatchInfo :: [RelationArgMatchInfo]
   }
   deriving (Show, Eq)
 
-phaseInfo :: Lens' InfoMap [Set NodeId]
-phaseInfo = lens _phaseInfo (\pin p -> pin {_phaseInfo = p})
+data RelationArgMatchInfo = Unmatched | Matched
+  deriving
+    (Show, Eq)
 
-relationInfoMap :: Lens' InfoMap (RepresentativeMap RelationInfo)
-relationInfoMap = lens _relationInfoMap (\im i -> im {_relationInfoMap = i})
+data Kind = Discrete | PartiallyOrdered
+  deriving (Show, Eq)
 
-relationParamKindInfoMap :: Lens' InfoMap (RepresentativeMap Kind)
-relationParamKindInfoMap = lens _relationParamKindInfoMap (\im i -> im {_relationParamKindInfoMap = i})
+data RuleInfo = RuleInfo
+  { _ruleDeclaration :: Rule
+  , _ruleBoundVars :: NameMap LocalVarInfo
+  }
+  deriving (Show, Eq)
 
-partialOrdInfoMap :: Lens' InfoMap (RepresentativeMap PartialOrdDeclaration)
-partialOrdInfoMap = lens _partialOrdInfoMap (\im i -> im {_partialOrdInfoMap = i})
+data LocalVarInfo = LocalVarInfo
+  { _localVarType :: TypeLattice
+  , _localVarUsage :: [UsageInfo]
+  -- ^ Where it is declared (rule/priority representative).
+  , _localVarVar :: SimpleIdentifier
+  -- ^ Where the variable appears. It could be one of the arguments in an
+  -- assumption (if no explicit local vars were provided), or one of the
+  -- variables explicitly specified as a rule local variable
+  }
+  deriving (Show, Eq)
 
-ruleInfoMap :: Lens' InfoMap (IntMap RuleInfo)
-ruleInfoMap = lens _ruleInfoMap (\im i -> im {_ruleInfoMap = i})
+data TypeLattice
+  = Dynamic
+  | ActualType
+      Type
+      -- ^ The actual 'Type'
+      TypeEvidence
+      -- ^ First discovered usage that gives us information about why the type
+      -- is as such
+  | Bottom
+  deriving (Show, Eq)
 
-queryInfoMap :: Lens' InfoMap (RepresentativeMap Query)
-queryInfoMap = lens _queryInfoMap (\im i -> im {_queryInfoMap = i})
+data TypeEvidence
+  = TypedViaAssumption Int Int
+  | TypedViaConclusion Int
+  deriving (Show, Eq)
 
-externInfoMap :: Lens' InfoMap (RepresentativeMap NodeId)
-externInfoMap = lens _externInfoMap (\im i -> im {_externInfoMap = i})
+data UsageInfo
+  = UsedInAssumption Int Int
+  | UsedInCondition
+  | UsedInConclusion
+  deriving (Show, Eq)
 
-calculateRepresentativeFromType :: Type -> Representative
+-- Lenses
+
+makeLenses ''SymbolEnv
+makeLenses ''RelationInfo
+makeLenses ''RuleInfo
+makeLenses ''LocalVarInfo
+
+calculateRepresentativeFromType :: Type -> Name
 calculateRepresentativeFromType (TypeName _ i) = fullIdentifier i
 calculateRepresentativeFromType (TypeApp _ lhs rhs) =
   concat
@@ -118,110 +135,16 @@ calculateRepresentativeFromType (TypeTuple _ hd tl) =
         , ")"
         ]
 
-insertNode :: NodeId -> Representative -> SymbolEnv -> SymbolEnv
-insertNode node_id symb_id env =
-  env
-    & nodeMap
-      . at node_id
-      ?~ symb_id
-
-insertExternInfos :: RepresentativeMap NodeId -> SymbolEnv -> SymbolEnv
-insertExternInfos mp env =
-  env
-    & infoMap
-      . externInfoMap
-      %~ (`Map.union` mp)
-
-emptyInfoMap :: InfoMap
-emptyInfoMap =
-  InfoMap
-    { _relationInfoMap = Map.empty
-    , _relationParamKindInfoMap = Map.empty
-    , _partialOrdInfoMap = Map.empty
-    , _ruleInfoMap = IntMap.empty
-    , _queryInfoMap = Map.empty
-    , _externInfoMap = Map.empty
-    , _phaseInfo = []
-    }
-
-data Kind = Discrete | PartiallyOrdered
-  deriving (Show, Eq)
-
-data RelationArgMatchInfo = Unmatched | Matched
-  deriving
-    (Show, Eq)
-
-data RuleInfo = RuleInfo
-  { _ruleDeclaration :: Rule
-  , _ruleBoundVars :: RepresentativeMap LocalVarInfo
-  }
-  deriving (Show, Eq)
-
-ruleDeclaration :: Lens' RuleInfo Rule
-ruleDeclaration = lens _ruleDeclaration (\ri r -> ri {_ruleDeclaration = r})
-
-ruleBoundVars :: Lens' RuleInfo (RepresentativeMap LocalVarInfo)
-ruleBoundVars = lens _ruleBoundVars (\ri r -> ri {_ruleBoundVars = r})
-
-data RelationInfo = RelationInfo
-  { _relationDeclaration :: Relation
-  , _relationArgMatchInfo :: [RelationArgMatchInfo]
-  }
-  deriving (Show, Eq)
-
-relationDeclaration :: Lens' RelationInfo Relation
-relationDeclaration = lens _relationDeclaration (\ri r -> ri {_relationDeclaration = r})
-
-relationArgMatchInfo :: Lens' RelationInfo [RelationArgMatchInfo]
-relationArgMatchInfo = lens _relationArgMatchInfo (\ri r -> ri {_relationArgMatchInfo = r})
-
-data TypeLattice
-  = Dynamic
-  | ActualType
-      Type
-      -- ^ The actual 'Type'
-      TypeEvidence
-      -- ^ First discovered usage that gives us information about why the type
-      -- is as such
-  | Bottom
-  deriving (Show, Eq)
-
-data TypeEvidence
-  = TypedViaAssumption Int Int
-  | TypedViaConclusion Int
-  deriving (Show, Eq)
-
-data LocalVarInfo = LocalVarInfo
-  { _localVarType :: TypeLattice
-  , _localVarUsage :: [UsageInfo]
-  -- ^ Where it is declared (rule/priority representative).
-  , _localVarVar :: SimpleIdentifier
-  -- ^ Where the variable appears. It could be one of the arguments in an
-  -- assumption (if no explicit local vars were provided), or one of the
-  -- variables explicitly specified as a rule local variable
-  }
-  deriving (Show, Eq)
-
-data UsageInfo
-  = UsedInAssumption Int Int
-  | UsedInCondition
-  | UsedInConclusion
-  deriving (Show, Eq)
-
-localVarType :: Lens' LocalVarInfo TypeLattice
-localVarType = lens _localVarType (\lv t -> lv {_localVarType = t})
-
-localVarUsage :: Lens' LocalVarInfo [UsageInfo]
-localVarUsage = lens _localVarUsage (\lv t -> lv {_localVarUsage = t})
-
-localVarVar :: Lens' LocalVarInfo SimpleIdentifier
-localVarVar = lens _localVarVar (\lv t -> lv {_localVarVar = t})
-
 emptySymbolEnv :: SymbolEnv
 emptySymbolEnv =
   SymbolEnv
-    { _infoMap = emptyInfoMap
-    , _nodeMap = IntMap.empty
+    { _relationMap = Map.empty
+    , _relationParamKindMap = Map.empty
+    , _partialOrdMap = Map.empty
+    , _ruleMap = IntMap.empty
+    , _queryMap = Map.empty
+    , _externMap = Map.empty
+    , _phaseInfo = []
     }
 
 type Symboled σ = σ :>: SymbolEnv

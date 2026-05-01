@@ -5,6 +5,7 @@ import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Validation
+import Prelude.Unicode
 
 -- | Invariant: relations must have been inserted in the environment
 initEnvWithQuery :: SymbolEnv -> Query -> FixenPass SymbolState SymbolEnv
@@ -12,9 +13,9 @@ initEnvWithQuery env q = do
   _ <- validateQuery q env
   let q_repr = simpleIdentifier $ nameOf q
   -- perform the insertion if it doesn't already exist
-  case env ^. infoMap . queryInfoMap . at q_repr of
+  case env ^. queryMap ∘ at q_repr of
     Just _ -> return env
-    Nothing -> return $ env & infoMap . queryInfoMap . at q_repr ?~ q
+    Nothing -> return $ env & queryMap ∘ at q_repr ?~ q
 
 validateQuery :: SymbolValidator Query
 validateQuery = validate rules

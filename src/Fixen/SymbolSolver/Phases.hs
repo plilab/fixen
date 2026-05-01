@@ -4,26 +4,26 @@ import Control.Lens
 import Control.Monad
 import Data.Either
 import Data.IntMap.Strict qualified as IntMap
+import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
+import Prelude.Unicode
 
 initEnvWithPhases :: Maybe Phases -> SymbolEnv -> FixenPass SymbolState SymbolEnv
 initEnvWithPhases Nothing env =
   -- trivial. Just get all the rules and use that as the phases
-  return $ env & infoMap . phaseInfo .~ [all_rules]
+  return $ env & phaseInfo .~ [all_rules]
   where
-    all_rules = env ^. infoMap . ruleInfoMap & IntMap.keys & Set.fromList
+    all_rules = env ^. ruleMap & IntMap.keys & IntSet.fromList
 initEnvWithPhases (Just p) env = do
   let x = rule_ids <$> phasesPhases p
-      fails = concat $ catMaybes $ NonEmpty.toList $ onlyFailing <$> x
-  if not (null fails)
+      fails = x <&> onlyFailing & NonEmpty.toList & catMaybes & concat
+  if (¬) (null fails)
     then do
       pos <- mapM fixenGetPosition fails
       accumErr
@@ -33,11 +33,11 @@ initEnvWithPhases (Just p) env = do
         []
       return env
     else do
-      let s = NonEmpty.toList $ succeeding <$> x
-          all_explicit_rules = Set.unions $ fst $ partitionEithers s
-          all_remaining_rules = all_rules Set.\\ all_explicit_rules
+      let s = x <&> succeeding & NonEmpty.toList
+          all_explicit_rules = s & partitionEithers & fst & IntSet.unions
+          all_remaining_rules = all_rules IntSet.\\ all_explicit_rules
           (_, everything_elses) = partitionEithers s
-      if not (null everything_elses) && null all_remaining_rules
+      if not (null everything_elses) && IntSet.null all_remaining_rules
         then do
           pos <- mapM fixenGetPosition everything_elses
           accumErr
@@ -56,18 +56,18 @@ initEnvWithPhases (Just p) env = do
                       Right _ -> all_remaining_rules
                   )
                   s
-              all_used = Set.unions new_phases
-              all_unused = all_rules Set.\\ all_used
-          when (not (null all_unused)) $ do
-            pos <- mapM fixenGetPosition (Set.toList all_unused)
+              all_used = IntSet.unions new_phases
+              all_unused = all_rules IntSet.\\ all_used
+          when (not (IntSet.null all_unused)) $ do
+            pos <- mapM fixenGetPosition (IntSet.toList all_unused)
             accumWarn
               Nothing
               "unused rule"
               ((,This "rule") <$> pos)
               [Hint "did you forget these in your phases declaration?"]
-          return $ env & infoMap . phaseInfo .~ new_phases
+          return $ env & phaseInfo .~ new_phases
   where
-    all_rules = env ^. infoMap . ruleInfoMap & IntMap.keys & Set.fromList
+    all_rules = env ^. ruleMap & IntMap.keys & IntSet.fromList
     rule_ids (Left rs) =
       let rule_names :: NonEmpty SimpleIdentifier = ruleSetRules rs
        in Left $ f <$> rule_names
@@ -78,7 +78,7 @@ initEnvWithPhases (Just p) env = do
             [] -> Left i
             (x, _) : _ -> Right x
     all_rule_names =
-      env ^. infoMap . ruleInfoMap
+      env ^. ruleMap
         & IntMap.toList
         <&> ( \(x, y) -> case ruleName (y ^. ruleDeclaration) of
                 Just n -> Just (x, n)
@@ -91,8 +91,8 @@ initEnvWithPhases (Just p) env = do
        in Just left
     onlyFailing _ = Nothing
 
-    succeeding :: Either (NonEmpty (Either SimpleIdentifier NodeId)) EverythingElseRuleset -> Either (Set NodeId) EverythingElseRuleset
+    succeeding :: Either (NonEmpty (Either SimpleIdentifier NodeId)) EverythingElseRuleset -> Either NodeSet EverythingElseRuleset
     succeeding (Left ls) =
       let (_, rights') = partitionEithers (NonEmpty.toList ls)
-       in Left (Set.fromList rights')
+       in Left (IntSet.fromList rights')
     succeeding (Right x) = Right x

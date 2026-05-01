@@ -3,6 +3,8 @@ module Fixen.SymbolSolver.Validation where
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Bifunctor
+import Data.Function
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -12,18 +14,22 @@ import Fixen.IR.Core qualified as Core
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Prelude
+import Prelude.Unicode
 
 type SymbolRule a = a -> SymbolEnv -> FixenPass SymbolState [Report String]
 
 type SymbolValidator a = a -> SymbolEnv -> FixenPass SymbolState Bool
 
-type GenericRepresentativeRule a = HasNodeId a => Representative -> SymbolRule a
+type GenericRepresentativeRule a = HasNodeId a => Name -> SymbolRule a
 
 validate :: [SymbolRule a] -> a -> SymbolEnv -> FixenPass SymbolState Bool
 validate rules subject env = do
-  reports <- sequence $ (\f -> f subject env) <$> rules
+  reports <-
+    rules
+      <&> (\f -> f subject env)
+      & sequence
   mapM_ accumR (concat reports)
-  return $ not $ null reports
+  return $ (¬) (null reports)
 
 validateNamed :: (HasNodeId a, Named a n, IdentifierLike n) => GenericRepresentativeRule a -> SymbolRule a
 validateNamed r i env = r (simpleIdentifier $ nameOf i) i env
@@ -31,13 +37,7 @@ validateNamed r i env = r (simpleIdentifier $ nameOf i) i env
 -- Validation rules.
 validateAgainstRelation :: String -> GenericRepresentativeRule a
 validateAgainstRelation where_msg repr i env = do
-  let -- check if this identifier is a relation name
-      rel_info_maybe =
-        env
-          ^. infoMap
-            . relationInfoMap
-            . at repr
-  case rel_info_maybe of
+  case env ^. relationMap ∘ at repr of
     -- not a relation name, all is good
     Nothing -> return []
     -- is a relation name, throw an error on the relation
@@ -62,12 +62,7 @@ queryValidationErrorNotes =
 
 validateAgainstPartialOrd :: String -> [Note String] -> GenericRepresentativeRule a
 validateAgainstPartialOrd this_msg notes repr i env = do
-  let p_ord_maybe =
-        env
-          ^. infoMap
-            . partialOrdInfoMap
-            . at repr
-  case p_ord_maybe of
+  case env ^. partialOrdMap ∘ at repr of
     Nothing -> return []
     Just p_ord -> do
       pos <- fixenGetPosition p_ord
@@ -76,18 +71,15 @@ validateAgainstPartialOrd this_msg notes repr i env = do
         [ Err
             Nothing
             "duplicate names!"
-            [(pos', This this_msg), (pos, Where "partial ord declaration with the same name")]
+            [ (pos', This this_msg)
+            , (pos, Where "partial ord declaration with the same name")
+            ]
             notes
         ]
 
 validateAgainstExtern :: String -> [Note String] -> GenericRepresentativeRule a
 validateAgainstExtern this_msg notes repr i env = do
-  let extern_maybe =
-        env
-          ^. infoMap
-            . externInfoMap
-            . at repr
-  case extern_maybe of
+  case env ^. externMap ∘ at repr of
     Nothing -> return []
     Just e_id -> do
       pos <- fixenGetPosition e_id
@@ -96,7 +88,9 @@ validateAgainstExtern this_msg notes repr i env = do
         [ Err
             Nothing
             "duplicate names!"
-            [(pos', This this_msg), (pos, Where "use of an external symbol with the same name")]
+            [ (pos', This this_msg)
+            , (pos, Where "use of an external symbol with the same name")
+            ]
             notes
         ]
 
@@ -104,15 +98,14 @@ warnNameShadowingAgainstBoundVar :: String -> GenericRepresentativeRule a
 warnNameShadowingAgainstBoundVar where_msg repr i env = do
   let matching_bvs =
         env
-          ^. infoMap . ruleInfoMap
+          ^. ruleMap
           & IntMap.toList
           <&> snd
           <&> (^. Fixen.Monad.ruleBoundVars)
           <&> Map.toList
           & concat
-          <&> (\(r, inf) -> (r, _localVarVar inf))
-          & filter (\(r, _) -> r == repr)
-  -- liftIO $ print matching_bvs
+          <&> second _localVarVar
+          & filter ((== repr) ∘ fst)
   forM matching_bvs $ \(_, s) -> do
     pos <- fixenGetPosition i
     pos' <- fixenGetPosition s
@@ -125,12 +118,7 @@ warnNameShadowingAgainstBoundVar where_msg repr i env = do
 
 warnNameShadowingAgainstExtern :: GenericRepresentativeRule a
 warnNameShadowingAgainstExtern repr i env = do
-  let extern_maybe =
-        env
-          ^. infoMap
-            . externInfoMap
-            . at repr
-  case extern_maybe of
+  case env ^. externMap ∘ at repr of
     Nothing -> return []
     Just e_id -> do
       pos <- fixenGetPosition e_id
@@ -139,18 +127,15 @@ warnNameShadowingAgainstExtern repr i env = do
         [ Warn
             Nothing
             "name shadowing"
-            [(pos', This "rule parameter"), (pos, Where "use of an external symbol with the same name")]
+            [ (pos', This "rule parameter")
+            , (pos, Where "use of an external symbol with the same name")
+            ]
             [Hint "change the name of the rule parameter"]
         ]
 
 validateAgainstQuery :: String -> GenericRepresentativeRule a
 validateAgainstQuery where_msg repr i env = do
-  let q_maybe =
-        env
-          ^. infoMap
-            . queryInfoMap
-            . at repr
-  case q_maybe of
+  case env ^. queryMap ∘ at repr of
     Nothing -> return []
     Just q -> do
       pos <- fixenGetPosition q
@@ -221,9 +206,7 @@ validateAgainstFixenLowercase this_msg decl_type repr i _ =
 
 relationExistsAndHasRightArity :: Core.Relation SimpleIdentifier [b] -> String -> SymbolEnv -> FixenPass SymbolState [Report String]
 relationExistsAndHasRightArity rel containing_name env = do
-  let rel_repr = simpleIdentifier $ nameOf rel
-  -- find relation in env
-  case env ^. infoMap . relationInfoMap . at rel_repr of
+  case env ^. relationMap ∘ at (simpleIdentifier (nameOf rel)) of
     Nothing -> do
       rel_pos <- fixenGetPosition rel
       return
@@ -240,7 +223,7 @@ relationExistsAndHasRightArity rel containing_name env = do
           fmt 0 = "no arguments"
           fmt 1 = "1 argument"
           fmt n = show n ++ " arguments"
-      if rel_arity /= rel_decl_arity
+      if rel_arity ≠ rel_decl_arity
         then do
           rel_pos <- fixenGetPosition rel
           rel_decl_pos <- fixenGetPosition rel_decl
@@ -248,23 +231,8 @@ relationExistsAndHasRightArity rel containing_name env = do
             [ Err
                 Nothing
                 "wrong arity"
-                [
-                  ( rel_pos
-                  , This $
-                      concat
-                        [ containing_name
-                        , " with "
-                        , fmt rel_arity
-                        ]
-                  )
-                ,
-                  ( rel_decl_pos
-                  , Where $
-                      concat
-                        [ "rel declared with "
-                        , fmt rel_decl_arity
-                        ]
-                  )
+                [ (rel_pos, This $ concat [containing_name, " with ", fmt rel_arity])
+                , (rel_decl_pos, Where $ concat ["rel declared with ", fmt rel_decl_arity])
                 ]
                 [ Note $
                     concat

@@ -6,23 +6,22 @@ import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Validation
+import Prelude.Unicode
 
 initEnvWithExternSymbol :: SymbolEnv -> SimpleIdentifier -> FixenPass SymbolState SymbolEnv
 initEnvWithExternSymbol env i = do
-  -- Proceed with the insertion
   let symb_id = simpleIdentifier i
       node_id = getNodeId i
   -- check if it already exists; if it does, ignore it.
-  case env ^. infoMap . externInfoMap . at symb_id of
+  case env ^. externMap ∘ at symb_id of
     Just _ -> return env
     Nothing -> do
       -- validate if this extern symbol is okay to insert
       _ <- validateExternSymbol i env
       return $
         env
-          & infoMap
-            . externInfoMap
-            . at symb_id
+          & externMap
+            ∘ at symb_id
             ?~ node_id
 
 validateExternSymbol :: SymbolValidator SimpleIdentifier
@@ -55,7 +54,6 @@ validateExternSymbol = validate rules
         (simpleIdentifier i)
         i
         env
-
     againstFixenLowerCase i env =
       validateAgainstFixenLowercase
         "external symbol"
