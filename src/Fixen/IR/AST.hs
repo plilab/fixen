@@ -85,6 +85,12 @@ import Fixen.IR.Core as D (
   , relationName
   , phasesPhases
   , ruleSetRules
+  , priorityPremise
+  , priorityConclusionLHS
+  , priorityConclusionRHS
+  , priorityConclusion
+  , ruleInstanceRule
+  , ruleInstanceMap
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter

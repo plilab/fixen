@@ -2,9 +2,7 @@ module Fixen.SymbolSolver.Validation where
 
 import Control.Lens
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Bifunctor
-import Data.Function
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -28,8 +26,9 @@ validate rules subject env = do
     rules
       <&> (\f -> f subject env)
       & sequence
-  mapM_ accumR (concat reports)
-  return $ (¬) (null reports)
+  let all_reports = concat reports
+  mapM_ accumR all_reports
+  return $ (¬) (null all_reports)
 
 validateNamed :: (HasNodeId a, Named a n, IdentifierLike n) => GenericRepresentativeRule a -> SymbolRule a
 validateNamed r i env = r (simpleIdentifier $ nameOf i) i env
@@ -104,9 +103,11 @@ warnNameShadowingAgainstBoundVar where_msg repr i env = do
           <&> (^. Fixen.Monad.ruleBoundVars)
           <&> Map.toList
           & concat
+          & filter (\(_, l) -> any (not . isUsedInAssumption) (_localVarUsage l))
           <&> second _localVarVar
           & filter ((== repr) ∘ fst)
-  forM matching_bvs $ \(_, s) -> do
+  -- checking against rules
+  ls1 <- forM matching_bvs $ \(_, s) -> do
     pos <- fixenGetPosition i
     pos' <- fixenGetPosition s
     return $
@@ -115,10 +116,29 @@ warnNameShadowingAgainstBoundVar where_msg repr i env = do
         "name shadowing"
         [(pos', This "rule parameter"), (pos, Where where_msg)]
         [Hint "change the name of the rule parameter"]
+  -- checking against priorities
+  let matching_bvs2 =
+        env ^. priorityMap
+          & IntMap.toList
+          <&> snd
+          <&> (^. priorityLocalVars)
+          <&> Map.toList
+          & concat
+          & filter ((== repr) . fst)
+  ls2 <- forM matching_bvs2 $ \(_, (_, s)) -> do
+    pos <- fixenGetPosition i
+    pos' <- fixenGetPosition s
+    return $
+      Warn
+        Nothing
+        "name shadowing"
+        [(pos', This "rule parameter"), (pos, Where where_msg)]
+        [Hint "change the name of the rule parameter"]
+  return $ ls1 ++ ls2
 
-warnNameShadowingAgainstExtern :: GenericRepresentativeRule a
-warnNameShadowingAgainstExtern repr i env = do
-  case env ^. externMap ∘ at repr of
+warnNameShadowingAgainstExtern :: String -> GenericRepresentativeRule a
+warnNameShadowingAgainstExtern decl_name repr i env = do
+  against_extern <- case env ^. externMap ∘ at repr of
     Nothing -> return []
     Just e_id -> do
       pos <- fixenGetPosition e_id
@@ -127,11 +147,24 @@ warnNameShadowingAgainstExtern repr i env = do
         [ Warn
             Nothing
             "name shadowing"
-            [ (pos', This "rule parameter")
+            [ (pos', This decl_name)
             , (pos, Where "use of an external symbol with the same name")
             ]
-            [Hint "change the name of the rule parameter"]
+            [Hint $ "change the name of this " ++ decl_name]
         ]
+  against_prelude <-
+    if repr `Set.member` preludeTerms
+      then do
+        pos' <- fixenGetPosition i
+        return
+          [ Warn
+              Nothing
+              "name shadowing of prelude terms"
+              [(pos', This decl_name)]
+              [Hint $ "change the name of this " ++ decl_name]
+          ]
+      else return []
+  return $ against_extern ++ against_prelude
 
 validateAgainstQuery :: String -> GenericRepresentativeRule a
 validateAgainstQuery where_msg repr i env = do
@@ -243,3 +276,32 @@ relationExistsAndHasRightArity rel containing_name env = do
                 ]
             ]
         else return []
+
+warnUnusedRuleParameters :: SymbolEnv -> FixenPass SymbolState ()
+warnUnusedRuleParameters env = do
+  unused_rule_params <- getUnusedRuleParams
+  when (not (null unused_rule_params)) $ do
+    pos <- mapM fixenGetPosition unused_rule_params
+    accumWarn
+      Nothing
+      "unused rule parameters"
+      ((,This "rule parameter") <$> pos)
+      [Hint "replace these with holes `_`"]
+  where
+    getUnusedRuleParams = do
+      let rule_info = env ^. ruleMap & IntMap.toList
+      ls <- mapM getUnusedRuleParamsOfRule rule_info
+      return $ concat ls
+    getUnusedRuleParamsOfRule :: (NodeId, RuleInfo) -> FixenPass SymbolState [SimpleIdentifier]
+    getUnusedRuleParamsOfRule (rule_node_id, rule_info) = do
+      let bvs = rule_info ^. Fixen.Monad.ruleBoundVars
+          potentially_unused_bvs =
+            Map.filter
+              ( \lv_info ->
+                  let usage = lv_info ^. localVarUsage
+                   in (all isUsedInAssumption usage) && length usage < 2
+              )
+              bvs
+          priorities = env ^. priorityMap & IntMap.toList <&> snd <&> _priorityLocalVars <&> Map.toList & concat <&> (\(k, (v, _)) -> (k, v))
+          unused_bvs = Map.filterKeys (\k -> all (\(k', n) -> k /= k' || n /= rule_node_id) priorities) potentially_unused_bvs
+      return $ unused_bvs <&> _localVarVar & foldr (:) []

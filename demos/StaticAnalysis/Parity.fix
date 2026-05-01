@@ -14,9 +14,9 @@ partial ord StateP where
   leq  = statePLeq
   mlbs = statePMlbs
 
-rule assignInitP : Assign l x e   |- StateBeforeP l empty
-rule condInitP   : Cond l e jlt jlf |- StateBeforeP l empty
-rule varInitP    : Var l x        |- StateBeforeP l empty
+rule assignInitP : Assign l _ _   |- StateBeforeP l empty
+rule condInitP   : Cond l _ _ _ |- StateBeforeP l empty
+rule varInitP    : Var l _        |- StateBeforeP l empty
 
 -- actual transfer functions
 rule assignStepP :
@@ -25,11 +25,11 @@ rule assignStepP :
   |- StateBeforeP l' (joinP (insertP x (evalP e st) st) st')
 
 rule evalCondTP :
-  Cond l e t f, StateBeforeP l st, StateBeforeP t st'
+  Cond l e t _, StateBeforeP l st, StateBeforeP t st'
   ---------------------------------------------------
   |- StateBeforeP t (joinP (refineTP e st) st')
 
 rule evalCondFP :
-  Cond l e t f, StateBeforeP l st, StateBeforeP f st'
+  Cond l e _ f, StateBeforeP l st, StateBeforeP f st'
   ---------------------------------------------------
-  |- StateBeforeP f (join (refineFP st) st')
+  |- StateBeforeP f (join (refineFP e st) st')

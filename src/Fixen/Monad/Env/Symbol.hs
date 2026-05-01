@@ -46,6 +46,7 @@ data SymbolEnv = SymbolEnv
   -- its first occurrence.
   , _phaseInfo :: [NodeSet]
   -- ^ Information about phases of the program.
+  , _priorityMap :: NodeMap PriorityInfo
   }
   deriving (Show, Eq)
 
@@ -65,6 +66,14 @@ data Kind = Discrete | PartiallyOrdered
 data RuleInfo = RuleInfo
   { _ruleDeclaration :: Rule
   , _ruleBoundVars :: NameMap LocalVarInfo
+  }
+  deriving (Show, Eq)
+
+data PriorityInfo = PriorityInfo
+  { _priorityDeclaration :: Priority
+  , _priorityLocalVars :: NameMap (NodeId, SimpleIdentifier)
+  -- ^ The keys are the local variables themselves, the values are the rule
+  -- parameters it is attached to and the var itself.
   }
   deriving (Show, Eq)
 
@@ -101,12 +110,17 @@ data UsageInfo
   | UsedInConclusion
   deriving (Show, Eq)
 
+isUsedInAssumption :: UsageInfo -> Bool
+isUsedInAssumption (UsedInAssumption _ _) = True
+isUsedInAssumption _ = False
+
 -- Lenses
 
 makeLenses ''SymbolEnv
 makeLenses ''RelationInfo
 makeLenses ''RuleInfo
 makeLenses ''LocalVarInfo
+makeLenses ''PriorityInfo
 
 calculateRepresentativeFromType :: Type -> Name
 calculateRepresentativeFromType (TypeName _ i) = fullIdentifier i
@@ -145,6 +159,7 @@ emptySymbolEnv =
     , _queryMap = Map.empty
     , _externMap = Map.empty
     , _phaseInfo = []
+    , _priorityMap = IntMap.empty
     }
 
 type Symboled σ = σ :>: SymbolEnv

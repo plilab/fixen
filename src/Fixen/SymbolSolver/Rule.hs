@@ -19,20 +19,20 @@ import Prelude.Unicode
 
 initEnvWithRule :: SymbolEnv -> Rule -> FixenPass SymbolState SymbolEnv
 initEnvWithRule env r = do
-  rels_well_formed <- validateRelationsInRule r env
-  if not rels_well_formed
+  rels_not_well_formed <- validateRelationsInRule r env
+  if rels_not_well_formed
     then return env -- ignore this rule
     else do
       -- get the bound variables.
       rule_bound_vars <- getRuleBoundVars r
-      -- liftIO $ print rule_bound_vars
       let var_usage_info = Map.unions $ getBoundVarUsageInfo r <$> rule_bound_vars
       any_vars_unbound <- checkUnboundVariable var_usage_info
       if any_vars_unbound
         then return env
         else do
-          forM_ (Map.toList var_usage_info) $ \(rep, (i, _)) ->
-            validate [warnNameShadowingAgainstExtern rep] i env
+          let potentially_shadowed_names = filter (\(_, (_, i)) -> any (not . isUsedInAssumption) i) $ Map.toList var_usage_info
+          forM_ potentially_shadowed_names $ \(rep, (i, _)) ->
+            validate [warnNameShadowingAgainstExtern "rule parameter" rep] i env
           -- actual bound vars is bvs
           -- initialize the rule info
           fvs_in_assumptions <- checkFreeVarsInAssumptions r var_usage_info

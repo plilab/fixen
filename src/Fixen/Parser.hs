@@ -55,11 +55,12 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Control.Monad.State.Strict qualified as State
+import Data.List
 import Data.List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
 import Error.Diagnose.Report
 
@@ -752,14 +753,31 @@ parsePriorityConclusion = parsePositioned $ do
 --   are comma-separated pairs of identifiers separated by '='.
 parseRuleInstance :: Parser AST.RuleInstance
 parseRuleInstance = parsePositioned $ do
+  -- record the offset so as to throw errors
+  offset_start <- P.getOffset
   -- Parse the rule name (lowercase identifier), consuming trailing whitespace
   name <- l parseLowerFirstSimpleIdentifier
   -- Parse optional variable substitutions in curly braces
   -- (empty braces {} are allowed)
   subst <- betweenCurlyBraces indented $ commaSepBy' parseSubstitution
-  -- Allocate a fresh node ID and construct the RuleInstance AST node
-  i <- fixenGetNewNodeId
-  return $ AST.RuleInstance i name (Map.fromList subst)
+  let keys = AST.simpleIdentifier <$> fst <$> subst
+      key_ct = Map.keys $ Map.filter (> (1 :: Int)) $ foldl' (\m t -> Map.insert t ((Map.findWithDefault 0 t m) + 1) m) Map.empty keys
+  if not (null key_ct)
+    then
+      P.parseError
+        ( P.FancyError
+            offset_start
+            ( Set.singleton
+                ( ErrorFail $
+                    "duplicate rule parameter instantiations: "
+                      ++ Data.List.intercalate ", " (unpack <$> key_ct)
+                )
+            )
+        )
+    else do
+      -- Allocate a fresh node ID and construct the RuleInstance AST node
+      i <- fixenGetNewNodeId
+      return $ AST.RuleInstance i name (Map.fromList subst)
 
 -- | Parses a variable substitution: @left = right@, where both sides
 -- are lowercase-starting simple identifiers.

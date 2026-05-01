@@ -5,9 +5,11 @@ import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.PartialOrdDeclaration
 import Fixen.SymbolSolver.Phases
+import Fixen.SymbolSolver.Priorities
 import Fixen.SymbolSolver.Query
 import Fixen.SymbolSolver.Relation
 import Fixen.SymbolSolver.Rule
+import Fixen.SymbolSolver.Validation
 
 solveSymbols :: Program -> FixenPass SymbolState SymbolEnv
 solveSymbols prog = do
@@ -25,8 +27,10 @@ solveSymbols prog = do
       >>= foldMWith initEnvWithQuery (queries prog)
       >>= foldMWith initEnvWithRule (rules prog)
   failIfErrored
-  env_with_phases <-
+  env_with_phases_and_priorities <-
     pure env_with_queries_and_rules
+      >>= foldMWith initEnvWithPriorities (priorities prog)
       >>= initEnvWithPhases (phases prog)
-  -- TODO: Priorities + check for unused rule params
-  return env_with_phases
+  -- TODO. Warn for unused rule parameters.
+  warnUnusedRuleParameters env_with_phases_and_priorities
+  return env_with_phases_and_priorities

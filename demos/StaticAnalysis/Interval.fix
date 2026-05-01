@@ -13,9 +13,9 @@ partial ord StateI where
 
 rel StateBeforeI: Nat, StateI
 
-rule assignInitI : Assign l x e   |- StateBeforeI l emptyI
-rule condInitI   : Cond l e jlt jlf |- StateBeforeI l emptyI
-rule varInitI    : Var l x        |- StateBeforeI l emptyI
+rule assignInitI : Assign l _ _   |- StateBeforeI l emptyI
+rule condInitI   : Cond l _ _ _ |- StateBeforeI l emptyI
+rule varInitI    : Var l _        |- StateBeforeI l emptyI
 
 -- actual transfer functions
 rule assignStepI :
@@ -24,11 +24,11 @@ rule assignStepI :
   |- StateBeforeI l' (joinI (insertI x (evalI e st) st) st')
 
 rule evalCondTI :
-  Cond l e t f, StateBeforeI l st, StateBeforeI t st'
+  Cond l e t _, StateBeforeI l st, StateBeforeI t st'
   ---------------------------------------------------
   |- StateBeforeI t (joinI (refineTI e st) st')
 
 rule evalCondFI :
-  Cond l e t f, StateBeforeI l st, StateBeforeI f st'
+  Cond l e _ f, StateBeforeI l st, StateBeforeI f st'
   ---------------------------------------------------
-  |- StateBeforeI f (join (refineFI st) st')
+  |- StateBeforeI f (join (refineFI e st) st')
