@@ -4,6 +4,7 @@ module Fixen.SymbolSolver.Rule (initEnvWithRule) where
 
 import Control.Lens
 import Control.Monad
+import Data.IntMap.Strict qualified as IntMap
 import Data.List
 import Data.Map.Strict qualified as Map
 import Data.Maybe
@@ -380,7 +381,12 @@ getAssumptionVariables r =
     & filter (\i -> simpleIdentifier i /= "_")
 
 validateRelationsInRule :: SymbolValidator Rule
-validateRelationsInRule = validate [matchRelationsArity, checkForRelationsWithAllHoles]
+validateRelationsInRule =
+  validate
+    [ matchRelationsArity
+    , checkForRelationsWithAllHoles
+    , noDuplicateRuleNames
+    ]
   where
     matchRelationsArity :: SymbolRule Rule
     matchRelationsArity r env = do
@@ -404,6 +410,35 @@ validateRelationsInRule = validate [matchRelationsArity, checkForRelationsWithAl
             , Hint
                 "remove this premise from the rule"
             ]
+    noDuplicateRuleNames :: SymbolRule Rule
+    noDuplicateRuleNames r env =
+      case ruleName r of
+        Nothing -> return []
+        Just n -> do
+          let conflicting_rule_names =
+                env
+                  ^. infoMap
+                    . ruleInfoMap
+                  & IntMap.toList
+                  <&> snd
+                  <&> (^. ruleDeclaration)
+                  <&> ruleName
+                  & catMaybes
+                  & filter (=== n)
+          case conflicting_rule_names of
+            [] -> return []
+            (x : _) -> do
+              pos <- fixenGetPosition r
+              pos' <- fixenGetPosition x
+              return
+                [ Err
+                    Nothing
+                    "duplicate names"
+                    [(pos, This "rule"), (pos', Where "another rule with the same name")]
+                    [ Note "rules cannot have the same name"
+                    , Hint "change the name of one of these rules"
+                    ]
+                ]
 
 checkUnboundVariable :: RepresentativeMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkUnboundVariable mp = do

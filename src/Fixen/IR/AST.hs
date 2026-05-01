@@ -76,12 +76,15 @@ import Fixen.IR.Core as D (
   , partialOrdDeclarationMlbs
   , relationParams
   , queryRel
+  , ruleName
   , ruleBoundVars
   , ruleAssumptions
   , ruleConditions
   , ruleConclusion
   , conditionExpr
   , relationName
+  , phasesPhases
+  , ruleSetRules
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter

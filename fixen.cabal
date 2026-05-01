@@ -82,7 +82,9 @@ library
                       , Fixen.SymbolSolver.Common
                       , Fixen.SymbolSolver.Extern
                       , Fixen.SymbolSolver.PartialOrdDeclaration
+                      , Fixen.SymbolSolver.Phases
                       , Fixen.SymbolSolver.Prelude
+                      , Fixen.SymbolSolver.Priorities
                       , Fixen.SymbolSolver.Query
                       , Fixen.SymbolSolver.Relation
                       , Fixen.SymbolSolver.Rule

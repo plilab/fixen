@@ -9,6 +9,8 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (toList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text
 import Fixen.Data.NodeId
 import Fixen.IR.AST
@@ -64,8 +66,12 @@ data InfoMap = InfoMap
   -- Anyway, this is only a best effort at finding external names. It is up
   -- to the user to write Fixen programs properly to obtain compilable Haskell
   -- source.
+  , _phaseInfo :: [Set NodeId]
   }
   deriving (Show, Eq)
+
+phaseInfo :: Lens' InfoMap [Set NodeId]
+phaseInfo = lens _phaseInfo (\pin p -> pin {_phaseInfo = p})
 
 relationInfoMap :: Lens' InfoMap (RepresentativeMap RelationInfo)
 relationInfoMap = lens _relationInfoMap (\im i -> im {_relationInfoMap = i})
@@ -135,6 +141,7 @@ emptyInfoMap =
     , _ruleInfoMap = IntMap.empty
     , _queryInfoMap = Map.empty
     , _externInfoMap = Map.empty
+    , _phaseInfo = []
     }
 
 data Kind = Discrete | PartiallyOrdered
