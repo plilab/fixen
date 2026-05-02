@@ -3,15 +3,16 @@ module StaticAnalysis.Interval where
 include "Common"
 
 ```hs
--- other functions like refining, inserting, etc. ...
+joinI :: Void
+joinI = undefined
 ```
 
 partial ord StateI where
-  type = HashMap String (HashSet (Int, Int)) 
+  type = HashMap String (Int, Int)
   leq = stateILeq
   mlbs = stateIMlbs
 
-rel StateBeforeI: Nat, StateI
+rel StateBeforeI: Label, StateI
 
 rule assignInitI : Assign l _ _   |- StateBeforeI l emptyI
 rule condInitI   : Cond l _ _ _ |- StateBeforeI l emptyI
@@ -19,7 +20,7 @@ rule varInitI    : Var l _        |- StateBeforeI l emptyI
 
 -- actual transfer functions
 rule assignStepI :
-  Assign l x e, StateBeforeI l st, Seq l l', StateBeforeI l' st'
+  Assign l x e, Seq l l', StateBeforeI l st, StateBeforeI l' st'
   -----------------------------------------------------------
   |- StateBeforeI l' (joinI (insertI x (evalI e st) st) st')
 
@@ -32,3 +33,5 @@ rule evalCondFI :
   Cond l e _ f, StateBeforeI l st, StateBeforeI f st'
   ---------------------------------------------------
   |- StateBeforeI f (join (refineFI e st) st')
+
+query stateI: StateBeforeI - +

@@ -200,14 +200,15 @@ loop in_prog v ((p, i) : ps)
 --   for each construct type is:
 --
 --   /Concatenated (new before old)/ — rules, relations, partial order
---   declarations, Haskell code blocks, and extern symbols. New constructs
---   are placed first so they take precedence during symbol resolution.
+--   declarations, Haskell code blocks, queries and extern symbols. New
+--   constructs are placed first so they take precedence during symbol
+--   resolution.
 --
 --   /Deduplicated/ — Haskell imports. Import statements that already exist
 --   in @in_prog@ are filtered out from @new_prog@ to avoid duplicates.
 --   Deduplication is based on the full module identifier (e.g. @Data.List@).
 --
---   /Omitted/ — queries, priorities, and phases from @new_prog@ are not
+--   /Omitted/ — priorities, and phases from @new_prog@ are not
 --   merged. These are not included because they are typically file-scoped
 --   declarations that should not be combined across files.
 --
@@ -239,6 +240,7 @@ combineProgram in_prog new_prog =
           (AST.hsImports new_prog)
       new_hs_blocks = AST.hsBlocks new_prog
       new_externs = AST.extern new_prog
+      new_queries = AST.queries new_prog
       -- Concatenate new constructs before old ones (new takes precedence).
       total_rules = new_rules ++ AST.rules in_prog
       total_rels = new_rels ++ AST.relations in_prog
@@ -248,6 +250,7 @@ combineProgram in_prog new_prog =
       total_imports = new_imports ++ AST.hsImports in_prog
       total_hs_blocks = new_hs_blocks ++ AST.hsBlocks in_prog
       total_externs = new_externs ++ AST.extern in_prog
+      total_queries = new_queries ++ AST.queries in_prog
    in -- Produce a new program with merged fields, preserving all other fields
       -- (module name, includes, queries, priorities, phases) from in_prog.
       in_prog
@@ -257,6 +260,7 @@ combineProgram in_prog new_prog =
         , AST.hsImports = total_imports
         , AST.hsBlocks = total_hs_blocks
         , AST.extern = total_externs
+        , AST.queries = total_queries
         }
 
 -- | Read a file's contents with graceful error handling.
@@ -300,23 +304,18 @@ safeReadFile file_path include = do
       -- Get the source position of the include statement for error reporting.
       pos <- fixenGetPosition include
       -- Accumulate an error with full diagnostic information.
-      accumR $
-        Err
-          (Just "IOException")
-          -- \^ Error category.
-          "Failed to read file"
-          -- \^ Error message.
-          [(pos, This "This include statement")]
-          -- \^ Source marker pointing to the include statement.
-          [ Note
-              -- \^ Detailed note with resolution path and exception info.
-              ( "The included path resolves to: "
-                  ++ file_path
-                  ++ "\nThe following IOException was thrown:"
-                  ++ "\n"
-                  ++ show e
-              )
-          ]
+      accumErr
+        (Just "IOException")
+        "Failed to read file"
+        [(pos, This "This include statement")]
+        [ Note
+            ( "The included path resolves to: "
+                ++ file_path
+                ++ "\nThe following IOException was thrown:"
+                ++ "\n"
+                ++ show e
+            )
+        ]
       -- Return Nothing to signal the caller to skip this file.
       return Nothing
 

@@ -5,10 +5,12 @@ module Fixen.Monad.Env.Symbol where
 
 import Control.Applicative
 import Control.Lens
+import Control.Monad.State.Strict qualified as State
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.IntSet (IntSet)
-import Data.List.NonEmpty (toList)
+import Data.IntSet qualified as IntSet
+import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text
@@ -44,7 +46,7 @@ data SymbolEnv = SymbolEnv
   , _externMap :: NameMap NodeId
   -- ^ Information about extern symbols. Each name is mapped to the node ID of
   -- its first occurrence.
-  , _phaseInfo :: [NodeSet]
+  , _phaseInfo :: NonEmpty NodeSet
   -- ^ Information about phases of the program.
   , _priorityMap :: NodeMap PriorityInfo
   }
@@ -110,6 +112,8 @@ data UsageInfo
   | UsedInConclusion
   deriving (Show, Eq)
 
+type Symboled σ = σ :>: SymbolEnv
+
 isUsedInAssumption :: UsageInfo -> Bool
 isUsedInAssumption (UsedInAssumption _ _) = True
 isUsedInAssumption _ = False
@@ -158,8 +162,33 @@ emptySymbolEnv =
     , _ruleMap = IntMap.empty
     , _queryMap = Map.empty
     , _externMap = Map.empty
-    , _phaseInfo = []
+    , _phaseInfo = IntSet.empty :| []
     , _priorityMap = IntMap.empty
     }
 
-type Symboled σ = σ :>: SymbolEnv
+fixenGetSymbolEnv :: Symboled a => FixenPass a (SymbolEnv)
+fixenGetSymbolEnv = do
+  st <- State.get
+  let env :: SymbolEnv = (↓) st
+  return env
+
+fixenGetRelationInfo :: Symboled a => FixenPass a (NameMap RelationInfo)
+fixenGetRelationInfo = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. relationMap
+
+fixenGetPhases :: Symboled a => FixenPass a (NonEmpty NodeSet)
+fixenGetPhases = do
+  st <- State.get
+  let env :: SymbolEnv = (↓) st
+  return $ env ^. phaseInfo
+
+fixenGetPartialOrdInfo :: Symboled a => FixenPass a (NameMap PartialOrdDeclaration)
+fixenGetPartialOrdInfo = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. partialOrdMap
+
+fixenGetRelationParamKindInfo :: Symboled a => FixenPass a (NameMap Kind)
+fixenGetRelationParamKindInfo = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. relationParamKindMap

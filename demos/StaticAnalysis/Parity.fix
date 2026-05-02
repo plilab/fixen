@@ -3,11 +3,11 @@ module StaticAnalysis.Parity where
 include "Common"
 
 ```hs
--- functions and whatnot
+joinP :: Void
+joinP = undefined
 ```
 
-
-rel StateBeforeP: Nat, StateP
+rel StateBeforeP: Label, StateP
 
 partial ord StateP where
   type = HashMap String Parity
@@ -20,7 +20,7 @@ rule varInitP    : Var l _        |- StateBeforeP l empty
 
 -- actual transfer functions
 rule assignStepP :
-  Assign l x e, StateBeforeP l st, Seq l l', StateBeforeP l' st'
+  Assign l x e, Seq l l', StateBeforeP l st, StateBeforeP l' st'
   -----------------------------------------------------------
   |- StateBeforeP l' (joinP (insertP x (evalP e st) st) st')
 
@@ -33,3 +33,5 @@ rule evalCondFP :
   Cond l e _ f, StateBeforeP l st, StateBeforeP f st'
   ---------------------------------------------------
   |- StateBeforeP f (join (refineFP e st) st')
+
+query stateP: StateBeforeP - +

@@ -5,7 +5,7 @@ import Control.Monad
 import Data.Either
 import Data.IntMap.Strict qualified as IntMap
 import Data.IntSet qualified as IntSet
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe
 import Fixen.Data.NodeId
@@ -17,7 +17,7 @@ import Prelude.Unicode
 initEnvWithPhases :: Maybe Phases -> SymbolEnv -> FixenPass SymbolState SymbolEnv
 initEnvWithPhases Nothing env =
   -- trivial. Just get all the rules and use that as the phases
-  return $ env & phaseInfo .~ [all_rules]
+  return $ env & phaseInfo .~ (all_rules :| [])
   where
     all_rules = env ^. ruleMap & IntMap.keys & IntSet.fromList
 initEnvWithPhases (Just p) env = do
@@ -33,10 +33,10 @@ initEnvWithPhases (Just p) env = do
         []
       return env
     else do
-      let s = x <&> succeeding & NonEmpty.toList
-          all_explicit_rules = s & partitionEithers & fst & IntSet.unions
+      let s = x <&> succeeding -- & NonEmpty.toList
+          all_explicit_rules = s & NonEmpty.toList & partitionEithers & fst & IntSet.unions
           all_remaining_rules = all_rules IntSet.\\ all_explicit_rules
-          (_, everything_elses) = partitionEithers s
+          (_, everything_elses) = partitionEithers (NonEmpty.toList s)
       if not (null everything_elses) && IntSet.null all_remaining_rules
         then do
           pos <- mapM fixenGetPosition everything_elses
@@ -50,7 +50,7 @@ initEnvWithPhases (Just p) env = do
           return env
         else do
           let new_phases =
-                map
+                fmap
                   ( \x'' -> case x'' of
                       Left x' -> x'
                       Right _ -> all_remaining_rules

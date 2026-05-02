@@ -91,6 +91,9 @@ import Fixen.IR.Core as D (
   , priorityConclusion
   , ruleInstanceRule
   , ruleInstanceMap
+  , moduleDeclarationName
+  , hsImportImport
+  , hsBlockContents
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter
@@ -463,7 +466,7 @@ prettyCondition (Core.Condition _ expr) =
 --       |- Dist@35 b (d + d')
 --   @
 prettyRule :: Rule -> Doc AnsiStyle
-prettyRule (Core.Rule _ name vars assumps conds concl) =
+prettyRule (Core.Rule i name vars assumps conds concl) =
   let name_doc = case name of
         Nothing -> mempty
         Just n  -> pretty " " <> annotate (color Red) (pretty (Core.fullIdentifier n))
@@ -471,7 +474,7 @@ prettyRule (Core.Rule _ name vars assumps conds concl) =
       assump_doc = pretty "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
       cond_doc = pretty "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
       concl_doc = pretty "conclusion:" <> line <> indent 2 (prettyConclusion concl)
-  in  annotate bold (pretty "rule") <> name_doc
+  in  (name_doc <+> (pretty "(" <> pretty i <> pretty ")"))
         <> line <> indent 2 vars_doc
         <> line <> indent 2 assump_doc
         <> line <> indent 2 cond_doc
@@ -746,10 +749,8 @@ prettyType (Core.TypeSymbolLit _ s) = annotate (color Yellow) $ pretty (show s)
 prettyRelation :: Relation -> Doc AnsiStyle
 -- | Render the \"relation\" keyword in bold, the name in red+bold,
 --   and the nodeId in parentheses.
-prettyRelation (Core.Relation ann name args) =
-  annotate bold (pretty "relation")
-    <+> annotate (color Red <> bold) (pretty (Core.fullIdentifier name))
-    <+> (lparen <> pretty ann <> rparen)
+prettyRelation (Core.Relation _ name args) =
+  annotate (color Red <> bold) (pretty (Core.fullIdentifier name))
     <> line
     -- | Indent the \"types:\" label and the list of argument types.
     <> indent 2 (annotate (color Yellow) (pretty "types:") <> line <> indent 2 (prettyList' (prettyType <$> args)))

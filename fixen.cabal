@@ -61,9 +61,12 @@ library diagnose
 library 
     -- Import common warning flags.
     import:             warnings
-    exposed-modules:    Fixen.Data.NodeId
+    exposed-modules:    Fixen.CodeGen
+                      , Fixen.Data.NodeId
                       , Fixen.IR.AST
                       , Fixen.IR.Core
+                      , Fixen.IR.RelationRepresentation
+                      , Fixen.IR.RuleForest
                       , Fixen.ModuleSystem
                       , Fixen.Monad
                       , Fixen.Monad.Env
@@ -78,6 +81,8 @@ library
                       , Fixen.Parser.Expr
                       , Fixen.Parser.Token
                       , Fixen.Parser.Type
+                      , Fixen.RelationRepresentation
+                      , Fixen.RuleForest
                       , Fixen.SymbolSolver
                       , Fixen.SymbolSolver.Common
                       , Fixen.SymbolSolver.Extern

@@ -1,6 +1,17 @@
 module StaticAnalysis.Program where
 
-rel Var: Nat, String
-rel Assign: Nat, String, Expr
-rel Cond: Nat, Expr, Nat, Nat
-rel Seq: Nat, Nat
+import Demos.Program
+
+```hs
+type Label = Nat
+```
+
+rel Var: Label, String
+rel Assign: Label, String, Expr
+rel Cond: Label, Expr, Label, Label
+rel Seq: Label, Label
+
+query vars: Var - +
+query assigns: Assign - + +
+query conds: Cond - + + +
+query seqs: Seq - +

@@ -1,0 +1,10 @@
+module Test where
+
+rel R: String, String
+
+rule transitive: R b c, R c d |- R b d
+rule reflexive: R a _ |- R a a
+rule reflexive': R _ y |- R y y
+
+query r: R + +
+

@@ -3,6 +3,7 @@ module Main where
 import CommandLine.CommandLineArgs (
   CommandLineArgs (..),
   InFilePath,
+  OutFilePath,
  )
 import CommandLine.Parser (
   getCommandLineArgs,
@@ -17,13 +18,14 @@ import Error.Diagnose (
   unadornedStyle,
  )
 
--- import Fixen.IR.AST
+import Data.Text qualified as Text
+import Fixen.IR.AST
+import Fixen.IR.RuleForest
 import Fixen.Monad
 import Fixen.Pipeline
-
--- import Prettyprinter
--- import Prettyprinter.Render.Terminal qualified as PT
--- import Prettyprinter.Render.Text
+import Prettyprinter
+import Prettyprinter.Render.Terminal qualified as PT
+import Prettyprinter.Render.Text
 import System.Directory (canonicalizePath)
 import System.Exit (
   ExitCode (..),
@@ -53,7 +55,7 @@ main = do
   -- read the input file. whenever there are exceptions, terminate with the
   -- error messages.
   in_file <- canonicalizePath in_file_
-  _ <- canonicalizePath out_file_
+  out_file <- canonicalizePath out_file_
   file_handle <-
     handle (openFileExceptionHandler in_file) $
       SIO.openFile in_file SIO.ReadMode
@@ -69,8 +71,18 @@ main = do
   --     else defaultOutputOptionsNoColor {outputOptionsCompact = True}
   ast <- runFixenM $ pipeline in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
-    Left d -> printDiagnostic stderr out_unicode (TabSize 4) out_style d
-    Right a -> print a -- if color then PT.putDoc (prettyProgram a) else putDoc (unAnnotate (prettyProgram a)) -- pPrintOpt CheckColorTty pretty_options a
+    Left d -> do
+      printDiagnostic stderr out_unicode (TabSize 4) out_style d
+      exitWith (ExitFailure 1)
+    Right (prog, tree, db, !code) -> do
+      if color then PT.putDoc (prettyProgram prog) else putDoc (unAnnotate (prettyProgram prog))
+      putStrLn ""
+      putStrLn $ showPhasedForests unicode tree
+      putStrLn ""
+      putStrLn "**Database Representation**"
+      print db
+      handle (writeFileExceptionHandler out_file) $
+        SIO.writeFile out_file (Text.unpack code)
 
 -------------------------------------------------------------------------------
 --
@@ -90,6 +102,14 @@ openFileExceptionHandler file_name e = do
 readFileExceptionHandler :: InFilePath -> IOException -> IO a
 readFileExceptionHandler file_name e = do
   SIO.hPutStrLn SIO.stderr $ "Cannot read " ++ file_name ++ ":"
+  SIO.hPutStr SIO.stderr "    "
+  SIO.hPrint SIO.stderr e
+  exitWith (ExitFailure 1)
+
+-- | Handler for file writing exceptions
+writeFileExceptionHandler :: OutFilePath -> IOException -> IO a
+writeFileExceptionHandler file_name e = do
+  SIO.hPutStrLn SIO.stderr $ "Cannot write to " ++ file_name ++ ":"
   SIO.hPutStr SIO.stderr "    "
   SIO.hPrint SIO.stderr e
   exitWith (ExitFailure 1)

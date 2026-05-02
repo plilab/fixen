@@ -6,9 +6,9 @@ include "Interval"
 ```hs
 -- whatever exchange and widening functions we need
 reducedExchangeI :: StateI -> StateP -> StateI
-reducedExchangeI =  -- ...
+reducedExchangeI =  undefined
 reducedExchangeP :: StateI -> StateP -> StateP
-reducedExchangeP =  -- ...
+reducedExchangeP =  undefined
 ```
 
 -- returns refined parity information from intervals 

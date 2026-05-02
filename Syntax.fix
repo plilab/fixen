@@ -66,9 +66,10 @@ rule anotherRule a b c : DistTo a c, Edge a b c |- DistTo a (b + c)
 
 -- priority declarations for this exported module.
 priority:
-  a <= a' |- addDist { a = a } <= addDist { a = a' }
+  a <= a' |- addDist { a = a } < addDist { a = a' }
 
-  |- addDist { } <= assignI { }
+priority:
+  |- addDist { } < assignI { }
 
 -- queries for this exported module.
 query distTo: DistTo - +

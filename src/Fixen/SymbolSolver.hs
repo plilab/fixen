@@ -31,6 +31,5 @@ solveSymbols prog = do
     pure env_with_queries_and_rules
       >>= foldMWith initEnvWithPriorities (priorities prog)
       >>= initEnvWithPhases (phases prog)
-  -- TODO. Warn for unused rule parameters.
   warnUnusedRuleParameters env_with_phases_and_priorities
   return env_with_phases_and_priorities

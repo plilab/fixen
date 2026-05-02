@@ -9,46 +9,43 @@ module Fixen.Pipeline (pipeline) where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.IntMap.Strict qualified as Map
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text
 import Error.Diagnose
-import Fixen.Data.NodeId
-
--- import Fixen.IR.AST
+import Fixen.CodeGen
+import Fixen.IR.AST
+import Fixen.IR.RelationRepresentation
+import Fixen.IR.RuleForest
 import Fixen.ModuleSystem (getIncludes)
 import Fixen.Monad
 import Fixen.Parser (parse)
+import Fixen.RelationRepresentation
+import Fixen.RuleForest
 import Fixen.SymbolSolver
 import Prettyprinter
 
--- | The compilation pipeline. The code as a connector for each phase of
--- the pipeline (which may use different monads):
---
--- 1. 'parse': Parses the program, yielding a 'Fixen.IR.AST.Program'.
---
--- 2. 'sort': Puts the top-level declarations of the 'Fixen.IR.AST.Program'
---            into their respective buckets in a 'Fixen.IR.Sorted.Program'
---            and ensures
---
---              a. There is at most one extern declaration
---
---              b. There is at least one relation
---
---              c. There is at least one rule.
+{- FOURMOLU_DISABLE -}
 pipeline
   :: FilePath
   -- ^ The path of the compiled file
   -> String
   -- ^ The contents of the compiled file
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
-  -> FixenM SymbolEnv
+  -> FixenM (Program, NonEmpty RuleForest, RelationRepresentation, Text)
 pipeline file_path contents error_printer = do
-  let file_map = [(file_path, contents)]
-      init_errs = fixenEmptyErrors file_map
-      init_pos_env :: PositionEnv = Map.empty
-      init_node_id :: NodeId = 0
-      init_env = (init_pos_env, (init_node_id, init_errs))
-  (program, st) <- runFixenPassFlushWarnings error_printer init_env (parse file_path (pack contents))
-  -- NOTE THAT IN SUBSEQUENT PASSES WE MUST USE THE RESULTING STATE THAT HAS THE NEW FILEMAP
-  (program', st') <- runFixenPassFlushWarnings error_printer st (getIncludes program)
-  (env, _) <- runFixenPassFlushWarnings error_printer st' (solveSymbols program')
-  return env
+  let file_map     = [(file_path, contents)]
+      init_errs    = fixenEmptyErrors file_map
+      init_pos_env = Map.empty
+      init_node_id = 0
+      init_env     = (init_pos_env, (init_node_id, init_errs))
+  (program, st)   <- run init_env    (parse file_path (pack contents))
+  (program', st') <- run st          (getIncludes program)
+  (env, st'')     <- run st'         (solveSymbols program')
+  (rt, st''')     <- run (env, st'') (getRuleForest program')
+  (db, _)         <- run st'''       getDatabaseRepresentation
+  (t, _)          <- run st'''       (codeGen rt db program')
+  return (program', rt, db, t)
+  where
+    run :: Errored a => a -> FixenPass a b -> FixenM (b, a)
+    run = runFixenPassFlushWarnings error_printer
+{- FOURMOLU_ENABLE -}
