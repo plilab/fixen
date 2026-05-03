@@ -311,7 +311,7 @@ codeGenFactInsertionCase (name, rep_info) = do
       Text.concat
         [ "\n      mp' = "
         , insertionFn 0 extraction_proc
-        , " new_fact mp\n   in Just db { _facts"
+        , "\n              new_fact\n              mp\n   in Just db { _facts"
         , name
         , " = mp' }"
         ]

@@ -23,6 +23,12 @@ data Database = Database
   , _factsT :: TFacts
   } deriving Eq
 
+emptyDb :: Database
+emptyDb = Database
+  { _factsR = HashMap.empty
+  , _factsT = HashMap.empty
+  }
+
 type Interpretation = Database
 
 ----- ENTAILMENT -----
@@ -41,8 +47,35 @@ db |= (T _v0 _v1 _v2) =
         step2 <- step1 HashMap.!? _v1
         return $ _v2 `HashSet.member` step2
 
+----- INSERTION -----
+insertToDb :: Database -> Fact -> Maybe Database
+insertToDb db fact
+  | db |= fact = Nothing
+insertToDb db (R _v0 _v1) =
+  let mp = _factsR db
+      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      mp' = HashMap.unionWith
+              (HashSet.union
+              )
+              new_fact
+              mp
+   in Just db { _factsR = mp' }
+insertToDb db (T _v0 _v1 _v2) =
+  let mp = _factsT db
+      new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton _v2))
+      mp' = HashMap.unionWith
+              (HashMap.unionWith
+                (HashSet.union
+                )
+              )
+              new_fact
+              mp
+   in Just db { _factsT = mp' }
+
 ----- RULE INSTANCES -----
-data RuleInstance = RuleTransitive String String String
-                  | RuleReflexive String
-                  | RuleReflexive' String
+data RuleInstance
+       = RuleTransitive String String String
+       | RuleReflexive String
+       | RuleReflexive' String
+       | Init Fact
   deriving Eq

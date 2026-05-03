@@ -131,7 +131,9 @@ insertToDb db (Assign _v0 _v1 _v2) =
               (HashMap.unionWith
                 (HashSet.union
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsAssign = mp' }
 insertToDb db (Cond _v0 _v1 _v2 _v3) =
   let mp = _factsCond db
@@ -142,14 +144,18 @@ insertToDb db (Cond _v0 _v1 _v2 _v3) =
                   (HashSet.union
                   )
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsCond = mp' }
 insertToDb db (Seq _v0 _v1) =
   let mp = _factsSeq db
       new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
       mp' = HashMap.unionWith
               (HashSet.union
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsSeq = mp' }
 insertToDb db (StateBeforeI _v0 _v1) =
   let mp = _factsStateBeforeI db
@@ -163,7 +169,9 @@ insertToDb db (StateBeforeI _v0 _v1) =
                       s2
                     )
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsStateBeforeI = mp' }
 insertToDb db (StateBeforeP _v0 _v1) =
   let mp = _factsStateBeforeP db
@@ -177,14 +185,18 @@ insertToDb db (StateBeforeP _v0 _v1) =
                       s2
                     )
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsStateBeforeP = mp' }
 insertToDb db (Var _v0 _v1) =
   let mp = _factsVar db
       new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
       mp' = HashMap.unionWith
               (HashSet.union
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsVar = mp' }
 
 insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation

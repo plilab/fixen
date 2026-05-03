@@ -67,7 +67,9 @@ insertToDb db (DistTo _v0 _v1) =
                       s2
                     )
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsDistTo = mp' }
 insertToDb db (Edge _v0 _v1 _v2) =
   let mp = _factsEdge db
@@ -83,7 +85,9 @@ insertToDb db (Edge _v0 _v1 _v2) =
                       )
                   )
                 )
-              ) new_fact mp
+              )
+              new_fact
+              mp
    in Just db { _factsEdge = mp' }
 
 ----- RULE INSTANCES -----
