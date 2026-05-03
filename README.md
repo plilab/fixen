@@ -120,12 +120,12 @@ You're all set!
 ## Roadmap
 
 - [x] Complete the parser
-- [ ] Complete the symbol solver
-- [ ] Generate rule forests IR
+- [x] Complete the symbol solver
+- [x] Generate rule forests IR
+- [x] DB layout inference
 - [ ] Generate Haskell source
 - [ ] Benchmarks
 - [ ] Unit tests
-- [ ] DB layout inference
 
 See the [open issues](https://github.com/yonggqiii/fixen-syb/issues) for a full list of proposed features (and known issues).
 
