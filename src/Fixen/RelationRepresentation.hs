@@ -63,14 +63,6 @@ getMeetMechanism t = do
     Nothing -> return Match
     Just p_ord_decl -> return $ Meet (partialOrdDeclarationLeq p_ord_decl) (partialOrdDeclarationMlbs p_ord_decl)
 
-getUnderlyingType :: Type -> FixenPass RelationRepresentationState Type
-getUnderlyingType t = do
-  let name = calculateRepresentativeFromType t
-  p_ord <- fixenGetPartialOrdInfo
-  case p_ord ^. at name of
-    Nothing -> return t
-    Just p_ord_dec -> return $ partialOrdDeclarationType p_ord_dec
-
 getKind :: Type -> FixenPass RelationRepresentationState Kind
 getKind t = do
   let name = calculateRepresentativeFromType t

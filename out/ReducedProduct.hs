@@ -50,7 +50,37 @@ data Database = Database
   , _factsVar :: VarFacts
   } deriving Eq
 
+emptyDb :: Database
+emptyDb = Database
+  { _factsAssign = HashMap.empty
+  , _factsCond = HashMap.empty
+  , _factsSeq = HashMap.empty
+  , _factsStateBeforeI = HashMap.empty
+  , _factsStateBeforeP = HashMap.empty
+  , _factsVar = HashMap.empty
+  }
+
 type Interpretation = (Database, Database, Database)
+
+data Phase = Phase1
+           | Phase2
+           | Phase3
+ deriving (Eq, Show)
+
+selectDb :: Interpretation -> Phase -> Database
+selectDb (db, _, _) Phase1 = db
+selectDb (_, db, _) Phase2 = db
+selectDb (_, _, db) Phase3 = db
+
+(||=) :: Interpretation -> Fact -> Phase -> Bool
+(i ||= f) p = selectDb i p |= f
+
+infix 1 ||=
+
+replaceDb :: Interpretation -> Database -> Phase -> Interpretation
+replaceDb (_, db2, db3) db' Phase1 = (db', db2, db3)
+replaceDb (db1, _, db3) db' Phase2 = (db1, db', db3)
+replaceDb (db1, db2, _) db' Phase3 = (db1, db2, db')
 
 ----- ENTAILMENT -----
 infix 0 |=
@@ -89,3 +119,97 @@ db |= (Var _v0 _v1) =
    in fromMaybe False $ do
         step1 <- db' HashMap.!? _v0
         return $ _v1 `HashSet.member` step1
+
+----- INSERTION -----
+insertToDb :: Database -> Fact -> Maybe Database
+insertToDb db fact
+  | db |= fact = Nothing
+insertToDb db (Assign _v0 _v1 _v2) =
+  let mp = _factsAssign db
+      new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton _v2))
+      mp' = HashMap.unionWith
+              (HashMap.unionWith
+                (HashSet.union
+                )
+              ) new_fact mp
+   in Just db { _factsAssign = mp' }
+insertToDb db (Cond _v0 _v1 _v2 _v3) =
+  let mp = _factsCond db
+      new_fact = HashMap.singleton _v0 (HashMap.singleton _v2 (HashMap.singleton _v3 (HashSet.singleton _v1)))
+      mp' = HashMap.unionWith
+              (HashMap.unionWith
+                (HashMap.unionWith
+                  (HashSet.union
+                  )
+                )
+              ) new_fact mp
+   in Just db { _factsCond = mp' }
+insertToDb db (Seq _v0 _v1) =
+  let mp = _factsSeq db
+      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      mp' = HashMap.unionWith
+              (HashSet.union
+              ) new_fact mp
+   in Just db { _factsSeq = mp' }
+insertToDb db (StateBeforeI _v0 _v1) =
+  let mp = _factsStateBeforeI db
+      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      mp' = HashMap.unionWith
+              ((\s1 s2 ->
+                  HashSet.union
+                    s1
+                    (HashSet.filter
+                      (\_t -> not (stateILeq _t _v1))
+                      s2
+                    )
+                )
+              ) new_fact mp
+   in Just db { _factsStateBeforeI = mp' }
+insertToDb db (StateBeforeP _v0 _v1) =
+  let mp = _factsStateBeforeP db
+      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      mp' = HashMap.unionWith
+              ((\s1 s2 ->
+                  HashSet.union
+                    s1
+                    (HashSet.filter
+                      (\_t -> not (statePLeq _t _v1))
+                      s2
+                    )
+                )
+              ) new_fact mp
+   in Just db { _factsStateBeforeP = mp' }
+insertToDb db (Var _v0 _v1) =
+  let mp = _factsVar db
+      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      mp' = HashMap.unionWith
+              (HashSet.union
+              ) new_fact mp
+   in Just db { _factsVar = mp' }
+
+insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation
+insertToInterpretation i f p = do
+  let db = selectDb i p
+  db' <- insertToDb db f
+  return (replaceDb i db' p)
+
+----- RULE INSTANCES -----
+data RuleInstance
+       = RuleReducedExchangeP Label ((HashMap String) Parity) ((HashMap String) (Int, Int))
+       | RuleReducedExchangeI Label ((HashMap String) Parity) ((HashMap String) (Int, Int))
+       | RuleWidenInterval Label ((HashMap String) (Int, Int))
+       | RuleWidenParity Label ((HashMap String) Parity)
+       | RuleAssignInitP Label
+       | RuleCondInitP Label
+       | RuleVarInitP Label
+       | RuleAssignStepP Expr Label Label ((HashMap String) Parity) ((HashMap String) Parity) String
+       | RuleEvalCondTP Expr Label ((HashMap String) Parity) ((HashMap String) Parity) Label
+       | RuleEvalCondFP Expr Label Label ((HashMap String) Parity) ((HashMap String) Parity)
+       | RuleAssignInitI Label
+       | RuleCondInitI Label
+       | RuleVarInitI Label
+       | RuleAssignStepI Expr Label Label ((HashMap String) (Int, Int)) ((HashMap String) (Int, Int)) String
+       | RuleEvalCondTI Expr Label ((HashMap String) (Int, Int)) ((HashMap String) (Int, Int)) Label
+       | RuleEvalCondFI Expr Label Label ((HashMap String) (Int, Int)) ((HashMap String) (Int, Int))
+       | Init Fact
+  deriving Eq

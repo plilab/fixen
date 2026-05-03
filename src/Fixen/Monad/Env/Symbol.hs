@@ -202,3 +202,16 @@ fixenGetRelationParamKindFromName :: Symboled a => Text -> FixenPass a Kind
 fixenGetRelationParamKindFromName n = do
   info <- fixenGetRelationParamKindInfo
   return $ info Map.! n
+
+fixenGetRuleInfo :: Symboled a => FixenPass a (NodeMap RuleInfo)
+fixenGetRuleInfo = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. ruleMap
+
+getUnderlyingType :: Symboled a => Type -> FixenPass a Type
+getUnderlyingType t = do
+  let name = calculateRepresentativeFromType t
+  p_ord <- fixenGetPartialOrdInfo
+  case p_ord ^. at name of
+    Nothing -> return t
+    Just p_ord_dec -> return $ partialOrdDeclarationType p_ord_dec

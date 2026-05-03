@@ -40,3 +40,9 @@ db |= (T _v0 _v1 _v2) =
         step1 <- db' HashMap.!? _v0
         step2 <- step1 HashMap.!? _v1
         return $ _v2 `HashSet.member` step2
+
+----- RULE INSTANCES -----
+data RuleInstance = RuleTransitive String String String
+                  | RuleReflexive String
+                  | RuleReflexive' String
+  deriving Eq
