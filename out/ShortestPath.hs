@@ -1,45 +1,53 @@
 module Demos.ShortestPath where
 
+----- FIXEN IMPORTS-----
+import Data.Maybe
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 
------ USER CODE START -----
-type Vertex = String
+----- USER CODE -----
+type Vertex = Int
 
-distLeq :: Dist -> Dist -> Bool
-distLeq (D x) (D y) = x <= y
+distLeq :: Int -> Int -> Bool
+distLeq x y = x <= y
 
-distMlbs :: Dist -> Dist -> [Dist]
-distMlbs (D x) (D y) = [D (min x y)]
------ USER CODE END -----
-
+distMlbs :: Int -> Int -> [Int]
+distMlbs x y = [(min x y)]
 
 ----- FACTS -----
 data Fact = DistTo Vertex Int
-          | Edge Vertex Vertex Int
+          | Edge Int Vertex Vertex
+          | Exists
   deriving Eq
 
------ Database Representations -----
+----- FACT DATABASE -----
 type DistToFacts = HashMap Vertex (HashSet Int)
 type EdgeFacts = HashMap Vertex (HashMap Vertex (HashSet Int))
+type ExistsFacts = Bool
 
------ Database -----
 data Database = Database
   { _factsDistTo :: DistToFacts
   , _factsEdge :: EdgeFacts
+  , _factsExists :: ExistsFacts
   } deriving Eq
 
 type Interpretation = Database
 
------ Subsumption -----
-class Subsumable a where
-    subsumes :: a -> a -> Bool
-    mlbs :: a -> a -> [a]
+----- ENTAILMENT -----
+infix 0 |=
 
-instance Subsumable Int where
-  subsumes = distLeq
-  mlbs = distMlbs
-
-instance Subsumable Vertex where
-  subsumes = (==)
-  mlbs _a _b
-    | _a == _b = [_a]
-    | otherwise = []
+(|=) :: Database -> Fact -> Bool
+db |= (DistTo _v0 _v1) =
+  let db' = _factsDistTo db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        return $ any (distLeq _v1) step1
+db |= (Edge _v0 _v1 _v2) =
+  let db' = _factsEdge db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v2
+        step2 <- step1 HashMap.!? _v1
+        return $ any (distLeq _v0) step2
+db |= Exists = _factsExists db

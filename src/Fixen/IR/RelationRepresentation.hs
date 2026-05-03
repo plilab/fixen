@@ -22,7 +22,7 @@ data Database = Database
 data QueryType
   = Match
   | -- | mlbs function
-    Meet Identifier
+    Meet Identifier Identifier
   deriving (Show, Eq)
 
 data Fact = Fact

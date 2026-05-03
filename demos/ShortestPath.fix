@@ -1,25 +1,35 @@
 module Demos.ShortestPath where
 
 rel DistTo : Vertex, Dist
-rel Edge : Vertex, Vertex, Dist
+rel Edge : Dist, Vertex, Vertex
 
+rel Exists
 ```hs
-type Vertex = String
+type Vertex = Int
 
-distLeq :: Dist -> Dist -> Bool
-distLeq (D x) (D y) = x <= y
+distLeq :: Int -> Int -> Bool
+distLeq x y = x <= y
 
-distMlbs :: Dist -> Dist -> [Dist]
-distMlbs (D x) (D y) = [D (min x y)]
+distMlbs :: Int -> Int -> [Int]
+distMlbs x y = [(min x y)]
 ```
+
+{-
+partial ord Vertex where
+  type = String
+  leq = lol
+  mlbs = lol2
+-}
+
 
 partial ord Dist where
   type = Int -- the underlying Dist type we declared earlier
   leq  = distLeq
   mlbs = distMlbs
 
+
 -- The main rule.
-rule addDist: DistTo a d, Edge a b d'
+rule addDist: DistTo a d, Edge d' b a
             |- DistTo b (d + d')
 
 -- Priorities for Dijkstra's
@@ -30,5 +40,6 @@ priority:
 -- interface
 query distTo: DistTo - +
 query distLessThan: DistTo + -
+query distances: DistTo + +
 
 

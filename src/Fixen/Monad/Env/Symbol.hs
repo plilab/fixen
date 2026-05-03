@@ -192,3 +192,13 @@ fixenGetRelationParamKindInfo :: Symboled a => FixenPass a (NameMap Kind)
 fixenGetRelationParamKindInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. relationParamKindMap
+
+fixenGetRelationParamKind :: Symboled a => Type -> FixenPass a Kind
+fixenGetRelationParamKind ty = do
+  let n = calculateRepresentativeFromType ty
+  fixenGetRelationParamKindFromName n
+
+fixenGetRelationParamKindFromName :: Symboled a => Text -> FixenPass a Kind
+fixenGetRelationParamKindFromName n = do
+  info <- fixenGetRelationParamKindInfo
+  return $ info Map.! n

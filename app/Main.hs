@@ -9,6 +9,9 @@ import CommandLine.Parser (
   getCommandLineArgs,
  )
 import Control.Exception
+import Control.Monad (
+  when,
+ )
 import Error.Diagnose (
   TabSize (TabSize),
   WithUnicode (WithUnicode, WithoutUnicode),
@@ -26,7 +29,9 @@ import Fixen.Pipeline
 import Prettyprinter
 import Prettyprinter.Render.Terminal qualified as PT
 import Prettyprinter.Render.Text
-import System.Directory (canonicalizePath)
+import System.Directory (
+  canonicalizePath,
+ )
 import System.Exit (
   ExitCode (..),
   exitWith,
@@ -50,6 +55,9 @@ main = do
     , inFile = in_file_
     , color = color
     , unicode = unicode
+    , program = program
+    , forest = forest
+    , db = show_db
     } <-
     getCommandLineArgs
   -- read the input file. whenever there are exceptions, terminate with the
@@ -75,13 +83,16 @@ main = do
       printDiagnostic stderr out_unicode (TabSize 4) out_style d
       exitWith (ExitFailure 1)
     Right (prog, tree, db, !code) -> do
-      if color then PT.putDoc (prettyProgram prog) else putDoc (unAnnotate (prettyProgram prog))
-      putStrLn ""
-      putStrLn $ showPhasedForests unicode tree
-      putStrLn ""
-      putStrLn "**Database Representation**"
-      print db
-      handle (writeFileExceptionHandler out_file) $
+      when program $ do
+        if color then PT.putDoc (prettyProgram prog) else putDoc (unAnnotate (prettyProgram prog))
+        putStrLn ""
+      when forest $ do
+        putStrLn $ showPhasedForests unicode tree
+        putStrLn ""
+      when show_db $ do
+        putStrLn "**Database Representation**"
+        print db
+      handle (writeFileExceptionHandler out_file) $ do
         SIO.writeFile out_file (Text.unpack code)
 
 -------------------------------------------------------------------------------

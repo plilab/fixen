@@ -83,6 +83,24 @@ getCommandLineArgs = do
                   <> help "Suppress unicode characters in output"
               )
           )
+        <*> ( switch
+                ( long "show-ast"
+                    <> short 'a'
+                    <> help "Show the parsed AST"
+                )
+            )
+        <*> ( switch
+                ( long "show-forest"
+                    <> short 'f'
+                    <> help "Show the rule forest"
+                )
+            )
+        <*> ( switch
+                ( long "show-db"
+                    <> short 'd'
+                    <> help "Show the database representation"
+                )
+            )
 
 --------------------------------------------------------------------------------
 --

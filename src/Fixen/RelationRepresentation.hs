@@ -25,8 +25,8 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
   let sorting_metric i j
         -- handle the kinds first
         | i_k == Discrete && j_k == PartiallyOrdered = LT
-        | i_k == PartiallyOrdered && j_k == Discrete = EQ
-        | i_k == PartiallyOrdered && j_k == PartiallyOrdered = GT
+        | i_k == PartiallyOrdered && j_k == Discrete = GT
+        | i_k == PartiallyOrdered && j_k == PartiallyOrdered = EQ
         -- now, both of them are discrete. matched variables come first
         | i_m == Matched && j_m == Unmatched = LT
         | i_m == Unmatched && j_m == Matched = GT
@@ -38,8 +38,8 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
           i_m = rel_arg_match_info !! i
           j_m = rel_arg_match_info !! j
   let db_indices = sortBy sorting_metric [0 .. length rel_args - 1]
-      insertion_map = IntMap.fromList $ zip [0 .. length rel_args - 1] db_indices
-      extraction_map = IntMap.fromList $ zip db_indices [0 .. length rel_args - 1]
+      insertion_map = IntMap.fromList $ zip db_indices [0 .. length rel_args - 1]
+      extraction_map = IntMap.fromList $ zip [0 .. length rel_args - 1] db_indices
       db_args = (\i -> (rel_query_types !! i, rel_underlying_types !! i)) <$> db_indices
   return
     RelationRepresentationInfo
@@ -61,7 +61,7 @@ getMeetMechanism t = do
   p_ord <- fixenGetPartialOrdInfo
   case p_ord ^. at name of
     Nothing -> return Match
-    Just p_ord_decl -> return $ Meet (partialOrdDeclarationMlbs p_ord_decl)
+    Just p_ord_decl -> return $ Meet (partialOrdDeclarationLeq p_ord_decl) (partialOrdDeclarationMlbs p_ord_decl)
 
 getUnderlyingType :: Type -> FixenPass RelationRepresentationState Type
 getUnderlyingType t = do

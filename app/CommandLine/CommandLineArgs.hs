@@ -35,6 +35,12 @@ data CommandLineArgs = CommandLineArgs
   -- ^ Whether the output should contain color.
   , unicode :: Bool
   -- ^ Whether the output should contain unicode characters.
+  , program :: Bool
+  -- ^ Whether the output should show the program
+  , forest :: Bool
+  -- ^ Whether the output should show the rule forest
+  , db :: Bool
+  -- ^ Whether the output should show the database representation
   }
   deriving (Show)
 

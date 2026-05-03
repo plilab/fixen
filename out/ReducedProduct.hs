@@ -1,7 +1,15 @@
 module StaticAnalysis.ReducedProduct where
-import Demos.Program
 
------ USER CODE START -----
+----- FIXEN IMPORTS-----
+import Data.Maybe
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+
+----- USER IMPORTS -----
+import Demos.Program
+----- USER CODE -----
 joinI :: Void
 joinI = undefined
 
@@ -15,8 +23,6 @@ reducedExchangeI :: StateI -> StateP -> StateI
 reducedExchangeI =  undefined
 reducedExchangeP :: StateI -> StateP -> StateP
 reducedExchangeP =  undefined
------ USER CODE END -----
-
 
 ----- FACTS -----
 data Fact = Assign Label String Expr
@@ -27,7 +33,7 @@ data Fact = Assign Label String Expr
           | Var Label String
   deriving Eq
 
------ Database Representations -----
+----- FACT DATABASE -----
 type AssignFacts = HashMap Label (HashMap String (HashSet Expr))
 type CondFacts = HashMap Label (HashMap Label (HashMap Label (HashSet Expr)))
 type SeqFacts = HashMap Label (HashSet Label)
@@ -35,7 +41,6 @@ type StateBeforeIFacts = HashMap Label (HashSet ((HashMap String) (Int, Int)))
 type StateBeforePFacts = HashMap Label (HashSet ((HashMap String) Parity))
 type VarFacts = HashMap Label (HashSet String)
 
------ Database -----
 data Database = Database
   { _factsAssign :: AssignFacts
   , _factsCond :: CondFacts
@@ -47,33 +52,40 @@ data Database = Database
 
 type Interpretation = (Database, Database, Database)
 
------ Subsumption -----
-class Subsumable a where
-    subsumes :: a -> a -> Bool
-    mlbs :: a -> a -> [a]
+----- ENTAILMENT -----
+infix 0 |=
 
-instance Subsumable Expr where
-  subsumes = (==)
-  mlbs _a _b
-    | _a == _b = [_a]
-    | otherwise = []
-
-instance Subsumable Label where
-  subsumes = (==)
-  mlbs _a _b
-    | _a == _b = [_a]
-    | otherwise = []
-
-instance Subsumable ((HashMap String) (Int, Int)) where
-  subsumes = stateILeq
-  mlbs = stateIMlbs
-
-instance Subsumable ((HashMap String) Parity) where
-  subsumes = statePLeq
-  mlbs = statePMlbs
-
-instance Subsumable String where
-  subsumes = (==)
-  mlbs _a _b
-    | _a == _b = [_a]
-    | otherwise = []
+(|=) :: Database -> Fact -> Bool
+db |= (Assign _v0 _v1 _v2) =
+  let db' = _factsAssign db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        step2 <- step1 HashMap.!? _v1
+        return $ _v2 `HashSet.member` step2
+db |= (Cond _v0 _v1 _v2 _v3) =
+  let db' = _factsCond db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        step2 <- step1 HashMap.!? _v2
+        step3 <- step2 HashMap.!? _v3
+        return $ _v1 `HashSet.member` step3
+db |= (Seq _v0 _v1) =
+  let db' = _factsSeq db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        return $ _v1 `HashSet.member` step1
+db |= (StateBeforeI _v0 _v1) =
+  let db' = _factsStateBeforeI db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        return $ any (stateILeq _v1) step1
+db |= (StateBeforeP _v0 _v1) =
+  let db' = _factsStateBeforeP db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        return $ any (statePLeq _v1) step1
+db |= (Var _v0 _v1) =
+  let db' = _factsVar db
+   in fromMaybe False $ do
+        step1 <- db' HashMap.!? _v0
+        return $ _v1 `HashSet.member` step1
