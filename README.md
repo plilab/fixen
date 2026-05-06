@@ -17,9 +17,9 @@
     Fixed-Point Computation for Haskell
     <br />
     <br />
-    <a href="https://github.com/yonggqiii/fixen/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/plilab/fixed-point/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
-    <a href="https://github.com/yonggqiii/fixen/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/plilab/fixed-point/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 </div>
 
@@ -29,7 +29,6 @@
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
 
 
 <!-- TABLE OF CONTENTS -->
@@ -97,7 +96,7 @@ To get a local copy up and running follow these simple example steps.
 ### Installing and Building
 * Clone this repository
   ```sh
-  git clone https://github.com/yonggqiii/fixen.git
+  git clone https://github.com/plilab/fixed-point.git
   cd fixen/
   ```
 * Building
@@ -123,11 +122,11 @@ You're all set!
 - [x] Complete the symbol solver
 - [x] Generate rule forests IR
 - [x] DB layout inference
-- [ ] Generate Haskell source
+- [x] Generate Haskell source
 - [ ] Benchmarks
 - [ ] Unit tests
 
-See the [open issues](https://github.com/yonggqiii/fixen-syb/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/plilab/fixed-point/issues) for a full list of proposed features (and known issues).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -149,8 +148,8 @@ Don't forget to give the project a star! Thanks again!
 
 ### Top contributors:
 
-<a href="https://github.com/yonggqiii/fixen/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=yonggqiii/fixen" alt="contrib.rocks image" />
+<a href="https://github.com/plilab/fixed-point/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=plilab/fixed-point" alt="contrib.rocks image" />
 </a>
 
 
@@ -166,10 +165,11 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <!-- CONTACT -->
 ## Contact
+Michael D. Adams - https://michaeldadams.org
 
-Foo Yong Qi - yongqi@nus.edu.sg
+Foo Yong Qi - https://yongqi.foo/
 
-Project Link: [https://github.com/yonggqiii/fixen](https://github.com/yonggqiii/fixen)
+Project Link: [https://github.com/plilab/fixed-point](https://github.com/plilab/fixed-point)
 
 The Programming Languages Innovation Lab @ NUS: [https://github.com/plilab](https://github.com/plilab)
 
@@ -177,17 +177,15 @@ The Programming Languages Innovation Lab @ NUS: [https://github.com/plilab](http
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/yonggqiii/fixen.svg?style=for-the-badge
-[contributors-url]: https://github.com/yonggqiii/fixen/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/yonggqiii/fixen.svg?style=for-the-badge
-[forks-url]: https://github.com/yonggqiii/fixen/network/members
-[stars-shield]: https://img.shields.io/github/stars/yonggqiii/fixen.svg?style=for-the-badge
-[stars-url]: https://github.com/yonggqiii/fixen/stargazers
-[issues-shield]: https://img.shields.io/github/issues/yonggqiii/fixen.svg?style=for-the-badge
-[issues-url]: https://github.com/yonggqiii/fixen/issues
-[license-shield]: https://img.shields.io/github/license/yonggqiii/fixen.svg?style=for-the-badge
-[license-url]: https://github.com/yonggqiii/fixen/blob/master/LICENSE.txt
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/fooyongqi
+[contributors-shield]: https://img.shields.io/github/contributors/plilab/fixed-point.svg?style=for-the-badge
+[contributors-url]: https://github.com/plilab/fixed-point/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/plilab/fixed-point.svg?style=for-the-badge
+[forks-url]: https://github.com/plilab/fixed-point/network/members
+[stars-shield]: https://img.shields.io/github/stars/plilab/fixed-point.svg?style=for-the-badge
+[stars-url]: https://github.com/plilab/fixed-point/stargazers
+[issues-shield]: https://img.shields.io/github/issues/plilab/fixed-point.svg?style=for-the-badge
+[issues-url]: https://github.com/plilab/fixed-point/issues
+[license-shield]: https://img.shields.io/github/license/plilab/fixed-point.svg?style=for-the-badge
+[license-url]: https://github.com/plilab/fixed-point/blob/master/LICENSE.txt
 [haskell-shield]: https://img.shields.io/badge/Haskell-5D4F85?style=for-the-badge&logo=haskell&logoColor=white
 [haskell-badge-url]: https://www.haskell.org
