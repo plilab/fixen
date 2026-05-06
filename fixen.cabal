@@ -1,0 +1,208 @@
+cabal-version:      3.4
+name:               fixen
+-- PVP summary:     +-+------- breaking API changes
+--                  | | +----- non-breaking API additions
+--                  | | | +--- code changes with no API change
+--                  | | | | +- dev version
+version:            0.0.0.1
+-- synopsis:
+-- description:
+license:            MIT
+license-file:       LICENSE
+author:             Programming Languages Innovation Lab@NUS
+maintainer:         yongqi@nus.edu.sg
+
+-- A copyright notice.
+-- copyright:
+category:           Development
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+
+-- Extra source files to be distributed with the package, such as examples, or a tutorial module.
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall 
+
+-- This library is written by Mesabloo; LICENSE file is found in the diagnose/
+-- directory. We download the source code of this library and include it here
+-- to bump version dependencies (this library appears to not have been
+-- maintained for several years now).
+library diagnose
+    import:               warnings
+    exposed-modules:      Error.Diagnose
+                        , Error.Diagnose.Diagnostic
+                        , Error.Diagnose.Position
+                        , Error.Diagnose.Pretty
+                        , Error.Diagnose.Report
+                        , Error.Diagnose.Style
+                        , Error.Diagnose.Compat.Megaparsec
+    other-modules:        Data.List.Safe
+                        , Error.Diagnose.Compat.Hints
+                        , Error.Diagnose.Diagnostic.Internal
+                        , Error.Diagnose.Report.Internal
+    hs-source-dirs:       diagnose
+    default-extensions:   OverloadedStrings
+                        , LambdaCase
+                        , BlockArguments
+    build-depends:        array==0.5.8.0
+                        , base==4.22.0.0
+                        , containers==0.8
+                        , data-default==0.8.0.2
+                        , dlist==1.0
+                        , hashable==1.5.1.0
+                        , megaparsec==9.7.0
+                        , prettyprinter==1.7.1
+                        , prettyprinter-ansi-terminal==1.1.3
+                        , unordered-containers==0.2.21
+                        , wcwidth==0.0.2
+    default-language:     Haskell2010
+
+library 
+    -- Import common warning flags.
+    import:             warnings
+    exposed-modules:    Fixen.CodeGen
+                      , Fixen.Data.NodeId
+                      , Fixen.IR.AST
+                      , Fixen.IR.Core
+                      , Fixen.IR.RelationRepresentation
+                      , Fixen.IR.RuleForest
+                      , Fixen.ModuleSystem
+                      , Fixen.Monad
+                      , Fixen.Monad.Env
+                      , Fixen.Monad.Env.Errors
+                      , Fixen.Monad.Env.NodeId
+                      , Fixen.Monad.Env.Position
+                      , Fixen.Monad.Env.Symbol
+                      , Fixen.Monad.Type
+                      , Fixen.Pipeline
+                      , Fixen.Parser
+                      , Fixen.Parser.Common
+                      , Fixen.Parser.Expr
+                      , Fixen.Parser.Token
+                      , Fixen.Parser.Type
+                      , Fixen.RelationRepresentation
+                      , Fixen.RuleForest
+                      , Fixen.SymbolSolver
+                      , Fixen.SymbolSolver.Common
+                      , Fixen.SymbolSolver.Extern
+                      , Fixen.SymbolSolver.PartialOrdDeclaration
+                      , Fixen.SymbolSolver.Phases
+                      , Fixen.SymbolSolver.Prelude
+                      , Fixen.SymbolSolver.Priorities
+                      , Fixen.SymbolSolver.Query
+                      , Fixen.SymbolSolver.Relation
+                      , Fixen.SymbolSolver.Rule
+                      , Fixen.SymbolSolver.Validation
+    build-depends:      base==4.22.0.0
+                      , base-unicode-symbols==0.2.4.2
+                      , containers==0.8
+                      , directory==1.3.10.1
+                      , filepath==1.5.5.0
+                      , fixen:diagnose 
+                      , megaparsec==9.7.0
+                      , mtl==2.3.2
+                      , parser-combinators==1.3.1
+                      , prettyprinter==1.7.1
+                      , prettyprinter-ansi-terminal==1.1.3
+                      , text==2.1.3
+                      , transformers==0.6.3.0
+                      , lens
+    hs-source-dirs:     src
+    default-language:   GHC2021
+
+
+executable fixen
+    -- Import common warning flags.
+    import:           warnings
+
+    -- .hs or .lhs file containing the Main module.
+    main-is:          Main.hs
+
+    -- Modules included in this executable, other than Main.
+    other-modules:    CommandLine.Parser
+                    , CommandLine.CommandLineArgs
+                    , Paths_fixen
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+
+    -- Other library packages from which modules are imported.
+    build-depends:    base 
+                    , optparse-applicative
+                    , filepath 
+                    , fixen:diagnose 
+                    , megaparsec 
+                    , mtl 
+                    , transformers
+                    , containers
+                    , parser-combinators 
+                    , text 
+                    , directory
+                    , prettyprinter
+                    , prettyprinter-ansi-terminal
+                    , fixen
+
+    -- Directories containing source files.
+    hs-source-dirs:   app
+
+    -- Base language which the package is written in.
+    default-language: GHC2021
+
+test-suite parser-tests
+  -- Import common warning flags.
+  import:           warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Fixen/ParserTest.hs
+  build-depends:    base 
+                    , optparse-applicative
+                    , filepath 
+                    , fixen:diagnose 
+                    , megaparsec
+                    , mtl 
+                    , transformers 
+                    , containers 
+                    , parser-combinators
+                    , text
+                    , directory
+                    , tasty
+                    , tasty-hunit
+                    , tasty-quickcheck
+                    , fixen
+  default-extensions: OverloadedStrings
+  -- Base language which the package is written in.
+  default-language: GHC2021
+  other-modules: Fixen.Parser.TokenTest
+
+benchmark shortest-path
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks/ShortestPath
+  main-is: Main.hs
+  other-modules:
+      ShortestPath.Hand
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      OverloadedStrings
+  build-depends:      base
+                    , containers 
+                    , pqueue 
+  default-language: GHC2021
+
+benchmark pareto
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks/Pareto
+  main-is: Main.hs
+  other-modules:
+      Pareto.Hand
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      OverloadedStrings
+  build-depends:      base 
+                    , containers
+                    , pqueue 
+  default-language: GHC2021

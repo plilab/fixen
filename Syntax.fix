@@ -1,0 +1,84 @@
+module Demos.ShortestPath where -- Haskell module declaration. All stuff in the module is used. Placed at the top of the generated source file.
+
+-- haskell imports. imports need to be lifted to Fixen because we need to be able
+-- to resolve them from other Fixen files and make sure there are no duplicates;
+-- or at the very least, to not include the imports of other Fixen files when 
+-- they are used. Unconditionally included when generating haskell from this source.
+import Data.List
+import AnotherModule.List
+
+{-
+Block Comments! Follows Haskell convention for simplicity. Otherwise, if we use
+some other syntax for block comments, e.g., /-, then it might clash with actual
+Haskell operators (like /- and -/).
+-}
+
+-- Haskell blocks. This is so that we can keep everything self-contained. 
+-- Seems like a reasonable feature to have.
+-- In the future, we might want to distinguish haskell blocks and blocks of other
+-- languages if we want to target different backends.
+```hs
+data Dist = D Int | Bot deriving (Show, Eq)
+```
+
+-- Partial order/lattice declarations. Used to create
+-- instances of PartialOrd for the underlying type, 
+-- and also as information to Fixen that certain argument positions
+-- of relations are partially ordered.
+partial ord Dist where
+  type = Dist
+  leq = distLeq
+  mlbs = distMlbs
+
+
+-- Optional lattice declarations. I think for the upcoming paper
+-- we can just ignore it, unless we intend to include a discussion
+-- of using lattices (automatic joins) in the paper. Probably not though.
+lat StateP where
+  type = HashMap Label Parity
+  join = statePJoin
+  meet = statePMeet
+  leq = statePLeq
+  
+
+-- include clauses import other Fixen files. Currently, we only import relations,
+-- rules and haskell code blocks (and recursively, other Fixen files). Priorities and 
+-- queries and "stages" should be redefined since each new analysis may use completely different 
+-- priorities and interfaces
+include "../AbstractInterpretation/IntervalAnalysis"
+
+-- extern declarations, solely for the symbol solver to work. Completely optional.
+-- I think for the time being we will omit having a symbol solver/type checker.
+extern join
+
+-- relations. Pretty straightforward.
+rel DistTo : Vertex, Dist
+rel Edge : Vertex, Vertex, Dist
+
+
+-- rules. Pretty straightforward
+rule addDist: 
+  DistTo a d, Edge a b d'
+  |- DistTo b (d + d')
+
+-- rules can also be parameterized to be explicit
+rule anotherRule a b c : DistTo a c, Edge a b c |- DistTo a (b + c)
+
+-- priority declarations for this exported module.
+priority:
+  a <= a' |- addDist { a = a } < addDist { a = a' }
+
+priority:
+  |- addDist { } < assignI { }
+
+-- queries for this exported module.
+query distTo: DistTo - +
+query distLessThan: DistTo + -
+
+-- Stages/Phase/Some other keyword to denote what we want
+phases: [
+    *,
+    {rules1, rules2},
+    {rules3, rules4}
+  ]
+

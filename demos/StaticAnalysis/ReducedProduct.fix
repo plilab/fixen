@@ -1,0 +1,57 @@
+module StaticAnalysis.ReducedProduct where
+
+include "Parity"
+include "Interval"
+
+
+```hs
+reduceInterval :: HashMap String Parity -> HashMap String Interval -> HashMap String Interval
+reduceInterval st st' = HashMap.mapWithKey enrich st' where
+    enrich :: String -> Interval -> Interval
+    enrich k interval = case st HashMap.!? k of
+      Nothing -> IBot
+      Just evenness -> case (evenness, interval) of
+         (IsEven, Pair (lo, hi)) -> Pair (if odd lo then lo + 1 else lo, if odd hi then hi - 1 else hi)
+         (IsOdd, Pair (lo, hi)) -> Pair (if even lo then lo + 1 else lo, if even hi then hi - 1 else hi)
+         (ParityBot, _) -> IBot
+         (_, i) -> i
+
+test :: [Fact]
+test = [
+  -- V = 1
+  Var 0 "V", Seq 0 1,
+  Assign 2 "V" (Num 1), Seq 2 4,
+  -- while V <= 10
+  Cond 4 (Leq (Id "V") (Num 9)) 5 6,
+  Assign 5 "V" (Plus (Id "V") (Num 2)), Seq 5 4,
+  -- if V == 11 then:
+  Cond 6 (Eq (Id "V") (Num 11)) 7 101,
+  Assign 7 "V" (Num 0), Seq 7 101,
+  -- end
+  Var 101 "END"
+  ]
+```
+
+-- returns refined parity information from intervals 
+-- rule reducedExchangeP : StateBeforeP l st, StateBeforeI l st' 
+--     |- StateBeforeP l (reduceParity st st')
+
+-- For the time being, we focus only on intervals
+rule reducedExchangeP : StateBeforeP l st
+                     |- StateBeforeP l st
+
+-- returns refined interval information from parities
+rule reducedExchangeI : StateBeforeP l st, StateBeforeI l st' 
+                     |- StateBeforeI l (reduceInterval st st') 
+
+-- widenIntervals function takes intervals of size >= 30 and brings it to inf
+-- rule widenInterval : StateBeforeI l st |- StateBeforeI l (widenIntervals st)
+-- Needed so that StateBeforeP updates from stage 1 are carried back to stage 0
+-- rule widenParity   : StateBeforeP l st |- StateBeforeP l st 
+
+-- The important bit
+phases: [
+    * -- everything else
+    , {reducedExchangeP, reducedExchangeI }
+   -- , { widenInterval, widenParity }
+  ]

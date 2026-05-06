@@ -1,0 +1,37 @@
+module Demos.ShortestPath where
+
+import Numeric.Natural
+
+rel DistTo : Vertex, Dist
+rel Edge   : Vertex, Vertex, Dist
+
+```hs
+type Vertex = String
+
+distMlbs :: Natural -> Natural -> [Natural]
+distMlbs x y = [(max x y)]
+
+instance NFData Database where
+  rnf (Database x y) = rnf (x, y)
+```
+
+partial ord Dist where
+  type = Natural -- the underlying Dist type we declared earlier
+  leq  = (>=)
+  mlbs = distMlbs
+
+-- The main rule.
+rule addDist: DistTo a d, Edge a b d'
+            |- DistTo b (d + d')
+
+-- Priorities for Dijkstra's
+priority:
+  (d1 + d1') > (d2 + d2') 
+    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
+
+-- interface
+query distTo: DistTo + -
+query reachableIn: DistTo - +
+query distances: DistTo - -
+
+
