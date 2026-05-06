@@ -4,7 +4,7 @@ name:               fixen
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
 --                  | | | | +- dev version
-version:            0.0.0.0.1
+version:            0.0.0.1
 -- synopsis:
 -- description:
 license:            MIT

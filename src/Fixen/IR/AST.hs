@@ -94,6 +94,7 @@ import Fixen.IR.Core as D (
   , moduleDeclarationName
   , hsImportImport
   , hsBlockContents
+  , queryName
   )
 import Fixen.IR.Core qualified as Core 
 import Prettyprinter

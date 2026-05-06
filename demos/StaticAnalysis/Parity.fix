@@ -3,8 +3,80 @@ module StaticAnalysis.Parity where
 include "Common"
 
 ```hs
-joinP :: Void
-joinP = undefined
+data Parity = IsEven | IsOdd | ParityTop | ParityBot
+  deriving (Eq, Show, Generic)
+
+instance PartialOrd Parity where
+  leq ParityBot _ = True
+  leq _ ParityTop = True
+  leq x y = x == y
+
+instance Hashable Parity where
+  hash ParityBot = 0
+  hash IsOdd = 1
+  hash IsEven = 2
+  hash ParityTop = 3
+
+joinSign :: Parity -> Parity -> Parity
+joinSign ParityTop _ = ParityTop
+joinSign _ ParityTop = ParityTop
+joinSign ParityBot s = s
+joinSign s ParityBot = s
+joinSign s1 s2 = if s1 == s2 then s1 else ParityTop 
+
+meetSign :: Parity -> Parity -> Parity
+meetSign ParityBot _ = ParityBot
+meetSign _ ParityBot = ParityBot
+meetSign x ParityTop = x
+meetSign ParityTop x = x
+meetSign x y = if x == y then x else ParityBot
+
+joinP :: HashMap String Parity -> HashMap String Parity -> HashMap String Parity
+joinP = HashMap.unionWith joinSign
+
+insertP :: String -> Parity -> HashMap String Parity -> HashMap String Parity
+insertP = HashMap.insertWith joinSign
+
+evalP :: Expr -> HashMap String Parity -> Parity
+evalP e st = case e of
+  Num n -> if even n then IsEven else IsOdd
+  Id x -> fromMaybe ParityBot (HashMap.lookup x st)
+  InputE -> ParityTop
+  Plus e1 e2 -> case (evalP e1 st, evalP e2 st) of
+    (s1, s2) | s1 == s2 -> IsEven
+             | otherwise -> IsOdd 
+  Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
+  Gte _ _ -> error "Encounted gte" -- this should never happen, and be always handled by evaluateConditional
+  Eq _ _ -> error "Encountered eq" -- this should never happen, ...
+
+
+refineTP :: Expr -> HashMap String Parity -> HashMap String Parity
+refineTP e st = case e of
+  Leq e1 e2 -> st
+  Gte e1 e2 -> st
+  Eq e1 e2 -> case (e1, evalP e2 st) of
+    (Id id, evenness) -> insertP id evenness st
+    (_, _) -> error "Unexpected conditional"    
+  _ -> error "Unexpected case"
+
+refineFP :: Expr -> HashMap String Parity -> HashMap String Parity
+refineFP e st = case e of
+  Leq e1 e2 -> case (e1, evalP e2 st) of
+    (Id id, evenness) -> insertP id ParityBot st
+    (_, _) -> error "Unexpected conditional"    
+  Gte e1 e2 -> case (e1, evalP e2 st) of
+    (Id id, evenness) -> insertP id ParityBot st
+    (_, _) -> error "Unexpected conditional"    
+  Eq e1 e2 -> case (e1, evalP e2 st) of
+    (Id id, evenness) -> insertP id ParityBot st
+    (_, _) -> error "Unexpected conditional"    
+  _ -> error "Unexpected case"
+
+statePLeq :: HashMap String Parity -> HashMap String Parity -> Bool
+statePLeq = leq
+
+statePMlbs :: HashMap String Parity -> HashMap String Parity -> [HashMap String Parity]
+statePMlbs x y = [HashMap.intersectionWith meetSign x y]
 ```
 
 rel StateBeforeP: Label, StateP
@@ -14,15 +86,15 @@ partial ord StateP where
   leq  = statePLeq
   mlbs = statePMlbs
 
-rule assignInitP : Assign l _ _   |- StateBeforeP l empty
-rule condInitP   : Cond l _ _ _ |- StateBeforeP l empty
-rule varInitP    : Var l _        |- StateBeforeP l empty
+rule assignInitP : Assign l _ _   |- StateBeforeP l HashMap.empty
+rule condInitP   : Cond l _ _ _ |- StateBeforeP l HashMap.empty
+rule varInitP    : Var l _        |- StateBeforeP l HashMap.empty
 
 -- actual transfer functions
 rule assignStepP :
   Assign l x e, Seq l l', StateBeforeP l st, StateBeforeP l' st'
   -----------------------------------------------------------
-  |- StateBeforeP l' (joinP (insertP x (evalP e st) st) st')
+  |- StateBeforeP l' (joinP (HashMap.insert x (evalP e st) st) st')
 
 rule evalCondTP :
   Cond l e t _, StateBeforeP l st, StateBeforeP t st'
@@ -32,6 +104,6 @@ rule evalCondTP :
 rule evalCondFP :
   Cond l e _ f, StateBeforeP l st, StateBeforeP f st'
   ---------------------------------------------------
-  |- StateBeforeP f (join (refineFP e st) st')
+  |- StateBeforeP f (joinP (refineFP e st) st')
 
-query stateP: StateBeforeP - +
+query stateP: StateBeforeP + -

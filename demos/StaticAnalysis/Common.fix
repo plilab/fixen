@@ -1,9 +1,30 @@
 module StaticAnalysis.Program where
 
-import Demos.Program
+import Numeric.Natural
+import Algebra.PartialOrd
+import GHC.Generics
+import Control.DeepSeq
+import Data.Hashable
 
 ```hs
-type Label = Nat
+data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr | Gte Expr Expr | Eq Expr Expr
+    deriving (Eq, Show, Generic)
+
+instance NFData Expr where
+    rnf (Id x) = rnf x
+    rnf (Num x) = rnf x
+    rnf (Plus e e') = rnf (e, e')
+    rnf (Leq e e') = rnf (e, e')
+    rnf (Gte e e') = rnf (e, e')
+    rnf (Eq e e') = rnf (e, e')
+    rnf InputE = ()
+
+instance Hashable Expr
+
+type Label = Natural
+
+instance PartialOrd Expr where
+  leq = (==)
 ```
 
 rel Var: Label, String
@@ -11,7 +32,7 @@ rel Assign: Label, String, Expr
 rel Cond: Label, Expr, Label, Label
 rel Seq: Label, Label
 
-query vars: Var - +
-query assigns: Assign - + +
-query conds: Cond - + + +
-query seqs: Seq - +
+query vars: Var + -
+query assigns: Assign + - -
+query conds: Cond - + - -
+query seqs: Seq + -

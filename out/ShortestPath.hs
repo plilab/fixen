@@ -1,30 +1,36 @@
 module Demos.ShortestPath where
 
------ FIXEN IMPORTS-----
-import Data.Maybe
-import Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
+----- FIXEN IMPORTS -----
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import Data.Maybe
+import Control.Monad
+import qualified Data.PQueue.Max as Q
 
------ USER CODE -----
-type Vertex = Int
+----- USER IMPORTS -----
+import Numeric.Natural
 
-distMlbs :: Int -> Int -> [Int]
-distMlbs x y = [(min x y)]
+----- USER CODE START -----
+type Vertex = String
+
+distMlbs :: Natural -> Natural -> [Natural]
+distMlbs x y = [(max x y)]
+
+instance NFData Database where
+  rnf (Database x y) = rnf (x, y)
+----- USER CODE END -----
 
 ----- FACTS -----
-data Fact = DistTo Vertex Int
-          | Edge Vertex Vertex Int
-  deriving Eq
+data Fact = DistTo Vertex Natural
+          | Edge Vertex Vertex Natural
+  deriving (Show, Eq)
 
 ----- FACT DATABASE -----
-type DistToFacts = HashMap Vertex (HashSet Int)
-type EdgeFacts = HashMap Vertex (HashMap Vertex (HashSet Int))
-
 data Database = Database
-  { _factsDistTo :: DistToFacts
-  , _factsEdge :: EdgeFacts
+  { _factsDistTo :: HashMap Vertex (HashSet Natural)
+  , _factsEdge :: HashMap Vertex (HashMap Vertex (HashSet Natural))
   } deriving Eq
 
 emptyDb :: Database
@@ -32,8 +38,6 @@ emptyDb = Database
   { _factsDistTo = HashMap.empty
   , _factsEdge = HashMap.empty
   }
-
-type Interpretation = Database
 
 ----- ENTAILMENT -----
 infix 0 |=
@@ -63,11 +67,8 @@ insertToDb db (DistTo _v0 _v1) =
                   HashSet.union
                     s1
                     (HashSet.filter
-                      (\_t -> not ((>=) _t _v1))
-                      s2
-                    )
-                )
-              )
+                      (\_t -> not (_t /= _v1 && (>=) _t _v1))
+                      s2)))
               new_fact
               mp
    in Just db { _factsDistTo = mp' }
@@ -80,18 +81,94 @@ insertToDb db (Edge _v0 _v1 _v2) =
                     HashSet.union
                       s1
                       (HashSet.filter
-                        (\_t -> not ((>=) _t _v2))
-                        s2
-                      )
-                  )
-                )
-              )
+                        (\_t -> not (_t /= _v2 && (>=) _t _v2))
+                        s2))))
               new_fact
               mp
    in Just db { _factsEdge = mp' }
 
 ----- RULE INSTANCES -----
 data RuleInstance
-       = RuleAddDist Vertex Vertex Int Int
+       = RuleAddDist Vertex Vertex Natural Natural
        | Init Fact
-  deriving Eq
+  deriving Show
+
+type Queue = Q.MaxQueue RuleInstance
+
+instance Eq RuleInstance where
+  f == f'
+    | f < f' = False
+    | f' < f = False
+    | otherwise = True
+
+instance Ord RuleInstance where
+  i <= i' = not (i' < i)
+  ----- PRIORITIES -----
+  Init _ < Init _ = False
+  _ < Init _ = True
+  (RuleAddDist _ _ d1 d1') < (RuleAddDist _ _ d2 d2') = (((>) (((+) d1) d1')) (((+) d2) d2'))
+  _ < _ = False
+
+evaluate :: RuleInstance -> Fact
+evaluate (RuleAddDist a b d d') = DistTo b (((+) d) d')
+evaluate (Init f) = f
+
+----- STEP FUNCTION -----
+step :: Database -> Fact -> Queue -> Queue 
+step db fact q = case fact of
+    DistTo _t0 _t1 -> Q.union q $ Q.fromList $ 
+      do
+        let _v0_0 = _t0
+        let _v1_0 = _t1
+        step0 <- maybeToList (_factsEdge db HashMap.!? _v0_0)
+        (_v2_0, step1) <- HashMap.toList step0
+        _v3_0 <- HashSet.toList step1
+        return $ RuleAddDist _v0_0 _v2_0 _v1_0 _v3_0
+    Edge _t0 _t1 _t2 -> Q.union q $ Q.fromList $ 
+      do
+        let _v0_0 = _t0
+        let _v1_0 = _t1
+        let _v2_0 = _t2
+        step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
+        _v3_0 <- HashSet.toList step0
+        return $ RuleAddDist _v0_0 _v1_0 _v3_0 _v2_0
+
+----- SOLVER -----
+loop :: Queue -> Database -> Database
+loop q db
+  | Just (p, q') <- Q.maxView q =
+    let f = evaluate p
+     in case insertToDb db f of
+          Nothing -> loop q' db
+          Just db' -> loop (step db' f q') db'
+  | otherwise = db
+
+solve :: [Fact] -> Database
+solve = reSolve emptyDb
+
+reSolve :: Database -> [Fact] -> Database
+reSolve db f =
+  let q = Q.fromList $ concat [
+            Init <$> f
+          ]
+   in loop q db
+
+----- QUERIES -----
+distTo :: Vertex -> Database -> [Fact]
+distTo _v0_0 db = do
+  step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
+  _v1_0 <- HashSet.toList step0
+  return $ DistTo _v0_0 _v1_0
+
+reachableIn :: Natural -> Database -> [Fact]
+reachableIn _v1_0 db = do
+  (_v0_0, step0) <- HashMap.toList (_factsDistTo db)
+  _v1_1 <- HashSet.toList step0
+  guard ((>=) _v1_0 _v1_1)
+  return $ DistTo _v0_0 _v1_1
+
+distances ::  -> Database -> [Fact]
+distances db = do
+  (_v0_0, step0) <- HashMap.toList (_factsDistTo db)
+  _v1_0 <- HashSet.toList step0
+  return $ DistTo _v0_0 _v1_0

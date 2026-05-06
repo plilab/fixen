@@ -43,7 +43,7 @@ showPhasedForests unicode ls =
    in "**Rule Forest**\n" ++ intercalate "\n" (showPhaseOfForests unicode <$> idxed)
 
 showPhaseOfForests :: Bool -> (Int, RuleForest) -> String
-showPhaseOfForests unicode (i, ls) = "*Phase " ++ show i ++ "*\n" ++ (myDrawForest unicode $ forestToRoseForest ls)
+showPhaseOfForests unicode (i, ls) = "*Phase " ++ show (i + 1) ++ "*\n" ++ (myDrawForest unicode $ forestToRoseForest ls)
 
 forestToRoseForest :: RuleForest -> [Tree String]
 forestToRoseForest RuleForest {_ruleForestTrees = t, _ruleForestLeaves = l} =
@@ -80,7 +80,7 @@ leafToRoseTree
     let show_conds = if null conds then "" else intercalate ", " (showCond mp <$> conds) ++ " "
         showed_conc = showConc mp conc
         showed_rule_id = concat ["<rule ", show rule_id, "> "]
-     in Node (concat [show_conds, showed_rule_id, showed_conc]) []
+     in Node (concat [show_conds, showed_rule_id, show mp, "\n", showed_conc]) []
 
 showCond :: [Text] -> Condition -> String
 showCond mapping c =

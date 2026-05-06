@@ -393,7 +393,7 @@ validateRelationsInRule =
       return $ concat $ concl_rep : asm_rep
     checkForRelationsWithAllHoles :: SymbolRule Rule
     checkForRelationsWithAllHoles r _ = do
-      let asms_all_holes = ruleAssumptions r <&> relationParams <&> fmap simpleIdentifier & zip (ruleAssumptions r) & filter (\(_, ls) -> all (== "_") ls) <&> fst
+      let asms_all_holes = ruleAssumptions r <&> relationParams <&> fmap simpleIdentifier & zip (ruleAssumptions r) & filter (\(_, ls) -> all (== "_") ls && length ls > 0) <&> fst
       forM asms_all_holes $ \asm -> do
         pos <- fixenGetPosition asm
         return $

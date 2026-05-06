@@ -2,36 +2,182 @@ module StaticAnalysis.Interval where
 
 include "Common"
 
-```hs
-joinI :: Void
-joinI = undefined
-```
-
 partial ord StateI where
-  type = HashMap String (Int, Int)
+  type = HashMap String Interval
   leq = stateILeq
   mlbs = stateIMlbs
 
 rel StateBeforeI: Label, StateI
 
-rule assignInitI : Assign l _ _   |- StateBeforeI l emptyI
-rule condInitI   : Cond l _ _ _ |- StateBeforeI l emptyI
-rule varInitI    : Var l _        |- StateBeforeI l emptyI
+
+rule assignInitI : Assign l _ _   |- StateBeforeI l HashMap.empty
+rule condInitI   : Cond l _ _ _ |- StateBeforeI l HashMap.empty
+rule varInitI    : Var l _        |- StateBeforeI l HashMap.empty
 
 -- actual transfer functions
 rule assignStepI :
   Assign l x e, Seq l l', StateBeforeI l st, StateBeforeI l' st'
-  -----------------------------------------------------------
-  |- StateBeforeI l' (joinI (insertI x (evalI e st) st) st')
+  --------------------------------------------------------------
+  |- StateBeforeI l' (joinI (HashMap.insert x (evalI e st) st) st')
 
 rule evalCondTI :
-  Cond l e t _, StateBeforeI l st, StateBeforeI t st'
-  ---------------------------------------------------
+  Cond l e t _, StateBeforeI l st, StateBeforeI t st', if BTrue `leq` (evalCondI e st)
+  ----------------------------------------------------------------------------------------------
   |- StateBeforeI t (joinI (refineTI e st) st')
 
 rule evalCondFI :
-  Cond l e _ f, StateBeforeI l st, StateBeforeI f st'
-  ---------------------------------------------------
-  |- StateBeforeI f (join (refineFI e st) st')
+  Cond l e _ f, StateBeforeI l st, StateBeforeI f st', if BFalse `leq` (evalCondI e st)
+  -----------------------------------------------------------------------------------------------
+  |- StateBeforeI f (joinI (refineFI e st) st')
 
-query stateI: StateBeforeI - +
+query stateI: StateBeforeI + -
+
+
+```hs
+
+stateILeq :: HashMap String Interval -> HashMap String Interval -> Bool
+stateILeq = leq
+
+stateIMlbs :: HashMap String Interval -> HashMap String Interval -> [HashMap String Interval]
+stateIMlbs x y = [HashMap.intersectionWith meetInterval x y]
+
+data Interval = Pair (Natural, Natural) | ITop | IBot
+    deriving (Eq, Show, Generic)
+
+instance NFData Interval where
+    rnf (Pair x) = rnf x
+    rnf ITop = ()
+    rnf IBot = ()
+
+instance Hashable Interval
+
+joinInterval :: Interval -> Interval -> Interval
+joinInterval ITop _ = ITop
+joinInterval _ ITop = ITop
+joinInterval IBot s = s
+joinInterval s IBot = s
+joinInterval (Pair (a, b)) (Pair (c, d)) = Pair (min a c, max b d)
+
+instance PartialOrd Interval where
+    leq IBot _ = True
+    leq _ ITop = True
+    leq ITop _ = False
+    leq _ IBot = False
+    leq (Pair (a, b)) (Pair (c, d)) = a >= c && b <= d
+
+meetInterval :: Interval -> Interval -> Interval
+meetInterval s1 s2 = case (s1, s2) of
+        (Pair (a, b), Pair (c, d)) -> if max a c <= min b d then Pair (max a c, min b d) else IBot
+        (_, _) -> IBot
+
+{-
+widenState :: (Foldable db) => (IState -> f) -> IState -> db IState -> [f]
+widenState k s db = map (k . widen) (s : toList db)
+  where
+    widen = M.map widenInterval
+    widenInterval p@(Pair (m, n)) = if n - m > 30 then ITop else p
+    widenInterval other = other
+-}
+
+data BBool = BTop | BFalse | BTrue | BBot
+    deriving (Eq, Show, Generic)
+
+instance Hashable BBool
+
+instance PartialOrd BBool where
+    leq BBot _ = True
+    leq _ BTop = True
+    leq s1 s2 = s1 == s2
+
+joinBBool :: BBool -> BBool -> BBool
+joinBBool s1 s2 = case (s1, s2) of
+        (BTrue, BTrue) -> BTrue
+        (BFalse, BFalse) -> BFalse
+        (BFalse, BTrue) -> BTop
+        (BTrue, BFalse) -> BTop
+        (BTop, _) -> BTop
+        (_, BTop) -> BTop
+        (rest, BBot) -> rest
+        (BBot, rest) -> rest
+
+
+joinI :: HashMap String Interval -> HashMap String Interval -> HashMap String Interval
+joinI = HashMap.unionWith joinInterval
+
+insertI :: String -> Interval -> HashMap String Interval -> HashMap String Interval
+insertI = HashMap.insertWith joinInterval
+
+evalI :: Expr -> HashMap String Interval -> Interval
+evalI e st = case e of
+    Num n -> Pair (fromIntegral n, fromIntegral n)
+    Id x -> fromMaybe IBot (HashMap.lookup x st)
+    InputE -> ITop
+    Plus e1 e2 -> case (evalI e1 st, evalI e2 st) of
+        (Pair (a, b), Pair (c, d)) -> Pair (a + c, b + d)
+        (_, _) -> IBot
+    -- Times e1 e2 -> case (evalI e1 st, evalI e2 st) of
+    --   (Pair (a, b), Pair (c, d)) -> Pair (min ( a c) (a * d) (b * c) (b * d),  max(a * c) (a * d) (b * c) (b * d))
+    --   (_, _) -> IBot
+    Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
+    Gte _ _ -> error "Encounted gte" -- this should never happen, and be always handled by evaluateConditional
+    Eq _ _ -> error "Encountered eq" -- this should never happen, ...
+
+evalCondI :: Expr -> HashMap String Interval -> BBool
+evalCondI e st = case e of
+    Leq e1 e2 -> case (evalI e1 st, evalI e2 st) of
+        (Pair (a, b), Pair (c, d)) -> if b <= c then BTrue else if a > d then BFalse else BTop
+        (IBot, _) -> BBot
+        (_, IBot) -> BBot
+        (_, ITop) -> BTop
+        (ITop, _) -> BTop
+    Gte e1 e2 -> case (evalI e1 st, evalI e2 st) of
+        (Pair (a, b), Pair (c, d)) -> if a >= d then BTrue else if b < c then BFalse else BTop
+        (IBot, _) -> BBot
+        (_, IBot) -> BBot
+        (_, ITop) -> BTop
+        (ITop, _) -> BTop
+    Eq e1 e2 -> case (evalI e1 st, evalI e2 st) of
+        (Pair (a, b), Pair (c, d)) -> if a == c && b == d && a == b && c == d then BTrue else if b < c || d < a then BFalse else BTop
+        (IBot, _) -> BBot
+        (_, IBot) -> BBot
+        (_, ITop) -> BTop
+        (ITop, _) -> BTop
+    _ -> error "Unexpected case"
+
+refineTI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineTI e st = case e of
+    Leq e1 e2 -> case (e1, evalI e2 st) of
+        -- Only handle the trivial case, it's enough for our demo.
+        (Id id, Pair (c, d)) -> case evalI e1 st of
+            Pair (a, b) -> HashMap.fromList [(id, Pair (min a c, min b d))]
+            _ -> HashMap.fromList [(id, IBot)]
+        (_, _) -> error "Unexpected conditional"
+    Gte e1 e2 -> case (e1, evalI e2 st) of
+        (Id id, Pair (c, d)) -> case evalI e1 st of
+            Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (max a c, max b d))]) st
+            _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
+        (_, _) -> error "Unexpected conditional"
+    Eq e1 e2 -> case (e1, evalI e2 st) of
+        (Id id, Pair (c, d)) -> HashMap.union (HashMap.fromList [(id, Pair (c, d))]) st
+        (_, _) -> error "Unexpected conditional"
+    _ -> error "Unexpected case"
+
+refineFI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineFI e st = case e of
+    Leq e1 e2 -> case (e1, evalI e2 st) of
+        -- Only handle the trivial case, it's enough for our demo.
+        (Id id, Pair (c, d)) -> case evalI e1 st of
+            Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (d + 1, max (d + 1) b))]) st
+            _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
+        (_, _) -> error "Unexpected conditional"
+    Gte e1 e2 -> case (e1, evalI e2 st) of
+        (Id id, Pair (c, d)) -> case evalI e1 st of
+            Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (min (c - 1) a, c - 1))]) st
+            _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
+        (_, _) -> error "Unexpected conditional"
+    Eq e1 e2 -> case (e1, evalI e2 st) of
+        (Id id, Pair (c, d)) -> HashMap.union (HashMap.fromList [(id, Pair (c, d))]) st
+        (_, _) -> error "Unexpected conditional"
+    _ -> error "Unexpected case"
+```
+

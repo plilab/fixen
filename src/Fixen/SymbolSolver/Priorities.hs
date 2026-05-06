@@ -46,18 +46,29 @@ validateRuleInstance = validate [ruleExists]
         Just rule -> do
           let rule_params = env ^. ruleMap . ix (getNodeId rule) . Fixen.Monad.ruleBoundVars & Map.keys
               rule_inst_params_that_do_not_match = filter (\i -> all (/= (simpleIdentifier i)) rule_params) rule_inst_params
-          if null rule_inst_params_that_do_not_match
-            then return []
-            else do
-              pos <- mapM fixenGetPosition rule_inst_params_that_do_not_match
-              rule_pos <- fixenGetPosition rule
+          if null rule_params
+            then do
+              pos <- fixenGetPosition rule
               return
                 [ Err
                     Nothing
-                    "unknown rule parameters"
-                    ((rule_pos, Where "rule declaration") : ((,This "rule parameter") <$> pos))
-                    []
+                    "invalid rule instance"
+                    [(pos, This "rule")]
+                    [Note "cannot create instances of rules with no parameters"]
                 ]
+            else
+              if null rule_inst_params_that_do_not_match
+                then return []
+                else do
+                  pos <- mapM fixenGetPosition rule_inst_params_that_do_not_match
+                  rule_pos <- fixenGetPosition rule
+                  return
+                    [ Err
+                        Nothing
+                        "unknown rule parameters"
+                        ((rule_pos, Where "rule declaration") : ((,This "rule parameter") <$> pos))
+                        []
+                    ]
 
 initEnvWithPriorities :: SymbolEnv -> Priority -> FixenPass SymbolState SymbolEnv
 initEnvWithPriorities env p = do
@@ -118,6 +129,7 @@ initEnvWithPriorities env p = do
                 PriorityInfo
                   { _priorityDeclaration = p
                   , _priorityLocalVars = Map.union used_local_vars_lhs used_local_vars_rhs
+                  , _priorityRules = (lhs_rule, rhs_rule)
                   }
 
           let priority_node_id = getNodeId p

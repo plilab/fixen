@@ -76,6 +76,7 @@ data PriorityInfo = PriorityInfo
   , _priorityLocalVars :: NameMap (NodeId, SimpleIdentifier)
   -- ^ The keys are the local variables themselves, the values are the rule
   -- parameters it is attached to and the var itself.
+  , _priorityRules :: (Int, Int)
   }
   deriving (Show, Eq)
 
@@ -215,3 +216,8 @@ getUnderlyingType t = do
   case p_ord ^. at name of
     Nothing -> return t
     Just p_ord_dec -> return $ partialOrdDeclarationType p_ord_dec
+
+fixenGetPriorities :: Symboled a => FixenPass a (NodeMap PriorityInfo)
+fixenGetPriorities = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. priorityMap

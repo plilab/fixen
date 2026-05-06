@@ -40,7 +40,11 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
   let db_indices = sortBy sorting_metric [0 .. length rel_args - 1]
       insertion_map = IntMap.fromList $ zip db_indices [0 .. length rel_args - 1]
       extraction_map = IntMap.fromList $ zip [0 .. length rel_args - 1] db_indices
-      db_args = (\i -> (rel_query_types !! i, rel_underlying_types !! i)) <$> db_indices
+      q_types = (rel_query_types !!) <$> db_indices
+      u_types = (rel_underlying_types !!) <$> db_indices
+      rel_store_types = getStoreType q_types
+      db_args = zip3 q_types rel_store_types u_types
+  -- db_args = (\i -> (rel_query_types !! i, rel_store_types !! i, rel_underlying_types !! i)) <$> db_indices
   return
     RelationRepresentationInfo
       { _databaseRepresentation =
@@ -50,10 +54,15 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
             }
       , _factRepresentation =
           Fact
-            { _factTypes = rel_underlying_types
+            { _factTypes = zip rel_query_types rel_underlying_types
             , _insertionMap = insertion_map
             }
       }
+  where
+    getStoreType [] = []
+    getStoreType [Match] = [StoredAsHashSet]
+    getStoreType (Meet _ _ : xs) = replicate (length xs + 1) StoredAsHashSet
+    getStoreType (_ : xs) = StoredAsHashMap : getStoreType xs
 
 getMeetMechanism :: Type -> FixenPass RelationRepresentationState QueryType
 getMeetMechanism t = do

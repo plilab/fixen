@@ -14,9 +14,12 @@ data RelationRepresentationInfo = RelationRepresentationInfo
   deriving (Show, Eq)
 
 data Database = Database
-  { _databaseTypes :: [(QueryType, Type)]
+  { _databaseTypes :: [(QueryType, StoreType, Type)]
   , _extractionMap :: IntMap Int -- how to take a fact out of the DB. To insert, reverse the arrows.
   }
+  deriving (Show, Eq)
+
+data StoreType = StoredAsHashMap | StoredAsHashSet
   deriving (Show, Eq)
 
 data QueryType
@@ -26,7 +29,7 @@ data QueryType
   deriving (Show, Eq)
 
 data Fact = Fact
-  { _factTypes :: [Type]
+  { _factTypes :: [(QueryType, Type)]
   , _insertionMap :: IntMap Int -- how to take a fact and insert into DB. To take out, reverse the arrows.
   }
   deriving (Show, Eq)
