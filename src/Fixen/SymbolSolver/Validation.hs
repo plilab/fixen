@@ -6,9 +6,9 @@ import Data.Bifunctor
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
 import Data.Set qualified as Set
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
-import Fixen.IR.Core qualified as Core
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Prelude
@@ -237,7 +237,7 @@ validateAgainstFixenLowercase this_msg decl_type repr i _ =
         ]
     else return []
 
-relationExistsAndHasRightArity :: Core.Relation SimpleIdentifier [b] -> String -> SymbolEnv -> FixenPass SymbolState [Report String]
+relationExistsAndHasRightArity :: RelationLike b -> String -> SymbolEnv -> FixenPass SymbolState [Report String]
 relationExistsAndHasRightArity rel containing_name env = do
   case env ^. relationMap ∘ at (simpleIdentifier (nameOf rel)) of
     Nothing -> do

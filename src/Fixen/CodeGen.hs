@@ -13,7 +13,8 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest

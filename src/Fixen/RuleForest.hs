@@ -10,7 +10,8 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.IR.RuleForest
 import Fixen.Monad

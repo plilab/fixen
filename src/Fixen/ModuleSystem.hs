@@ -32,9 +32,13 @@ import Control.Monad.State
 import Data.Set qualified as Set
 import Data.Text (pack, unpack)
 import Error.Diagnose.Report
-import Fixen.Data.NodeId (NodeId)
+
+-- import Fixen.Data.NodeId (NodeId)
+
+import Fixen.IR.AST
 import Fixen.IR.AST qualified as AST
-import Fixen.IR.Core qualified as Core
+
+-- import Fixen.IR.Core qualified as Core
 import Fixen.Monad
 import Fixen.Parser (parse)
 import System.Directory (canonicalizePath)
@@ -121,7 +125,7 @@ resolveIncludeToPath
   -- ^ The resolved canonical file path paired with the original include node.
 resolveIncludeToPath file_path incl = do
   -- Extract the raw path text, strip any extension, and convert to 'FilePath'.
-  let rel_path = dropExtension $ unpack $ Core.includePath incl
+  let rel_path = dropExtension $ unpack $ AST.includePath incl
       -- Join with the parent directory of the current file and append .fix.
       complete_path = takeDirectory file_path </> (rel_path -<.> "fix")
   -- Canonicalize the path (resolves ., .., symlinks, normalizes separators).
@@ -226,20 +230,19 @@ combineProgram in_prog new_prog =
       old_import_set =
         -- Build a set of already-imported module identifiers for deduplication.
         Set.fromList
-          ( Core.fullIdentifier
-              . Core.hsImportImport
+          ( AST.fullIdentifier
+              . AST.hsImportImport
               <$> AST.hsImports in_prog
           )
       -- Filter new imports to exclude any that already exist in the old program.
       new_imports =
         filter
           ( \x ->
-              Core.fullIdentifier (Core.hsImportImport x)
+              AST.fullIdentifier (AST.hsImportImport x)
                 `Set.notMember` old_import_set
           )
           (AST.hsImports new_prog)
       new_hs_blocks = AST.hsBlocks new_prog
-      new_externs = AST.extern new_prog
       new_queries = AST.queries new_prog
       -- Concatenate new constructs before old ones (new takes precedence).
       total_rules = new_rules ++ AST.rules in_prog
@@ -249,7 +252,6 @@ combineProgram in_prog new_prog =
           ++ AST.partialOrdDeclarations in_prog
       total_imports = new_imports ++ AST.hsImports in_prog
       total_hs_blocks = new_hs_blocks ++ AST.hsBlocks in_prog
-      total_externs = new_externs ++ AST.extern in_prog
       total_queries = new_queries ++ AST.queries in_prog
    in -- Produce a new program with merged fields, preserving all other fields
       -- (module name, includes, queries, priorities, phases) from in_prog.
@@ -259,7 +261,6 @@ combineProgram in_prog new_prog =
         , AST.partialOrdDeclarations = total_partial_ords
         , AST.hsImports = total_imports
         , AST.hsBlocks = total_hs_blocks
-        , AST.extern = total_externs
         , AST.queries = total_queries
         }
 

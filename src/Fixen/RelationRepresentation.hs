@@ -4,7 +4,8 @@ import Control.Lens
 import Data.IntMap.Strict qualified as IntMap
 import Data.List
 import Data.Map.Strict qualified as Map
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.Monad

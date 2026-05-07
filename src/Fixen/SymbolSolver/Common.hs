@@ -3,7 +3,8 @@ module Fixen.SymbolSolver.Common where
 import Control.Monad
 import Data.List.NonEmpty
 import Data.Set qualified as Set
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
 

@@ -9,7 +9,8 @@ import Data.List
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Set qualified as Set
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common

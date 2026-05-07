@@ -16,7 +16,6 @@
 --     ('Fixen.Parser') as each AST node is constructed with a 'NodeId' and
 --     its corresponding source position. Later passes can use this map to
 --     retrieve source positions for error reporting and diagnostic messages.
---
 module Fixen.Monad.Env.Position where
 
 import Control.Monad.State.Strict (
@@ -31,12 +30,14 @@ import Data.IntMap.Strict (
   (!?),
  )
 import Error.Diagnose.Position (Position)
-import Fixen.Data.NodeId (HasNodeId (..))
+
+-- import Fixen.Data.NodeId (HasNodeId (..))
+import Fixen.IR.AST (HasNodeId (..))
 import Fixen.Monad.Type (
-   (*<-:),
-   (:>:),
-   (↓),
-  )
+  (*<-:),
+  (:>:),
+  (↓),
+ )
 import Prelude hiding (lookup)
 
 -- | A map from 'NodeId' values to source positions ('Position').

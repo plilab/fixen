@@ -7,7 +7,8 @@ import Data.Map qualified as Map
 import Data.Map.Strict (Map)
 import Data.Text (Text, unpack)
 import Data.Tree
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 
 data RuleLeaf = RuleLeaf

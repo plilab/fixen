@@ -62,9 +62,7 @@ library
     -- Import common warning flags.
     import:             warnings
     exposed-modules:    Fixen.CodeGen
-                      , Fixen.Data.NodeId
                       , Fixen.IR.AST
-                      , Fixen.IR.Core
                       , Fixen.IR.RelationRepresentation
                       , Fixen.IR.RuleForest
                       , Fixen.ModuleSystem

@@ -30,30 +30,29 @@
 --
 --     * Bracket combinators ('betweenParentheses', 'betweenSquareBrackets',
 --       'betweenCurlyBraces') for parsing delimited expressions
---
 module Fixen.Parser.Common (
-   Parser,
-   ParserState,
-   commaSepBy1,
-   commaSepBy1',
-   commaSepBy2,
-   commaSepBy2',
-   commaSepBy,
-   commaSepBy',
-   indented,
-   indentedByMoreThan,
-   indentedByExactly,
-   sc,
-   l,
-   parsePositioned,
-   betweenParentheses,
-   betweenSquareBrackets,
-   betweenCurlyBraces,
-   manyI,
-   manyI',
-   someI,
-   someI',
-  ) where
+  Parser,
+  ParserState,
+  commaSepBy1,
+  commaSepBy1',
+  commaSepBy2,
+  commaSepBy2',
+  commaSepBy,
+  commaSepBy',
+  indented,
+  indentedByMoreThan,
+  indentedByExactly,
+  sc,
+  l,
+  parsePositioned,
+  betweenParentheses,
+  betweenSquareBrackets,
+  betweenCurlyBraces,
+  manyI,
+  manyI',
+  someI,
+  someI',
+) where
 
 import Data.Text (Text)
 import Data.Void (Void)
@@ -63,7 +62,9 @@ import Control.Monad.Trans.Maybe ()
 import Data.List.NonEmpty
 import Error.Diagnose qualified as Diag
 import Error.Diagnose.Compat.Megaparsec (HasHints (..))
-import Fixen.Data.NodeId (HasNodeId, NodeId)
+
+-- import Fixen.Data.NodeId (HasNodeId, NodeId)
+import Fixen.IR.AST
 import Fixen.Monad
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
@@ -439,8 +440,8 @@ parsePositioned p = do
           start_col = MPos.unPos $ MPos.sourceColumn start
           end_line = MPos.unPos $ MPos.sourceLine end
           end_col = MPos.unPos $ MPos.sourceColumn end
-      -- Construct the diagnostic position
-      in  Diag.Position
+       in -- Construct the diagnostic position
+          Diag.Position
             { Diag.begin = (start_line, start_col)
             , Diag.end = (end_line, end_col)
             , Diag.file = file_path

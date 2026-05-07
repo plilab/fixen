@@ -8,7 +8,8 @@ import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common

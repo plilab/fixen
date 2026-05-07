@@ -14,7 +14,8 @@ import Data.List.NonEmpty (NonEmpty (..), toList)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text
-import Fixen.Data.NodeId
+
+-- import Fixen.Data.NodeId
 import Fixen.IR.AST
 import Fixen.Monad.Type
 import Prelude hiding (concat, show)

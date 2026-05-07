@@ -19,7 +19,6 @@
 --     (alongside 'PositionEnv' and 'FixenErrors'). It is initialized to 0
 --     at the start of parsing and incremented throughout the parsing and
 --     processing pipeline.
---
 module Fixen.Monad.Env.NodeId where
 
 import Control.Monad.State.Strict (
@@ -27,12 +26,12 @@ import Control.Monad.State.Strict (
   get,
   put,
  )
-import Fixen.Data.NodeId (NodeId)
+import Fixen.IR.AST (NodeId)
 import Fixen.Monad.Type (
-   (*<-:),
-   (:>:),
-   (↓),
-  )
+  (*<-:),
+  (:>:),
+  (↓),
+ )
 
 -- | Constraint alias indicating that a state type @σ@ contains a 'NodeId'.
 --
