@@ -9,6 +9,8 @@
 -- Stability   : experimental
 --
 -- This module provides facilities for solving phases declarations.
+--
+-- @since 0.0.1
 module Fixen.SymbolSolver.Phases where
 
 import Control.Lens
@@ -24,6 +26,12 @@ import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.Utils
+
+--------------------------------------------------------------------------------
+
+-- * Main Entry Point
+
+--------------------------------------------------------------------------------
 
 -- | Initializes a 'SymbolEnv' with an optional 'PhasesDeclaration', as produced
 -- by the parser. If no 'PhasesDeclaration' is provided, the symbol solver
@@ -64,7 +72,7 @@ initEnvWithPhases (Just p) env = do
       let matched_rules = matched_rules_attempt <&> succeeding
           -- get what rules * is referring to
           all_explicit_rules = matched_rules & NonEmpty.toList & partitionEithers & fst & (⋃)
-          all_remaining_rules = all_rules IntSet.\\ all_explicit_rules
+          all_remaining_rules = all_rules ∖ all_explicit_rules
           (_, everything_elses) = partitionEithers (NonEmpty.toList matched_rules)
       if (¬) (null everything_elses) ∧ IntSet.null all_remaining_rules
         then do
@@ -104,7 +112,7 @@ initEnvWithPhases (Just p) env = do
     rule_ids (Right i) = Right i
 
     match_against_all_rules i =
-      let k = filter (\(_, i') -> i' === i) all_rule_names
+      let k = filter (\(_, i') -> i' ≅ i) all_rule_names
        in case k of
             [] -> Left i
             (x, _) : _ -> Right x

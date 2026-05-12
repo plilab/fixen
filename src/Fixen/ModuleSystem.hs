@@ -24,6 +24,8 @@
 --     * 'loop' — recursive include processing loop
 --     * 'combineProgram' — merges two programs (rules, relations, etc.)
 --     * 'safeReadFile' — reads a file with graceful error handling
+--
+-- @since 0.0.1
 module Fixen.ModuleSystem where
 
 import Control.Exception qualified as Exception
@@ -70,6 +72,8 @@ import System.IO (readFile')
 --   entry, this function fails with an assertion error (this should never
 --   happen in normal operation since the parser always records exactly one
 --   file per parse result).
+--
+-- @since 0.0.1
 getIncludes :: Program -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) Program
 getIncludes in_program = do
   -- Step 1: Extract the canonical file path of the source file from the
@@ -121,6 +125,8 @@ getIncludes in_program = do
 -- /Example./ If the current file is @/home/user/project/main.fix@ and the
 -- include path is @lib/utils@, the resolved path will be
 -- @/home/user/project/lib/utils.fix@.
+--
+-- @since 0.0.1
 resolveIncludeToPath
   :: MonadIO μ
   => FilePath
@@ -165,6 +171,8 @@ resolveIncludeToPath file_path incl = do
 --   error is recorded (via 'safeReadFile') and processing continues
 --   with the remaining includes. The function never fails due to a
 --   single bad include — all errors are accumulated.
+--
+-- @since 0.0.1
 loop
   :: Program
   -- ^ The 'Program' to process
@@ -232,6 +240,8 @@ loop in_prog v ((p, i) : ps)
 --   produce a new 'AST.Program' with only the relevant fields replaced.
 --   All other fields (module name, includes, etc.) are preserved from
 --   @in_prog@.
+--
+-- @since 0.0.1
 combineProgram 
   :: Program -- ^ The current program
   -> Program -- ^ The program to combine with the current program
@@ -280,6 +290,8 @@ combineProgram in_prog new_prog =
 --
 --   This gives the user enough information to diagnose missing files,
 --   permission errors, or other I/O problems.
+--
+-- @since 0.0.1
 safeReadFile
   :: FilePath
   -- ^ The canonical file path to read.
@@ -320,6 +332,8 @@ safeReadFile file_path include = do
 --
 -- 1. At least one relation
 -- 2. At least one rule
+--
+-- @since 0.0.1
 highLevelStructuralChecks :: Program -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) Program
 highLevelStructuralChecks prog = do
   when (null (prog ^. relationDeclarations)) $

@@ -22,10 +22,12 @@
 --     Import this module wherever you need access to the compiler's
 --     monadic types and utilities.
 --
+--
+-- @since 0.0.1
 module Fixen.Monad (
-   module Fixen.Monad.Type,
-   module Fixen.Monad.Env,
-  ) where
+  module Fixen.Monad.Type,
+  module Fixen.Monad.Env,
+) where
 
 import Fixen.Monad.Env
 import Fixen.Monad.Type

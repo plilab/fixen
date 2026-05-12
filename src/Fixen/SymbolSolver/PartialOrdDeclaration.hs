@@ -8,6 +8,8 @@
 --
 --     This module provides facilities for solving partial ord declaration
 --     symbols.
+--
+-- @since 0.0.1
 module Fixen.SymbolSolver.PartialOrdDeclaration where
 
 import Control.Lens
@@ -18,6 +20,16 @@ import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Extern
 import Fixen.SymbolSolver.Validation
 import Fixen.Utils
+
+--------------------------------------------------------------------------------
+
+-- * Main Entry Point
+
+-- $mainEntryPoint
+--
+-- You should only need 'initEnvWithPartialOrd'.
+
+--------------------------------------------------------------------------------
 
 -- | Initializes a 'SymbolEnv' with a 'PartialOrdDeclaration'. The types, leq
 -- and mlbs symbols are added as extern symbols to the environment (see
@@ -51,6 +63,12 @@ initEnvWithPartialOrd env p = do
     -- whatever is inside, just in case it was intiialized as being
     -- discrete)
     insertRelationParamKindInfo = kindInfos . at repr ?~ PartiallyOrdered
+
+--------------------------------------------------------------------------------
+
+-- * Helpers
+
+--------------------------------------------------------------------------------
 
 -- | Performs validation on any 'PartialOrdDeclaration' inserted. The rules are
 --

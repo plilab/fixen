@@ -22,6 +22,8 @@
 --     (':+:', ':*:', ':<:', ':>:') used to build the state type @σ@
 --     in an ala-carte style, allowing each pass to declare only the
 --     pieces of state it needs.
+--
+-- @since 0.0.1
 module Fixen.Monad.Type where
 
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -35,6 +37,8 @@ import Error.Diagnose.Diagnostic (Diagnostic)
 
 -- | The error type carried by 'FixenM'. This is a 'Diagnostic' of 'String'
 -- values, produced by the 'Error.Diagnose' library.
+--
+-- @since 0.0.1
 type FixenErrorResult = Diagnostic String
 
 -- | The top-level monad used by the Fixen compiler pipeline.
@@ -47,6 +51,8 @@ type FixenErrorResult = Diagnostic String
 --   The pipeline calls individual passes (which run in 'FixenPass') via
 --   'Fixen.Monad.Env.Errors.runFixenPass', converting their results back
 --   into 'FixenM'.
+--
+-- @since 0.0.1
 type FixenM α = ExceptT FixenErrorResult IO α
 
 -- | Run a 'FixenM' computation, returning the result as an 'IO' action.
@@ -54,6 +60,8 @@ type FixenM α = ExceptT FixenErrorResult IO α
 --   On success, returns 'Right' with the computed value. On failure,
 --   returns 'Left' with a 'FixenErrorResult' containing diagnostic
 --   information.
+--
+-- @since 0.0.1
 runFixenM :: FixenM α -> IO (Either FixenErrorResult α)
 runFixenM = runExceptT
 
@@ -92,6 +100,8 @@ runFixenM = runExceptT
 --   'Fixen.Monad.Env.Errors.runFixenPass', which checks both the
 --   'MaybeT' result and the accumulated errors before deciding whether
 --   to continue or short-circuit into 'FixenM'.
+--
+-- @since 0.0.1
 type FixenPass σ α = MaybeT (StateT σ IO) α
 
 -------------------------------------------------------------------------------
@@ -107,6 +117,8 @@ type FixenPass σ α = MaybeT (StateT σ IO) α
 --
 --   Convention: right-associative, so @a :+: b :+: c@ parses as
 --   @a :+: (b :+: c)@. The left argument should not itself be a sum.
+--
+-- @since 0.0.1
 type (:+:) = Either
 
 type (⊕) = Either
@@ -124,6 +136,8 @@ infixr 3 :+:, ⊕
 --
 --   Convention: right-associative, so @a :*: b :*: c@ parses as
 --   @a :*: (b :*: c)@. The left argument should not itself be a product.
+--
+-- @since 0.0.1
 type (:*:) = (,)
 
 type (×) = (,)
@@ -166,12 +180,16 @@ infixr 3 :*:, ×
 --   The '↑' and '↓?' operators let you move values in and out of the
 --   state, while '+<-:' lets you update just one component without
 --   touching the others.
+--
+-- @since 0.0.1
 class ϕ :<: γ where
   -- | Inject a value of type @ϕ@ into a value of type @γ@.
   --
   --   For the 'a :<: a' instance this is the identity function.
   --   For the 'a :<: (a :+: b)' instance this wraps in 'Left'.
   --   For the deep sum instance this recursively wraps in 'Right'.
+  --
+  -- @since 0.0.1
   (↑) :: ϕ -> γ
 
   -- | Optionally project a value of type @ϕ@ from a value of type @γ@.
@@ -179,6 +197,8 @@ class ϕ :<: γ where
   --   Returns 'Just' the projected value if @ϕ@ is present, 'Nothing'
   --   otherwise. For the 'a :<: (a :+: b)' instance, this pattern-
   --   matches on 'Left' and returns 'Nothing' for 'Right'.
+  --
+  -- @since 0.0.1
   (↓?) :: γ -> Maybe ϕ
 
   -- | Replace the @ϕ@ component inside a @γ@ value with a new @ϕ@ value.
@@ -186,6 +206,8 @@ class ϕ :<: γ where
   --   For the 'a :<: a' instance, this discards the old @γ@ and returns
   --   the new @ϕ@. For the sum instances, it replaces the @ϕ@ component
   --   at the appropriate depth, leaving other components untouched.
+  --
+  -- @since 0.0.1
   (+<-:) :: γ -> ϕ -> γ
 
 infixr 3 :<:
@@ -251,6 +273,8 @@ instance {-# OVERLAPPABLE #-} a :<: c => (a :<: (b :+: c)) where
 --   @
 --   new_state = old_state *<-: new_position_env
 --   @
+--
+-- @since 0.0.1
 class α :>: β where
   -- | Project a value of type @α@ from a value of type @β@.
   --
@@ -258,6 +282,8 @@ class α :>: β where
   --   For the '(α :*: β) :>: α' instance this is 'fst'.
   --   For the deep product instance this projects from the right side
   --   and then recursively projects.
+  --
+  -- @since 0.0.1
   (↓) :: α -> β
 
   -- | Optionally inject a value of type @α@ into a value of type @β@.
@@ -266,6 +292,8 @@ class α :>: β where
   --   Returns 'Nothing' for non-trivial products, since there is no
   --   unambiguous way to embed a value into a product without knowing
   --   the other components.
+  --
+  -- @since 0.0.1
   (↑?) :: β -> Maybe α
 
   -- | Replace the @α@ component inside a @β@ product with a new @α@ value.
@@ -274,6 +302,8 @@ class α :>: β where
   --   the new @α@. For the '(α :*: β) :>: α' instance, this replaces
   --   the left component while preserving the right. For the deep
   --   product instance, this recursively updates the right component.
+  --
+  -- @since 0.0.1
   (*<-:) :: α -> β -> α
 
 instance {-# OVERLAPPING #-} α :>: α where

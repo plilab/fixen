@@ -7,6 +7,8 @@
 -- Stability   : experimental
 --
 -- This module provides the main entry point 'solveSymbols'.
+--
+-- @since 0.0.1
 module Fixen.SymbolSolver where
 
 import Fixen.Fields
@@ -20,6 +22,13 @@ import Fixen.SymbolSolver.Query
 import Fixen.SymbolSolver.Relation
 import Fixen.SymbolSolver.Rule
 import Fixen.SymbolSolver.Validation
+import Fixen.Utils
+
+--------------------------------------------------------------------------------
+
+-- * The Symbol Solver
+
+--------------------------------------------------------------------------------
 
 -- | Solves the symbols in the program, obtaining a 'SymbolEnv'.
 --
@@ -30,7 +39,14 @@ import Fixen.SymbolSolver.Validation
 --
 -- The invariants for each syntactic category are found in the submodules of
 -- the symbol solver.
-solveSymbols :: Program -> FixenPass SymbolState SymbolEnv
+--
+-- @since 0.0.1
+solveSymbols
+  :: Program
+  -- ^ The program whose symbols are being solved
+  --
+  -- @since 0.0.1
+  -> FixenPass SymbolState SymbolEnv
 solveSymbols prog = do
   env_with_rels_and_pords <-
     pure emptySymbolEnv

@@ -12,6 +12,7 @@
 --     to re-define over and over again.
 module Fixen.Utils where
 
+import Control.Monad
 import Data.IntMap.Strict qualified as IntMap
 import Data.IntSet qualified as IntSet
 import Data.List.NonEmpty qualified as NonEmpty
@@ -157,3 +158,14 @@ instance Differenceable IntSet.IntSet where
 instance Ord a => Differenceable (Set.Set a) where
   (∖) = (Set.\\)
   {-# INLINE (∖) #-}
+
+foldListMap :: (Monad m, Foldable f) => (a -> k -> b -> m a) -> a -> Map.Map k (f b) -> m a
+foldListMap f e m = foldMWithKey f' e m
+  where
+    f' a k ls = foldM (\a' b' -> f a' k b') a ls
+
+    foldMWithKey :: Monad m => (a -> k -> b -> m a) -> a -> Map.Map k b -> m a
+    foldMWithKey f1 e1 m1 = foldM (\a' (k, b) -> f1 a' k b) e1 (Map.toList m1)
+
+foldMWith :: (Foldable t, Monad m) => (b -> a -> m b) -> t a -> b -> m b
+foldMWith f = flip (foldM f)

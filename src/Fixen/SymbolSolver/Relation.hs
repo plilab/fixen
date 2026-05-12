@@ -20,6 +20,16 @@ import Fixen.SymbolSolver.Extern
 import Fixen.SymbolSolver.Validation
 import Fixen.Utils
 
+--------------------------------------------------------------------------------
+
+-- * Main Entry Point
+
+-- $mainEntryPoint
+--
+-- You should only need 'initEnvWithRelation'.
+
+--------------------------------------------------------------------------------
+
 -- | Initializes a 'SymbolEnv' with a 'RelationDeclaration'.
 --
 -- /Precondition/: The 'SymbolEnv' must have been initialized with
@@ -72,6 +82,12 @@ initEnvWithRelation env r = do
        in s ∉ partial_ords
     notAPartialOrd _ = True
 
+--------------------------------------------------------------------------------
+
+-- * Helpers
+
+--------------------------------------------------------------------------------
+
 -- | Validates a 'RelationDeclaration'. The rules are:
 --
 -- * __Against Other Relations__: The relation being declared must not have
@@ -111,6 +127,6 @@ validateRelation = validate r
         ( validateAgainstExtern "rel declaration" relationValidationErrorNotes
         )
     againstPrelude =
-      validateNamed (validateAgainstPreludeCapitalized "rel declaration" "rel declaration")
+      validateNamed (warnAgainstPreludeCapitalized "rel declaration" "rel declaration")
     againstFixenCapitalized =
       validateNamed (validateAgainstFixenCapitalized "rel declaration" "rel declaration")

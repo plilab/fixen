@@ -3,22 +3,24 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- |
---     Module      : Fixen.IR.AST
---     Description : Abstract syntax trees
---     Copyright   : (c) Programming Languages Innovation Lab@NUS
---     License     : MIT
---     Maintainer  : yongqi@nus.edu.sg
---     Stability   : experimental
+-- Module      : Fixen.IR.AST
+-- Description : Abstract syntax trees
+-- Copyright   : (c) Programming Languages Innovation Lab@NUS
+-- License     : MIT
+-- Maintainer  : yongqi@nus.edu.sg
+-- Stability   : experimental
 --
---     This module defines the data structures for the Abstract Syntax Tree
---     (AST) produced by the parser. The AST is then used for subsequent
---     compiler passes (symbol solving, type checking, code generation).
+-- This module defines the data structures for the Abstract Syntax Tree
+-- (AST) produced by the parser. The AST is then used for subsequent
+-- compiler passes (symbol solving, type checking, code generation).
 --
---     This module also provides a suite of pretty-printing functions using
---     the @prettyprinter@ library.
+-- This module also provides a suite of pretty-printing functions using
+-- the @prettyprinter@ library.
 --
---     AST nodes also have lenses ("Control.Lens") that allow access and updates
---     to fields, see "Fixen.Fields".
+-- AST nodes also have lenses ("Control.Lens") that allow access and updates
+-- to fields, see "Fixen.Fields".
+--
+-- @since 0.0.1
 module Fixen.IR.AST where
 
 import Data.List.NonEmpty (NonEmpty (..))
@@ -46,18 +48,26 @@ import Prettyprinter.Render.Terminal
 
 -- | A unique identifier assigned to every construct in the Fixen IR.
 --
---   Internally this is represented as an 'Int'. Values are allocated
---   sequentially starting from 0 by the parser, so they are always
---   non-negative and strictly increasing within a single parse run.
+-- Internally this is represented as an 'Int'. Values are allocated
+-- sequentially starting from 0 by the parser, so they are always
+-- non-negative and strictly increasing within a single parse run.
+--
+-- @since 0.0.1
 type NodeId = Int
 
 -- | A class for comparing two AST nodes that are equal except for the node ID.
+--
+-- @since 0.0.1
 class EqModuloNodeId α where
   -- | Equality modulo 'NodeId's.
+  --
+  -- @since 0.0.1
   (===) :: α -> α -> Bool
   a === b = (¬) (a /== b)
 
   -- | Disequality modulo 'NodeId's.
+  --
+  -- @since 0.0.1
   (/==) :: α -> α -> Bool
   a /== b = (¬) (a === b)
 
@@ -67,6 +77,8 @@ infix 4 ===
 infix 4 /==
 
 -- | Same as '(===)'
+--
+-- @since 0.0.1
 (≅) :: EqModuloNodeId α => α -> α -> Bool
 (≅) = (===)
 
@@ -74,10 +86,11 @@ infix 4 ≅
 {-# INLINE (≅) #-}
 
 -- | Same as '(/==)'
+--
+-- @since 0.0.1
 (≇) :: EqModuloNodeId α => α -> α -> Bool
 (≇) = (/==)
 
--- | Same as '(/==)'
 infix 4 ≇
 
 {-# INLINE (≇) #-}
@@ -126,6 +139,8 @@ instance EqModuloNodeId α => EqModuloNodeId (NonEmpty α) where
 --     (e.g. @a@ from @My.Module.a@)
 --   * Its /full/ name — the complete qualified name
 --     (e.g. @My.Module.a@)
+--
+-- @since 0.0.1
 class IdentifierLike σ where
   -- | Extract the simple (unqualified) name from an identifier.
   --
@@ -133,6 +148,8 @@ class IdentifierLike σ where
   --   For a simple identifier like @a@, this returns @a@ unchanged.
   --   For a 'ModuleName' like @Data.List@, this returns the entire
   --   module name as a single 'Text' value (@Data.List@).
+  --
+  -- @since 0.0.1
   simpleIdentifier :: σ -> Text
 
   -- | Extract the full (potentially qualified) name from an identifier.
@@ -140,6 +157,8 @@ class IdentifierLike σ where
   --   For a fully-qualified name like @My.Module.a@, this returns
   --   @My.Module.a@. For a simple identifier like @a@, this returns
   --   @a@ unchanged.
+  --
+  -- @since 0.0.1
   fullIdentifier :: σ -> Text
 
 -- ** (Unqualified) Identifiers
@@ -151,20 +170,30 @@ class IdentifierLike σ where
 -- fully-qualified names.
 --
 -- Examples: @x@, @myFunction@, @Data@, @Just@
+--
+-- @since 0.0.1
 data SimpleIdentifier = SimpleIdentifier
   { simpleIdentifierNodeId :: NodeId
   -- ^ The 'NodeId' attached to this 'SimpleIdentifier'.
+  --
+  -- @since 0.0.1
   , simpleIdentifierName :: Text
   -- ^ The identifier text (e.g. @x@, @myFunction@, @Data@).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
 -- | 'SimpleIdentifier's are equal modulo 'NodeId's whenever their
 -- texts are equal
+--
+-- @since 0.0.1
 instance EqModuloNodeId SimpleIdentifier where
   a === b = simpleIdentifierName a == simpleIdentifierName b
 
 -- | Simple identifiers are ordered lexicographically by their name.
+--
+-- @since 0.0.1
 instance Ord SimpleIdentifier where
   SimpleIdentifier {simpleIdentifierName = n}
     <= SimpleIdentifier {simpleIdentifierName = n'} = n <= n'
@@ -177,6 +206,8 @@ instance HasName SimpleIdentifier Text where
 
 -- | A 'SimpleIdentifier' is trivially 'IdentifierLike': both its simple
 -- and full names are just its text value.
+--
+-- @since 0.0.1
 instance IdentifierLike SimpleIdentifier where
   simpleIdentifier = simpleIdentifierName
   fullIdentifier = simpleIdentifierName
@@ -187,12 +218,18 @@ instance IdentifierLike SimpleIdentifier where
 -- identifiers separated by dots.
 --
 -- Examples: @Data@, @Data.List@, @MyCompany.MyProject.MyModule@
+--
+-- @since 0.0.1
 data ModuleName = ModuleName
   { moduleNodeId :: NodeId
   -- ^ The 'NodeId' attached to this 'ModuleName'.
+  --
+  -- @since 0.0.1
   , moduleNameName :: NonEmpty SimpleIdentifier
   -- ^ The individual components of the module name (e.g. @Data@ and
   -- @List@ for @Data.List@).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -204,6 +241,8 @@ instance HasName ModuleName (NonEmpty SimpleIdentifier) where
 
 -- | A 'ModuleName' is 'IdentifierLike': its simple and full names are
 -- both its components joined by dots.
+--
+-- @since 0.0.1
 instance IdentifierLike ModuleName where
   simpleIdentifier m =
     intercalate
@@ -216,6 +255,8 @@ instance IdentifierLike ModuleName where
   fullIdentifier = simpleIdentifier
 
 -- | 'ModuleName's are equal modulo 'NodeIds' whenever their names are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId ModuleName where
   a === b = moduleNameName a ≅ moduleNameName b
 
@@ -225,13 +266,21 @@ instance EqModuloNodeId ModuleName where
 -- prefix and a final 'SimpleIdentifier'.
 --
 -- Examples: @Data.List.map@, @MyModule.MyType@
+--
+-- @since 0.0.1
 data FullyQualifiedName = FullyQualifiedName
   { fqnNodeId :: NodeId
   -- ^ The 'NodeId' attached to this 'FullyQualifiedName'.
+  --
+  -- @since 0.0.1
   , fqnModuleName :: ModuleName
   -- ^ The module prefix (e.g. @Data.List@ in @Data.List.map@).
+  --
+  -- @since 0.0.1
   , fqnName :: SimpleIdentifier
   -- ^ The final name component (e.g. @map@ in @Data.List.map@).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -243,12 +292,16 @@ instance HasModuleName FullyQualifiedName ModuleName where
 
 -- | 'FullyQualifiedName's are equal modulo 'NodeId's whenever their
 -- module names and names are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId FullyQualifiedName where
   a === b = fqnModuleName a ≅ fqnModuleName b ∧ fqnName a ≅ fqnName b
 
 -- | A 'FullyQualifiedName' is 'IdentifierLike': its simple name is
 -- the final component, and its full name is the module prefix joined
 -- with the final component by a dot.
+--
+-- @since 0.0.1
 instance IdentifierLike FullyQualifiedName where
   simpleIdentifier = simpleIdentifier . fqnName
   fullIdentifier n =
@@ -263,39 +316,57 @@ instance IdentifierLike FullyQualifiedName where
 --
 -- This is a sum type used in contexts where either form is valid, such as
 -- expression variables.
+--
+-- @since 0.0.1
 data Identifier
   = IdentifierSimpleIdentifier
       { identifierSimpleIdentifier :: SimpleIdentifier
       -- ^ The simple identifier value.
+      --
+      -- @since 0.0.1
       }
   | IdentifierFullyQualifiedName
       { identifierFQN :: FullyQualifiedName
       -- ^ The fully-qualified name value.
+      --
+      -- @since 0.0.1
       }
   deriving (Show, Eq)
 
 -- | Pattern synonym for constructing a simple identifier.
+--
+-- @since 0.0.1
 pattern MkIdentifierSimple
   :: NodeId
   -- ^ The 'NodeId' for the identifier
+  --
+  -- @since 0.0.1
   -> Text
   -- ^ The identifier text
+  --
+  -- @since 0.0.1
   -> Identifier
 pattern MkIdentifierSimple uniq s = IdentifierSimpleIdentifier (SimpleIdentifier uniq s)
 
 -- | Pattern synonym for constructing a fully-qualified identifier.
+--
+-- @since 0.0.1
 pattern MkIdentifierFQN
   :: NodeId
   -- ^ The 'NodeId' for the identifier
+  --
+  -- @since 0.0.1
   -> ModuleName
   -- ^ The module name prefix
+  --
+  -- @since 0.0.1
   -> SimpleIdentifier
   -- ^ The final name component
+  --
+  -- @since 0.0.1
   -> Identifier
 pattern MkIdentifierFQN uniq mod i = IdentifierFullyQualifiedName (FullyQualifiedName uniq mod i)
 
--- | Ensure that all 'Identifier' values can be constructed via the two
--- pattern synonyms. This enables exhaustive pattern matching.
 {-# COMPLETE MkIdentifierSimple, MkIdentifierFQN #-}
 
 instance HasNodeId Identifier NodeId where
@@ -312,6 +383,8 @@ instance HasNodeId Identifier NodeId where
 
 -- | An 'Identifier' is 'IdentifierLike': delegates to the inner value's
 -- implementation.
+--
+-- @since 0.0.1
 instance IdentifierLike Identifier where
   simpleIdentifier (IdentifierSimpleIdentifier i) = simpleIdentifier i
   simpleIdentifier (IdentifierFullyQualifiedName fqn) = simpleIdentifier fqn
@@ -319,6 +392,8 @@ instance IdentifierLike Identifier where
   fullIdentifier (IdentifierFullyQualifiedName i) = fullIdentifier i
 
 -- | 'Identifier's are equal modulo 'NodeIds' whenever their components are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId Identifier where
   MkIdentifierSimple _ s === MkIdentifierSimple _ t = s == t
   MkIdentifierFQN _ a b === MkIdentifierFQN _ c d = a ≅ c ∧ b ≅ d
@@ -343,58 +418,95 @@ instance EqModuloNodeId Identifier where
 --   conclusion arguments. The type supports variables, application
 --   (function application), integer and string literals, tuples,
 --   lists, and the unit value.
-data Expr where
-  -- | A variable expression, referencing an identifier.
-  ExprVar
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Identifier
-    -- ^ The identifier being referenced.
-    -> Expr
-  -- | A function application expression (@f x@).
-  ExprApp
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Expr
-    -- ^ The function being applied.
-    -> Expr
-    -- ^ The argument.
-    -> Expr
-  -- | An integer literal expression.
-  ExprIntLit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Integer
-    -- ^ The integer value.
-    -> Expr
-  -- | A string literal expression.
-  ExprStrLit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Text
-    -- ^ The string value.
-    -> Expr
-  -- | A tuple expression. The tuple must have at least two elements.
-  ExprTuple
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Expr
-    -- ^ The first element of the tuple.
-    -> NonEmpty Expr
-    -- ^ The remaining elements of the tuple (non-empty, ensuring at least 2 total).
-    -> Expr
-  -- | A list expression.
-  ExprList
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> [Expr]
-    -- ^ The elements of the list (may be empty).
-    -> Expr
-  -- | The unit value @()@.
-  ExprUnit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Expr
+data Expr
+  = -- | A variable expression, referencing an identifier.
+    --
+    -- @since 0.0.1
+    ExprVar
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Identifier
+      -- ^ The identifier being referenced.
+      --
+      -- @since 0.0.1
+  | -- | A function application expression (@f x@).
+    --
+    -- @since 0.0.1
+    ExprApp
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Expr
+      -- ^ The function being applied.
+      --
+      -- @since 0.0.1
+      Expr
+      -- ^ The argument.
+      --
+      -- @since 0.0.1
+  | -- | An integer literal expression.
+    --
+    -- @since 0.0.1
+    ExprIntLit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Integer
+      -- ^ The integer value.
+      --
+      -- @since 0.0.1
+  | -- | A string literal expression.
+    --
+    -- @since 0.0.1
+    ExprStrLit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Text
+      -- ^ The string value.
+      --
+      -- @since 0.0.1
+  | -- | A tuple expression. The tuple must have at least two elements.
+    --
+    -- @since 0.0.1
+    ExprTuple
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Expr
+      -- ^ The first element of the tuple.
+      --
+      -- @since 0.0.1
+      (NonEmpty Expr)
+      -- ^ The remaining elements of the tuple (non-empty, ensuring at least 2 total).
+      --
+      -- @since 0.0.1
+  | -- | A list expression.
+    --
+    -- @since 0.0.1
+    ExprList
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      [Expr]
+      -- ^ The elements of the list (may be empty).
+      --
+      -- @since 0.0.1
+  | -- | The unit value @()@.
+    --
+    -- @since 0.0.1
+    ExprUnit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
   deriving (Show, Eq)
 
 instance HasNodeId Expr NodeId where
@@ -416,6 +528,8 @@ instance HasNodeId Expr NodeId where
       __exprsetNodeId (ExprUnit _) i = ExprUnit i
 
 -- | 'Expr's are equal modulo 'NodeId's whenever their components are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId Expr where
   ExprVar _ v === ExprVar _ v' = v ≅ v'
   ExprApp _ f x === ExprApp _ f' x' = f ≅ f' ∧ x ≅ x'
@@ -433,61 +547,100 @@ instance EqModuloNodeId Expr where
 --   Types appear as parameters to relation declarations. The type system
 --   supports named types, type application, built-in list and tuple types,
 --   the unit type, and literal types (natural numbers and symbols).
-data Type where
-  -- | A named type, referencing an identifier (e.g. @Int@, @MyType@).
-  TypeName
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Identifier
-    -- ^ The type name.
-    -> Type
-  -- | Type application (@T1 T2@), representing a type constructor applied
-  -- to an argument type.
-  TypeApp
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Type
-    -- ^ The type constructor (LHS).
-    -> Type
-    -- ^ The argument type (RHS).
-    -> Type
-  -- | A list type (@[a]@). This is a built-in type, for convenience in
-  -- pretty-printing and code generation.
-  TypeList
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Type
-    -- ^ The element type.
-    -> Type
-  -- | A tuple type (@(a, b, ...)@). This is a built-in type. The tuple must
-  -- have at least two elements.
-  TypeTuple
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Type
-    -- ^ The type of the first element.
-    -> NonEmpty Type
-    -- ^ The types of the remaining elements (non-empty, ensuring at least 2 total).
-    -> Type
-  -- | The unit type @()@.
-  TypeUnit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Type
-  -- | A natural number literal type (e.g. @0@, @1@, @42@).
-  TypeNatLit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Natural
-    -- ^ The natural number value.
-    -> Type
-  -- | A string/symbol literal type (e.g. @"foo"@).
-  TypeSymbolLit
-    :: NodeId
-    -- ^ The 'NodeId'.
-    -> Text
-    -- ^ The symbol/string value.
-    -> Type
+--
+-- @since 0.0.1
+data Type
+  = -- | A named type, referencing an identifier (e.g. @Int@, @MyType@).
+    --
+    -- @since 0.0.1
+    TypeName
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Identifier
+      -- ^ The type name.
+      --
+      -- @since 0.0.1
+  | -- | Type application (@T1 T2@), representing a type constructor applied
+    -- to an argument type.
+    --
+    -- @since 0.0.1
+    TypeApp
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Type
+      -- ^ The type constructor (LHS).
+      --
+      -- @since 0.0.1
+      Type
+      -- ^ The argument type (RHS).
+      --
+      -- @since 0.0.1
+  | -- | A list type (@[a]@). This is a built-in type, for convenience in
+    -- pretty-printing and code generation.
+    --
+    -- @since 0.0.1
+    TypeList
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Type
+      -- ^ The element type.
+      --
+      -- @since 0.0.1
+  | -- | A tuple type (@(a, b, ...)@). This is a built-in type. The tuple must
+    -- have at least two elements.
+    --
+    -- @since 0.0.1
+    TypeTuple
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Type
+      -- ^ The type of the first element.
+      --
+      -- @since 0.0.1
+      (NonEmpty Type)
+      -- ^ The types of the remaining elements (non-empty, ensuring at least 2 total).
+      --
+      -- @since 0.0.1
+  | -- | The unit type @()@.
+    --
+    -- @since 0.0.1
+    TypeUnit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+  | -- | A natural number literal type (e.g. @0@, @1@, @42@).
+    --
+    -- @since 0.0.1
+    TypeNatLit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Natural
+      -- ^ The natural number value.
+      --
+      -- @since 0.0.1
+  | -- | A string\/symbol literal type (e.g. @"foo"@).
+    --
+    -- @since 0.0.1
+    TypeSymbolLit
+      NodeId
+      -- ^ The 'NodeId'.
+      --
+      -- @since 0.0.1
+      Text
+      -- ^ The symbol/string value.
+      --
+      -- @since 0.0.1
   deriving (Show, Eq)
 
 instance HasNodeId Type NodeId where
@@ -509,6 +662,8 @@ instance HasNodeId Type NodeId where
       __typesetNodeId (TypeList _ a) i = TypeList i a
 
 -- | 'Type's are equal modulo 'NodeId's whenever their components are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId Type where
   TypeName _ v === TypeName _ v' = v ≅ v'
   TypeApp _ f x === TypeApp _ f' x' = f ≅ f' ∧ x ≅ x'
@@ -533,13 +688,21 @@ instance EqModuloNodeId Type where
 -- declaration, assumptions, conclusions, etc. These are defined here.
 
 -- | A relation-like declaration in the program.
+--
+-- @since 0.0.1
 data RelationLike π = RelationLike
   { relationLikeNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , relationLikeName :: SimpleIdentifier
   -- ^ The relation name (e.g. @Dist@, @MyFact@).
+  --
+  -- @since 0.0.1
   , relationLikeArgs :: [π]
   -- ^ The arguments to this relation.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -554,6 +717,8 @@ instance HasArgs (RelationLike π) [π] where
 
 {- FOURMOLU_DISABLE -}
 -- | 'Relation's are equal modulo 'NodeId's whenever their components are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
   r === r' =
     relationLikeName r ≅ relationLikeName r'
@@ -571,18 +736,28 @@ instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
 -- @
 -- rel Dist: Integer, Integer
 -- @
+--
+-- @since 0.0.1
 type RelationDeclaration = RelationLike Type
 
 -- | Constructor and destructor for 'RelationDeclaration's.
 --
 -- @{-# COMPLETE RelationDeclaration #-}@
+--
+-- @since 0.0.1
 pattern RelationDeclaration
   :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   -> SimpleIdentifier
   -- ^ The name of the relation being declared.
+  --
+  -- @since 0.0.1
   -> [Type]
   -- ^ The types of the arguments to the relation.
+  --
+  -- @since 0.0.1
   -> RelationDeclaration
 pattern RelationDeclaration a b c = RelationLike a b c
 
@@ -590,18 +765,28 @@ pattern RelationDeclaration a b c = RelationLike a b c
 
 -- | An assumption within a rule body. The arguments to the relation symbol in
 -- assumptions are just variables, i.e., 'SimpleIdentifier's.
+--
+-- @since 0.0.1
 type Assumption = RelationLike SimpleIdentifier
 
 -- | Constructor and destructor for 'Assumption's.
 --
 -- @{-# COMPLETE Assumption #-}@
+--
+-- @since 0.0.1
 pattern Assumption
   :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   -> SimpleIdentifier
   -- ^ The name of the relation symbol.
+  --
+  -- @since 0.0.1
   -> [SimpleIdentifier]
   -- ^ The arguments to the relation symbol.
+  --
+  -- @since 0.0.1
   -> Assumption
 pattern Assumption a b c = RelationLike a b c
 
@@ -609,18 +794,28 @@ pattern Assumption a b c = RelationLike a b c
 
 -- | A conclusion of a rule. The arguments to the relation symbol in conclusions
 -- are expressions, i.e., 'Expr'.
+--
+-- @since 0.0.1
 type Conclusion = RelationLike Expr
 
 -- | Constructor and destructor for 'Conclusion's.
 --
 -- @{-# COMPLETE Conclusion #-}@
+--
+-- @since 0.0.1
 pattern Conclusion
   :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   -> SimpleIdentifier
   -- ^ The name of the relation symbol.
+  --
+  -- @since 0.0.1
   -> [Expr]
   -- ^ The arguments to the relation symbol.
+  --
+  -- @since 0.0.1
   -> Conclusion
 pattern Conclusion a b c = RelationLike a b c
 
@@ -635,24 +830,40 @@ pattern Conclusion a b c = RelationLike a b c
 -- @
 -- rule myRule x y: MyFact x, if x < y |- Dist x y
 -- @
+--
+-- @since 0.0.1
 data Rule = Rule
   { ruleNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , ruleName :: Maybe SimpleIdentifier
   -- ^ The optional rule name (e.g. @myRule@, or @Nothing@ if unnamed).
+  --
+  -- @since 0.0.1
   , ruleArgs :: [SimpleIdentifier]
   -- ^ The parameters of the rule.
+  --
+  -- @since 0.0.1
   , ruleAssumptions :: [Assumption]
   -- ^ The assumptions (relations applied to variables).
+  --
+  -- @since 0.0.1
   , ruleConditions :: [Condition]
   -- ^ The conditions (expressions guarded by 'if').
+  --
+  -- @since 0.0.1
   , ruleConclusion :: Conclusion
   -- ^ The conclusion (a relation applied to expressions).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
 {- FOURMOLU_DISABLE -}
 -- | 'Rule's are equal modulo 'NodeId's whenever their components are.
+--
+-- @since 0.0.1
 instance EqModuloNodeId Rule where
   r === r' =
     ruleName r ≅ ruleName r'
@@ -686,11 +897,17 @@ instance HasConclusion Rule Conclusion where
 --   to a boolean truth value that must hold for the rule to fire.
 --
 --   Example: @if a <= b@
+--
+-- @since 0.0.1
 data Condition = Condition
   { conditionNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , conditionExpr :: Expr
   -- ^ The condition expression.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -724,11 +941,17 @@ instance EqModuloNodeId Condition where
 -- myHaskellFunction x = x + 1
 -- ```
 -- @
+--
+-- @since 0.0.1
 data HsBlock = HsBlock
   { hsBlockNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , hsBlockContents :: Text
   -- ^ The Haskell source code contents.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -757,11 +980,17 @@ instance HasContents HsBlock Text where
 -- @
 -- import Data.List
 -- @
+--
+-- @since 0.0.1
 data HsImport = HsImport
   { hsImportNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , hsImportModuleName :: ModuleName
   -- ^ The imported module name (e.g. @Data.List@).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -787,11 +1016,17 @@ instance HasModuleName HsImport ModuleName where
 -- @
 -- include \"path\/to\/Program.fix\"
 -- @
+--
+-- @since 0.0.1
 data Include = Include
   { includeNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , includePath :: Text
   -- ^ The path to the included Fixen file.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -817,13 +1052,21 @@ instance HasPath Include Text where
 -- @
 -- priority: a < b |- rule1 { a = a } < rule2 { b = b }
 -- @
+--
+-- @since 0.0.1
 data Priority = Priority
   { priorityNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , priorityPremise :: Expr
   -- ^ The premise expression that must hold for the priority to apply.
+  --
+  -- @since 0.0.1
   , priorityConclusion :: PriorityConclusion
   -- ^ The conclusion comparing two rule instances with an ordering.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -841,15 +1084,23 @@ instance HasConclusion Priority PriorityConclusion where
 --   This compares two rule instances with an ordering symbol (@<@ or
 --   @⊏@), specifying that the left-hand side instance has lower
 --   priority than the right-hand side.
+--
+-- @since 0.0.1
 data PriorityConclusion = PriorityConclusion
   { priorityConclusionNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , priorityConclusionLHS :: RuleInstance
   -- ^ The left-hand side rule instance. This rule instance is strictly less
   -- than the right-hand side rule instance.
+  --
+  -- @since 0.0.1
   , priorityConclusionRHS :: RuleInstance
   -- ^ The right-hand side rule instance. This rule instance is strictly
   -- greater than the left-hand side rule instance.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -870,13 +1121,21 @@ instance HasRHS PriorityConclusion RuleInstance where
 --
 --   Example: @addDist { a = a, b = b' }@ instantiates the @addDist@
 --   rule with @a@ mapping to @a@ and @b@ mapping to @b'@.
+--
+-- @since 0.0.1
 data RuleInstance = RuleInstance
   { ruleInstanceNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , ruleInstanceRule :: SimpleIdentifier
   -- ^ The name of the rule being instantiated.
+  --
+  -- @since 0.0.1
   , ruleInstanceMap :: Map SimpleIdentifier SimpleIdentifier
   -- ^ The variable substitution map.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -893,18 +1152,28 @@ instance HasMap RuleInstance (Map SimpleIdentifier SimpleIdentifier) where
 
 -- | A relation that is queried. The arguments to this query declaration are
 -- 'QueryMode's.
+--
+-- @since 0.0.1
 type QueriedRelation = RelationLike QueryMode
 
 -- | Constructor and destructor for 'QueriedRelation'.
 --
 -- @{-# COMPLETE QueriedRelation #-}@
+--
+-- @since 0.0.1
 pattern QueriedRelation
   :: NodeId
   -- ^ The 'NodeID'.
+  --
+  -- @since 0.0.1
   -> SimpleIdentifier
   -- ^ The name of the relation symbol.
+  --
+  -- @since 0.0.1
   -> [QueryMode]
   -- ^ The arguments to the query.
+  --
+  -- @since 0.0.1
   -> QueriedRelation
 pattern QueriedRelation a b c = RelationLike a b c
 
@@ -924,13 +1193,21 @@ pattern QueriedRelation a b c = RelationLike a b c
 -- @
 -- query distTo: DistTo - +
 -- @
+--
+-- @since 0.0.1
 data Query = Query
   { queryNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , queryRel :: QueriedRelation
   -- ^ The relation being queried (and its modes).
+  --
+  -- @since 0.0.1
   , queryName :: SimpleIdentifier
   -- ^ The query name.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -950,6 +1227,8 @@ instance HasRelation Query QueriedRelation where
 --
 -- * 'Input' — the argument is an input variable (ground)
 -- * 'Output' — the argument is an output variable (to be computed)
+--
+-- @since 0.0.1
 data QueryMode = Input NodeId | Output NodeId
   deriving (Show, Eq)
 
@@ -973,11 +1252,17 @@ instance HasNodeId QueryMode NodeId where
 -- @
 --
 -- The module name determines the name of the generated Haskell module.
+--
+-- @since 0.0.1
 data ModuleDeclaration = ModuleDeclaration
   { moduleDeclarationNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , moduleDeclarationName :: ModuleName
   -- ^ The Haskell module name being generated.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -996,6 +1281,8 @@ instance HasModuleName ModuleDeclaration ModuleName where
 --
 -- In phase declarations, @*@ denotes "all remaining rules"—i.e., rules
 -- that have not been assigned to any earlier phase.
+--
+-- @since 0.0.1
 newtype EverythingElseRuleset = EverythingElseRuleset NodeId
   deriving (Show, Eq)
 
@@ -1010,11 +1297,17 @@ instance HasNodeId EverythingElseRuleset NodeId where
 -- A ruleset is either an explicit list of rule names or the wildcard
 -- @*@ (all remaining rules). Rulesets are used to group rules into
 -- execution phases.
+--
+-- @since 0.0.1
 data Ruleset = Ruleset
   { ruleSetNodeId :: NodeId
   -- ^ The 'NodeId' for source position tracking.
+  --
+  -- @since 0.0.1
   , ruleSetRules :: NonEmpty SimpleIdentifier
   -- ^ The rule names in this ruleset.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -1027,6 +1320,8 @@ instance HasRules Ruleset (NonEmpty SimpleIdentifier) where
 -- | Either an explicit ruleset (a named list of rules) or the
 --   @*@ wildcard ('EverythingElseRuleset') representing all remaining
 --   rules.
+--
+-- @since 0.0.1
 type RulesetOrEverythingElse = Either Ruleset EverythingElseRuleset
 
 -- | A phase declaration for multi-phase fixed-point computation.
@@ -1036,11 +1331,17 @@ type RulesetOrEverythingElse = Either Ruleset EverythingElseRuleset
 -- @
 -- phases: [ { rule1, rule2 }, { rule3 }, * ]
 -- @
+--
+-- @since 0.0.1
 data PhasesDeclaration = PhasesDeclaration
   { phasesNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , phasesPhases :: NonEmpty RulesetOrEverythingElse
   -- ^ The phase declarations (list of rulesets).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -1069,17 +1370,29 @@ instance HasPhases PhasesDeclaration (NonEmpty RulesetOrEverythingElse) where
 --   leq = (<=)
 --   mlbs = meet
 -- @
+--
+-- @since 0.0.1
 data PartialOrdDeclaration = PartialOrdDeclaration
   { partialOrdDeclarationNodeId :: NodeId
   -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
   , partialOrdDeclarationName :: SimpleIdentifier
   -- ^ The type being defined as a partial order.
+  --
+  -- @since 0.0.1
   , partialOrdDeclarationType :: Type
   -- ^ The base type of the partial order.
+  --
+  -- @since 0.0.1
   , partialOrdDeclarationLeq :: Identifier
   -- ^ The less-than-or-equal comparison function.
+  --
+  -- @since 0.0.1
   , partialOrdDeclarationMlbs :: Identifier
   -- ^ The maximal lower bounds function.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -1108,27 +1421,49 @@ instance HasMLBs PartialOrdDeclaration Identifier where
 --
 --   The 'Program' type contains all parts of a Fixen program, from the module
 --   declaration through queries and phases.
+--
+-- @since 0.0.1
 data Program = Program
   { programModuleName :: ModuleDeclaration
   -- ^ The module declaration
+  --
+  -- @since 0.0.1
   , programImports :: [HsImport]
   -- ^ Haskell module imports.
+  --
+  -- @since 0.0.1
   , programHsBlocks :: [HsBlock]
   -- ^ Embedded Haskell source code blocks.
+  --
+  -- @since 0.0.1
   , programIncludes :: [Include]
   -- ^ Included Fixen files.
+  --
+  -- @since 0.0.1
   , programRelationDeclarations :: [RelationDeclaration]
   -- ^ Relation declarations.
+  --
+  -- @since 0.0.1
   , programPartialOrdDeclarations :: [PartialOrdDeclaration]
   -- ^ Partial order declarations.
+  --
+  -- @since 0.0.1
   , programRules :: [Rule]
   -- ^ Rule declarations.
+  --
+  -- @since 0.0.1
   , programPriorities :: [Priority]
   -- ^ Priority declarations.
+  --
+  -- @since 0.0.1
   , programQueries :: [Query]
   -- ^ Query declarations.
+  --
+  -- @since 0.0.1
   , programPhases :: Maybe PhasesDeclaration
   -- ^ Phase declarations (optional; 'Nothing' if no phases declared).
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 

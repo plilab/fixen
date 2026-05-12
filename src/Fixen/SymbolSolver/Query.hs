@@ -7,6 +7,8 @@
 -- Stability   : experimental
 --
 -- This module provides facilities for solving query declarations.
+--
+-- @since 0.0.1
 module Fixen.SymbolSolver.Query where
 
 import Control.Lens
@@ -16,9 +18,19 @@ import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Validation
 
+--------------------------------------------------------------------------------
+
+-- * Main Entry Point
+
+-- $mainEntryPoint
+--
+-- You should only need 'initEnvWithQuery'.
+
+--------------------------------------------------------------------------------
+
 -- | Initializes a 'SymbolEnv' with a 'Query' declaration.
 --
--- /Precondition/: relations must have been initialized in the 'SymbolEnv'
+-- /Precondition/: 'RelationDeclaration's must have been initialized in the 'SymbolEnv'
 --
 -- @since 0.0.1
 initEnvWithQuery
@@ -34,6 +46,12 @@ initEnvWithQuery env q = do
   case env ^. queryInfos . at q_repr of
     Just _ -> return env
     Nothing -> return $ env & queryInfos . at q_repr ?~ q
+
+--------------------------------------------------------------------------------
+
+-- * Helpers
+
+--------------------------------------------------------------------------------
 
 -- | Validates a 'Query' declaration. The rules are:
 --
@@ -73,7 +91,7 @@ validateQuery = validate r
 
     againstPrelude =
       validateNamed
-        (validateAgainstPreludeLowercase "query declaration" "query declaration")
+        (warnAgainstPreludeLowercase "query declaration" "query declaration")
 
     againstFixen =
       validateNamed

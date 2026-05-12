@@ -9,6 +9,8 @@
 -- Stability   : experimental
 --
 -- This module provides facilities for solving priority declarations.
+--
+-- @since 0.0.1
 module Fixen.SymbolSolver.Priorities where
 
 import Control.Lens
@@ -24,6 +26,16 @@ import Fixen.SymbolSolver.Extern
 import Fixen.SymbolSolver.Validation
 import Fixen.Utils
 import Prelude hiding (map)
+
+--------------------------------------------------------------------------------
+
+-- * Main Entry Point
+
+-- $mainEntryPoint
+--
+-- You should only need 'initEnvWithPriorities'.
+
+--------------------------------------------------------------------------------
 
 -- | Initializes a 'SymbolEnv' with a 'Priority' declaration. Insertion fails
 -- whenever the rule instances are invalid or if there are duplicate local
@@ -112,6 +124,12 @@ initEnvWithPriorities env p = do
             & priorityInfos . at priority_node_id ?~ priority_info
             & foldMWith initEnvWithExternSymbol externs
 
+--------------------------------------------------------------------------------
+
+-- * Helpers
+
+--------------------------------------------------------------------------------
+
 -- | Validates a rule instance. The rule is that the rule being instantiated
 -- must exist, and that the rule parameters being instantiated must also exist.
 -- The rule being instantiated must also have assumptions, otherwise, they are
@@ -185,7 +203,7 @@ getRuleFromRuleInstance rule_inst env = do
                   Just n -> Just (d, n)
               )
           & catMaybes
-          & filter ((=== rule_name) ∘ snd)
+          & filter ((≅ rule_name) ∘ snd)
   case all_relevant_names of
     [] -> return Nothing
     ((r, _) : _) -> return $ Just r

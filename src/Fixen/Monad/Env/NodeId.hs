@@ -19,6 +19,8 @@
 --     (alongside 'PositionEnv' and 'FixenErrors'). It is initialized to 0
 --     at the start of parsing and incremented throughout the parsing and
 --     processing pipeline.
+--
+-- @since 0.0.1
 module Fixen.Monad.Env.NodeId where
 
 import Control.Monad.State.Strict (
@@ -44,6 +46,8 @@ import Fixen.Monad.Type (
 --   @
 --   PositionEnv :*: NodeId :*: FixenErrors
 --   @
+--
+-- @since 0.0.1
 type NodeIded σ = σ :>: NodeId
 
 -- | Allocate a new unique 'NodeId' and increment the counter in the state.
@@ -68,6 +72,8 @@ type NodeIded σ = σ :>: NodeId
 --   newId <- fixenGetNewNodeId
 --   -- newId :: NodeId  — a unique, never-before-seen identifier
 --   @
+--
+-- @since 0.0.1
 getNewNodeId :: (NodeIded σ, MonadState σ μ) => μ NodeId
 getNewNodeId = do
   st <- get
