@@ -34,7 +34,7 @@ pipeline
   -> FixenM (Program, NonEmpty RuleForest, RelationRepresentation, Text)
 pipeline file_path contents error_printer = do
   let file_map     = [(file_path, contents)]
-      init_errs    = fixenEmptyErrors file_map
+      init_errs    = emptyErrors file_map
       init_pos_env = Map.empty
       init_node_id = 0
       init_env     = (init_pos_env, (init_node_id, init_errs))
@@ -46,6 +46,6 @@ pipeline file_path contents error_printer = do
   (t, _)          <- run st'''       (codeGen rt db program')
   return (program', rt, db, t)
   where
-    run :: Errored a => a -> FixenPass a b -> FixenM (b, a)
-    run = runFixenPassFlushWarnings error_printer
+    run :: WithErrors a => a -> FixenPass a b -> FixenM (b, a)
+    run = runFixenPass error_printer
 {- FOURMOLU_ENABLE -}

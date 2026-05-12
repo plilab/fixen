@@ -24,30 +24,7 @@
 --
 --     Individual declaration parsers (e.g. 'parseRelation', 'parseRule') are
 --     also exported for reuse by other modules.
-module Fixen.Parser (
-  -- * Main entry points
-  parse,
-  fixenParse,
-  parseProgram,
-
-  -- * Top-level declaration parsing
-  parseAST,
-
-  -- * Individual declaration parsers
-  parseRelation,
-  parseRule,
-  parsePremise,
-  parseConclusion,
-  parseAssumption,
-  parseCondition,
-  parsePartialOrd,
-  parsePriority,
-  parseQuery,
-  parseInclude,
-  parseImport,
-  parsePhases,
-  parseHaskellCodeBlock,
-) where
+module Fixen.Parser where
 
 import Control.Applicative.Combinators (
   some,
@@ -61,7 +38,7 @@ import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text (Text, unpack)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
-import Error.Diagnose.Report
+import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser.Common
@@ -75,9 +52,9 @@ import Text.Megaparsec.Char.Lexer qualified as L
 import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 
 --------------------------------------------------------------------------------
---
--- Main entry point
---
+
+-- * Main entry point
+
 --------------------------------------------------------------------------------
 
 -- | Parses a complete Fixen program from raw file contents.
@@ -96,22 +73,23 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --   If any parse errors occur, they are accumulated and reported via the
 --   'FixenPass' monad.
 parse
-  :: FilePath
+  :: ParserState σ
+  => FilePath
   -- ^ The file path of the program (used for error reporting)
   -> Text
   -- ^ The contents of the file to parse
-  -> FixenPass ParserState Program
-parse file_path contents = do
+  -> FixenPass σ Program
+parse file_path file_contents = do
   -- Parse the module declaration and top-level declarations
-  (mod_decl, top_levels) <- fixenParse parseProgram file_path contents
+  (mod_decl, top_levels) <- fixenParse parseProgram file_path file_contents
   -- Distribute the flat list of top-level declarations into the
   -- appropriate fields of AST.Program (relations, rules, etc.)
   partitionTopLevels mod_decl top_levels
 
 --------------------------------------------------------------------------------
---
--- Running parsers in FixenM
---
+
+-- * Running parsers in FixenM
+
 --------------------------------------------------------------------------------
 
 -- | Runs a 'Parser' in the 'FixenPass' monad, converting parse errors
@@ -129,18 +107,19 @@ parse file_path contents = do
 --   This is the bridge between the Megaparsec parser layer and the
 --   'FixenPass' compiler pass layer.
 fixenParse
-  :: Parser a
+  :: ParserState σ
+  => Parser σ a
   -- ^ The 'Parser' to run
   -> FilePath
   -- ^ The file path of the program (used as the Megaparsec source name)
   -> Text
   -- ^ The contents of the file to parse
-  -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) a
-fixenParse parser file_path contents = do
+  -> FixenPass σ a
+fixenParse parser file_path file_contents = do
   -- Capture the current parser state (position env, node ID counter, errors)
   st <- State.get
   -- Run the Megaparsec parser with the given file path and contents
-  let e = P.runParserT parser file_path contents
+  let e = P.runParserT parser file_path file_contents
   -- Extract the result and updated state from the parser monad stack
   let (r, st') = State.runState e st
   -- Restore the updated state (including position tracking and node IDs)
@@ -155,7 +134,9 @@ fixenParse parser file_path contents = do
 
 --------------------------------------------------------------------------------
 --
--- Program-level parsing
+
+-- * Program parsing
+
 --
 --------------------------------------------------------------------------------
 
@@ -170,7 +151,7 @@ fixenParse parser file_path contents = do
 --
 --   The 'eof' parser ensures that the entire file is consumed; any trailing
 --   content after the last declaration will cause a parse error.
-parseProgram :: Parser (ModuleDeclaration, [TopLevel])
+parseProgram :: ParserState σ => Parser σ (ModuleDeclaration, [TopLevel])
 parseProgram = do
   -- Parse the module declaration (e.g. "module Foo where") and consume trailing whitespace
   mod_head <- l parseModuleDeclaration
@@ -195,7 +176,7 @@ parseProgram = do
 --
 --   Each item is parsed independently with whitespace consumed after it.
 --   At least one top-level declaration is required.
-parseAST :: Parser [TopLevel]
+parseAST :: ParserState σ => Parser σ [TopLevel]
 parseAST =
   -- Parse one or more top-level declarations, consuming whitespace after each
   some $
@@ -218,7 +199,7 @@ parseAST =
 --   partitioned into the structured 'AST.Program' type.
 data TopLevel
   = -- | A 'rel' declaration defining a relation (fact type)
-    TLRelation Relation
+    TLRelation RelationDeclaration
   | -- | A 'rule' declaration defining inference rules
     TLRule Rule
   | -- | A 'partial ord' declaration defining a partial order on a type
@@ -234,7 +215,7 @@ data TopLevel
   | -- | An 'import' statement importing a Haskell module
     TLImport HsImport
   | -- | A 'phases' declaration defining multi-phase rule execution
-    TLPhases Phases
+    TLPhases PhasesDeclaration
 
 -- | Distributes a flat list of 'TopLevel' declarations into the structured
 -- 'AST.Program' type, placing each declaration into its appropriate field.
@@ -247,44 +228,43 @@ data TopLevel
 --
 --   The result is an 'AST.Program' with all fields populated from the
 --   parsed top-level declarations.
-partitionTopLevels :: ModuleDeclaration -> [TopLevel] -> FixenPass ParserState Program
+partitionTopLevels :: ParserState σ => ModuleDeclaration -> [TopLevel] -> FixenPass σ Program
 partitionTopLevels mod_decl [] =
   -- Base case: no more top-level declarations — return Program with
   -- all optional fields set to empty/Nothing
   return
     Program
-      { hsBlocks = []
-      , priorities = []
-      , queries = []
-      , moduleName = mod_decl
-      , hsImports = []
-      , relations = []
-      , rules = []
-      , includes = []
-      , phases = Nothing
-      , partialOrdDeclarations = []
+      { programHsBlocks = []
+      , programPriorities = []
+      , programQueries = []
+      , programModuleName = mod_decl
+      , programImports = []
+      , programRelationDeclarations = []
+      , programRules = []
+      , programIncludes = []
+      , programPhases = Nothing
+      , programPartialOrdDeclarations = []
       }
 partitionTopLevels mod_decl (x : xs) = do
   -- Recursively partition the rest of the list
   rest <- partitionTopLevels mod_decl xs
   -- Place the current declaration into the correct field
   case x of
-    TLRelation r -> return rest {relations = r : relations rest} -- add relation
-    TLRule r -> return rest {rules = r : rules rest} -- add rule
-    TLPartialOrd po ->
-      return rest {partialOrdDeclarations = po : partialOrdDeclarations rest} -- add partial order
-    TLPriority p -> return rest {priorities = p : priorities rest} -- add priority
-    TLQuery q -> return rest {queries = q : queries rest} -- add query
-    TLInclude i -> return rest {includes = i : includes rest} -- add include
-    TLImport i -> return rest {hsImports = i : hsImports rest} -- add import
+    TLRelation r -> return $ rest & relationDeclarations %~ (r :) -- rest {programRelationDeclarations = r : programRelationDeclarations rest} -- add relation
+    TLRule r -> return $ rest & rules %~ (r :) -- {programRules = r : programRules rest} -- add rule
+    TLPartialOrd po -> return $ rest & partialOrdDeclarations %~ (po :) -- {programPartialOrdDeclarations = po : programPartialOrdDeclarations rest} -- add partial order
+    TLPriority p -> return $ rest & priorities %~ (p :) -- {programPriorities = p : programPriorities rest} -- add priority
+    TLQuery q -> return $ rest & queries %~ (q :) -- {programQueries = q : programQueries rest} -- add query
+    TLInclude i -> return $ rest & includes %~ (i :) -- {programIncludes = i : programIncludes rest} -- add include
+    TLImport i -> return $ rest & imports %~ (i :) -- {programImports = i : programImports rest} -- add import
     TLPhases p ->
       -- Phases: validate that there's at most one (fatal error if multiple)
-      case phases rest of
-        Nothing -> return rest {phases = Just p} -- first phases — just add it
+      case programPhases rest of
+        Nothing -> return rest {programPhases = Just p} -- first phases — just add it
         Just p' -> do
           -- multiple phases — fatal error
-          p_pos <- fixenGetPosition p
-          p'_pos <- fixenGetPosition p'
+          p_pos <- getPosition p
+          p'_pos <- getPosition p'
           failErr
             Nothing
             "syntax error"
@@ -292,56 +272,60 @@ partitionTopLevels mod_decl (x : xs) = do
             , (p'_pos, This "another phase definition")
             ]
             [Note "each program can only have one phase declaration"]
-    TLHsBlock h -> return rest {hsBlocks = h : hsBlocks rest} -- add Haskell block
+    TLHsBlock h -> return $ rest & hsBlocks %~ (h :) -- {programHsBlocks = h : programHsBlocks rest} -- add Haskell block
 
 --------------------------------------------------------------------------------
---
--- Individual declaration parsers
---
+
+-- * Individual declaration parsers
+
 --------------------------------------------------------------------------------
 
--- | Parses a module declaration: @module@ @My.Haskell.Module@ @where@.
+-- ** Module-Declaration Parser
+
+-- | Parses a module declaration: @module My.Haskell.Module where@.
 --
---   The module name is parsed as a 'AST.ModuleName' (a series of capitalized
---   identifiers separated by dots). The 'module' and 'where' keywords must
---   not be indented.
+-- The module name is parsed as a 'AST.ModuleName' (a series of capitalized
+-- identifiers separated by dots). The 'module' keyword must
+-- not be indented.
 --
---   This declaration is compulsory in every Fixen program.
-parseModuleDeclaration :: Parser ModuleDeclaration
+-- This declaration is compulsory in every Fixen program.
+parseModuleDeclaration :: ParserState σ => Parser σ ModuleDeclaration
 parseModuleDeclaration = parsePositioned $ do
   -- Parse the 'module' keyword (must not be indented)
   -- No need to 'try' here — module declarations are compulsory
   _ <- l $ L.nonIndented sc $ keyword "module"
   -- Parse the module name (e.g. Data.List)
-  m <- l parseModuleName
+  m <- indented *> l parseModuleName
   -- Parse the 'where' keyword
-  _ <- keyword "where"
+  _ <- indented *> keyword "where"
   -- Allocate a fresh node ID and construct the ModuleDeclaration AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ ModuleDeclaration i m
+
+-- ** Relation-Declaration Parser
 
 -- | Parses a relation declaration:
 --
---   @
---   rel RelationName: Type1, Type2
---   @
+-- @
+-- rel RelationName: Type1, Type2
+-- @
 --
---   The 'rel' keyword must not be indented. The relation name must be
---   capitalized (since relations are constructor-like). Arguments are
---   optional — if present, they follow a colon and are comma-separated types.
+-- The 'rel' keyword must not be indented. The relation name must be
+-- capitalized (since relations are constructor-like). Arguments are
+-- optional — if present, they follow a colon and are comma-separated types.
 --
---   Example without arguments:
+-- Example without arguments:
 --
---   @
---   rel MyFact
---   @
+-- @
+-- rel MyFact
+-- @
 --
---   Example with arguments:
+-- Example with arguments:
 --
---   @
---   rel Dist: Integer, Integer
---   @
-parseRelation :: Parser Relation
+-- @
+-- rel Dist: Integer, Integer
+-- @
+parseRelation :: ParserState σ => Parser σ RelationDeclaration
 parseRelation = parsePositioned $ do
   -- Parse the 'rel' keyword (must not be indented)
   -- Use 'P.try' so we can backtrack when parsing top-level declarations
@@ -349,45 +333,47 @@ parseRelation = parsePositioned $ do
   -- Verify proper indentation before the relation name
   _ <- indented
   -- Parse the capitalized relation name (relations are constructor-like)
-  name <- parseCapitalizedSimpleIdentifier
+  rel_name <- parseCapitalizedSimpleIdentifier
   -- Attempt to parse optional arguments: a colon followed by comma-separated types
   -- 'P.observing' allows backtracking — if no colon, args are empty
   colon <- P.observing $ P.try $ indented *> keywordOp ":"
-  args <- case colon of
+  params <- case colon of
     Left _ -> return [] -- no colon — no arguments
     Right _ -> do
       -- Verify proper indentation before the first argument
       _ <- indented
       -- Parse one or more comma-separated types with indentation checking
-      args <- commaSepBy1' (parseType indented)
-      return $ toList args -- convert NonEmpty list to regular list
+      params <- commaSepBy1' (parseType indented)
+      return $ toList params -- convert NonEmpty list to regular list
       -- Allocate a fresh node ID and construct the Relation AST node
-  i <- fixenGetNewNodeId
-  return $ Relation i name args
+  i <- getNewNodeId
+  return $ RelationDeclaration i rel_name params
+
+-- ** Rule-Declaration Parsers
 
 -- | Parses a rule declaration:
 --
---   @
---   rule [ruleName boundVar1 boundVar2 ...]:
---       assumption1
---     , assumption2
---     , if condition
---    |- conclusion
---   @
+-- @
+-- rule [ruleName boundVar1 boundVar2 ...]:
+--     assumption1
+--   , assumption2
+--   , if condition
+--  |- conclusion
+-- @
 --
---   The 'rule' keyword must not be indented. A rule consists of:
+-- The 'rule' keyword must not be indented. A rule consists of:
 --
---   1. An optional rule name (lowercase identifier) followed by optional
---      bound variables
---   2. A colon separator
---   3. Zero or more premises (assumptions and conditions), separated by commas
---   4. A turnstile (@|-@ or @⊢@)
---   5. A conclusion (a capitalized fact name followed by expression arguments)
+-- 1. An optional rule name (lowercase identifier) followed by optional
+--    bound variables
+-- 2. A colon separator
+-- 3. Zero or more premises (assumptions and conditions), separated by commas
+-- 4. A turnstile (@|-@ or @⊢@)
+-- 5. A conclusion (a capitalized fact name followed by expression arguments)
 --
---   The turnstile (@|-@) is a keyword operator, not a regular operator,
---   so it can be used in expressions only when parenthesized.
---   For example: @if (a |- b) |- Fact a (b |- a)@
-parseRule :: Parser Rule
+-- The turnstile (@|-@) is a keyword operator, not a regular operator,
+-- so it can be used in expressions only when parenthesized.
+-- For example: @if (a |- b) |- Fact a (b |- a)@
+parseRule :: ParserState σ => Parser σ Rule
 parseRule = parsePositioned $ do
   -- Parse the 'rule' keyword (must not be indented)
   -- Definitely need 'try' here since rules are among many top-level alternatives
@@ -396,7 +382,7 @@ parseRule = parsePositioned $ do
   _ <- indented
   -- Parse the optional rule name and bound variables (all lowercase identifiers)
   -- If no identifiers are found, the rule is unnamed with no bound variables
-  (name, bound_vars) <- do
+  (rule_name, bound_vars) <- do
     idents <- manyI' parseLowerFirstSimpleIdentifier
     case idents of
       [] -> return (Nothing, []) -- no identifiers — unnamed rule
@@ -405,7 +391,7 @@ parseRule = parsePositioned $ do
   _ <- indented *> keywordOp ":" *> indented
   -- Parse the premises (assumptions and conditions), separated by commas
   -- 'partitionPremises' separates them into assumptions and conditions
-  (assumptions, conditions) <- do
+  (asms, conds) <- do
     premises <- commaSepBy' parsePremise
     return $ partitionPremises premises
   -- Parse the turnstile (@|-@ or @⊢@) with indentation checks
@@ -413,33 +399,33 @@ parseRule = parsePositioned $ do
   -- Parse the conclusion (capitalized fact name + expression arguments)
   concl <- parseConclusion
   -- Allocate a fresh node ID and construct the Rule AST node
-  i <- fixenGetNewNodeId
-  return $ Rule i name bound_vars assumptions conditions concl
+  i <- getNewNodeId
+  return $ Rule i rule_name bound_vars asms conds concl
 
 -- | Represents a premise within a rule body.
 --
---   A premise is either:
+-- A premise is either:
 --
---   * An /assumption/ — a relation applied to variable arguments
---     (e.g. @MyFact a b@)
---   * A /condition/ — an expression guarded by the 'if' keyword
---     (e.g. @if a <= b@)
+-- * An /assumption/ — a relation applied to variable arguments
+--   (e.g. @MyFact a b@)
+-- * A /condition/ — an expression guarded by the 'if' keyword
+--   (e.g. @if a <= b@)
 --
---   The 'partitionPremises' function separates a flat list of 'RulePremise'
---   values into two groups: assumptions first, then conditions.
+-- The 'partitionPremises' function separates a flat list of 'RulePremise'
+-- values into two groups: assumptions first, then conditions.
 data RulePremise
   = RPAssumption Assumption -- a relation assumption (e.g. MyFact a b)
   | RPCondition Condition -- an 'if' condition (e.g. if a <= b)
 
 -- | Separates a list of 'RulePremise' values into assumptions and conditions.
 --
---   Assumptions always come before conditions in the output lists.
---   This function processes the list in reverse order (from the end) to
---   maintain the original ordering within each group.
+-- Assumptions always come before conditions in the output lists.
+-- This function processes the list in reverse order (from the end) to
+-- maintain the original ordering within each group.
 --
---   For example, given @[RPAssumption a, RPCondition c, RPAssumption b]@,
---   the result is @([b, a], [c])@ — assumptions @b@ and @a@ first (in
---   reverse input order), then condition @c@.
+-- For example, given @[Assumption a, Condition c, Assumption b]@,
+-- the result is @([b, a], [c])@ — assumptions @b@ and @a@ first (in
+-- reverse input order), then condition @c@.
 partitionPremises
   :: [RulePremise]
   -> ([Assumption], [Condition])
@@ -453,16 +439,16 @@ partitionPremises (x : xs) =
 
 -- | Parses a single premise within a rule body. A premise is either:
 --
---   * An /assumption/ — a relation applied to variable arguments
---     (e.g. @MyFact a b@)
---   * A /condition/ — an expression guarded by the 'if' keyword
---     (e.g. @if a <= b@)
+-- * An /assumption/ — a relation applied to variable arguments
+--   (e.g. @MyFact a b@)
+-- * A /condition/ — an expression guarded by the 'if' keyword
+--   (e.g. @if a <= b@)
 --
---   No 'try' is used here because the first token of each branch is
---   distinct: assumptions start with a capitalized identifier, while
---   conditions start with the 'if' keyword. Once one matches, we commit
---   to it.
-parsePremise :: Parser RulePremise
+-- No 'try' is used here because the first token of each branch is
+-- distinct: assumptions start with a capitalized identifier, while
+-- conditions start with the 'if' keyword. Once one matches, we commit
+-- to it.
+parsePremise :: ParserState σ => Parser σ RulePremise
 parsePremise =
   -- Try assumption first (starts with capitalized identifier)
   RPAssumption <$> parseAssumption
@@ -472,15 +458,15 @@ parsePremise =
 -- | Parses the conclusion of a rule: a capitalized fact name followed by
 -- zero or more expression arguments.
 --
---   @
---   |- MyFact arg1,
---      arg2
---   @
+-- @
+-- MyFact arg1
+--    arg2
+-- @
 --
---   The conclusion must start with a capitalized identifier (since facts
---   are constructor-like), followed by expression arguments. The arguments
---   are separated by commas with indentation checking.
-parseConclusion :: Parser Conclusion
+-- The conclusion must start with a capitalized identifier (since facts
+-- are constructor-like), followed by expression arguments. The arguments
+-- are separated by commas with indentation checking.
+parseConclusion :: ParserState σ => Parser σ Conclusion
 parseConclusion = parsePositioned $ do
   -- Verify proper indentation before the conclusion
   _ <- indented
@@ -489,26 +475,26 @@ parseConclusion = parsePositioned $ do
   -- Verify proper indentation before the arguments
   -- _ <- indented
   -- Parse zero or more expression arguments with indentation checking
-  args <- manyI' (parseParenExpr indented)
+  arguments <- manyI' (parseParenExpr indented)
   -- Allocate a fresh node ID and construct the Relation AST node
-  i <- fixenGetNewNodeId
-  return $ Relation i header args
+  i <- getNewNodeId
+  return $ Conclusion i header arguments
 
 -- | Parses an assumption within a rule body: a relation name applied to
 -- variable arguments.
 --
---   @
---       MyFact var1,
---       var2
---   @
+-- @
+-- MyFact var1
+--  var2
+-- @
 --
---   The relation name must be capitalized (since relations are
---   constructor-like), and the arguments must be lowercase-starting
---   simple identifiers.
+-- The relation name must be capitalized (since relations are
+-- constructor-like), and the arguments must be lowercase-starting
+-- simple identifiers.
 --
---   A 'try' is used here so that if the premise is actually a condition
---   (starting with 'if'), we can backtrack and try 'parseCondition' instead.
-parseAssumption :: Parser Assumption
+-- A 'try' is used here so that if the premise is actually a condition
+-- (starting with 'if'), we can backtrack and try 'parseCondition' instead.
+parseAssumption :: ParserState σ => Parser σ Assumption
 parseAssumption = parsePositioned $ do
   -- Verify proper indentation before the assumption
   _ <- indented
@@ -519,22 +505,22 @@ parseAssumption = parsePositioned $ do
   _ <- indented
   -- Parse zero or more lowercase-starting simple identifiers as arguments.
   -- This is the **only** place that holes are accepted.
-  args <- manyI' parseLowerFirstSimpleIdentifierOrHole
+  arguments <- manyI' parseLowerFirstSimpleIdentifierOrHole
   -- Allocate a fresh node ID and construct the Assumption AST node
-  i <- fixenGetNewNodeId
-  return $ Relation i header args
+  i <- getNewNodeId
+  return $ Assumption i header arguments
 
 -- | Parses a condition within a rule body: an expression guarded by
 -- the 'if' keyword.
 --
---   @
---       if a <= b
---   @
+-- @
+-- if a <= b
+-- @
 --
---   The 'if' keyword must not be immediately followed by identifier
---   continuation characters (guaranteed by 'keyword'). The expression
---   is parsed with indentation checking.
-parseCondition :: Parser Condition
+-- The 'if' keyword must not be immediately followed by identifier
+-- continuation characters (guaranteed by 'keyword'). The expression
+-- is parsed with indentation checking.
+parseCondition :: ParserState σ => Parser σ Condition
 parseCondition = parsePositioned $ do
   -- Parse the 'if' keyword with indentation checks on both sides
   _ <-
@@ -544,8 +530,10 @@ parseCondition = parsePositioned $ do
   -- Parse the condition expression with indentation checking
   e <- parseExpr indented
   -- Allocate a fresh node ID and construct the Condition AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ Condition i e
+
+-- ** Partial-Order-Declaration Parsers
 
 -- | Parses a partial order declaration:
 --
@@ -567,7 +555,7 @@ parseCondition = parsePositioned $ do
 --   The 'partial' and 'ord' keywords must not be indented. The 'where'
 --   block contains exactly three fields, each indented relative to the
 --   'partial ord' line.
-parsePartialOrd :: Parser PartialOrdDeclaration
+parsePartialOrd :: ParserState σ => Parser σ PartialOrdDeclaration
 parsePartialOrd = parsePositioned $ do
   -- Parse the 'partial' keyword (must not be indented)
   -- Need 'try' since partial ord is among many top-level alternatives
@@ -579,7 +567,7 @@ parsePartialOrd = parsePositioned $ do
   -- Verify proper indentation before the type name
   _ <- indented
   -- Parse the type name being defined (e.g. Dist)
-  name <- parseCapitalizedSimpleIdentifier
+  pord_name <- parseCapitalizedSimpleIdentifier
   -- Verify proper indentation before 'where'
   _ <- indented
   -- Parse the 'where' keyword
@@ -592,54 +580,56 @@ parsePartialOrd = parsePositioned $ do
   leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
   mlbs_func <- parsePartialOrdField "mlbs" (parseNonInfixTermIdentifier indented)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
-  i <- fixenGetNewNodeId
-  return $ PartialOrdDeclaration i name type_expr leq_func mlbs_func
+  i <- getNewNodeId
+  return $ PartialOrdDeclaration i pord_name type_expr leq_func mlbs_func
 
 -- | Parses a single field within a 'partial ord' declaration.
 --
---   Each field has the form: @fieldName = value@, where:
+-- Each field has the form: @fieldName = value@, where:
 --
---   * @fieldName@ is one of @type@, @leq@, or @mlbs@
---   * @value@ is parsed by the provided 'valueParser'
---   * Proper indentation is verified before and after each component
+-- * @fieldName@ is one of @type@, @leq@, or @mlbs@
+-- * @value@ is parsed by the provided 'valueParser'
+-- * Proper indentation is verified before and after each component
 --
---   For example, the field @type = Dist@ is parsed as:
+-- For example, the field @type = Dist@ is parsed as:
 --
---   @
---   keyword "type"  ->  keywordOp "="  ->  parseType indented
---   @
+-- @
+-- keyword "type"  ->  keywordOp "="  ->  parseType indented
+-- @
 parsePartialOrdField
-  :: Text
+  :: ParserState σ
+  => Text
   -- ^ Field name ("type", "leq", or "mlbs")
-  -> Parser a
+  -> Parser σ a
   -- ^ Parser for the field value
-  -> Parser a
+  -> Parser σ a
 parsePartialOrdField fieldName valueParser = do
   -- Parse: fieldName = value, with indentation checks between all components
   _ <- indented *> keyword fieldName *> indented *> keywordOp "=" *> indented
   -- Parse the value (type expression, identifier, etc.)
   valueParser
 
+-- ** Priority-Declaration Parsers
+
 -- | Parses a priority declaration:
 --
---   @
---   priority:
---       a <= b |- addDist { a = a, b = b' } <= addDist { a = a', b = b' }
---   @
+-- @
+-- priority: a <= b |- addDist { a = a, b = b' } <= addDist { a = a', b = b' }
+-- @
 --
---   A priority declaration specifies an ordering between two rule instances.
---   It consists of:
+-- A priority declaration specifies an ordering between two rule instances.
+-- It consists of:
 --
---   1. The 'priority' keyword (must not be indented)
---   2. A colon separator
---   3. A premise expression (left side of the turnstile)
---   4. A turnstile (@|-@ or @⊢@)
---   5. A priority conclusion (two rule instances connected by @<=@ or @⊏@)
+-- 1. The 'priority' keyword (must not be indented)
+-- 2. A colon separator
+-- 3. A premise expression (left side of the turnstile)
+-- 4. A turnstile (@|-@ or @⊢@)
+-- 5. A priority conclusion (two rule instances connected by @<=@ or @⊏@)
 --
---   Each priority declaration applies to exactly one priority rule. For
---   multiple rules, create multiple priority declarations. This avoids
---   indentation ambiguity.
-parsePriority :: Parser Priority
+-- Each priority declaration applies to exactly one priority rule. For
+-- multiple rules, create multiple priority declarations. This avoids
+-- indentation ambiguity.
+parsePriority :: ParserState σ => Parser σ Priority
 parsePriority = parsePositioned $ do
   -- Parse the 'priority' keyword (must not be indented)
   -- Need 'try' since priority is among many top-level alternatives
@@ -647,25 +637,25 @@ parsePriority = parsePositioned $ do
   -- Parse the colon separator with indentation checks
   _ <- indented *> keywordOp ":" *> indented
   -- Parse the premise expression (left side of the turnstile)
-  expr <- parseExpr indented
+  prem <- parseExpr indented
   -- Parse the turnstile with indentation checks
   _ <- indented *> turnstile *> indented
   -- Parse the priority conclusion (two rule instances with ordering)
   concl <- parsePriorityConclusion
   -- Allocate a fresh node ID and construct the Priority AST node
-  i <- fixenGetNewNodeId
-  return $ Priority i expr concl
+  i <- getNewNodeId
+  return $ Priority i prem concl
 
 -- | Parses the conclusion of a priority declaration: two rule instances
 -- connected by an ordering symbol (@<=@ or @⊏@).
 --
---   @
---       addDist { a = a } <= addDist { a = a' }
---   @
+-- @
+-- addDist { a = a } <= addDist { a = a' }
+-- @
 --
---   Each rule instance consists of a rule name (lowercase identifier)
---   followed by optional variable substitutions in curly braces.
-parsePriorityConclusion :: Parser PriorityConclusion
+-- Each rule instance consists of a rule name (lowercase identifier)
+-- followed by optional variable substitutions in curly braces.
+parsePriorityConclusion :: ParserState σ => Parser σ PriorityConclusion
 parsePriorityConclusion = parsePositioned $ do
   -- Parse the left-hand side rule instance
   left <- parseRuleInstance
@@ -674,26 +664,26 @@ parsePriorityConclusion = parsePositioned $ do
   -- Parse the right-hand side rule instance
   right <- parseRuleInstance
   -- Allocate a fresh node ID and construct the PriorityConclusion AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ PriorityConclusion i left right
 
 -- | Parses a rule instance: a rule name optionally followed by variable
 -- substitutions in curly braces.
 --
---   @
---       addDist { a = a, b = b' }
---       assignI { }
---       myRule
---   @
+-- @
+-- addDist { a = a, b = b' }
+-- assignI { }
+-- myRule
+-- @
 --
---   The rule name is a lowercase-starting simple identifier. Substitutions
---   are comma-separated pairs of identifiers separated by '='.
-parseRuleInstance :: Parser RuleInstance
+-- The rule name is a lowercase-starting simple identifier. Substitutions
+-- are comma-separated pairs of identifiers separated by '='.
+parseRuleInstance :: ParserState σ => Parser σ RuleInstance
 parseRuleInstance = parsePositioned $ do
   -- record the offset so as to throw errors
   offset_start <- P.getOffset
   -- Parse the rule name (lowercase identifier), consuming trailing whitespace
-  name <- l parseLowerFirstSimpleIdentifier
+  rule_name <- l parseLowerFirstSimpleIdentifier
   -- Parse optional variable substitutions in curly braces
   -- (empty braces {} are allowed)
   subst <- betweenCurlyBraces indented $ commaSepBy' parseSubstitution
@@ -713,19 +703,19 @@ parseRuleInstance = parsePositioned $ do
         )
     else do
       -- Allocate a fresh node ID and construct the RuleInstance AST node
-      i <- fixenGetNewNodeId
-      return $ RuleInstance i name (Map.fromList subst)
+      i <- getNewNodeId
+      return $ RuleInstance i rule_name (Map.fromList subst)
 
 -- | Parses a variable substitution: @left = right@, where both sides
 -- are lowercase-starting simple identifiers.
 --
---   @
---       a = a'
---   @
+-- @
+-- a = a'
+-- @
 --
---   Used within rule instance declarations to specify how variables
---   are mapped.
-parseSubstitution :: Parser (SimpleIdentifier, SimpleIdentifier)
+-- Used within rule instance declarations to specify how variables
+-- are mapped.
+parseSubstitution :: ParserState σ => Parser σ (SimpleIdentifier, SimpleIdentifier)
 parseSubstitution = do
   -- Parse the left-hand side identifier
   left <- parseLowerFirstSimpleIdentifier
@@ -735,23 +725,25 @@ parseSubstitution = do
   right <- parseLowerFirstSimpleIdentifier
   return (left, right)
 
+-- ** Query-Declaration Parsers
+
 -- | Parses a query declaration:
 --
---   @
---   query DistTo as distTo - +
---   @
+-- @
+-- query DistTo as distTo - +
+-- @
 --
---   A query declaration specifies a query mode for a relation. It consists of:
+-- A query declaration specifies a query mode for a relation. It consists of:
 --
---   1. The 'query' keyword (must not be indented)
---   2. A relation name (capitalized identifier)
---   3. The 'as' keyword
---   4. A query name (lowercase identifier)
---   5. One or more mode symbols (@+@ for input, @-@ for output)
+-- 1. The 'query' keyword (must not be indented)
+-- 2. A relation name (capitalized identifier)
+-- 3. The 'as' keyword
+-- 4. A query name (lowercase identifier)
+-- 5. One or more mode symbols (@+@ for input, @-@ for output)
 --
---   Modes indicate whether each argument of the relation is an input or
---   output variable for the query.
-parseQuery :: Parser Query
+-- Modes indicate whether each argument of the relation is an input or
+-- output variable for the query.
+parseQuery :: ParserState σ => Parser σ Query
 parseQuery = parsePositioned $ do
   -- Parse the 'query' keyword (must not be indented)
   -- Need 'try' since query is among many top-level alternatives
@@ -759,14 +751,14 @@ parseQuery = parsePositioned $ do
   -- Verify proper indentation before the relation name
   _ <- indented
   -- Parse the query name (lowercase identifier)
-  name <- parseLowerFirstSimpleIdentifier
+  query_name <- parseLowerFirstSimpleIdentifier
   -- Parse the colon separator with indentation checks
   _ <- indented *> keywordOp ":" *> indented
   -- Parse the relation with modes
-  relation <- parseQueriedRelation
+  rel <- parseQueriedRelation
   -- Allocate a fresh node ID and construct the Query AST node
-  i <- fixenGetNewNodeId
-  return $ Query i relation name
+  i <- getNewNodeId
+  return $ Query i rel query_name
 
 -- | Parses the relation part within a query declaration: a relation name
 -- applied to 'QueryMode's.
@@ -777,7 +769,7 @@ parseQuery = parsePositioned $ do
 --
 -- The relation name must be capitalized (since relations are
 -- constructor-like), and the arguments must be query modes.
-parseQueriedRelation :: Parser QueriedRelation
+parseQueriedRelation :: ParserState σ => Parser σ QueriedRelation
 parseQueriedRelation = parsePositioned $ do
   -- Verify proper indentation before the assumption
   _ <- indented
@@ -785,38 +777,40 @@ parseQueriedRelation = parsePositioned $ do
   -- Use 'P.try' so we can backtrack if this is actually a condition
   header <- P.try parseCapitalizedSimpleIdentifier
   -- Parse zero or more lowercase-starting simple identifiers as arguments
-  args <- manyI' parseQueryMode
+  modes <- manyI' parseQueryMode
   -- Allocate a fresh node ID and construct the Assumption AST node
-  i <- fixenGetNewNodeId
-  return $ Relation i header args
+  i <- getNewNodeId
+  return $ QueriedRelation i header modes
 
 -- | Parses a single mode symbol: @+@ (input) or @-@ (output).
 --
---   Mode symbols indicate whether a relation argument is an input or
---   output variable for a query.
+-- Mode symbols indicate whether a relation argument is an input or
+-- output variable for a query.
 --
---   * @+@ → 'Input' — the argument is an input
---   * @-@ → 'Output' — the argument is an output
-parseQueryMode :: Parser QueryMode
+-- * @+@ → 'Input' — the argument is an input
+-- * @-@ → 'Output' — the argument is an output
+parseQueryMode :: ParserState σ => Parser σ QueryMode
 parseQueryMode = parsePositioned $ do
   -- Parse the mode symbol with indentation check, consuming trailing whitespace
   m <- indented *> P.try (C.char '+' >> return Input) <|> (C.char '-' >> return Output)
   -- Allocate a fresh node ID and wrap in the QueryMode constructor
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ m i
+
+-- ** Include-Statement Parser
 
 -- | Parses an include statement:
 --
---   @
---   include "Path/To/Fixen.fix"
---   @
+-- @
+-- include \"ppth\/to\/Fixen.fix\"
+-- @
 --
---   The 'include' keyword must not be indented. The path is a string
---   literal (double-quoted, with escape sequences supported).
+-- The 'include' keyword must not be indented. The path is a string
+-- literal (double-quoted, with escape sequences supported).
 --
---   Include statements allow one Fixen program to import and reuse
---   declarations from another Fixen file.
-parseInclude :: Parser Include
+-- Include statements allow one Fixen program to import and reuse
+-- declarations from another Fixen file.
+parseInclude :: ParserState σ => Parser σ Include
 parseInclude = parsePositioned $ do
   -- Parse the 'include' keyword (must not be indented)
   -- Need 'try' since include is among many top-level alternatives
@@ -824,24 +818,26 @@ parseInclude = parsePositioned $ do
   -- Verify proper indentation before the path string
   _ <- indented
   -- Parse the file path as a string literal
-  path <- parseRawString
+  include_path <- parseRawString
   -- Allocate a fresh node ID and construct the Include AST node
-  i <- fixenGetNewNodeId
-  return $ Include i path
+  i <- getNewNodeId
+  return $ Include i include_path
+
+-- ** Import-Statement Parser
 
 -- | Parses an import statement:
 --
---   @
---   import My.Haskell.Module
---   @
+-- @
+-- import My.Haskell.Module
+-- @
 --
---   The 'import' keyword must not be indented. The module name is parsed
---   as a 'AST.ModuleName' (a series of capitalized identifiers separated
---   by dots).
+-- The 'import' keyword must not be indented. The module name is parsed
+-- as a 'AST.ModuleName' (a series of capitalized identifiers separated
+-- by dots).
 --
---   Import statements allow a Fixen program to reference Haskell symbols
---   defined in external modules.
-parseImport :: Parser HsImport
+-- Import statements allow a Fixen program to reference Haskell symbols
+-- defined in external modules.
+parseImport :: ParserState σ => Parser σ HsImport
 parseImport = parsePositioned $ do
   -- Parse the 'import' keyword (must not be indented)
   -- Need 'try' since import is among many top-level alternatives
@@ -851,31 +847,33 @@ parseImport = parsePositioned $ do
   -- Parse the Haskell module name (e.g. Data.List, MyCompany.MyModule)
   mod_name <- parseModuleName
   -- Allocate a fresh node ID and construct the HsImport AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ HsImport i mod_name
+
+-- ** Phases-Declaration Parsers
 
 -- | Parses a phases declaration:
 --
---   @
---   phases:
---       [ { rule1, rule2 }, { rule3 }, * ]
---   @
+-- @
+-- phases:
+--     [ { rule1, rule2 }, { rule3 }, * ]
+-- @
 --
---   A phases declaration defines multi-phase rule execution for the
---   FPOP (Fixed Point Over lattices) solver. It consists of:
+-- A phases declaration defines multi-phase rule execution for the
+-- FPOP (Fixed Point Over lattices) solver. It consists of:
 --
---   1. The 'phases' keyword (must not be indented)
---   2. A colon separator
---   3. A square-bracket-delimited list of rulesets
+-- 1. The 'phases' keyword (must not be indented)
+-- 2. A colon separator
+-- 3. A square-bracket-delimited list of rulesets
 --
---   Each ruleset is either:
+-- Each ruleset is either:
 --
---   * An /explicit ruleset/ — curly-brace-delimited list of rule names
---     (e.g. @\{ rule1, rule2 @})
---   * The wildcard @*@ — representing "all remaining rules"
+-- * An /explicit ruleset/ — curly-brace-delimited list of rule names
+--   (e.g. @\{ rule1, rule2 @})
+-- * The wildcard @*@ — representing "all remaining rules"
 --
---   Only one phases declaration is allowed per program.
-parsePhases :: Parser Phases
+-- Only one phases declaration is allowed per program.
+parsePhases :: ParserState σ => Parser σ PhasesDeclaration
 parsePhases = parsePositioned $ do
   -- Parse the 'phases' keyword (must not be indented)
   -- No 'try' needed — phases is the last syntactic category
@@ -885,17 +883,17 @@ parsePhases = parsePositioned $ do
   -- Parse the rulesets in square brackets with indentation checking
   rulesets <- betweenSquareBrackets indented $ commaSepBy1' parsePhaseRuleset
   -- Allocate a fresh node ID and construct the Phases AST node
-  i <- fixenGetNewNodeId
-  return $ Phases i rulesets
+  i <- getNewNodeId
+  return $ PhasesDeclaration i rulesets
 
 -- | Parses a single ruleset within a phases declaration. A ruleset is
 -- either an explicit list of rule names or the wildcard @*@.
 --
---   @
---       { rule1, rule2 }    -- explicit ruleset
---       *                    -- wildcard (all remaining rules)
---   @
-parsePhaseRuleset :: Parser RulesetOrEverythingElse
+-- @
+-- { rule1, rule2 }    -- explicit ruleset
+-- *                    -- wildcard (all remaining rules)
+-- @
+parsePhaseRuleset :: ParserState σ => Parser σ RulesetOrEverythingElse
 parsePhaseRuleset =
   -- Try explicit ruleset first (starts with '{'), fall back to wildcard
   (Left <$> P.try parseExplicitRuleset) <|> (Right <$> parseEverythingElseRuleset)
@@ -903,61 +901,59 @@ parsePhaseRuleset =
 -- | Parses an explicit ruleset: a curly-brace-delimited list of one or
 -- more rule names (lowercase identifiers).
 --
---   @
---       { rule1, rule2, rule3 }
---   @
+-- @
+-- { rule1, rule2, rule3 }
+-- @
 --
---   Rule names are separated by commas with indentation checking.
-parseExplicitRuleset :: Parser ExplicitRuleset
+-- Rule names are separated by commas with indentation checking.
+parseExplicitRuleset :: ParserState σ => Parser σ Ruleset
 parseExplicitRuleset = parsePositioned $ do
   -- Parse the rule names in curly braces with indentation checking
-  rules <- betweenCurlyBraces indented $ commaSepBy1' parseLowerFirstSimpleIdentifier
+  ruleset_rules <- betweenCurlyBraces indented $ commaSepBy1' parseLowerFirstSimpleIdentifier
   -- Allocate a fresh node ID and construct the Ruleset AST node
-  i <- fixenGetNewNodeId
-  return $ Ruleset i rules
+  i <- getNewNodeId
+  return $ Ruleset i ruleset_rules
 
 -- | Parses the wildcard ruleset (@*@), representing "all remaining rules"
 -- in a phases declaration.
 --
---   @
---       *
---   @
---
---   The wildcard must appear at most once and typically comes last in
---   the phases list, capturing any rules not assigned to explicit rulesets.
-parseEverythingElseRuleset :: Parser EverythingElseRuleset
+-- The wildcard must appear at most once and typically comes last in
+-- the phases list, capturing any rules not assigned to explicit rulesets.
+parseEverythingElseRuleset :: ParserState σ => Parser σ EverythingElseRuleset
 parseEverythingElseRuleset = parsePositioned $ do
   -- Parse the wildcard operator
   _ <- keywordOp "*"
   -- Allocate a fresh node ID and construct the EverythingElseRuleset AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ EverythingElseRuleset i
+
+-- ** Haskell-Code-Block Parser
 
 -- | Parses a Haskell code block delimited by triple backticks with @hs@
 -- language annotation:
 --
---   @
---   ```hs
---   myHaskellFunction :: Int -> Int
---   myHaskellFunction x = x + 1
---   ```
---   @
+-- @
+-- ```hs
+-- myHaskellFunction :: Int -> Int
+-- myHaskellFunction x = x + 1
+-- ```
+-- @
 --
---   The opening fence (```hs) must not be indented. The block contents
---   are captured as raw 'Text' until the closing fence (```) is found.
+-- The opening fence (```hs) must not be indented. The block contents
+-- are captured as raw 'Text' until the closing fence (```) is found.
 --
---   Haskell code blocks allow embedding Haskell source directly in Fixen
---   programs, typically for defining external symbols referenced by
---   'extern' declarations.
-parseHaskellCodeBlock :: Parser HsBlock
+-- Haskell code blocks allow embedding Haskell source directly in Fixen
+-- programs, typically for defining external symbols referenced by
+-- 'extern' declarations.
+parseHaskellCodeBlock :: ParserState σ => Parser σ HsBlock
 parseHaskellCodeBlock = parsePositioned $ do
   -- Parse the opening fence (```hs) — must not be indented
   -- Use 'try' since Haskell blocks are among many top-level alternatives
   _ <- P.try $ L.nonIndented sc $ keyword "```hs"
   -- Capture all characters until the closing fence (```)
-  contents <- P.manyTill P.anySingle (keyword "```")
+  code_contents <- P.manyTill P.anySingle (keyword "```")
   -- Allocate a fresh node ID and construct the HsBlock AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Convert the character list to a Text chunk
   let pxy :: Proxy Text = Proxy
-  return $ HsBlock i (P.tokensToChunk pxy contents)
+  return $ HsBlock i (P.tokensToChunk pxy code_contents)

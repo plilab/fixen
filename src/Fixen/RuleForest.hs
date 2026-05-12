@@ -10,8 +10,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
-
--- import Fixen.Data.NodeId
+import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.IR.RuleForest
 import Fixen.Monad
@@ -21,7 +20,7 @@ type RuleForestState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 getRuleForest :: Program -> FixenPass RuleForestState (NonEmpty RuleForest)
 getRuleForest prog = do
   prog_phases <- fixenGetPhases
-  let r = IntMap.fromList $ (\r' -> (getNodeId r', r')) <$> rules prog
+  let r = IntMap.fromList $ (\r' -> (r' ^. nodeId, r')) <$> prog ^. rules
       phased_rules = (\ns -> (r IntMap.!) <$> IntSet.toList ns) <$> prog_phases
       -- there must be at least one rule, so we can make it a NonEmpty (NonEmpty Rule)
       phased_rules' = (\ls -> ls !! 0 :| drop 1 ls) <$> phased_rules
@@ -43,16 +42,16 @@ concatNonEmpty :: NonEmpty (NonEmpty a) -> NonEmpty a
 concatNonEmpty (x :| xs) = foldl' NonEmpty.append x xs
 
 mergeMaps :: NonEmpty RuleTreeChoppedHead -> NonEmpty RuleTreeChoppedHead -> NonEmpty RuleTreeChoppedHead
-mergeMaps lhs (y :| ys) =
-  case attemptMerge lhs y of
+mergeMaps l (y :| ys) =
+  case attemptMerge l y of
     Just lhs' ->
       case ys of
         [] -> lhs'
         (y' : ys') -> mergeMaps lhs' (y' :| ys')
     Nothing ->
       case ys of
-        [] -> NonEmpty.cons y lhs
-        (y' : ys') -> NonEmpty.cons y (mergeMaps lhs (y' :| ys'))
+        [] -> NonEmpty.cons y l
+        (y' : ys') -> NonEmpty.cons y (mergeMaps l (y' :| ys'))
 
 attemptMerge :: NonEmpty RuleTreeChoppedHead -> RuleTreeChoppedHead -> Maybe (NonEmpty RuleTreeChoppedHead)
 attemptMerge (x :| xs) t =
@@ -77,18 +76,18 @@ tryMerge RuleTreeChoppedHead {_ruleTreeChoppedHeadArgs = a1, _ruleTreeChoppedHea
     else Nothing
 
 getBranch :: Rule -> NonEmpty RuleForest
-getBranch rule =
-  let asms = ruleAssumptions rule
+getBranch r =
+  let asms = ruleAssumptions r
    in case asms of
         [] ->
           RuleForest
             { _ruleForestTrees = Map.empty
             , _ruleForestLeaves =
                 [ RuleLeaf
-                    { _ruleLeafRuleId = getNodeId rule
+                    { _ruleLeafRuleId = r ^. nodeId
                     , _ruleLeafVariableMap = []
-                    , _ruleLeafCondition = ruleConditions rule
-                    , _ruleLeafConclusion = ruleConclusion rule
+                    , _ruleLeafCondition = ruleConditions r
+                    , _ruleLeafConclusion = ruleConclusion r
                     }
                 ]
             }
@@ -97,7 +96,7 @@ getBranch rule =
           -- factor out every possible assumption. Do not merge duplicates at this point!!!
           let factored :: NonEmpty (Assumption, Rule) = factorRelation <$> (0 :| [1 .. length asms - 1])
               x :: NonEmpty ((Text, [Int], [Text]), Rule) = (first (getVariableNumbering [])) <$> factored
-           in ( \((rel_name, rel_args, mapping), rul) ->
+           in ( \((rel_name, rel_args, mp), rul) ->
                   RuleForest
                     { _ruleForestLeaves = []
                     , _ruleForestTrees =
@@ -105,7 +104,7 @@ getBranch rule =
                           rel_name
                           ( RuleTreeChoppedHead
                               { _ruleTreeChoppedHeadArgs = rel_args
-                              , _ruleTreeChoppedHeadBranches = nonCombinatoriallyGetBranch mapping rul
+                              , _ruleTreeChoppedHeadBranches = nonCombinatoriallyGetBranch mp rul
                               }
                               :| []
                           )
@@ -114,27 +113,27 @@ getBranch rule =
                 <$> x
   where
     factorRelation i = do
-      let asms = ruleAssumptions rule
+      let asms = ruleAssumptions r
           factored = asms !! i
           remaining = take i asms ++ drop (i + 1) asms
-       in (factored, rule {ruleAssumptions = remaining})
+       in (factored, r {ruleAssumptions = remaining})
     getVariableNumbering :: [Text] -> Assumption -> (Text, [Int], [Text])
     getVariableNumbering bound_var_mapping asm =
-      let name = simpleIdentifier $ relationName asm
-          args = simpleIdentifier <$> relationParams asm
-          (idx, new_mapping) = foldl' f ([], bound_var_mapping) args
-       in (name, reverse idx, new_mapping)
+      let n = simpleIdentifier $ asm ^. name
+          a = simpleIdentifier <$> asm ^. args
+          (idx, new_mapping) = foldl' f ([], bound_var_mapping) a
+       in (n, reverse idx, new_mapping)
     f :: ([Int], [Text]) -> Text -> ([Int], [Text])
-    f (ls, mapping) t =
+    f (ls, mp) t =
       -- I think, continue to bind the holes so that we can more easily merge stuff.
       -- However, unconditionally bind holes as new variables so that the variables
       -- are not matched.
       if t == "_"
-        then ((length mapping) : ls, t : mapping)
-        else case elemIndex t mapping of
-          Just i -> ((length mapping - i - 1) : ls, mapping)
+        then ((length mp) : ls, t : mp)
+        else case elemIndex t mp of
+          Just i -> ((length mp - i - 1) : ls, mp)
           Nothing ->
-            ((length mapping) : ls, t : mapping)
+            ((length mp) : ls, t : mp)
     nonCombinatoriallyGetBranch :: [Text] -> Rule -> RuleForest
     nonCombinatoriallyGetBranch var_mapping rul =
       case ruleAssumptions rul of
@@ -142,10 +141,10 @@ getBranch rule =
           RuleForest
             { _ruleForestLeaves =
                 [ RuleLeaf
-                    { _ruleLeafRuleId = getNodeId rul
+                    { _ruleLeafRuleId = rul ^. nodeId
                     , _ruleLeafVariableMap = reverse var_mapping
-                    , _ruleLeafCondition = ruleConditions rule
-                    , _ruleLeafConclusion = ruleConclusion rule
+                    , _ruleLeafCondition = ruleConditions r
+                    , _ruleLeafConclusion = ruleConclusion r
                     }
                 ]
             , _ruleForestTrees = Map.empty

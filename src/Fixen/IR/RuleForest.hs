@@ -7,8 +7,7 @@ import Data.Map qualified as Map
 import Data.Map.Strict (Map)
 import Data.Text (Text, unpack)
 import Data.Tree
-
--- import Fixen.Data.NodeId
+import Fixen.Fields
 import Fixen.IR.AST
 
 data RuleLeaf = RuleLeaf
@@ -84,47 +83,47 @@ leafToRoseTree
      in Node (concat [show_conds, showed_rule_id, show mp, "\n", showed_conc]) []
 
 showCond :: [Text] -> Condition -> String
-showCond mapping c =
-  let expr = conditionExpr c
-   in "if " ++ showExpr mapping expr
+showCond m c =
+  let e = conditionExpr c
+   in "if " ++ showExpr m e
 
 showConc :: [Text] -> Conclusion -> String
-showConc mapping conc =
-  let rel_name = relationName conc
-      rel_args = relationParams conc
-      showed_args = if null rel_args then "" else " " ++ intercalate " " (showExpr mapping <$> rel_args)
+showConc m conc =
+  let rel_name = conc ^. name
+      rel_args = conc ^. args
+      showed_args = if null rel_args then "" else " " ++ intercalate " " (showExpr m <$> rel_args)
    in concat ["⊢ ", unpack $ simpleIdentifier rel_name, showed_args]
 
 showExpr :: [Text] -> Expr -> String
-showExpr mapping (ExprVar _ (IdentifierSimpleIdentifier s))
-  | Just i <- elemIndex (simpleIdentifier s) mapping =
+showExpr m (ExprVar _ (IdentifierSimpleIdentifier s))
+  | Just i <- elemIndex (simpleIdentifier s) m =
       '$' : show i
   | otherwise = unpack (simpleIdentifier s)
 showExpr _ (ExprVar _ i) = unpack (fullIdentifier i)
-showExpr mapping (ExprApp _ lhs rhs) =
+showExpr m (ExprApp _ l r) =
   concat
     [ "("
-    , showExpr mapping lhs
+    , showExpr m l
     , " "
-    , showExpr mapping rhs
+    , showExpr m r
     , ")"
     ]
 showExpr _ (ExprUnit _) = "()"
 showExpr _ (ExprIntLit _ i) = show i
 showExpr _ (ExprStrLit _ i) = show i
-showExpr mapping (ExprList _ ls) =
-  let com_sep = intercalate ", " (showExpr mapping <$> ls)
+showExpr m (ExprList _ ls) =
+  let com_sep = intercalate ", " (showExpr m <$> ls)
    in concat ["[", com_sep, "]"]
-showExpr mapping (ExprTuple _ hd tl) =
+showExpr m (ExprTuple _ hd tl) =
   let all_stuff = hd : (NonEmpty.toList tl)
-      com_sep = intercalate ", " (showExpr mapping <$> all_stuff)
+      com_sep = intercalate ", " (showExpr m <$> all_stuff)
    in concat ["(", com_sep, ")"]
 
 myDrawTree :: Bool -> Tree String -> String
 myDrawTree unicode = unlines . myDraw unicode
 
 myDrawForest :: Bool -> [Tree String] -> String
-myDrawForest unicode = unlines . map (myDrawTree unicode)
+myDrawForest unicode = unlines . fmap (myDrawTree unicode)
 
 myDraw :: Bool -> Tree String -> [String]
 myDraw unicode (Node x ts0) = lines x ++ drawSubTrees ts0

@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |
 --     Module      : Fixen.Monad.Env.Position
 --     Description : Position tracking for the Fixen compiler
@@ -18,27 +20,18 @@
 --     retrieve source positions for error reporting and diagnostic messages.
 module Fixen.Monad.Env.Position where
 
-import Control.Monad.State.Strict (
-  MonadState,
-  get,
-  put,
- )
-import Data.IntMap.Strict (
-  IntMap,
-  insert,
-  (!),
-  (!?),
- )
-import Error.Diagnose.Position (Position)
+import Control.Monad.State.Strict
+import Data.IntMap.Strict
+import Error.Diagnose.Position
+import Fixen.Fields
+import Fixen.IR.AST
+import Fixen.Monad.Type
 
--- import Fixen.Data.NodeId (HasNodeId (..))
-import Fixen.IR.AST (HasNodeId (..))
-import Fixen.Monad.Type (
-  (*<-:),
-  (:>:),
-  (↓),
- )
-import Prelude hiding (lookup)
+--------------------------------------------------------------------------------
+
+-- * The Position Environment
+
+--------------------------------------------------------------------------------
 
 -- | A map from 'NodeId' values to source positions ('Position').
 --
@@ -54,94 +47,91 @@ type PositionEnv = IntMap Position
 
 -- | Constraint alias indicating that a state type @σ@ contains a 'PositionEnv'.
 --
---   This is a shorthand for @σ :>: PositionEnv@, meaning that a 'PositionEnv'
---   can be projected from @σ@ using the ':>:' class.
+-- This is a shorthand for @σ :>: PositionEnv@, meaning that a 'PositionEnv'
+-- can be projected from @σ@ using the ':>:' class.
 --
---   This constraint is required by all position lookup and update functions
---   in this module. It is satisfied by any state type that includes
---   'PositionEnv' as a component, such as:
+-- This constraint is required by all position lookup and update functions
+-- in this module. It is satisfied by any state type that includes
+-- 'PositionEnv' as a component, such as:
 --
---   @
---   PositionEnv :*: NodeId :*: FixenErrors
---   @
-type Positioned a = a :>: PositionEnv
+-- @
+-- PositionEnv :*: NodeId :*: FixenErrors
+-- @
+type WithPositionEnv a = a :>: PositionEnv
 
--- | Look up the source position of an IR node by its 'NodeId'.
---
---   This retrieves the position from the 'PositionEnv' in the pass state
---   and returns it directly. If the node's 'NodeId' is not found in the
---   map, this will throw an error (via the 'IntMap.!' operator).
---
---   Use 'fixenGetPosition_maybe' if you need safe lookup that returns
---   'Nothing' for missing nodes.
---
---   @
---   -- Given a node 'x' in a pass:
---   pos <- fixenGetPosition x
---   -- pos :: Position  — the source location of x
---   @
-fixenGetPosition :: (HasNodeId α, Positioned σ, MonadState σ μ) => α -> μ Position
-fixenGetPosition x = do
-  -- Extract the NodeId from the IR node
-  let i = getNodeId x
-  -- Retrieve the current pass state
-  st <- get
-  -- Project the PositionEnv from the state
-  let pos_env :: PositionEnv = (↓) st
-  -- Look up the position (throws if not found)
-  return $ pos_env ! i
+--------------------------------------------------------------------------------
 
--- | Look up the source position of an IR node by its 'NodeId', returning
--- 'Nothing' if the node is not found.
---
---   This is the safe variant of 'fixenGetPosition'. It uses the 'IntMap.!?'
---   operator which returns 'Nothing' for missing keys instead of throwing.
---
---   This is useful when the position may not have been recorded yet
---   (e.g., for nodes that were constructed programmatically rather than
---   parsed from source).
---
---   @
---   -- Given a node 'x' in a pass:
---   pos <- fixenGetPosition_maybe x
---   -- pos :: Maybe Position  — Nothing if not found
---   @
-fixenGetPosition_maybe :: (HasNodeId α, Positioned σ, MonadState σ μ) => α -> μ (Maybe Position)
-fixenGetPosition_maybe x = do
-  -- Extract the NodeId from the IR node
-  let i = getNodeId x
-  -- Retrieve the current pass state
-  st <- get
-  -- Project the PositionEnv from the state
-  let pos_env :: PositionEnv = (↓) st
-  -- Safe lookup: returns Nothing if the NodeId is not in the map
-  return $ pos_env !? i
+-- * Working Within the Positioned Monad
 
--- | Set the source position of an IR node.
---
---   This updates the 'PositionEnv' in the pass state by inserting the
---   given 'Position' at the node's 'NodeId'. If a position was already
---   recorded for this 'NodeId', it is overwritten.
---
---   This is typically used during parsing to record the position of each
---   AST node as it is constructed, or in later passes to annotate nodes
---   whose positions were not available during parsing.
---
---   @
---   -- Given a node 'x' and a position 'p' in a pass:
---   fixenSetPosition x p
---   @
-fixenSetPosition :: (HasNodeId α, Positioned σ, MonadState σ μ) => α -> Position -> μ ()
-fixenSetPosition x p = do
-  -- Extract the NodeId from the IR node
-  let i = getNodeId x
-  -- Retrieve the current pass state
+--------------------------------------------------------------------------------
+
+-- | Obtains the 'PositionEnv'. Probably rarely used.
+getPositionEnv :: (WithPositionEnv σ, MonadState σ μ) => μ PositionEnv
+getPositionEnv = do
   st <- get
-  -- Project the PositionEnv from the state
-  let pos_env :: PositionEnv = (↓) st
-      -- Insert the new position into the map
-      new_pos_env = insert i p pos_env
-      -- Update the PositionEnv component in the state
-      new_st = st *<-: new_pos_env
-  -- Write the updated state back
-  put new_st
+  return $ (↓) st
+
+-- | Replaces the 'PositionEnv' with a new environment. Probably rarely used.
+setPositionEnv
+  :: (WithPositionEnv σ, MonadState σ μ)
+  => PositionEnv
+  -- ^ The new 'PositionEnv'
+  -> μ ()
+setPositionEnv new_env = do
+  st <- get
+  let new_state = st *<-: new_env
+  put new_state
+
+-- | Gets the 'Position' of a node in the 'Program'. Terminates exceptionally
+-- if the provided node does not have a position.
+getPosition
+  :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
+  => π
+  -- ^ The node in the 'Program'.
+  -> μ Position
+getPosition x = do
+  let node = x ^. nodeId
+  getPositionFromNodeId node
+
+-- | Unexceptional equivalent of 'getPosition'.
+getPosition_maybe
+  :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
+  => π
+  -- ^ The node in the 'Program'.
+  -> μ (Maybe Position)
+getPosition_maybe x = do
+  let node = x ^. nodeId
+  getPositionFromNodeId_maybe node
+
+-- | Sets the position of a node in the 'Program'.
+setPosition
+  :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
+  => π
+  -- ^ The node in the 'Program'
+  -> Position
+  -- ^ The 'Position' of the node.
+  -> μ ()
+setPosition x p = do
+  let i = x ^. nodeId
+  setPositionOfNodeId i p
+
+-- | Same as 'getPosition', except that it obtains the position directly from
+-- 'NodeId's.
+getPositionFromNodeId :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> μ Position
+getPositionFromNodeId x = do
+  pos_env <- getPositionEnv
+  return $ pos_env ! x
+
+-- | Same as 'getPosition_maybe', except that it obtains the position directly from
+-- 'NodeId's.
+getPositionFromNodeId_maybe :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> μ (Maybe Position)
+getPositionFromNodeId_maybe x = do
+  pos_env <- getPositionEnv
+  return $ pos_env !? x
+
+-- | Same as 'setPosition', except that it directly sets the position of 'NodeId's.
+setPositionOfNodeId :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> Position -> μ ()
+setPositionOfNodeId x p = do
+  pos_env <- getPositionEnv
+  let new_pos_env = insert x p pos_env
+  setPositionEnv new_pos_env

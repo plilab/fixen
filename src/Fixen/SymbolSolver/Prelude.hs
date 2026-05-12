@@ -245,7 +245,8 @@ fixenTerms :: Set Text
 fixenTerms =
   fromList
     [ "step"
-    , "compute"
+    , "solve"
+    , "reSolve"
     , "evaluate"
     ]
 
@@ -255,4 +256,6 @@ fixenTypesCons =
     [ "Database"
     , "RuleInstance"
     , "Fact"
+    , "Interpretation"
+    , "Phases"
     ]

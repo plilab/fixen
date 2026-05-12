@@ -1,3 +1,13 @@
+-- |
+-- Module      : Fixen.SymbolSolver.Validation
+-- Description : Common validation rules for symbol solving
+-- Copyright   : (c) Programming Languages Innovation Lab@NUS
+-- License     : MIT
+-- Maintainer  : yongqi@nus.edu.sg
+-- Stability   : experimental
+--
+-- This module provides validation rules for various syntactic categories in
+-- Fixen programs.
 module Fixen.SymbolSolver.Validation where
 
 import Control.Lens
@@ -5,45 +15,89 @@ import Control.Monad
 import Data.Bifunctor
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
-import Data.Set qualified as Set
-
--- import Fixen.Data.NodeId
+import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
 import Fixen.SymbolSolver.Prelude
-import Prelude.Unicode
+import Fixen.Utils
 
-type SymbolRule a = a -> SymbolEnv -> FixenPass SymbolState [Report String]
+--------------------------------------------------------------------------------
 
-type SymbolValidator a = a -> SymbolEnv -> FixenPass SymbolState Bool
+-- * The Main Types
 
-type GenericRepresentativeRule a = HasNodeId a => Name -> SymbolRule a
+--------------------------------------------------------------------------------
 
-validate :: [SymbolRule a] -> a -> SymbolEnv -> FixenPass SymbolState Bool
-validate rules subject env = do
-  reports <-
-    rules
-      <&> (\f -> f subject env)
-      & sequence
+-- | A rule for a syntactic category.
+type SymbolRule α = α -> SymbolEnv -> FixenPass SymbolState [Report String]
+
+-- | A symbol validator, i.e., a function that checks the validity of a symbol
+-- with respect to a 'SymbolEnv'.
+type SymbolValidator α = α -> SymbolEnv -> FixenPass SymbolState Bool
+
+-- | A 'SymbolRule' that uses the name of the symbol for validation. We also
+-- require these to have 'NodeId's for source position tracking.
+type NamedSymbolRule α = HasNodeId α NodeId => Name -> SymbolRule α
+
+--------------------------------------------------------------------------------
+
+-- * Validation Functions
+
+--------------------------------------------------------------------------------
+
+-- | The main validation function. This function receives a list of rules and
+-- checks a symbol against them, with respect to the 'SymbolEnv'.
+--
+-- Usage pattern: To create a symbol validator, simply call 'validate' on a
+-- list of 'SymbolRule's that apply to that symbol. For instance,
+--
+-- @
+-- validateMySymbol :: SymbolValidator MySymbol
+-- validateMySymbol = validate mySymbolRules where
+--   mySymbolRules = [ rule1, rule2, ..., ruleN ]
+-- @
+validate
+  :: [SymbolRule α]
+  -- ^ The list of rules for this symbol
+  -> SymbolValidator α
+validate ruls subject env = do
+  reports <- ruls <&> (\f -> f subject env) & sequence
   let all_reports = concat reports
   mapM_ accumR all_reports
   return $ (¬) (null all_reports)
 
-validateNamed :: (HasNodeId a, Named a n, IdentifierLike n) => GenericRepresentativeRule a -> SymbolRule a
-validateNamed r i env = r (simpleIdentifier $ nameOf i) i env
+-- Turns a 'NamedSymbolRule' into a regular 'SymbolRule'.
+validateNamed :: (HasNodeId a NodeId, HasName a n, IdentifierLike n) => NamedSymbolRule a -> SymbolRule a
+validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 
--- Validation rules.
-validateAgainstRelation :: String -> GenericRepresentativeRule a
+--------------------------------------------------------------------------------
+
+-- * Common Validation Rules
+
+-- $commonValidationRules
+--
+-- These validation rules throw __errors__ whenever the rules are violated.
+
+--------------------------------------------------------------------------------
+
+-- ** Relations
+
+-- | Validates a symbol against a relation. This rule prevents the symbol from
+-- sharing the same name as a relation symbol in the 'SymbolEnv'.
+validateAgainstRelation
+  :: String
+  -- ^ The error message attached to the symbol being validated (in the case of
+  -- a validation error)
+  -> NamedSymbolRule a
 validateAgainstRelation where_msg repr i env = do
-  case env ^. relationMap ∘ at repr of
+  case env ^. relationInfos . at repr of
     -- not a relation name, all is good
     Nothing -> return []
     -- is a relation name, throw an error on the relation
     Just rel_info -> do
-      let rel_decl = rel_info ^. relationDeclaration
-      pos <- fixenGetPosition i
-      pos' <- fixenGetPosition rel_decl
+      let rel_decl = rel_info ^. declaration
+      pos <- getPosition i
+      pos' <- getPosition rel_decl
       return
         [ Err
             Nothing
@@ -52,196 +106,19 @@ validateAgainstRelation where_msg repr i env = do
             relationValidationErrorNotes
         ]
 
-relationValidationErrorNotes :: [Note String]
-relationValidationErrorNotes = [Note "relations cannot share names with\n  1. other declarations in the program (i.e., rel and partial ord), and\n  2. types/constructors used in the program"]
-
-queryValidationErrorNotes :: [Note String]
-queryValidationErrorNotes =
-  [Note "queries cannot share names with \"external\" terms used in the program (these include other queries)"]
-
-validateAgainstPartialOrd :: String -> [Note String] -> GenericRepresentativeRule a
-validateAgainstPartialOrd this_msg notes repr i env = do
-  case env ^. partialOrdMap ∘ at repr of
-    Nothing -> return []
-    Just p_ord -> do
-      pos <- fixenGetPosition p_ord
-      pos' <- fixenGetPosition i
-      return
-        [ Err
-            Nothing
-            "duplicate names!"
-            [ (pos', This this_msg)
-            , (pos, Where "partial ord declaration with the same name")
-            ]
-            notes
-        ]
-
-validateAgainstExtern :: String -> [Note String] -> GenericRepresentativeRule a
-validateAgainstExtern this_msg notes repr i env = do
-  case env ^. externMap ∘ at repr of
-    Nothing -> return []
-    Just e_id -> do
-      pos <- fixenGetPosition e_id
-      pos' <- fixenGetPosition i
-      return
-        [ Err
-            Nothing
-            "duplicate names!"
-            [ (pos', This this_msg)
-            , (pos, Where "use of an external symbol with the same name")
-            ]
-            notes
-        ]
-
-warnNameShadowingAgainstBoundVar :: String -> GenericRepresentativeRule a
-warnNameShadowingAgainstBoundVar where_msg repr i env = do
-  let matching_bvs =
-        env
-          ^. ruleMap
-          & IntMap.toList
-          <&> snd
-          <&> (^. Fixen.Monad.ruleBoundVars)
-          <&> Map.toList
-          & concat
-          & filter (\(_, l) -> any (not . isUsedInAssumption) (_localVarUsage l))
-          <&> second _localVarVar
-          & filter ((== repr) ∘ fst)
-  -- checking against rules
-  ls1 <- forM matching_bvs $ \(_, s) -> do
-    pos <- fixenGetPosition i
-    pos' <- fixenGetPosition s
-    return $
-      Warn
-        Nothing
-        "name shadowing"
-        [(pos', This "rule parameter"), (pos, Where where_msg)]
-        [Hint "change the name of the rule parameter"]
-  -- checking against priorities
-  let matching_bvs2 =
-        env ^. priorityMap
-          & IntMap.toList
-          <&> snd
-          <&> (^. priorityLocalVars)
-          <&> Map.toList
-          & concat
-          & filter ((== repr) . fst)
-  ls2 <- forM matching_bvs2 $ \(_, (_, s)) -> do
-    pos <- fixenGetPosition i
-    pos' <- fixenGetPosition s
-    return $
-      Warn
-        Nothing
-        "name shadowing"
-        [(pos', This "rule parameter"), (pos, Where where_msg)]
-        [Hint "change the name of the rule parameter"]
-  return $ ls1 ++ ls2
-
-warnNameShadowingAgainstExtern :: String -> GenericRepresentativeRule a
-warnNameShadowingAgainstExtern decl_name repr i env = do
-  against_extern <- case env ^. externMap ∘ at repr of
-    Nothing -> return []
-    Just e_id -> do
-      pos <- fixenGetPosition e_id
-      pos' <- fixenGetPosition i
-      return
-        [ Warn
-            Nothing
-            "name shadowing"
-            [ (pos', This decl_name)
-            , (pos, Where "use of an external symbol with the same name")
-            ]
-            [Hint $ "change the name of this " ++ decl_name]
-        ]
-  against_prelude <-
-    if repr `Set.member` preludeTerms
-      then do
-        pos' <- fixenGetPosition i
-        return
-          [ Warn
-              Nothing
-              "name shadowing of prelude terms"
-              [(pos', This decl_name)]
-              [Hint $ "change the name of this " ++ decl_name]
-          ]
-      else return []
-  return $ against_extern ++ against_prelude
-
-validateAgainstQuery :: String -> GenericRepresentativeRule a
-validateAgainstQuery where_msg repr i env = do
-  case env ^. queryMap ∘ at repr of
-    Nothing -> return []
-    Just q -> do
-      pos <- fixenGetPosition q
-      pos' <- fixenGetPosition i
-      return
-        [ Err
-            Nothing
-            "duplicate names!"
-            [(pos, This "query declaration"), (pos', Where where_msg)]
-            queryValidationErrorNotes
-        ]
-
-validateAgainstPreludeCapitalized :: String -> String -> GenericRepresentativeRule a
-validateAgainstPreludeCapitalized this_msg decl_type repr i _ =
-  if repr `Set.member` preludeTermsCons
-    then do
-      pos <- fixenGetPosition i
-      return
-        [ Warn
-            Nothing
-            "potential name clash with Prelude symbols"
-            [(pos, This this_msg)]
-            [Hint $ "hide this name from the Prelude import, or change the name of this " ++ decl_type]
-        ]
-    else return []
-
-validateAgainstFixenCapitalized :: String -> String -> GenericRepresentativeRule a
-validateAgainstFixenCapitalized this_msg decl_type repr i _ =
-  if repr `Set.member` fixenTypesCons
-    then do
-      pos <- fixenGetPosition i
-      return
-        [ Err
-            Nothing
-            "name clash with Fixen-generated symbol"
-            [(pos, This this_msg)]
-            [Note $ "change the name of this " ++ decl_type]
-        ]
-    else return []
-
-validateAgainstPreludeLowercase :: String -> String -> GenericRepresentativeRule a
-validateAgainstPreludeLowercase this_msg decl_type repr i _ =
-  if repr `Set.member` preludeTerms
-    then do
-      pos <- fixenGetPosition i
-      return
-        [ Warn
-            Nothing
-            "potential name clash with Prelude symbols"
-            [(pos, This this_msg)]
-            [Hint $ "hide this name from the Prelude import, or change the name of this " ++ decl_type]
-        ]
-    else return []
-
-validateAgainstFixenLowercase :: String -> String -> GenericRepresentativeRule a
-validateAgainstFixenLowercase this_msg decl_type repr i _ =
-  if repr `Set.member` fixenTerms
-    then do
-      pos <- fixenGetPosition i
-      return
-        [ Err
-            Nothing
-            "name clash with Fixen-generated symbol"
-            [(pos, This this_msg)]
-            [Note $ "change the name of this " ++ decl_type]
-        ]
-    else return []
-
-relationExistsAndHasRightArity :: RelationLike b -> String -> SymbolEnv -> FixenPass SymbolState [Report String]
+-- | Checks that a relation-like symbol exists as a relation declaration in the
+-- program and has the right arity.
+relationExistsAndHasRightArity
+  :: RelationLike b
+  -- ^ The relation
+  -> String
+  -- ^ The name of the thing that contains the occurrence of this relation symbol
+  -> SymbolEnv
+  -> FixenPass SymbolState [Report String]
 relationExistsAndHasRightArity rel containing_name env = do
-  case env ^. relationMap ∘ at (simpleIdentifier (nameOf rel)) of
+  case env ^. relationInfos . at (simpleIdentifier (rel ^. name)) of
     Nothing -> do
-      rel_pos <- fixenGetPosition rel
+      rel_pos <- getPosition rel
       return
         [ Err
             Nothing
@@ -250,16 +127,16 @@ relationExistsAndHasRightArity rel containing_name env = do
             []
         ]
     Just rel_info -> do
-      let rel_decl = rel_info ^. relationDeclaration
-          rel_decl_arity = length (relationParams rel_decl)
-          rel_arity = length (relationParams rel)
+      let rel_decl = rel_info ^. declaration
+          rel_decl_arity = length (rel_decl ^. args)
+          rel_arity = length (rel ^. args)
           fmt 0 = "no arguments"
           fmt 1 = "1 argument"
           fmt n = show n ++ " arguments"
       if rel_arity ≠ rel_decl_arity
         then do
-          rel_pos <- fixenGetPosition rel
-          rel_decl_pos <- fixenGetPosition rel_decl
+          rel_pos <- getPosition rel
+          rel_decl_pos <- getPosition rel_decl
           return
             [ Err
                 Nothing
@@ -277,11 +154,150 @@ relationExistsAndHasRightArity rel containing_name env = do
             ]
         else return []
 
+-- ** Partial Order Declarations
+
+-- | Validates a symbol against a partial order declaration. This rule prevents
+-- the symbol from sharing the same name as a partial order declaration.
+validateAgainstPartialOrd
+  :: String
+  -- ^ The error message attached to the symbol being validated (in the case of
+  -- a validation error)
+  -> [Note String]
+  -- ^ Notes to attach to the error message in the case of a validation error
+  -> NamedSymbolRule a
+validateAgainstPartialOrd this_msg notes repr i env = do
+  case env ^. partialOrdInfos . at repr of
+    Nothing -> return []
+    Just p_ord -> do
+      pos <- getPosition p_ord
+      pos' <- getPosition i
+      return
+        [ Err
+            Nothing
+            "duplicate names!"
+            [ (pos', This this_msg)
+            , (pos, Where "partial ord declaration with the same name")
+            ]
+            notes
+        ]
+
+-- ** External Symbols
+
+-- $externalSymbols
+--
+-- Symbols in a Fixen program are considered \"external\" whenever they are not
+-- declared in the Fixen program.
+
+-- | Validates a symbol against external symbols. This rule prevents a symbol
+-- from sharing the same name as an external symbol.
+validateAgainstExtern
+  :: String
+  -- ^ The error message to attach to the symbol (in the case of a validation
+  -- error)
+  -> [Note String]
+  -- ^ Notes to attach to the error message in the case of a validation error
+  -> NamedSymbolRule a
+validateAgainstExtern this_msg notes repr i env = do
+  case env ^. externInfos . at repr of
+    Nothing -> return []
+    Just e_id -> do
+      pos <- getPositionFromNodeId e_id
+      pos' <- getPosition i
+      return
+        [ Err
+            Nothing
+            "duplicate names!"
+            [ (pos', This this_msg)
+            , (pos, Where "use of an external symbol with the same name")
+            ]
+            notes
+        ]
+
+-- | Validates a symbol against those that are generated by Fixen. At
+-- the moment, this function does not check against __all__ Fixen-generated
+-- symbols (since relations, etc., also generate new Haskell definitions)
+validateAgainstFixenCapitalized
+  :: String
+  -- ^ The error message to attach to this symbol (in the case of a validation
+  -- error)
+  -> String
+  -- ^ The name of the type of this symbol (relation declaration, query, etc.)
+  -> NamedSymbolRule a
+validateAgainstFixenCapitalized this_msg decl_type repr i _ =
+  if repr ∈ fixenTypesCons
+    then do
+      pos <- getPosition i
+      return
+        [ Err
+            Nothing
+            "name clash with Fixen-generated symbol"
+            [(pos, This this_msg)]
+            [Note $ "change the name of this " ++ decl_type]
+        ]
+    else return []
+
+-- | Validates a symbol against those that are generated by Fixen. At
+-- the moment, this function does not check against __all__ Fixen-generated
+-- symbols (since relations, etc., also generate new Haskell definitions)
+validateAgainstFixenLowercase
+  :: String
+  -- ^ The error message to attach to this symbol (in the case of a validation
+  -- error)
+  -> String
+  -- ^ The name of the type of this symbol (relation declaration, query, etc.)
+  -> NamedSymbolRule a
+validateAgainstFixenLowercase this_msg decl_type repr i _ =
+  if repr ∈ fixenTerms
+    then do
+      pos <- getPosition i
+      return
+        [ Err
+            Nothing
+            "name clash with Fixen-generated symbol"
+            [(pos, This this_msg)]
+            [Note $ "change the name of this " ++ decl_type]
+        ]
+    else return []
+
+-- ** Queries
+
+-- | Validates a symbol against a query declaration. This rule prevents a symbol
+-- from sharing the same name as a query declaration.
+validateAgainstQuery
+  :: String
+  -- ^ The error message to attach to the symbol, in the case of a validation
+  -- error
+  -> NamedSymbolRule a
+validateAgainstQuery where_msg repr i env = do
+  case env ^. queryInfos . at repr of
+    Nothing -> return []
+    Just q -> do
+      pos <- getPosition q
+      pos' <- getPosition i
+      return
+        [ Err
+            Nothing
+            "duplicate names!"
+            [(pos, This "query declaration"), (pos', Where where_msg)]
+            queryValidationErrorNotes
+        ]
+
+--------------------------------------------------------------------------------
+
+-- * Common Warnings
+
+-- $commonWarnings
+--
+-- These validation rules throw __warnings__ whenever the rules are violated.
+
+--------------------------------------------------------------------------------
+
+-- | Emits warnings whenever there are unused rule parameters.
 warnUnusedRuleParameters :: SymbolEnv -> FixenPass SymbolState ()
 warnUnusedRuleParameters env = do
   unused_rule_params <- getUnusedRuleParams
-  when (not (null unused_rule_params)) $ do
-    pos <- mapM fixenGetPosition unused_rule_params
+  when ((¬) (null unused_rule_params)) $ do
+    pos <- mapM getPosition unused_rule_params
     accumWarn
       Nothing
       "unused rule parameters"
@@ -289,19 +305,126 @@ warnUnusedRuleParameters env = do
       [Hint "replace these with holes `_`"]
   where
     getUnusedRuleParams = do
-      let rule_info = env ^. ruleMap & IntMap.toList
+      let rule_info = env ^. ruleInfos & IntMap.toList
       ls <- mapM getUnusedRuleParamsOfRule rule_info
       return $ concat ls
     getUnusedRuleParamsOfRule :: (NodeId, RuleInfo) -> FixenPass SymbolState [SimpleIdentifier]
     getUnusedRuleParamsOfRule (rule_node_id, rule_info) = do
-      let bvs = rule_info ^. Fixen.Monad.ruleBoundVars
+      let bvs = rule_info ^. args
           potentially_unused_bvs =
             Map.filter
               ( \lv_info ->
-                  let usage = lv_info ^. localVarUsage
-                   in (all isUsedInAssumption usage) && length usage < 2
+                  let usage = lv_info ^. usageInfo
+                   in (all isUsedInAssumption usage) ∧ length usage < 2
               )
               bvs
-          priorities = env ^. priorityMap & IntMap.toList <&> snd <&> _priorityLocalVars <&> Map.toList & concat <&> (\(k, (v, _)) -> (k, v))
-          unused_bvs = Map.filterKeys (\k -> all (\(k', n) -> k /= k' || n /= rule_node_id) priorities) potentially_unused_bvs
-      return $ unused_bvs <&> _localVarVar & foldr (:) []
+          varsUsedInPriorities =
+            values (env ^. priorityInfos)
+              ^.. each . args
+              <&> Map.toList
+              & concat
+              <&> (\(k, (v, _)) -> (k, v))
+          unused_bvs = Map.filterKeys (\k -> all (\(k', n) -> k ≠ k' ∨ n ≠ rule_node_id) varsUsedInPriorities) potentially_unused_bvs
+      return $ unused_bvs ^.. each . var & foldr (:) []
+
+warnNameShadowingAgainstBoundVar :: String -> NamedSymbolRule a
+warnNameShadowingAgainstBoundVar where_msg repr i env = do
+  let matching_bvs =
+        values (env ^. ruleInfos)
+          ^.. each . args
+          <&> Map.toList
+          & concat
+          & filter (\(_, l) -> any ((¬) ∘ isUsedInAssumption) (l ^. usageInfo))
+          <&> second (^. var)
+          & filter ((== repr) ∘ fst)
+  -- checking against rules
+  ls1 <- forM matching_bvs $ \(_, s) -> do
+    pos <- getPosition i
+    pos' <- getPosition s
+    return $
+      Warn
+        Nothing
+        "name shadowing"
+        [(pos', This "rule parameter"), (pos, Where where_msg)]
+        [Hint "change the name of the rule parameter"]
+  -- checking against priorities
+  let matching_bvs2 =
+        values (env ^. priorityInfos)
+          ^.. each . args
+          <&> Map.toList
+          & concat
+          & filter ((== repr) ∘ fst)
+  ls2 <- forM matching_bvs2 $ \(_, (_, s)) -> do
+    pos <- getPosition i
+    pos' <- getPosition s
+    return $
+      Warn
+        Nothing
+        "name shadowing"
+        [(pos', This "rule parameter"), (pos, Where where_msg)]
+        [Hint "change the name of the rule parameter"]
+  return $ ls1 ++ ls2
+
+warnNameShadowingAgainstExtern :: String -> NamedSymbolRule a
+warnNameShadowingAgainstExtern decl_name repr i env = do
+  against_extern <- case env ^. externInfos . at repr of
+    Nothing -> return []
+    Just e_id -> do
+      pos <- getPositionFromNodeId e_id
+      pos' <- getPosition i
+      return
+        [ Warn
+            Nothing
+            "name shadowing"
+            [ (pos', This decl_name)
+            , (pos, Where "use of an external symbol with the same name")
+            ]
+            [Hint $ "change the name of this " ++ decl_name]
+        ]
+  against_prelude <-
+    if repr ∈ preludeTerms
+      then do
+        pos' <- getPosition i
+        return
+          [ Warn
+              Nothing
+              "name shadowing of prelude terms"
+              [(pos', This decl_name)]
+              [Hint $ "change the name of this " ++ decl_name]
+          ]
+      else return []
+  return $ against_extern ++ against_prelude
+
+validateAgainstPreludeCapitalized :: String -> String -> NamedSymbolRule a
+validateAgainstPreludeCapitalized this_msg decl_type repr i _ =
+  if repr ∈ preludeTermsCons
+    then do
+      pos <- getPosition i
+      return
+        [ Warn
+            Nothing
+            "potential name clash with Prelude symbols"
+            [(pos, This this_msg)]
+            [Hint $ "hide this name from the Prelude import, or change the name of this " ++ decl_type]
+        ]
+    else return []
+validateAgainstPreludeLowercase :: String -> String -> NamedSymbolRule a
+validateAgainstPreludeLowercase this_msg decl_type repr i _ =
+  if repr ∈ preludeTerms
+    then do
+      pos <- getPosition i
+      return
+        [ Warn
+            Nothing
+            "potential name clash with Prelude symbols"
+            [(pos, This this_msg)]
+            [Hint $ "hide this name from the Prelude import, or change the name of this " ++ decl_type]
+        ]
+    else return []
+
+relationValidationErrorNotes :: [Note String]
+relationValidationErrorNotes = [Note "relations cannot share names with\n  1. other declarations in the program (i.e., rel and partial ord), and\n  2. types/constructors used in the program"]
+
+queryValidationErrorNotes :: [Note String]
+queryValidationErrorNotes =
+  [Note "queries cannot share names with \"external\" terms used in the program (these include other queries)"]

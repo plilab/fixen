@@ -2,54 +2,48 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
---     Module      : Fixen.Parser.Expr
---     Description : Parsers for Fixen expressions (atoms, applications, infix, literals)
---     Copyright   : (c) Programming Languages Innovation Lab@NUS
---     License     : MIT
---     Maintainer  : yongqi@nus.edu.sg
---     Stability   : experimental
+-- Module      : Fixen.Parser.Expr
+-- Description : Parsers for Fixen expressions (atoms, applications, infix, literals)
+-- Copyright   : (c) Programming Languages Innovation Lab@NUS
+-- License     : MIT
+-- Maintainer  : yongqi@nus.edu.sg
+-- Stability   : experimental
 --
---     Parsers for Fixen expressions. Expressions in Fixen follow a simple grammar
---     where compound operands in infix expressions must be parenthesized:
+-- Parsers for Fixen expressions. Expressions in Fixen follow a simple grammar
+-- where compound operands in infix expressions must be parenthesized:
 --
---     @
---     expr ::= \<atom_expr\> \<infix_op\> \<atom_expr\>   -- Infix operations
---           |  \<atom_expr\>+                          -- Function applications
+-- @
+-- expr ::= \<atom_expr\> \<infix_op\> \<atom_expr\>   -- Infix operations
+--       |  \<atom_expr\>+                          -- Function applications
 --
---     atom_expr ::= '(' \<expr\> ')'
---                |  \<ident\>
---                |  \<int_literal\>
---                |  \<str_literal\>
---     @
+-- atom_expr ::= '(' \<expr\> ')'
+--            |  \<ident\>
+--            |  \<int_literal\>
+--            |  \<str_literal\>
+--            |  \<list_literal\>
+--            |  \<tuple_literal\>
+-- @
 --
---     "Atom expressions" (@\<atom_expr\>@) are factored out from the main
---     @\<expr\>@ production because they are simpler to parse. This design
---     avoids the need for precedence parsing — infix expressions with compound
---     operands must be parenthesized (e.g., @(a + b) + c@ instead of @a + b + c@).
+-- "Atom expressions" (@\<atom_expr\>@) are factored out from the main
+-- @\<expr\>@ production because they are simpler to parse. This design
+-- avoids the need for precedence parsing — infix expressions with compound
+-- operands must be parenthesized (e.g., @(a + b) + c@ instead of @a + b + c@).
 --
---     The module provides parsers for all expression forms:
+-- The module provides parsers for all expression forms:
 --
---     * 'parseExpr' — top-level entry point
---     * 'parseInfixExpr' — infix operations (with turnstile restriction)
---     * 'parseNestedInfixExpr' — infix operations inside parentheses (turnstile allowed)
---     * 'parseExprApp' — function applications (@f x y@)
---     * 'parseExprVar' — identifiers (@foo@, @Data.List.map@)
---     * 'parseIntLit' — integer literals (@42@)
---     * 'parseStringLit' — string literals (@@"hello"@@)
---     * 'parseUnitLit' — unit (@()@)
---     * 'parseTupleLit' — tuples (@(a, b, c)@)
---     * 'parseListLit' — lists (@[a, b, c]@)
---     * 'parseParenExpr' — atomic expressions including parenthesized sub-expressions
---     * 'parseAnyExpr' — any expression at the atom level
-module Fixen.Parser.Expr (
-  parseExpr,
-  parseInfixExpr,
-  parseExprApp,
-  parseParenExpr,
-  parseExprVar,
-  parseIntLit,
-  parseStringLit,
-) where
+-- * 'parseExpr' — top-level entry point
+-- * 'parseInfixExpr' — infix operations (with turnstile restriction)
+-- * 'parseNestedInfixExpr' — infix operations inside parentheses (turnstile allowed)
+-- * 'parseExprApp' — function applications (@f x y@)
+-- * 'parseExprVar' — identifiers (@foo@, @Data.List.map@)
+-- * 'parseIntLit' — integer literals (@42@)
+-- * 'parseStringLit' — string literals (@@"hello"@@)
+-- * 'parseUnitLit' — unit (@()@)
+-- * 'parseTupleLit' — tuples (@(a, b, c)@)
+-- * 'parseListLit' — lists (@[a, b, c]@)
+-- * 'parseParenExpr' — atomic expressions including parenthesized sub-expressions
+-- * 'parseAnyExpr' — any expression at the atom level
+module Fixen.Parser.Expr where
 
 import Control.Applicative.Combinators (
   (<|>),
@@ -58,16 +52,22 @@ import Control.Monad (foldM, when)
 import Data.List.NonEmpty
 import Error.Diagnose.Position qualified as DPos
 import Fixen.IR.AST
-
--- import Fixen.IR.Core
 import Fixen.Monad
 import Fixen.Parser.Common
 import Fixen.Parser.Token
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Pos qualified as MPos
 
+--------------------------------------------------------------------------------
+
+-- * Top-level Expressions
+
+--------------------------------------------------------------------------------
+
 -- | Parses a Fixen expression at the top level. This is the primary entry point
--- for the expression parser.
+-- for the expression parser, especially for conditions in rules and premises of
+-- priority declarations. For parsing arguments to relations, see
+-- 'parseParenExpr'.
 --
 -- The parser tries two alternatives in order:
 --
@@ -89,36 +89,113 @@ import Text.Megaparsec.Pos qualified as MPos
 --
 -- @
 -- expr ::= \<infix_expr\>          -- e.g. @a + b@, @x \`elem\` ys@
---        |  \<app_expr\>           -- e.g. @f x y@, @cons True False@
+--        |  \<app_expr\>           -- e.g. @f x y@, @Cons True False@
 -- @
-parseExpr :: Parser MPos.Pos -> Parser Expr
+parseExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp indentCheck
+
+--------------------------------------------------------------------------------
+
+-- * Atomic Expressions
+
+--------------------------------------------------------------------------------
+
+-- | Parses an atomic expression — the smallest indivisible expression units.
+-- Atomic expressions are those that are unambiguously parse-able as a single
+-- expression.
+--
+-- This is the central fallback parser used throughout the expression grammar.
+-- Every expression type ultimately resolves to one of these alternatives.
+-- The parser tries each option in order, using 'P.try' to backtrack on failure
+-- (except for the last alternative, which is guaranteed to succeed or fail
+-- the entire parse).
+--
+-- The alternatives, in priority order, are:
+--
+-- 1. __Parenthesized expressions__ (@(e)@) — handled by the local helper @f@.
+--    This captures expressions wrapped in parentheses, which can contain infix
+--    operations (via 'parseNestedInfixExpr') or function applications
+--    (via 'parseExprApp'). This is tried first because parentheses have the
+--    highest precedence.
+--
+-- 2. __Unit literals__ (@()@) — handled by 'parseUnitLit'.
+--
+-- 3. __Tuple literals__ (@(e1, e2, ...)@) — handled by 'parseTupleLit'.
+--    Note that single-element groups like @(e)@ are not tuples; they fall
+--    through to alternative 1.
+--
+-- 4. __List literals__ (@[e1, e2, ...]@) — handled by 'parseListLit'.
+--
+-- 5. __Expression variables__ (@foo@, @Data.List.map@) — handled by
+--    'parseExprVar'.
+--
+-- 6. __Integer literals__ (@42@, @0@) — handled by 'parseIntLit'.
+--
+-- 7. __String literals__ (@"hello"@, @""@) — handled by 'parseStringLit'.
+--
+-- === The parenthesized expression helper (@f@)
+--
+-- The local helper @f@ handles expressions enclosed in parentheses that are
+-- not unit literals, tuples, or lists. It verifies indentation with 'indented'
+-- (which requires the opening parenthesis to be at the correct level), then
+-- delegates to 'parseNestedInfixExpr' (for infix operations like @(a + b)@)
+-- or 'parseExprApp' (for applications like @(f x)@).
+--
+-- The 'parsePositioned' wrapper ensures the position spans the entire
+-- @(...)@, including the parentheses.
+parseParenExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
+parseParenExpr indent_check =
+  P.try f
+    <|> P.try (parseUnitLit indent_check)
+    <|> P.try (parseTupleLit indent_check)
+    <|> P.try (parseListLit indent_check)
+    <|> P.try (parseExprVar indent_check)
+    <|> P.try (parseIntLit indent_check)
+    <|> parseStringLit indent_check
+  where
+    -- Handles parenthesized expressions that are not unit/tuple/list literals.
+    -- Verifies indentation, then delegates to parseNestedInfixExpr or parseExprApp.
+    f = do
+      -- Verify that the opening parenthesis is at the correct indentation level.
+      _ <- indented
+      -- Parse the content inside parentheses and capture the position of the
+      -- entire (...) span.
+      parsePositioned $ betweenParentheses indent_check item
+    -- The content inside parentheses: either an infix expression or a function
+    -- application. Infix is tried first because it has higher precedence.
+    item = P.try (parseNestedInfixExpr indent_check) <|> parseExprApp indent_check
+
+--------------------------------------------------------------------------------
+
+-- * Other 'Expr' Parsers
+
+--------------------------------------------------------------------------------
 
 -- | Parses a top-level infix expression of the form @lhs \<op\> rhs@.
 --
 -- This parser handles infix operations where both operands are either
 -- parenthesized expressions or atomic expressions (literals, variables,
--- tuples, lists). Compound operands must be parenthesized, which is why
+-- tuples, lists). Compound operands must be atomic, which is why
 -- this function delegates operand parsing to 'parseParenExpr'.
 --
 -- The parser enforces the following constraints:
 --
--- 1. **Indentation**: Every token (left operand, operator, right operand)
+-- 1. __Indentation__: Every token (left operand, operator, right operand)
 --    must be properly indented. The @indentCheck@ argument verifies this
 --    before each token. Left and right operands are wrapped with 'l' to
 --    enforce indentation at the current nesting level, while the right
 --    operand is parsed without 'l' since it appears at the same nesting
 --    level as the operator.
 --
--- 2. **No top-level turnstile**: The turnstile operator @(|-)@ is reserved
+-- 2. __No top-level turnstile__: The turnstile operator @(|-)@ is reserved
 --    for rule definitions and is forbidden in top-level expressions. It
 --    is only permitted when enclosed in parentheses (handled by
 --    'parseParenExpr' → 'parseNestedInfixExpr').
 --
 -- === Infix-to-application transformation
 --
--- Fixen represents infix expressions as nested function applications in
--- the  An expression @lhs \<op\> rhs@ is transformed into:
+-- Fixen represents infix expressions as nested function applications.
+-- An expression @lhs \<op\> rhs@ is transformed into:
 --
 -- @
 -- ExprApp second_app_id (ExprApp first_app_id (ExprVar op_id op) lhs) rhs
@@ -126,7 +203,7 @@ parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp inde
 --
 -- This represents the term @((\<op\> lhs) rhs)@, i.e., the operator @\<op\>@
 -- is first applied to @lhs@, then the result is applied to @rhs@. For
--- example, @3 + 5@ becomes @((+) 3) 5@ in the
+-- example, @3 + 5@ becomes @((+) 3) 5@.
 --
 -- The position annotations are computed as follows:
 --
@@ -155,7 +232,7 @@ parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp inde
 -- neither atomic nor parenthesized. To nest infix expressions, parentheses
 -- are required: @((a + b) + c)@ parses as two separate infix expressions,
 -- and @a + (b + c)@ similarly.
-parseInfixExpr :: Parser MPos.Pos -> Parser Expr
+parseInfixExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseInfixExpr indentCheck =
   parsePositioned $ do
     -- Step 1: Parse the left operand. Wrapped with 'l' to enforce indentation
@@ -170,7 +247,8 @@ parseInfixExpr indentCheck =
     -- Step 3: Reject the turnstile operator at the top level. The turnstile
     -- (|-) is reserved for rule definitions and is only allowed inside
     -- parentheses (handled by parseNestedInfixExpr).
-    when (simpleIdentifier op == "|-") $ fail "turnstile (|-) cannot appear in expression without being enclosed in parentheses"
+    when (simpleIdentifier op == "|-" || simpleIdentifier op == "⊢") $
+      fail "turnstile (|-) cannot appear in expression without being enclosed in parentheses"
     -- Step 4: Parse the right operand. Not wrapped with 'l' because it sits
     -- at the same indentation level as the operator.
     _ <- indentCheck
@@ -181,16 +259,16 @@ parseInfixExpr indentCheck =
     -- 5a: Create the operator as a variable expression (ExprVar). We generate
     --     a fresh NodeId and inherit the operator's position from when it was
     --     originally parsed.
-    op_id <- fixenGetNewNodeId
-    op_pos <- fixenGetPosition op
+    op_id <- getNewNodeId
+    op_pos <- getPosition op
     let op_expr = ExprVar op_id op
-    fixenSetPosition op_expr op_pos
+    setPosition op_expr op_pos
     -- 5b: Compute the position span for the partial application (op lhs).
     --     This spans from the start of lhs to the end of op, capturing the
     --     first-level application before rhs is applied.
-    start_pos <- DPos.begin <$> fixenGetPosition lhs
-    end_pos <- DPos.end <$> fixenGetPosition op
-    file_name <- DPos.file <$> fixenGetPosition lhs
+    start_pos <- DPos.begin <$> getPosition lhs
+    end_pos <- DPos.end <$> getPosition op
+    file_name <- DPos.file <$> getPosition lhs
     let first_app_pos =
           DPos.Position
             { DPos.begin = start_pos
@@ -198,13 +276,13 @@ parseInfixExpr indentCheck =
             , DPos.file = file_name
             }
     -- 5c: Create the partial application node: (op lhs).
-    first_app_id <- fixenGetNewNodeId
+    first_app_id <- getNewNodeId
     let first_app = ExprApp first_app_id op_expr lhs
-    fixenSetPosition first_app first_app_pos
+    setPosition first_app first_app_pos
     -- 5d: Create the final application node: ((op lhs) rhs). The position for
     --     this node is set automatically by parsePositioned (which wraps the
     --     entire do-block), capturing the full span of lhs op rhs.
-    second_app_id <- fixenGetNewNodeId
+    second_app_id <- getNewNodeId
     return $ ExprApp second_app_id first_app rhs
 
 -- | Parses an expression variable (identifier) in non-infix notation.
@@ -223,7 +301,7 @@ parseInfixExpr indentCheck =
 --
 -- Indentation is enforced: the identifier must appear at the correct indentation
 -- level relative to its context.
-parseExprVar :: Parser MPos.Pos -> Parser Expr
+parseExprVar :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExprVar indentCheck = parsePositioned $ do
   -- Verify correct indentation before parsing the identifier.
   _ <- indentCheck
@@ -232,7 +310,7 @@ parseExprVar indentCheck = parsePositioned $ do
   -- various identifier forms (lowercase, capitalized, parenthesized operators).
   ident <- parseNonInfixTermIdentifier indentCheck
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the identifier in an ExprVar node. The position is set by
   -- parsePositioned (the outer wrapper), which captures the span from the
   -- start of the identifier to its end.
@@ -271,9 +349,9 @@ parseExprVar indentCheck = parsePositioned $ do
 -- - The final node spans the entire application chain
 --
 -- The 'NodeId' for each application node is freshly generated, and the
--- position is set via 'fixenSetPosition'. The outermost position is also
+-- position is set via 'setPosition'. The outermost position is also
 -- captured by 'parsePositioned' (the wrapper around the entire do-block).
-parseExprApp :: Parser MPos.Pos -> Parser Expr
+parseExprApp :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExprApp indent_check = parsePositioned $ do
   -- Parse a non-empty left-associative chain of atom expressions.
   -- someI ensures each expression is properly indented.
@@ -283,16 +361,16 @@ parseExprApp indent_check = parsePositioned $ do
   -- For [f, x, y, z], this produces ((f x) y) z.
   foldM folder x xs
   where
-    -- \| Combines two expressions into a function application: @t t'@.
+    -- Combines two expressions into a function application: @t t'@.
     -- Generates a fresh NodeId and computes the position span from the
     -- start of @t@ to the end of @t'@.
-    folder :: Expr -> Expr -> Parser Expr
+    folder :: ParserState σ => Expr -> Expr -> Parser σ Expr
     folder t t' = do
       -- Generate a fresh NodeId for this application node.
-      new_id <- fixenGetNewNodeId
+      new_id <- getNewNodeId
       -- Retrieve the positions of both operands from the PositionEnv.
-      t_pos <- fixenGetPosition t
-      t'_pos <- fixenGetPosition t'
+      t_pos <- getPosition t
+      t'_pos <- getPosition t'
       -- Compute the position span: from the beginning of the left operand
       -- to the end of the right operand, preserving the file name.
       let new_pos =
@@ -304,26 +382,21 @@ parseExprApp indent_check = parsePositioned $ do
       -- Create the application node: t applied to t'.
       let app = ExprApp new_id t t'
       -- Set the position for this node in the PositionEnv.
-      fixenSetPosition app new_pos
+      setPosition app new_pos
       return app
 
 -- | Parses an integer literal expression, such as @42@ or @0@.
 --
--- This parser handles non-negative integer literals. The parsed integer is
--- wrapped in an 'ExprIntLit' node with a freshly generated 'NodeId'.
--- Indentation is enforced: the literal must appear at the correct indentation
--- level relative to its context.
---
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the start to the end of the integer digits.
-parseIntLit :: Parser MPos.Pos -> Parser Expr
+parseIntLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseIntLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the integer.
   _ <- indent_check
   -- Parse the raw integer digits (delegates to parseRawInteger).
   n <- parseRawInteger
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the integer in an ExprIntLit node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ ExprIntLit i n
@@ -337,14 +410,14 @@ parseIntLit indent_check = parsePositioned $ do
 --
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening quote to the closing quote.
-parseStringLit :: Parser MPos.Pos -> Parser Expr
+parseStringLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseStringLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the string.
   _ <- indent_check
   -- Parse the raw string content (delegates to parseRawString).
   str <- parseRawString
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the string in an ExprStrLit node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ ExprStrLit i str
@@ -358,7 +431,7 @@ parseStringLit indent_check = parsePositioned $ do
 --
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening parenthesis to the closing parenthesis.
-parseUnitLit :: Parser MPos.Pos -> Parser Expr
+parseUnitLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseUnitLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the unit literal.
   _ <- indent_check
@@ -366,7 +439,7 @@ parseUnitLit indent_check = parsePositioned $ do
   -- no payload, but the parentheses themselves define the syntax.
   betweenParentheses indent_check (return ())
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap in an ExprUnit node. The position is set by parsePositioned
   -- (the outer wrapper), which spans the entire @()@.
   return $ ExprUnit i
@@ -392,7 +465,7 @@ parseUnitLit indent_check = parsePositioned $ do
 --
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening parenthesis to the closing parenthesis.
-parseTupleLit :: Parser MPos.Pos -> Parser Expr
+parseTupleLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseTupleLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the tuple.
   _ <- indent_check
@@ -404,7 +477,7 @@ parseTupleLit indent_check = parsePositioned $ do
       indent_check
       (commaSepBy2 indent_check (parseAnyExpr indent_check))
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the tuple in an ExprTuple node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ ExprTuple i e exprs
@@ -422,7 +495,7 @@ parseTupleLit indent_check = parsePositioned $ do
 --
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening bracket to the closing bracket.
-parseListLit :: Parser MPos.Pos -> Parser Expr
+parseListLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseListLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the list.
   _ <- indent_check
@@ -433,7 +506,7 @@ parseListLit indent_check = parsePositioned $ do
       indent_check
       (commaSepBy indent_check (parseAnyExpr indent_check))
   -- Generate a fresh NodeId for this expression node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the list in an ExprList node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ ExprList i exprs
@@ -448,73 +521,10 @@ parseListLit indent_check = parsePositioned $ do
 --
 -- This function does NOT handle atomic literals directly — those are parsed
 -- by 'parseParenExpr', which wraps this function.
-parseAnyExpr :: Parser MPos.Pos -> Parser Expr
+parseAnyExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseAnyExpr indent_check =
   P.try (parseNestedInfixExpr indent_check)
     <|> parseExprApp indent_check
-
--- | Parses an atomic expression — the smallest indivisible expression units.
---
--- This is the central fallback parser used throughout the expression grammar.
--- Every expression type ultimately resolves to one of these alternatives.
--- The parser tries each option in order, using 'P.try' to backtrack on failure
--- (except for the last alternative, which is guaranteed to succeed or fail
--- the entire parse).
---
--- The alternatives, in priority order, are:
---
--- 1. **Parenthesized expressions** (@(e)@) — handled by the local helper @f@.
---    This captures expressions wrapped in parentheses, which can contain infix
---    operations (via 'parseNestedInfixExpr') or function applications
---    (via 'parseExprApp'). This is tried first because parentheses have the
---    highest precedence.
---
--- 2. **Unit literals** (@()@) — handled by 'parseUnitLit'.
---
--- 3. **Tuple literals** (@(e1, e2, ...@)@) — handled by 'parseTupleLit'.
---    Note that single-element groups like @(e)@ are not tuples; they fall
---    through to alternative 1.
---
--- 4. **List literals** (@[e1, e2, ...]@) — handled by 'parseListLit'.
---
--- 5. **Expression variables** (@foo@, @Data.List.map@) — handled by
---    'parseExprVar'.
---
--- 6. **Integer literals** (@42@, @0@) — handled by 'parseIntLit'.
---
--- 7. **String literals** (@@"hello"@@, @""@) — handled by 'parseStringLit'.
---
--- === The parenthesized expression helper (@f@)
---
--- The local helper @f@ handles expressions enclosed in parentheses that are
--- not unit literals, tuples, or lists. It verifies indentation with 'indented'
--- (which requires the opening parenthesis to be at the correct level), then
--- delegates to 'parseNestedInfixExpr' (for infix operations like @(a + b)@)
--- or 'parseExprApp' (for applications like @(f x)@).
---
--- The 'parsePositioned' wrapper ensures the position spans the entire
--- @(...)@, including the parentheses.
-parseParenExpr :: Parser MPos.Pos -> Parser Expr
-parseParenExpr indent_check =
-  P.try f
-    <|> P.try (parseUnitLit indent_check)
-    <|> P.try (parseTupleLit indent_check)
-    <|> P.try (parseListLit indent_check)
-    <|> P.try (parseExprVar indent_check)
-    <|> P.try (parseIntLit indent_check)
-    <|> parseStringLit indent_check
-  where
-    -- \| Handles parenthesized expressions that are not unit/tuple/list literals.
-    -- Verifies indentation, then delegates to parseNestedInfixExpr or parseExprApp.
-    f = do
-      -- Verify that the opening parenthesis is at the correct indentation level.
-      _ <- indented
-      -- Parse the content inside parentheses and capture the position of the
-      -- entire (...) span.
-      parsePositioned $ betweenParentheses indent_check item
-    -- \| The content inside parentheses: either an infix expression or a function
-    -- application. Infix is tried first because it has higher precedence.
-    item = P.try (parseNestedInfixExpr indent_check) <|> parseExprApp indent_check
 
 -- | Parses an infix expression that appears inside parentheses. Unlike
 -- 'parseInfixExpr', this parser allows the turnstile operator @(|-)@ since
@@ -536,7 +546,7 @@ parseParenExpr indent_check =
 --
 -- See 'parseInfixExpr' for details on the representation and position
 -- computation.
-parseNestedInfixExpr :: Parser MPos.Pos -> Parser Expr
+parseNestedInfixExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseNestedInfixExpr indent_check = parsePositioned $ do
   -- Step 1: Parse the left operand. Wrapped with 'l' to enforce indentation
   -- at the current nesting level. The operand must be a parenthesized or
@@ -558,16 +568,16 @@ parseNestedInfixExpr indent_check = parsePositioned $ do
   -- 4a: Create the operator as a variable expression (ExprVar). We generate
   --     a fresh NodeId and inherit the operator's position from when it was
   --     originally parsed.
-  op_id <- fixenGetNewNodeId
-  op_pos <- fixenGetPosition op
+  op_id <- getNewNodeId
+  op_pos <- getPosition op
   let op_expr = ExprVar op_id op
-  fixenSetPosition op_expr op_pos
+  setPosition op_expr op_pos
   -- 4b: Compute the position span for the partial application (op lhs).
   --     This spans from the start of lhs to the end of op, capturing the
   --     first-level application before rhs is applied.
-  start_pos <- DPos.begin <$> fixenGetPosition lhs
-  end_pos <- DPos.end <$> fixenGetPosition op
-  file_name <- DPos.file <$> fixenGetPosition lhs
+  start_pos <- DPos.begin <$> getPosition lhs
+  end_pos <- DPos.end <$> getPosition op
+  file_name <- DPos.file <$> getPosition lhs
   let first_app_pos =
         DPos.Position
           { DPos.begin = start_pos
@@ -575,11 +585,11 @@ parseNestedInfixExpr indent_check = parsePositioned $ do
           , DPos.file = file_name
           }
   -- 4c: Create the partial application node: (op lhs).
-  first_app_id <- fixenGetNewNodeId
+  first_app_id <- getNewNodeId
   let first_app = ExprApp first_app_id op_expr lhs
-  fixenSetPosition first_app first_app_pos
+  setPosition first_app first_app_pos
   -- 4d: Create the final application node: ((op lhs) rhs). The position for
   --     this node is set automatically by parsePositioned (which wraps the
   --     entire do-block), capturing the full span of lhs op rhs.
-  second_app_id <- fixenGetNewNodeId
+  second_app_id <- getNewNodeId
   return $ ExprApp second_app_id first_app rhs

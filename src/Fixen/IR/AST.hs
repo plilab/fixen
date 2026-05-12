@@ -1,4 +1,5 @@
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 -- |
@@ -9,117 +10,113 @@
 --     Maintainer  : yongqi@nus.edu.sg
 --     Stability   : experimental
 --
---     This module defines the /concrete/ data structures produced by the
---     parser. It instantiates the polymorphic types from 'Fixen.IR.Core'
---     with the specific types the parser generates, yielding a fully
---     typed abstract syntax tree (AST) ready for subsequent compiler
---     passes (symbol solving, type checking, code generation).
+--     This module defines the data structures for the Abstract Syntax Tree
+--     (AST) produced by the parser. The AST is then used for subsequent
+--     compiler passes (symbol solving, type checking, code generation).
 --
---     /Type aliases./ Every type in this module is a type alias (or
---     newtype) that fixes one or more type parameters of a 'Core' type.
---     For example, 'Relation' is 'Core.Relation' instantiated with
---     'Core.SimpleIdentifier' for the name and @[Core.Type]@ for the
---     argument types. This separation allows the core types to remain
---     generic while the parser produces concrete, fully-resolved AST
---     nodes.
+--     This module also provides a suite of pretty-printing functions using
+--     the @prettyprinter@ library.
 --
---     /Pretty-printing./ This module also provides a suite of
---     pretty-printing functions using the @prettyprinter@ library.
---     These functions format AST nodes for human-readable output,
---     with syntax highlighting via 'Doc' annotations.
+--     AST nodes also have lenses ("Control.Lens") that allow access and updates
+--     to fields, see "Fixen.Fields".
 module Fixen.IR.AST where
 
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Text (Text, append, cons, intercalate, pack)
-
--- import Data.Text qualified as Text
+import Data.Text (Text, append, cons, intercalate, unpack)
+import Fixen.Fields hiding (cons)
+import Fixen.Utils
 import GHC.Natural
 import Prettyprinter
 import Prettyprinter.Render.Terminal
+
+-------------------------------------------------------------------------------
+
+-- * Node IDs
+
+-- $nodeIds
+--
+-- Every construct in the AST is annotated with a unique, unchanging node ID.
+-- The IDs are used to track information of each node, e.g., types, source
+-- positions, etc.
+
+-------------------------------------------------------------------------------
 
 -- | A unique identifier assigned to every construct in the Fixen IR.
 --
 --   Internally this is represented as an 'Int'. Values are allocated
 --   sequentially starting from 0 by the parser, so they are always
 --   non-negative and strictly increasing within a single parse run.
---
---   A 'NodeId' is /stable/ — it does not change when the surrounding AST
---   is transformed or pretty-printed. This makes it suitable as a key
---   for maps that store auxiliary information (e.g. symbol tables,
---   position maps, diagnostic data) alongside the IR.
 type NodeId = Int
 
--- | Class of IR terms that carry a 'NodeId'.
---
---   Almost every data type in the Fixen IR ('Fixen.IR.Core') is an
---   instance of this class. The class provides a single method,
---   'getNodeId', which extracts the identifier from a term.
---
---   This enables generic code to work uniformly with any IR node
---   without needing to know its concrete type. For example, a
---   function that collects all node identifiers in a subtree can be
---   written once using 'HasNodeId' rather than pattern-matching on
---   every IR constructor.
-class HasNodeId α where
-  -- | Extract the 'NodeId' from a term.
-  --
-  --   For IR constructors that store the node identifier as their first
-  --   field (the common convention in this codebase), the instance
-  --   implementation is typically a one-liner:
-  --
-  --   @
-  --   instance HasNodeId MyType where
-  --     getNodeId (MyType i _) = i
-  --   @
-  --
-  --   Or even simpler, when the identifier is the sole field:
-  --
-  --   @
-  --   instance HasNodeId MyType where
-  --     getNodeId = myTypeNodeId   -- point-free
-  --   @
-  getNodeId :: α -> NodeId
-
-instance HasNodeId NodeId where
-  getNodeId = id
-
--- | We want to ensure that we can compare two items for equality modulo having
--- different 'NodeId's. This is used to equate things together for easy comparison.
+-- | A class for comparing two AST nodes that are equal except for the node ID.
 class EqModuloNodeId α where
   -- | Equality modulo 'NodeId's.
   (===) :: α -> α -> Bool
-  a === b = not (a /== b)
+  a === b = (¬) (a /== b)
 
   -- | Disequality modulo 'NodeId's.
   (/==) :: α -> α -> Bool
-  a /== b = not (a === b)
+  a /== b = (¬) (a === b)
 
   {-# MINIMAL (===) | (/==) #-}
 
 infix 4 ===
 infix 4 /==
 
+-- | Same as '(===)'
+(≅) :: EqModuloNodeId α => α -> α -> Bool
+(≅) = (===)
+
+infix 4 ≅
+{-# INLINE (≅) #-}
+
+-- | Same as '(/==)'
+(≇) :: EqModuloNodeId α => α -> α -> Bool
+(≇) = (/==)
+
+-- | Same as '(/==)'
+infix 4 ≇
+
+{-# INLINE (≇) #-}
+
 instance EqModuloNodeId α => EqModuloNodeId (Maybe α) where
   Nothing === Nothing = True
-  Just x === Just y = x === y
+  Just x === Just y = x ≅ y
   _ === _ = False
 
 instance EqModuloNodeId α => EqModuloNodeId [α] where
   [] === [] = True
-  (x : xs) === (y : ys) = x === y && xs === ys
+  (x : xs) === (y : ys) = x ≅ y ∧ xs ≅ ys
   _ === _ = False
 
 instance EqModuloNodeId α => EqModuloNodeId (NonEmpty α) where
-  (x :| xs) === (y :| ys) = x === y && xs === ys
+  (x :| xs) === (y :| ys) = x ≅ y ∧ xs ≅ ys
 
 -------------------------------------------------------------------------------
+
+-- * Identifier types
+
+-- $identifierTypes
 --
--- Identifier types
+-- We distinguish different kinds of identifiers in Fixen:
 --
+-- 1. 'SimpleIdentifier': The basic kind of identifier, e.g., @x@, @_myFunction@
+--    and @:@.
+-- 2. 'ModuleName': Haskell-style module names, e.g., @Control.Monad@
+-- 3. 'FullyQualifiedName': Haskell-style fully qualified names, e.g.,
+--    @Data.List.NonEmpty.cons@
+-- 4. 'Identifier': Either a 'FullyQualifiedName' or a 'SimpleIdentifier'.
+--
+-- All these identifier types are captured by the 'IdentifierLike' class, which
+-- allows us to convert identifiers into their 'Text' components, i.e., to
+-- render these identifiers as 'Text'.
+
 -------------------------------------------------------------------------------
+
+-- ** The 'IdentifierLike' Class
 
 -- | Class for types that represent identifiers in the program.
 --
@@ -129,9 +126,6 @@ instance EqModuloNodeId α => EqModuloNodeId (NonEmpty α) where
 --     (e.g. @a@ from @My.Module.a@)
 --   * Its /full/ name — the complete qualified name
 --     (e.g. @My.Module.a@)
---
---   This class is implemented by 'SimpleIdentifier', 'ModuleName',
---   'FullyQualifiedName', and 'Identifier'.
 class IdentifierLike σ where
   -- | Extract the simple (unqualified) name from an identifier.
   --
@@ -148,17 +142,18 @@ class IdentifierLike σ where
   --   @a@ unchanged.
   fullIdentifier :: σ -> Text
 
+-- ** (Unqualified) Identifiers
+
 -- | A simple (unqualified) identifier in the program.
 --
---   This wraps a 'Text' value with a 'NodeId' for source position tracking.
---   Simple identifiers are used for variable names, relation names, rule names,
---   and the final component of fully-qualified names.
+-- This wraps a 'Text' value with a 'NodeId'. Simple identifiers are used for
+-- variable names, relation names, rule names, and the final component of
+-- fully-qualified names.
 --
---   Examples: @x@, @myFunction@, @Data@, @Just@
+-- Examples: @x@, @myFunction@, @Data@, @Just@
 data SimpleIdentifier = SimpleIdentifier
   { simpleIdentifierNodeId :: NodeId
-  -- ^ The 'NodeId' attached to this 'SimpleIdentifier', used for
-  --   source position tracking.
+  -- ^ The 'NodeId' attached to this 'SimpleIdentifier'.
   , simpleIdentifierName :: Text
   -- ^ The identifier text (e.g. @x@, @myFunction@, @Data@).
   }
@@ -169,13 +164,16 @@ data SimpleIdentifier = SimpleIdentifier
 instance EqModuloNodeId SimpleIdentifier where
   a === b = simpleIdentifierName a == simpleIdentifierName b
 
--- | Order simple identifiers lexicographically by their name.
+-- | Simple identifiers are ordered lexicographically by their name.
 instance Ord SimpleIdentifier where
-  SimpleIdentifier {simpleIdentifierName = n} <= SimpleIdentifier {simpleIdentifierName = n'} = n <= n'
+  SimpleIdentifier {simpleIdentifierName = n}
+    <= SimpleIdentifier {simpleIdentifierName = n'} = n <= n'
 
--- | A 'SimpleIdentifier' is its own node ID.
-instance HasNodeId SimpleIdentifier where
-  getNodeId = simpleIdentifierNodeId
+instance HasNodeId SimpleIdentifier NodeId where
+  nodeId = lens simpleIdentifierNodeId (\s i -> s {simpleIdentifierNodeId = i})
+
+instance HasName SimpleIdentifier Text where
+  name = lens simpleIdentifierName (\s i -> s {simpleIdentifierName = i})
 
 -- | A 'SimpleIdentifier' is trivially 'IdentifierLike': both its simple
 -- and full names are just its text value.
@@ -183,48 +181,53 @@ instance IdentifierLike SimpleIdentifier where
   simpleIdentifier = simpleIdentifierName
   fullIdentifier = simpleIdentifierName
 
+-- ** Module Names
+
 -- | A Haskell-style module name, consisting of one or more capitalized
 -- identifiers separated by dots.
 --
---   This wraps a 'NonEmpty' list of 'SimpleIdentifier' values with a
---   'NodeId' for source position tracking.
---
---   Examples: @Data@, @Data.List@, @MyCompany.MyProject.MyModule@
+-- Examples: @Data@, @Data.List@, @MyCompany.MyProject.MyModule@
 data ModuleName = ModuleName
   { moduleNodeId :: NodeId
-  -- ^ The 'NodeId' attached to this 'ModuleName', used for source
-  --   position tracking.
+  -- ^ The 'NodeId' attached to this 'ModuleName'.
   , moduleNameName :: NonEmpty SimpleIdentifier
   -- ^ The individual components of the module name (e.g. @Data@ and
-  --   @List@ for @Data.List@).
+  -- @List@ for @Data.List@).
   }
   deriving (Show, Eq)
 
--- | A 'ModuleName' is its own node ID.
-instance HasNodeId ModuleName where
-  getNodeId = moduleNodeId
+instance HasNodeId ModuleName NodeId where
+  nodeId = lens moduleNodeId (\s i -> s {moduleNodeId = i})
+
+instance HasName ModuleName (NonEmpty SimpleIdentifier) where
+  name = lens moduleNameName (\s i -> s {moduleNameName = i})
 
 -- | A 'ModuleName' is 'IdentifierLike': its simple and full names are
 -- both its components joined by dots.
 instance IdentifierLike ModuleName where
-  simpleIdentifier m = intercalate (pack ".") (NonEmpty.toList $ simpleIdentifier <$> moduleNameName m)
+  simpleIdentifier m =
+    intercalate
+      "."
+      ( m
+          ^. name
+          <&> simpleIdentifier
+          & NonEmpty.toList
+      )
   fullIdentifier = simpleIdentifier
 
 -- | 'ModuleName's are equal modulo 'NodeIds' whenever their names are.
 instance EqModuloNodeId ModuleName where
-  a === b = moduleNameName a === moduleNameName b
+  a === b = moduleNameName a ≅ moduleNameName b
+
+-- ** Fully Qualified Names
 
 -- | A fully-qualified name in the program, consisting of a 'ModuleName'
 -- prefix and a final 'SimpleIdentifier'.
 --
---   This wraps the three components (node ID, module name, final name)
---   for source position tracking.
---
---   Examples: @Data.List.map@, @MyModule.MyType@
+-- Examples: @Data.List.map@, @MyModule.MyType@
 data FullyQualifiedName = FullyQualifiedName
   { fqnNodeId :: NodeId
-  -- ^ The 'NodeId' attached to this 'FullyQualifiedName', used for
-  --   source position tracking.
+  -- ^ The 'NodeId' attached to this 'FullyQualifiedName'.
   , fqnModuleName :: ModuleName
   -- ^ The module prefix (e.g. @Data.List@ in @Data.List.map@).
   , fqnName :: SimpleIdentifier
@@ -232,27 +235,34 @@ data FullyQualifiedName = FullyQualifiedName
   }
   deriving (Show, Eq)
 
--- | A 'FullyQualifiedName' is its own node ID.
-instance HasNodeId FullyQualifiedName where
-  getNodeId = fqnNodeId
+instance HasNodeId FullyQualifiedName NodeId where
+  nodeId = lens fqnNodeId (\s i -> s {fqnNodeId = i})
+
+instance HasModuleName FullyQualifiedName ModuleName where
+  moduleName = lens fqnModuleName (\s i -> s {fqnModuleName = i})
 
 -- | 'FullyQualifiedName's are equal modulo 'NodeId's whenever their
 -- module names and names are.
 instance EqModuloNodeId FullyQualifiedName where
-  a === b = fqnModuleName a === fqnModuleName b && fqnName a === fqnName b
+  a === b = fqnModuleName a ≅ fqnModuleName b ∧ fqnName a ≅ fqnName b
 
 -- | A 'FullyQualifiedName' is 'IdentifierLike': its simple name is
 -- the final component, and its full name is the module prefix joined
 -- with the final component by a dot.
 instance IdentifierLike FullyQualifiedName where
   simpleIdentifier = simpleIdentifier . fqnName
-  fullIdentifier n = append (fullIdentifier (fqnModuleName n)) (cons '.' (simpleIdentifier (fqnName n)))
+  fullIdentifier n =
+    append
+      (fullIdentifier (fqnModuleName n))
+      (cons '.' (simpleIdentifier (fqnName n)))
 
--- | An identifier in the program, which is either a simple identifier
--- or a fully-qualified name.
+-- ** The Main Identifier Type
+
+-- | An identifier in the program, which is either a simple identifier or a
+-- fully-qualified name.
 --
---   This is a sum type used in contexts where either form is valid,
---   such as expression variables.
+-- This is a sum type used in contexts where either form is valid, such as
+-- expression variables.
 data Identifier
   = IdentifierSimpleIdentifier
       { identifierSimpleIdentifier :: SimpleIdentifier
@@ -265,13 +275,6 @@ data Identifier
   deriving (Show, Eq)
 
 -- | Pattern synonym for constructing a simple identifier.
---
---   @
---   MkIdentifierSimple :: NodeId -> Text -> Identifier
---   @
---
---   Example: @MkIdentifierSimple 42 "x"@ produces 'IdentifierSimpleIdentifier'
---   wrapping a 'SimpleIdentifier' with node ID @42@ and name @"x"@.
 pattern MkIdentifierSimple
   :: NodeId
   -- ^ The 'NodeId' for the identifier
@@ -281,13 +284,6 @@ pattern MkIdentifierSimple
 pattern MkIdentifierSimple uniq s = IdentifierSimpleIdentifier (SimpleIdentifier uniq s)
 
 -- | Pattern synonym for constructing a fully-qualified identifier.
---
---   @
---   MkIdentifierFQN :: NodeId -> ModuleName -> SimpleIdentifier -> Identifier
---   @
---
---   Example: @MkIdentifierFQN 42 (ModuleName [Data, List]) map@ produces
---   'IdentifierFullyQualifiedName' wrapping a 'FullyQualifiedName' for @Data.List.map@.
 pattern MkIdentifierFQN
   :: NodeId
   -- ^ The 'NodeId' for the identifier
@@ -302,11 +298,17 @@ pattern MkIdentifierFQN uniq mod i = IdentifierFullyQualifiedName (FullyQualifie
 -- pattern synonyms. This enables exhaustive pattern matching.
 {-# COMPLETE MkIdentifierSimple, MkIdentifierFQN #-}
 
--- | An 'Identifier' is its own node ID, extracting from whichever
--- constructor is active.
-instance HasNodeId Identifier where
-  getNodeId (MkIdentifierSimple u _) = u
-  getNodeId (MkIdentifierFQN u _ _) = u
+instance HasNodeId Identifier NodeId where
+  nodeId =
+    lens
+      ( \x -> case x of
+          MkIdentifierSimple u _ -> u
+          MkIdentifierFQN u _ _ -> u
+      )
+      ( \s i -> case s of
+          MkIdentifierSimple _ t -> MkIdentifierSimple i t
+          MkIdentifierFQN _ a b -> MkIdentifierFQN i a b
+      )
 
 -- | An 'Identifier' is 'IdentifierLike': delegates to the inner value's
 -- implementation.
@@ -319,8 +321,21 @@ instance IdentifierLike Identifier where
 -- | 'Identifier's are equal modulo 'NodeIds' whenever their components are.
 instance EqModuloNodeId Identifier where
   MkIdentifierSimple _ s === MkIdentifierSimple _ t = s == t
-  MkIdentifierFQN _ a b === MkIdentifierFQN _ c d = a === c && b === d
+  MkIdentifierFQN _ a b === MkIdentifierFQN _ c d = a ≅ c ∧ b ≅ d
   _ === _ = False
+
+--------------------------------------------------------------------------------
+
+-- * Expressions and Types
+
+-- $expressionsAndTypes
+--
+-- Fixen contains a subset of valid Haskell expressions and types. These are
+-- captured as the 'Expr' and 'Type' types.
+
+--------------------------------------------------------------------------------
+
+-- ** Expressions
 
 -- | An expression in the Fixen language.
 --
@@ -332,14 +347,14 @@ data Expr where
   -- | A variable expression, referencing an identifier.
   ExprVar
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Identifier
     -- ^ The identifier being referenced.
     -> Expr
   -- | A function application expression (@f x@).
   ExprApp
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Expr
     -- ^ The function being applied.
     -> Expr
@@ -348,21 +363,21 @@ data Expr where
   -- | An integer literal expression.
   ExprIntLit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Integer
     -- ^ The integer value.
     -> Expr
   -- | A string literal expression.
   ExprStrLit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Text
     -- ^ The string value.
     -> Expr
   -- | A tuple expression. The tuple must have at least two elements.
   ExprTuple
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Expr
     -- ^ The first element of the tuple.
     -> NonEmpty Expr
@@ -371,37 +386,47 @@ data Expr where
   -- | A list expression.
   ExprList
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> [Expr]
     -- ^ The elements of the list (may be empty).
     -> Expr
   -- | The unit value @()@.
   ExprUnit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Expr
   deriving (Show, Eq)
 
--- | Every 'Expr' constructor carries a 'NodeId' for source position tracking.
-instance HasNodeId Expr where
-  getNodeId (ExprVar u _) = u
-  getNodeId (ExprApp u _ _) = u
-  getNodeId (ExprIntLit u _) = u
-  getNodeId (ExprStrLit u _) = u
-  getNodeId (ExprTuple u _ _) = u
-  getNodeId (ExprList u _) = u
-  getNodeId (ExprUnit u) = u
+instance HasNodeId Expr NodeId where
+  nodeId = lens __exprnodeId __exprsetNodeId
+    where
+      __exprnodeId (ExprVar u _) = u
+      __exprnodeId (ExprApp u _ _) = u
+      __exprnodeId (ExprIntLit u _) = u
+      __exprnodeId (ExprStrLit u _) = u
+      __exprnodeId (ExprTuple u _ _) = u
+      __exprnodeId (ExprList u _) = u
+      __exprnodeId (ExprUnit u) = u
+      __exprsetNodeId (ExprVar _ a) i = ExprVar i a
+      __exprsetNodeId (ExprApp _ a b) i = ExprApp i a b
+      __exprsetNodeId (ExprIntLit _ a) i = ExprIntLit i a
+      __exprsetNodeId (ExprStrLit _ a) i = ExprStrLit i a
+      __exprsetNodeId (ExprTuple _ a b) i = ExprTuple i a b
+      __exprsetNodeId (ExprList _ a) i = ExprList i a
+      __exprsetNodeId (ExprUnit _) i = ExprUnit i
 
 -- | 'Expr's are equal modulo 'NodeId's whenever their components are.
 instance EqModuloNodeId Expr where
-  ExprVar _ v === ExprVar _ v' = v === v'
-  ExprApp _ f x === ExprApp _ f' x' = f === f' && x === x'
+  ExprVar _ v === ExprVar _ v' = v ≅ v'
+  ExprApp _ f x === ExprApp _ f' x' = f ≅ f' ∧ x ≅ x'
   ExprIntLit _ i === ExprIntLit _ i' = i == i'
   ExprStrLit _ s === ExprStrLit _ s' = s == s'
-  ExprTuple _ h t === ExprTuple _ h' t' = h === h' && t === t'
-  ExprList _ l === ExprList _ l' = l === l'
+  ExprTuple _ h t === ExprTuple _ h' t' = h ≅ h' ∧ t ≅ t'
+  ExprList _ l === ExprList _ l' = l ≅ l'
   ExprUnit _ === ExprUnit _ = True
   _ === _ = False
+
+-- ** Types
 
 -- | A type in the Fixen language.
 --
@@ -412,7 +437,7 @@ data Type where
   -- | A named type, referencing an identifier (e.g. @Int@, @MyType@).
   TypeName
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Identifier
     -- ^ The type name.
     -> Type
@@ -420,27 +445,25 @@ data Type where
   -- to an argument type.
   TypeApp
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Type
     -- ^ The type constructor (LHS).
     -> Type
     -- ^ The argument type (RHS).
     -> Type
-  -- | A list type (@[a]@). This is a built-in type, distinct from
-  -- generic type application, for convenience in pretty-printing and
-  -- code generation.
+  -- | A list type (@[a]@). This is a built-in type, for convenience in
+  -- pretty-printing and code generation.
   TypeList
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Type
     -- ^ The element type.
     -> Type
-  -- | A tuple type (@(a, b, ...)@). This is a built-in type, distinct
-  -- from generic type application, for convenience in pretty-printing
-  -- and code generation. The tuple must have at least two elements.
+  -- | A tuple type (@(a, b, ...)@). This is a built-in type. The tuple must
+  -- have at least two elements.
   TypeTuple
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Type
     -- ^ The type of the first element.
     -> NonEmpty Type
@@ -449,142 +472,176 @@ data Type where
   -- | The unit type @()@.
   TypeUnit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Type
   -- | A natural number literal type (e.g. @0@, @1@, @42@).
   TypeNatLit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Natural
     -- ^ The natural number value.
     -> Type
-  -- | A string/symbol literal type (e.g. @@"foo"@@).
+  -- | A string/symbol literal type (e.g. @"foo"@).
   TypeSymbolLit
     :: NodeId
-    -- ^ The 'NodeId' for source position tracking.
+    -- ^ The 'NodeId'.
     -> Text
     -- ^ The symbol/string value.
     -> Type
   deriving (Show, Eq)
 
--- | Every 'Type' constructor carries a 'NodeId' for source position tracking.
-instance HasNodeId Type where
-  getNodeId (TypeName u _) = u
-  getNodeId (TypeApp u _ _) = u
-  getNodeId (TypeNatLit u _) = u
-  getNodeId (TypeSymbolLit u _) = u
-  getNodeId (TypeUnit u) = u
-  getNodeId (TypeTuple u _ _) = u
-  getNodeId (TypeList u _) = u
+instance HasNodeId Type NodeId where
+  nodeId = lens __typegetnodeId __typesetNodeId
+    where
+      __typegetnodeId (TypeName u _) = u
+      __typegetnodeId (TypeApp u _ _) = u
+      __typegetnodeId (TypeNatLit u _) = u
+      __typegetnodeId (TypeSymbolLit u _) = u
+      __typegetnodeId (TypeUnit u) = u
+      __typegetnodeId (TypeTuple u _ _) = u
+      __typegetnodeId (TypeList u _) = u
+      __typesetNodeId (TypeName _ a) i = TypeName i a
+      __typesetNodeId (TypeApp _ a b) i = TypeApp i a b
+      __typesetNodeId (TypeNatLit _ a) i = TypeNatLit i a
+      __typesetNodeId (TypeSymbolLit _ a) i = TypeSymbolLit i a
+      __typesetNodeId (TypeUnit _) i = TypeUnit i
+      __typesetNodeId (TypeTuple _ a b) i = TypeTuple i a b
+      __typesetNodeId (TypeList _ a) i = TypeList i a
 
 -- | 'Type's are equal modulo 'NodeId's whenever their components are.
 instance EqModuloNodeId Type where
-  TypeName _ v === TypeName _ v' = v === v'
-  TypeApp _ f x === TypeApp _ f' x' = f === f' && x === x'
+  TypeName _ v === TypeName _ v' = v ≅ v'
+  TypeApp _ f x === TypeApp _ f' x' = f ≅ f' ∧ x ≅ x'
   TypeNatLit _ i === TypeNatLit _ i' = i == i'
   TypeSymbolLit _ s === TypeSymbolLit _ s' = s == s'
-  TypeTuple _ h t === TypeTuple _ h' t' = h === h' && t === t'
-  TypeList _ l === TypeList _ l' = l === l'
+  TypeTuple _ h t === TypeTuple _ h' t' = h ≅ h' ∧ t ≅ t'
+  TypeList _ l === TypeList _ l' = l ≅ l'
   TypeUnit _ === TypeUnit _ = True
   _ === _ = False
 
 --------------------------------------------------------------------------------
---
--- Program constructs
---
+
+-- * Program constructs
+
 --------------------------------------------------------------------------------
 
--- | Class for program constructs that have a name.
---
---   The functional dependency @α -> ν@ ensures that each construct type
---   @α@ has exactly one name type @ν@. For example, a 'Relation' has
---   a 'SimpleIdentifier' name, while a 'Rule' has an optional name.
---
---   This class enables generic name extraction across different construct
---   types, useful for pretty-printing, error reporting, and indexing.
-class Named α ν | α -> ν where
-  -- | Extract the name of a program construct.
-  nameOf :: α -> ν
+-- ** Relation-Like Constructs
 
--- | A relation declaration in the program.
+-- $relationLikeConstructs
 --
---   Relations represent facts or predicates that can be assumed or concluded
---   in rules. They have a name (typically capitalized, as they are
---   constructor-like) and a list of argument types.
---
---   Example:
---
---   @
---   rel Dist
---       : Integer,
---       Integer
---   @
-data RelationLike π = Relation
-  { relationNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
-  , relationName :: SimpleIdentifier
+-- Several program constructs are broadly related to relations, e.g., relation
+-- declaration, assumptions, conclusions, etc. These are defined here.
+
+-- | A relation-like declaration in the program.
+data RelationLike π = RelationLike
+  { relationLikeNodeId :: NodeId
+  -- ^ The 'NodeId'.
+  , relationLikeName :: SimpleIdentifier
   -- ^ The relation name (e.g. @Dist@, @MyFact@).
-  , relationParams :: [π]
-  -- ^ The types of the relation's arguments (e.g. @[Integer, Integer]@).
+  , relationLikeArgs :: [π]
+  -- ^ The arguments to this relation.
   }
   deriving (Show, Eq)
 
--- | A 'Relation' is its own node ID.
-instance HasNodeId (RelationLike π) where
-  getNodeId = relationNodeId
+instance HasNodeId (RelationLike π) NodeId where
+  nodeId = lens relationLikeNodeId (\s i -> s {relationLikeNodeId = i})
 
--- | A 'Relation' is named by its relation name.
-instance Named (RelationLike π) SimpleIdentifier where
-  nameOf = relationName
+instance HasName (RelationLike π) SimpleIdentifier where
+  name = lens relationLikeName (\s i -> s {relationLikeName = i})
 
+instance HasArgs (RelationLike π) [π] where
+  args = lens relationLikeArgs (\s i -> s {relationLikeArgs = i})
+
+{- FOURMOLU_DISABLE -}
 -- | 'Relation's are equal modulo 'NodeId's whenever their components are.
 instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
-  r === r' = relationName r === relationName r' && relationParams r === relationParams r'
+  r === r' =
+    relationLikeName r ≅ relationLikeName r'
+      ∧ relationLikeArgs r ≅ relationLikeArgs r'
+{- FOURMOLU_ENABLE -}
 
--- | A relation declaration as produced by the parser.
-type Relation = RelationLike Type
+-- | A relation declaration in the program.
+--
+-- Relations represent facts or predicates that can be assumed or concluded
+-- in rules. They have a name (typically capitalized, as they are
+-- constructor-like) and a list of parameter types.
+--
+-- Example:
+--
+-- @
+-- rel Dist: Integer, Integer
+-- @
+type RelationDeclaration = RelationLike Type
 
--- | An assumption within a rule body.
+-- | Constructor and destructor for 'RelationDeclaration's.
+--
+-- @{-# COMPLETE RelationDeclaration #-}@
+pattern RelationDeclaration
+  :: NodeId
+  -- ^ The 'NodeId'.
+  -> SimpleIdentifier
+  -- ^ The name of the relation being declared.
+  -> [Type]
+  -- ^ The types of the arguments to the relation.
+  -> RelationDeclaration
+pattern RelationDeclaration a b c = RelationLike a b c
+
+{-# COMPLETE RelationDeclaration #-}
+
+-- | An assumption within a rule body. The arguments to the relation symbol in
+-- assumptions are just variables, i.e., 'SimpleIdentifier's.
 type Assumption = RelationLike SimpleIdentifier
 
--- | A conclusion of a rule.
+-- | Constructor and destructor for 'Assumption's.
 --
---   This is 'Core.Relation' instantiated with 'Core.SimpleIdentifier'
---   for the relation name and @[Core.Expr]@ for the argument expressions.
---   The conclusion appears on the right side of the turnstile (|-)
---   and specifies what the rule derives.
+-- @{-# COMPLETE Assumption #-}@
+pattern Assumption
+  :: NodeId
+  -- ^ The 'NodeId'.
+  -> SimpleIdentifier
+  -- ^ The name of the relation symbol.
+  -> [SimpleIdentifier]
+  -- ^ The arguments to the relation symbol.
+  -> Assumption
+pattern Assumption a b c = RelationLike a b c
+
+{-# COMPLETE Assumption #-}
+
+-- | A conclusion of a rule. The arguments to the relation symbol in conclusions
+-- are expressions, i.e., 'Expr'.
+type Conclusion = RelationLike Expr
+
+-- | Constructor and destructor for 'Conclusion's.
 --
---   Example: @|- Dist x y@
-type Conclusion =
-  RelationLike Expr
-  -- ^ The types of the relation's arguments.
+-- @{-# COMPLETE Conclusion #-}@
+pattern Conclusion
+  :: NodeId
+  -- ^ The 'NodeId'.
+  -> SimpleIdentifier
+  -- ^ The name of the relation symbol.
+  -> [Expr]
+  -- ^ The arguments to the relation symbol.
+  -> Conclusion
+pattern Conclusion a b c = RelationLike a b c
+
+{-# COMPLETE Conclusion #-}
+
+-- ** Rules
 
 -- | A rule declaration in the program.
 --
---   Rules define inference: given a set of assumptions and conditions,
---   a conclusion follows. Rules have:
+-- Example:
 --
---   * An optional name (for reference in phases and priorities)
---   * Optional bound variables (for use in the rule body)
---   * A list of assumptions (relations applied to variables)
---   * A list of conditions (expressions guarded by 'if')
---   * A conclusion (a relation applied to expressions)
---
---   Example:
---
---   @
---   rule myRule x y:
---       MyFact x,
---       if x < y,
---       |- Dist x y
---   @
+-- @
+-- rule myRule x y: MyFact x, if x < y |- Dist x y
+-- @
 data Rule = Rule
   { ruleNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , ruleName :: Maybe SimpleIdentifier
   -- ^ The optional rule name (e.g. @myRule@, or @Nothing@ if unnamed).
-  , ruleBoundVars :: [SimpleIdentifier]
-  -- ^ The bound variables of the rule (e.g. @[x, y]@).
+  , ruleArgs :: [SimpleIdentifier]
+  -- ^ The parameters of the rule.
   , ruleAssumptions :: [Assumption]
   -- ^ The assumptions (relations applied to variables).
   , ruleConditions :: [Condition]
@@ -594,22 +651,34 @@ data Rule = Rule
   }
   deriving (Show, Eq)
 
+{- FOURMOLU_DISABLE -}
 -- | 'Rule's are equal modulo 'NodeId's whenever their components are.
 instance EqModuloNodeId Rule where
   r === r' =
-    ruleName r === ruleName r'
-      && ruleBoundVars r === ruleBoundVars r'
-      && ruleAssumptions r === ruleAssumptions r'
-      && ruleConditions r === ruleConditions r'
-      && ruleConclusion r === ruleConclusion r'
+    ruleName r ≅ ruleName r'
+      ∧ ruleArgs r ≅ ruleArgs r'
+      ∧ ruleAssumptions r ≅ ruleAssumptions r'
+      ∧ ruleConditions r ≅ ruleConditions r'
+      ∧ ruleConclusion r ≅ ruleConclusion r'
+{- FOURMOLU_ENABLE -}
 
--- | A 'Rule' is its own node ID.
-instance HasNodeId Rule where
-  getNodeId = ruleNodeId
+instance HasNodeId Rule NodeId where
+  nodeId = lens ruleNodeId (\s i -> s {ruleNodeId = i})
 
--- | A 'Rule' is named by its rule name.
-instance Named Rule (Maybe SimpleIdentifier) where
-  nameOf = ruleName
+instance HasName Rule (Maybe SimpleIdentifier) where
+  name = lens ruleName (\s i -> s {ruleName = i})
+
+instance HasArgs Rule [SimpleIdentifier] where
+  args = lens ruleArgs (\s i -> s {ruleArgs = i})
+
+instance HasAssumptions Rule [Assumption] where
+  assumptions = lens ruleAssumptions (\s i -> s {ruleAssumptions = i})
+
+instance HasConditions Rule [Condition] where
+  conditions = lens ruleConditions (\s i -> s {ruleConditions = i})
+
+instance HasConclusion Rule Conclusion where
+  conclusion = lens ruleConclusion (\s i -> s {ruleConclusion = i})
 
 -- | A condition within a rule body.
 --
@@ -619,108 +688,138 @@ instance Named Rule (Maybe SimpleIdentifier) where
 --   Example: @if a <= b@
 data Condition = Condition
   { conditionNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , conditionExpr :: Expr
   -- ^ The condition expression.
   }
   deriving (Show, Eq)
 
--- | A 'Condition' is its own node ID.
-instance HasNodeId Condition where
-  getNodeId = conditionNodeId
+instance HasNodeId Condition NodeId where
+  nodeId = lens conditionNodeId (\s i -> s {conditionNodeId = i})
+
+instance HasExpr Condition Expr where
+  expr = lens conditionExpr (\s i -> s {conditionExpr = i})
 
 instance EqModuloNodeId Condition where
-  Condition {conditionExpr = e} === Condition {conditionExpr = e'} = e === e'
+  Condition {conditionExpr = e} === Condition {conditionExpr = e'} = e ≅ e'
+
+-- ** Haskell Source Blocks
+
+-- $hsSourceBlocks
+--
+-- Fixen allows users to write Haskell source blocks so as to keep their
+-- Fixen-generated modules self-contained.
 
 -- | A Haskell source code block embedded in a Fixen program.
 --
---   Haskell blocks are delimited by triple backticks with the @hs@
---   language annotation (```hs ... ```). They allow defining Haskell
---   code that is referenced by 'extern' declarations.
+-- Haskell blocks are delimited by triple backticks with the @hs@
+-- language annotation (```hs ... ```). They allow defining Haskell
+-- code that is referenced by 'extern' declarations.
 --
---   Example:
+-- Example:
 --
---   @
---   ```hs
---   myHaskellFunction :: Int -> Int
---   myHaskellFunction x = x + 1
---   ```
---   @
+-- @
+-- ```hs
+-- myHaskellFunction :: Int -> Int
+-- myHaskellFunction x = x + 1
+-- ```
+-- @
 data HsBlock = HsBlock
   { hsBlockNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , hsBlockContents :: Text
   -- ^ The Haskell source code contents.
   }
   deriving (Show, Eq)
 
--- | A 'HsBlock' is its own node ID.
-instance HasNodeId HsBlock where
-  getNodeId = hsBlockNodeId
+instance HasNodeId HsBlock NodeId where
+  nodeId = lens hsBlockNodeId (\s i -> s {hsBlockNodeId = i})
+
+instance HasContents HsBlock Text where
+  contents = lens hsBlockContents (\s i -> s {hsBlockContents = i})
+
+-- ** Imports
+
+-- $imports
+--
+-- Users can also control what Haskell modules the Fixen-generated source code
+-- imports. Note that these are __different__ to /includes/, which import
+-- other Fixen programs.
 
 -- | A Haskell module import statement.
 --
---   Import statements allow a Fixen program to reference Haskell symbols
---   defined in external modules. The imported module is specified as a
---   'ModuleName'.
+-- Import statements allow a Fixen program to reference Haskell symbols
+-- defined in external modules. The imported module is specified as a
+-- 'ModuleName'.
 --
---   Example:
+-- Example:
 --
---   @
---   import Data.List
---   @
+-- @
+-- import Data.List
+-- @
 data HsImport = HsImport
   { hsImportNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
-  , hsImportImport :: ModuleName
+  -- ^ The 'NodeId'.
+  , hsImportModuleName :: ModuleName
   -- ^ The imported module name (e.g. @Data.List@).
   }
   deriving (Show, Eq)
 
--- | A 'HsImport' is its own node ID.
-instance HasNodeId HsImport where
-  getNodeId = hsImportNodeId
+instance HasNodeId HsImport NodeId where
+  nodeId = lens hsImportNodeId (\s i -> s {hsImportNodeId = i})
+
+instance HasModuleName HsImport ModuleName where
+  moduleName = lens hsImportModuleName (\s i -> s {hsImportModuleName = i})
+
+-- ** Include Statements
+
+-- $includes
+--
+-- Users can also __include__ other __Fixen__ programs into the current program.
 
 -- | An @include@ statement for importing another Fixen program.
 --
---   Include statements allow one Fixen program to reuse declarations
---   from another Fixen file. The included file path is a string literal.
+-- Include statements allow one Fixen program to reuse declarations
+-- from another Fixen file. The included file path is a string literal.
 --
---   Example:
+-- Example:
 --
---   @
---   include "Path/To/Fixen.fix"
---   @
+-- @
+-- include \"path\/to\/Program.fix\"
+-- @
 data Include = Include
   { includeNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , includePath :: Text
   -- ^ The path to the included Fixen file.
   }
   deriving (Show, Eq)
 
--- | An 'Include' is its own node ID.
-instance HasNodeId Include where
-  getNodeId = includeNodeId
+instance HasNodeId Include NodeId where
+  nodeId = lens includeNodeId (\s i -> s {includeNodeId = i})
+
+instance HasPath Include Text where
+  path = lens includePath (\s i -> s {includePath = i})
+
+-- ** Priority Declarations
 
 -- | A priority declaration.
 --
---   Priority declarations specify an ordering between rule instances.
---   When multiple rules could fire, priorities determine which one
---   takes precedence. A priority consists of:
+-- Priority declarations specify an ordering between rule instances.
+-- When multiple rules could fire, priorities determine which one
+-- takes precedence. A priority consists of:
 --
---   * A premise expression that must hold
---   * A conclusion comparing two rule instances with an ordering symbol
+-- * A premise expression that must hold.
+-- * A conclusion comparing two rule instances with an ordering symbol.
 --
---   Example:
+-- Example:
 --
---   @
---   priority:
---       a <= b |- addDist { a = a, b = b' } <= addDist { a = a', b = b' }
---   @
+-- @
+-- priority: a < b |- rule1 { a = a } < rule2 { b = b }
+-- @
 data Priority = Priority
   { priorityNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , priorityPremise :: Expr
   -- ^ The premise expression that must hold for the priority to apply.
   , priorityConclusion :: PriorityConclusion
@@ -728,216 +827,251 @@ data Priority = Priority
   }
   deriving (Show, Eq)
 
--- | A 'Priority' is its own node ID.
-instance HasNodeId Priority where
-  getNodeId = priorityNodeId
+instance HasNodeId Priority NodeId where
+  nodeId = lens priorityNodeId (\s i -> s {priorityNodeId = i})
+
+instance HasPremise Priority Expr where
+  premise = lens priorityPremise (\s i -> s {priorityPremise = i})
+
+instance HasConclusion Priority PriorityConclusion where
+  conclusion = lens priorityConclusion (\s i -> s {priorityConclusion = i})
 
 -- | The conclusion of a priority declaration.
 --
---   This compares two rule instances with an ordering symbol (@<=@ or
---   @⊏@), specifying that the left-hand side instance has lower or
---   equal priority than the right-hand side.
+--   This compares two rule instances with an ordering symbol (@<@ or
+--   @⊏@), specifying that the left-hand side instance has lower
+--   priority than the right-hand side.
 data PriorityConclusion = PriorityConclusion
   { priorityConclusionNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , priorityConclusionLHS :: RuleInstance
-  -- ^ The left-hand side rule instance.
+  -- ^ The left-hand side rule instance. This rule instance is strictly less
+  -- than the right-hand side rule instance.
   , priorityConclusionRHS :: RuleInstance
-  -- ^ The right-hand side rule instance.
+  -- ^ The right-hand side rule instance. This rule instance is strictly
+  -- greater than the left-hand side rule instance.
   }
   deriving (Show, Eq)
 
--- | A 'PriorityConclusion' is its own node ID.
-instance HasNodeId PriorityConclusion where
-  getNodeId = priorityConclusionNodeId
+instance HasNodeId PriorityConclusion NodeId where
+  nodeId = lens priorityConclusionNodeId (\s i -> s {priorityConclusionNodeId = i})
+
+instance HasLHS PriorityConclusion RuleInstance where
+  lhs = lens priorityConclusionLHS (\s i -> s {priorityConclusionLHS = i})
+
+instance HasRHS PriorityConclusion RuleInstance where
+  rhs = lens priorityConclusionRHS (\s i -> s {priorityConclusionRHS = i})
 
 -- | The instantiation of a rule, used in priority declarations.
 --
---   A rule instance consists of a rule name and an optional map of
---   variable substitutions. The map describes how the rule's bound
---   variables are instantiated with specific values.
+--   A rule instance consists of a rule name and a potentially empty map of
+--   variable substitutions. The map describes how the rule's parameters
+--   are instantiated with specific values.
 --
 --   Example: @addDist { a = a, b = b' }@ instantiates the @addDist@
 --   rule with @a@ mapping to @a@ and @b@ mapping to @b'@.
 data RuleInstance = RuleInstance
   { ruleInstanceNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , ruleInstanceRule :: SimpleIdentifier
-  -- ^ The rule being instantiated.
+  -- ^ The name of the rule being instantiated.
   , ruleInstanceMap :: Map SimpleIdentifier SimpleIdentifier
   -- ^ The variable substitution map.
   }
   deriving (Show, Eq)
 
--- | A 'RuleInstance' is its own node ID.
-instance HasNodeId RuleInstance where
-  getNodeId = ruleInstanceNodeId
+instance HasNodeId RuleInstance NodeId where
+  nodeId = lens ruleInstanceNodeId (\s i -> s {ruleInstanceNodeId = i})
 
--- | A 'RuleInstance' is named by its rule reference.
-instance Named RuleInstance SimpleIdentifier where
-  nameOf = ruleInstanceRule
+instance HasRule RuleInstance SimpleIdentifier where
+  rule = lens ruleInstanceRule (\s i -> s {ruleInstanceRule = i})
 
--- | A relation that is queried.
---
--- This is 'Core.Relation' instantiated with:
---
--- * 'Core.SimpleIdentifier' for the relation name
--- * '[Core.QueryMode]' for the arguments
+instance HasMap RuleInstance (Map SimpleIdentifier SimpleIdentifier) where
+  map = lens ruleInstanceMap (\s i -> s {ruleInstanceMap = i})
+
+-- ** Query Declarations
+
+-- | A relation that is queried. The arguments to this query declaration are
+-- 'QueryMode's.
 type QueriedRelation = RelationLike QueryMode
 
--- -- | A query declaration as produced by the parser.
--- --
--- --   This is 'Core.Query' instantiated with:
--- --
--- --   * 'QueriedRelation' for the queried relation
--- --   * 'Core.SimpleIdentifier' for the query name
--- --
--- --   Example: @query DistTo as distTo - +@
--- type Query = Core.Query QueriedRelation Core.SimpleIdentifier
+-- | Constructor and destructor for 'QueriedRelation'.
 --
+-- @{-# COMPLETE QueriedRelation #-}@
+pattern QueriedRelation
+  :: NodeId
+  -- ^ The 'NodeID'.
+  -> SimpleIdentifier
+  -- ^ The name of the relation symbol.
+  -> [QueryMode]
+  -- ^ The arguments to the query.
+  -> QueriedRelation
+pattern QueriedRelation a b c = RelationLike a b c
+
+{-# COMPLETE QueriedRelation #-}
 
 -- | A query declaration.
 --
---   Query declarations specify how to query a relation, indicating which
---   arguments are inputs and which are outputs. Each query has:
+-- Query declarations specify how to query a relation, indicating which
+-- arguments are inputs and which are outputs. Each query has:
 --
---   * A relation name (capitalized)
---   * A query name (lowercase, for reference)
---   * A list of modes (@+@ for input, @-@ for output)
+-- * A relation name (capitalized)
+-- * A query name (lowercase, for reference)
+-- * A list of modes (@+@ for input, @-@ for output)
 --
---   Example:
+-- Example:
 --
---   @
---   query DistTo as distTo - +
---   @
+-- @
+-- query distTo: DistTo - +
+-- @
 data Query = Query
   { queryNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , queryRel :: QueriedRelation
-  -- ^ The relation being queried.
+  -- ^ The relation being queried (and its modes).
   , queryName :: SimpleIdentifier
-  -- ^ The query name (lowercase identifier for reference).
+  -- ^ The query name.
   }
   deriving (Show, Eq)
 
--- | A 'Query' is named by its query name.
-instance Named Query SimpleIdentifier where
-  nameOf = queryName
+instance HasName Query SimpleIdentifier where
+  name = lens queryName (\s i -> s {queryName = i})
 
--- | A 'Query' is its own node ID.
-instance HasNodeId Query where
-  getNodeId = queryNodeId
+instance HasNodeId Query NodeId where
+  nodeId = lens queryNodeId (\s i -> s {queryNodeId = i})
+
+instance HasRelation Query QueriedRelation where
+  relation = lens queryRel (\s i -> s {queryRel = i})
 
 -- | The mode of a query argument: input (@+@) or output (@-@).
 --
---   Query modes specify whether each argument of a relation is an input
---   (ground value to be matched) or an output (value to be computed).
+-- Query modes specify whether each argument of a relation is an input
+-- (ground value to be matched) or an output (value to be computed).
 --
---   * 'Input' — the argument is an input variable (ground)
---   * 'Output' — the argument is an output variable (to be computed)
+-- * 'Input' — the argument is an input variable (ground)
+-- * 'Output' — the argument is an output variable (to be computed)
 data QueryMode = Input NodeId | Output NodeId
   deriving (Show, Eq)
 
--- | A 'QueryMode' is its own node ID.
-instance HasNodeId QueryMode where
-  getNodeId (Input u) = u
-  getNodeId (Output u) = u
+instance HasNodeId QueryMode NodeId where
+  nodeId = lens __querymodenodeId __querymodesetNodeId
+    where
+      __querymodenodeId (Input u) = u
+      __querymodenodeId (Output u) = u
+      __querymodesetNodeId (Input _) i = Input i
+      __querymodesetNodeId (Output _) i = Output i
+
+-- ** Module Declaration
 
 -- | A module declaration, specifying the Haskell module name that will
 -- be generated from the Fixen program.
 --
---   The module declaration is the first line of every Fixen program:
+-- The module declaration is the first line of every Fixen program:
 --
---   @
---   module My.Haskell.Module where
---   @
+-- @
+-- module My.Haskell.Module where
+-- @
 --
---   The module name determines the name of the generated Haskell module.
+-- The module name determines the name of the generated Haskell module.
 data ModuleDeclaration = ModuleDeclaration
   { moduleDeclarationNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , moduleDeclarationName :: ModuleName
   -- ^ The Haskell module name being generated.
   }
   deriving (Show, Eq)
 
--- | A 'ModuleDeclaration' is its own node ID.
-instance HasNodeId ModuleDeclaration where
-  getNodeId = moduleDeclarationNodeId
+instance HasNodeId ModuleDeclaration NodeId where
+  nodeId = lens moduleDeclarationNodeId (\s i -> s {moduleDeclarationNodeId = i})
 
--- | A 'ModuleDeclaration' is named by its module name.
-instance Named ModuleDeclaration ModuleName where
-  nameOf = moduleDeclarationName
+instance HasName ModuleDeclaration ModuleName where
+  name = lens moduleDeclarationName (\s i -> s {moduleDeclarationName = i})
 
--- | An extern declaration, listing symbols defined in Haskell code.
---
---   Extern declarations inform Fixen which symbols are defined in
---   Haskell source blocks or imported modules, so that the symbol
---   solver can resolve references to them.
---
---   Example:
---
---   @
---   extern
---       myHaskellFunction,
---       anotherSymbol
---   @
-data Extern = Extern
-  { externNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
-  , externSymbols :: NonEmpty SimpleIdentifier
-  -- ^ The list of externally defined symbols.
-  }
-  deriving (Show, Eq)
+instance HasModuleName ModuleDeclaration ModuleName where
+  moduleName = lens moduleDeclarationName (\s i -> s {moduleDeclarationName = i})
 
--- | An 'Extern' is its own node ID.
-instance HasNodeId Extern where
-  getNodeId = externNodeId
-
--- type PartialOrdDeclaration = Core.PartialOrdDeclaration Core.SimpleIdentifier Core.Type Core.Identifier Core.Identifier
+-- ** Phases Declarations
 
 -- | Represents the @*@ wildcard in phase declarations.
 --
---   In phase declarations, @*@ denotes "all remaining rules" — i.e., rules
---   that have not been assigned to any earlier phase. This newtype wraps
---   a 'NodeId' for source position tracking.
---
---   The wildcard can only appear as the last phase in a declaration.
---   After the symbol solver resolves all rule references, the rules
---   collected under this wildcard are those not explicitly named in
---   any earlier ruleset.
-newtype EverythingElseRuleset
-  = -- | The 'NodeId' for source position tracking.
-    EverythingElseRuleset NodeId
+-- In phase declarations, @*@ denotes "all remaining rules"—i.e., rules
+-- that have not been assigned to any earlier phase.
+newtype EverythingElseRuleset = EverythingElseRuleset NodeId
   deriving (Show, Eq)
 
-instance HasNodeId EverythingElseRuleset where
-  -- \| Extract the 'NodeId' from an 'EverythingElseRuleset'.
-  getNodeId (EverythingElseRuleset i) = i
+instance HasNodeId EverythingElseRuleset NodeId where
+  nodeId = lens __everythingElseRulesetGetNodeId __everythingElseRulesetSetNodeId
+    where
+      __everythingElseRulesetGetNodeId (EverythingElseRuleset i) = i
+      __everythingElseRulesetSetNodeId (EverythingElseRuleset _) i = EverythingElseRuleset i
+
+-- | A set of rule names, representing the contents of a phase declaration.
+--
+-- A ruleset is either an explicit list of rule names or the wildcard
+-- @*@ (all remaining rules). Rulesets are used to group rules into
+-- execution phases.
+data Ruleset = Ruleset
+  { ruleSetNodeId :: NodeId
+  -- ^ The 'NodeId' for source position tracking.
+  , ruleSetRules :: NonEmpty SimpleIdentifier
+  -- ^ The rule names in this ruleset.
+  }
+  deriving (Show, Eq)
+
+instance HasNodeId Ruleset NodeId where
+  nodeId = lens ruleSetNodeId (\s i -> s {ruleSetNodeId = i})
+
+instance HasRules Ruleset (NonEmpty SimpleIdentifier) where
+  rules = lens ruleSetRules (\s i -> s {ruleSetRules = i})
+
+-- | Either an explicit ruleset (a named list of rules) or the
+--   @*@ wildcard ('EverythingElseRuleset') representing all remaining
+--   rules.
+type RulesetOrEverythingElse = Either Ruleset EverythingElseRuleset
+
+-- | A phase declaration for multi-phase fixed-point computation.
+--
+-- Example:
+--
+-- @
+-- phases: [ { rule1, rule2 }, { rule3 }, * ]
+-- @
+data PhasesDeclaration = PhasesDeclaration
+  { phasesNodeId :: NodeId
+  -- ^ The 'NodeId'.
+  , phasesPhases :: NonEmpty RulesetOrEverythingElse
+  -- ^ The phase declarations (list of rulesets).
+  }
+  deriving (Show, Eq)
+
+instance HasNodeId PhasesDeclaration NodeId where
+  nodeId = lens phasesNodeId (\s i -> s {phasesNodeId = i})
+
+instance HasPhases PhasesDeclaration (NonEmpty RulesetOrEverythingElse) where
+  phases = lens phasesPhases (\s i -> s {phasesPhases = i})
+
+-- ** Partial-Order Declarations
 
 -- | A partial order declaration.
 --
---   Partial order declarations define the instance of 'PartialOrd' for
---   a specific type, informing Fixen how to:
+-- Partial order declarations inform Fixen how to:
 --
---   * Compare elements of the type (via the 'leq' function)
---   * Compute maximal lower bounds of two elements (via the 'mlbs' function)
+-- * Compare elements of the type (via the 'leq' function)
+-- * Compute maximal lower bounds of two elements (via the 'mlbs' function)
 --
---   This is used by Fixen to generate optimized database representations
---   and to support priority-based rule evaluation.
+-- This is used by Fixen to generate optimized database representations.
 --
---   Example:
+-- Example:
 --
---   @
---   partial ord Dist
---       where
---       type = Dist
---       leq = (<=)
---       mlbs = meet
---   @
+-- @
+-- partial ord Dist where
+--   type = Dist
+--   leq = (<=)
+--   mlbs = meet
+-- @
 data PartialOrdDeclaration = PartialOrdDeclaration
   { partialOrdDeclarationNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
+  -- ^ The 'NodeId'.
   , partialOrdDeclarationName :: SimpleIdentifier
   -- ^ The type being defined as a partial order.
   , partialOrdDeclarationType :: Type
@@ -949,268 +1083,89 @@ data PartialOrdDeclaration = PartialOrdDeclaration
   }
   deriving (Show, Eq)
 
--- | A 'PartialOrdDeclaration' is its own node ID.
-instance HasNodeId PartialOrdDeclaration where
-  getNodeId = partialOrdDeclarationNodeId
+instance HasNodeId PartialOrdDeclaration NodeId where
+  nodeId = lens partialOrdDeclarationNodeId (\s i -> s {partialOrdDeclarationNodeId = i})
 
--- | A 'PartialOrdDeclaration' is named by its type name.
-instance Named PartialOrdDeclaration SimpleIdentifier where
-  nameOf = partialOrdDeclarationName
+instance HasName PartialOrdDeclaration SimpleIdentifier where
+  name = lens partialOrdDeclarationName (\s i -> s {partialOrdDeclarationName = i})
 
--- | A phase declaration for multi-phase FPOP (Fixed Point Over lattices)
--- evaluation.
---
---   Phase declarations organize rules into execution phases, enabling
---   optimizations such as reduced product and widening. Each phase
---   contains either an explicit set of rule names or the wildcard
---   @*@ (all remaining rules).
---
---   Example:
---
---   @
---   phases:
---       [ { rule1, rule2 }, { rule3 }, * ]
---   @
-data Phases = Phases
-  { phasesNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
-  , phasesPhases :: NonEmpty RulesetOrEverythingElse
-  -- ^ The phase declarations (list of rulesets).
-  }
-  deriving (Show, Eq)
+instance HasType PartialOrdDeclaration Type where
+  ty = lens partialOrdDeclarationType (\s i -> s {partialOrdDeclarationType = i})
 
--- | A 'Phases' is its own node ID.
-instance HasNodeId Phases where
-  getNodeId = phasesNodeId
+instance HasLeq PartialOrdDeclaration Identifier where
+  leq = lens partialOrdDeclarationLeq (\s i -> s {partialOrdDeclarationLeq = i})
 
--- | A set of rule names, representing the contents of a phase declaration.
---
---   A ruleset is either an explicit list of rule names or the wildcard
---   @*@ (all remaining rules). Rulesets are used to group rules into
---   execution phases.
-data Ruleset = Ruleset
-  { ruleSetNodeId :: NodeId
-  -- ^ The 'NodeId' for source position tracking.
-  , ruleSetRules :: NonEmpty SimpleIdentifier
-  -- ^ The rule names in this ruleset.
-  }
-  deriving (Show, Eq)
+instance HasMLBs PartialOrdDeclaration Identifier where
+  mlbs = lens partialOrdDeclarationMlbs (\s i -> s {partialOrdDeclarationMlbs = i})
 
--- | A 'Ruleset' is its own node ID.
-instance HasNodeId Ruleset where
-  getNodeId = ruleSetNodeId
+-------------------------------------------------------------------------------
 
--- | An explicit ruleset as produced by the parser.
---
---   This is 'Core.Ruleset' instantiated with a 'NonEmpty' list of
---   'Core.SimpleIdentifier' values — the named rules in the ruleset.
---   A ruleset represents the contents of a phase declaration.
---
---   Example: @rule1, rule2, rule3@ within a phase.
-type ExplicitRuleset = Ruleset
+-- * Fixen Programs
 
---
-
--- | Either an explicit ruleset (a named list of rules) or the
---   @*@ wildcard ('EverythingElseRuleset') representing all remaining
---   rules.
---
---   This type appears in phase declarations where each phase is either
---   a named set of rules or the wildcard @*@ (which can only appear
---   as the last phase).
-type RulesetOrEverythingElse = Either Ruleset EverythingElseRuleset
-
---
+-------------------------------------------------------------------------------
 
 -- | A complete Fixen program.
 --
---   The 'Program' type is a polymorphic record containing all parts of
---   a Fixen program, from module declaration through queries and phases.
---   Each field is polymorphic to allow the parser to use concrete types
---   (defined in 'Fixen.IR.AST') while keeping the core types generic.
---
---   The fields are:
---
---   * 'moduleName' — the Haskell module declaration
---   * 'hsImports' — Haskell module imports
---   * 'hsBlocks' — embedded Haskell source code blocks
---   * 'includes' — included Fixen files
---   * 'extern' — externally defined symbols
---   * 'relations' — relation declarations
---   * 'partialOrdDeclarations' — partial order declarations
---   * 'rules' — rule declarations
---   * 'priorities' — priority declarations
---   * 'queries' — query declarations
---   * 'phases' — phase declarations (optional)
+--   The 'Program' type contains all parts of a Fixen program, from the module
+--   declaration through queries and phases.
 data Program = Program
-  { moduleName :: ModuleDeclaration
-  -- ^ The module declaration (e.g. @module My.Haskell.Module where@).
-  , hsImports :: [HsImport]
+  { programModuleName :: ModuleDeclaration
+  -- ^ The module declaration
+  , programImports :: [HsImport]
   -- ^ Haskell module imports.
-  , hsBlocks :: [HsBlock]
+  , programHsBlocks :: [HsBlock]
   -- ^ Embedded Haskell source code blocks.
-  , includes :: [Include]
+  , programIncludes :: [Include]
   -- ^ Included Fixen files.
-  , relations :: [Relation]
+  , programRelationDeclarations :: [RelationDeclaration]
   -- ^ Relation declarations.
-  , partialOrdDeclarations :: [PartialOrdDeclaration]
+  , programPartialOrdDeclarations :: [PartialOrdDeclaration]
   -- ^ Partial order declarations.
-  , rules :: [Rule]
+  , programRules :: [Rule]
   -- ^ Rule declarations.
-  , priorities :: [Priority]
+  , programPriorities :: [Priority]
   -- ^ Priority declarations.
-  , queries :: [Query]
+  , programQueries :: [Query]
   -- ^ Query declarations.
-  , phases :: Maybe Phases
+  , programPhases :: Maybe PhasesDeclaration
   -- ^ Phase declarations (optional; 'Nothing' if no phases declared).
   }
   deriving (Show, Eq)
 
--- -- | An extern declaration as produced by the parser.
--- --
--- --   This is 'Core.Extern' instantiated with a 'NonEmpty' list of
--- --   'Core.SimpleIdentifier' values, listing symbols defined in
--- --   Haskell source code.
--- type Extern = Core.Extern (NonEmpty Core.SimpleIdentifier)
---
--- -- | A relation that is queried.
--- --
--- -- This is 'Core.Relation' instantiated with:
--- --
--- -- * 'Core.SimpleIdentifier' for the relation name
--- -- * '[Core.QueryMode]' for the arguments
--- type QueriedRelation = Core.Relation Core.SimpleIdentifier [Core.QueryMode]
---
--- -- | A query declaration as produced by the parser.
--- --
--- --   This is 'Core.Query' instantiated with:
--- --
--- --   * 'QueriedRelation' for the queried relation
--- --   * 'Core.SimpleIdentifier' for the query name
--- --
--- --   Example: @query DistTo as distTo - +@
--- type Query = Core.Query QueriedRelation Core.SimpleIdentifier
---
--- -- | A module declaration as produced by the parser.
--- --
--- --   This is 'Core.ModuleDeclaration' instantiated with 'Core.ModuleName'
--- --   for the generated Haskell module name.
--- --
--- --   Example: @module My.Haskell.Module where@
--- type ModuleDeclaration = Core.ModuleDeclaration Core.ModuleName
---
--- -- | A partial order declaration as produced by the parser.
--- --
--- --   This is 'Core.PartialOrdDeclaration' instantiated with:
--- --
--- --   * 'Core.SimpleIdentifier' for the type name
--- --   * 'Core.Type' for the base type
--- --   * 'Core.Identifier' for the less-than-or-equal function
--- --   * 'Core.Identifier' for the maximal lower bounds function
--- --
--- --   Example:
--- --
--- --   @
--- --   partial ord Dist
--- --       where
--- --       type = Dist
--- --       leq = (<=)
--- --       mlbs = meet
--- --   @
--- type PartialOrdDeclaration = Core.PartialOrdDeclaration Core.SimpleIdentifier Core.Type Core.Identifier Core.Identifier
---
--- -- | Represents the @*@ wildcard in phase declarations.
--- --
--- --   In phase declarations, @*@ denotes "all remaining rules" — i.e., rules
--- --   that have not been assigned to any earlier phase. This newtype wraps
--- --   a 'NodeId' for source position tracking.
--- --
--- --   The wildcard can only appear as the last phase in a declaration.
--- --   After the symbol solver resolves all rule references, the rules
--- --   collected under this wildcard are those not explicitly named in
--- --   any earlier ruleset.
--- newtype EverythingElseRuleset = EverythingElseRuleset NodeId
---   -- ^ The 'NodeId' for source position tracking.
---   deriving (Show, Eq)
---
--- instance HasNodeId EverythingElseRuleset where
---   -- | Extract the 'NodeId' from an 'EverythingElseRuleset'.
---   getNodeId (EverythingElseRuleset i) = i
---
--- -- | An explicit ruleset as produced by the parser.
--- --
--- --   This is 'Core.Ruleset' instantiated with a 'NonEmpty' list of
--- --   'Core.SimpleIdentifier' values — the named rules in the ruleset.
--- --   A ruleset represents the contents of a phase declaration.
--- --
--- --   Example: @rule1, rule2, rule3@ within a phase.
--- type ExplicitRuleset = Core.Ruleset (NonEmpty Core.SimpleIdentifier)
---
--- -- | Either an explicit ruleset (a named list of rules) or the
--- --   @*@ wildcard ('EverythingElseRuleset') representing all remaining
--- --   rules.
--- --
--- --   This type appears in phase declarations where each phase is either
--- --   a named set of rules or the wildcard @*@ (which can only appear
--- --   as the last phase).
--- type RulesetOrEverythingElse = Either ExplicitRuleset EverythingElseRuleset
---
--- -- | Phase declarations as produced by the parser.
--- --
--- --   This is 'Core.Phases' instantiated with a 'NonEmpty' list of
--- --   'RulesetOrEverythingElse' values. Phases organize rules into
--- --   execution order for multi-phase FPOP evaluation.
--- --
--- --   Example: @[{ rule1, rule2 }, { rule3 }, *]@
--- type Phases = Core.Phases (NonEmpty RulesetOrEverythingElse)
---
--- -- | A complete Fixen program as produced by the parser.
--- --
--- --   This is 'Core.Program' instantiated with all the concrete types
--- --   from this module. It represents the full AST of a Fixen program,
--- --   containing every construct from the module declaration through
--- --   queries and phases.
--- --
--- --   The fields are:
--- --
--- --   * 'moduleName' — the Haskell module declaration
--- --   * 'hsImports' — Haskell module imports
--- --   * 'hsBlocks' — embedded Haskell source code blocks
--- --   * 'includes' — included Fixen files
--- --   * 'extern' — externally defined symbols
--- --   * 'relations' — relation declarations
--- --   * 'partialOrdDeclarations' — partial order declarations
--- --   * 'rules' — rule declarations
--- --   * 'priorities' — priority declarations
--- --   * 'queries' — query declarations
--- --   * 'phases' — phase declarations (optional)
--- type Program =
---   Core.Program
---     ModuleDeclaration
---     -- ^ The module declaration (e.g. @module My.Haskell.Module where@).
---     [HsImport]
---     -- ^ Haskell module imports.
---     [HsBlock]
---     -- ^ Embedded Haskell source code blocks.
---     [Include]
---     -- ^ Included Fixen files.
---     [Extern]
---     -- ^ Externally defined symbols.
---     [Relation]
---     -- ^ Relation declarations.
---     [PartialOrdDeclaration]
---     -- ^ Partial order declarations.
---     [Rule]
---     -- ^ Rule declarations.
---     [Priority]
---     -- ^ Priority declarations.
---     [Query]
---     -- ^ Query declarations.
---     (Maybe Phases)
---     -- ^ Phase declarations (optional; 'Nothing' if no phases declared).
+instance HasModuleName Program ModuleDeclaration where
+  moduleName = lens programModuleName (\s i -> s {programModuleName = i})
+
+instance HasImports Program [HsImport] where
+  imports = lens programImports (\s i -> s {programImports = i})
+
+instance HasHsBlocks Program [HsBlock] where
+  hsBlocks = lens programHsBlocks (\s i -> s {programHsBlocks = i})
+
+instance HasIncludes Program [Include] where
+  includes = lens programIncludes (\s i -> s {programIncludes = i})
+
+instance HasRelationDeclarations Program [RelationDeclaration] where
+  relationDeclarations = lens programRelationDeclarations (\s i -> s {programRelationDeclarations = i})
+
+instance HasPartialOrdDeclarations Program [PartialOrdDeclaration] where
+  partialOrdDeclarations = lens programPartialOrdDeclarations (\s i -> s {programPartialOrdDeclarations = i})
+
+instance HasRules Program [Rule] where
+  rules = lens programRules (\s i -> s {programRules = i})
+
+instance HasPriorities Program [Priority] where
+  priorities = lens programPriorities (\s i -> s {programPriorities = i})
+
+instance HasQueries Program [Query] where
+  queries = lens programQueries (\s i -> s {programQueries = i})
+
+instance HasPhases Program (Maybe PhasesDeclaration) where
+  phases = lens programPhases (\s i -> s {programPhases = i})
 
 -------------------------------------------------------------------------------
--- Pretty-printing
+
+-- * Pretty-printing
+
 -------------------------------------------------------------------------------
 
 -- | Pretty-print a list of items as a vertical list with dash prefixes.
@@ -1226,7 +1181,7 @@ data Program = Program
 prettyList' :: [Doc ann] -> Doc ann
 prettyList' items = vsep (formatItem <$> items)
   where
-    formatItem item = hang 2 (pretty "-" <+> item)
+    formatItem item = hang 2 ("-" <+> item)
 
 -- | Format an identifier with its 'NodeId' as a compact @N suffix.
 --
@@ -1235,7 +1190,7 @@ prettyList' items = vsep (formatItem <$> items)
 --   x@5
 --   @
 prettyId :: NodeId -> Text -> Doc ann
-prettyId n name = pretty name <> pretty "@" <> pretty n
+prettyId n name' = pretty name' <> "@" <> pretty n
 
 -- | Pretty-print an 'Expr' with syntax highlighting.
 --
@@ -1266,9 +1221,9 @@ prettyExpr (ExprUnit _) = lparen <> rparen
 --   Edge@43 a, b, d
 --   @
 prettyAssumption :: Assumption -> Doc AnsiStyle
-prettyAssumption (Relation _ name args) =
-  annotate (color Red) (pretty (fullIdentifier name))
-    <+> sep [pretty (fullIdentifier a) | a <- args]
+prettyAssumption (Assumption _ n a) =
+  annotate (color Red) (pretty (fullIdentifier n))
+    <+> sep [pretty (fullIdentifier a') | a' <- a]
 
 -- | Pretty-print a 'Conclusion' (the |- part of a rule).
 --
@@ -1276,10 +1231,10 @@ prettyAssumption (Relation _ name args) =
 --   |- Dist@42 x (y + 1)
 --   @
 prettyConclusion :: Conclusion -> Doc AnsiStyle
-prettyConclusion (Relation _ name args) =
-  annotate bold (pretty "|-")
-    <+> annotate (color Red) (pretty (fullIdentifier name))
-    <+> sep (prettyExpr <$> args)
+prettyConclusion (Conclusion _ n a) =
+  annotate bold "|-"
+    <+> annotate (color Red) (pretty (fullIdentifier n))
+    <+> sep (prettyExpr <$> a)
 
 -- | Pretty-print a 'Condition' (an @if@ guard).
 --
@@ -1287,8 +1242,8 @@ prettyConclusion (Relation _ name args) =
 --   if x <= y
 --   @
 prettyCondition :: Condition -> Doc AnsiStyle
-prettyCondition (Condition _ expr) =
-  annotate bold (pretty "if") <+> prettyExpr expr
+prettyCondition (Condition _ e) =
+  annotate bold (pretty $ unpack "if") <+> prettyExpr e
 
 -- | Pretty-print a 'Rule' with structured, multi-line output.
 --
@@ -1303,15 +1258,15 @@ prettyCondition (Condition _ expr) =
 --       |- Dist@35 b (d + d')
 --   @
 prettyRule :: Rule -> Doc AnsiStyle
-prettyRule (Rule i name vars assumps conds concl) =
-  let name_doc = case name of
+prettyRule (Rule i n vars assumps conds concl) =
+  let name_doc = case n of
         Nothing -> mempty
-        Just n -> pretty " " <> annotate (color Red) (pretty (fullIdentifier n))
-      vars_doc = pretty "boundVars:" <+> sep [pretty (fullIdentifier v) | v <- vars]
-      assump_doc = pretty "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
-      cond_doc = pretty "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
-      concl_doc = pretty "conclusion:" <> line <> indent 2 (prettyConclusion concl)
-   in (name_doc <+> (pretty "(" <> pretty i <> pretty ")"))
+        Just n' -> " " <> annotate (color Red) (pretty (fullIdentifier n'))
+      vars_doc = "boundVars:" <+> sep [pretty (fullIdentifier v) | v <- vars]
+      assump_doc = "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
+      cond_doc = "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
+      concl_doc = "conclusion:" <> line <> indent 2 (prettyConclusion concl)
+   in (name_doc <+> ("(" <> pretty i <> ")"))
         <> line
         <> indent 2 vars_doc
         <> line
@@ -1327,14 +1282,14 @@ prettyRule (Rule i name vars assumps conds concl) =
 --   addDist@7 { d = d1, d' = d1' }
 --   @
 prettyRuleInstance :: RuleInstance -> Doc AnsiStyle
-prettyRuleInstance (RuleInstance _ rule m) =
+prettyRuleInstance (RuleInstance _ r m) =
   if Map.null m
-    then annotate (color Red) (pretty (fullIdentifier rule))
+    then annotate (color Red) (pretty (fullIdentifier r))
     else
-      annotate (color Red) (pretty (fullIdentifier rule))
-        <> pretty " {"
-        <> sep (punctuate comma [pretty (fullIdentifier k) <> pretty " = " <> pretty (fullIdentifier v) | (k, v) <- Map.toAscList m])
-        <> pretty " }"
+      annotate (color Red) (pretty (fullIdentifier r))
+        <> " {"
+        <> sep (punctuate comma [pretty (fullIdentifier k) <> " = " <> pretty (fullIdentifier v) | (k, v) <- Map.toAscList m])
+        <> " }"
 
 -- | Pretty-print a 'PriorityConclusion' (lhs @op@ rhs).
 --
@@ -1342,12 +1297,12 @@ prettyRuleInstance (RuleInstance _ rule m) =
 --   addDist@7 <= addDist@8
 --   @
 prettyPriorityConclusion :: PriorityConclusion -> Doc AnsiStyle
-prettyPriorityConclusion (PriorityConclusion _ lhs rhs) =
-  prettyRuleInstance lhs
-    <> pretty " "
-    <> annotate bold (pretty "<=")
-    <> pretty " "
-    <> prettyRuleInstance rhs
+prettyPriorityConclusion (PriorityConclusion _ l r) =
+  prettyRuleInstance l
+    <> " "
+    <> annotate bold "<"
+    <> " "
+    <> prettyRuleInstance r
 
 -- | Pretty-print a 'Priority' declaration.
 --
@@ -1356,15 +1311,15 @@ prettyPriorityConclusion (PriorityConclusion _ lhs rhs) =
 --     (d1 + d1') > (d2 + d2') |- addDist@7 <= addDist@8
 --   @
 prettyPriority :: Priority -> Doc AnsiStyle
-prettyPriority (Priority _ premise concl) =
-  annotate bold (pretty "priority:")
+prettyPriority (Priority _ prem concl) =
+  annotate bold "priority:"
     <> line
-    <> indent 2 (prettyExpr premise <> pretty " |- " <> prettyPriorityConclusion concl)
+    <> indent 2 (prettyExpr prem <> " |- " <> prettyPriorityConclusion concl)
 
 -- | Pretty-print a 'QueryMode' (@+@ for input, @-@ for output).
 prettyQueryMode :: QueryMode -> Doc AnsiStyle
-prettyQueryMode Input {} = annotate (color Green) (pretty "+")
-prettyQueryMode Output {} = annotate (color Green) (pretty "-")
+prettyQueryMode Input {} = annotate (color Green) "+"
+prettyQueryMode Output {} = annotate (color Green) "-"
 
 -- | Pretty-print a 'Query' declaration.
 --
@@ -1373,11 +1328,11 @@ prettyQueryMode Output {} = annotate (color Green) (pretty "-")
 --   @
 prettyQuery :: Query -> Doc AnsiStyle
 prettyQuery (Query _ rel qname) =
-  annotate bold (pretty "query")
+  annotate bold "query"
     <+> annotate (color Red) (pretty (fullIdentifier qname))
-    <> pretty ": "
-    <> annotate (color Red) (pretty (fullIdentifier $ nameOf rel))
-    <+> sep (prettyQueryMode <$> (relationParams rel))
+    <> ": "
+    <> annotate (color Red) (pretty (fullIdentifier $ rel ^. name))
+    <+> sep (prettyQueryMode <$> (rel ^. args))
 
 -- | Pretty-print a 'RulesetOrEverythingElse'.
 --
@@ -1386,10 +1341,10 @@ prettyQuery (Query _ rel qname) =
 --   *
 --   @
 prettyRulesetOrEverythingElse :: RulesetOrEverythingElse -> Doc AnsiStyle
-prettyRulesetOrEverythingElse (Left (Ruleset _ rules)) =
-  lbrace <> sep (punctuate comma [pretty (fullIdentifier r) <> pretty "@" <> pretty (simpleIdentifierNodeId r) | r <- NonEmpty.toList rules]) <> rbrace
+prettyRulesetOrEverythingElse (Left (Ruleset _ rules')) =
+  lbrace <> sep (punctuate comma [pretty (fullIdentifier r) <> "@" <> pretty (simpleIdentifierNodeId r) | r <- NonEmpty.toList rules']) <> rbrace
 prettyRulesetOrEverythingElse (Right (EverythingElseRuleset n)) =
-  annotate bold (pretty "*") <> pretty "@" <> pretty n
+  annotate bold "*" <> "@" <> pretty n
 
 -- | Pretty-print 'Phases' declarations.
 --
@@ -1399,11 +1354,11 @@ prettyRulesetOrEverythingElse (Right (EverythingElseRuleset n)) =
 --     { rule3@3 }
 --     *@4
 --   @
-prettyPhases :: Phases -> Doc AnsiStyle
-prettyPhases (Phases _ phases) =
-  annotate bold (pretty "phases:")
+prettyPhases :: PhasesDeclaration -> Doc AnsiStyle
+prettyPhases (PhasesDeclaration _ phases') =
+  annotate bold "phases:"
     <> line
-    <> indent 2 (vsep (prettyRulesetOrEverythingElse <$> NonEmpty.toList phases))
+    <> indent 2 (vsep (prettyRulesetOrEverythingElse <$> NonEmpty.toList phases'))
 
 -- | Pretty-print an entire 'Program' with syntax highlighting.
 --
@@ -1423,22 +1378,22 @@ prettyPhases (Phases _ phases) =
 prettyProgram :: Program -> Doc AnsiStyle
 prettyProgram
   Program
-    { moduleName = module_name
-    , hsImports = hs_imports
-    , hsBlocks = hs_blocks
-    , includes = p_includes
-    , relations = p_relations
-    , partialOrdDeclarations = partial_ords
-    , rules = p_rules
-    , priorities = p_priorities
-    , queries = p_queries
-    , phases = p_phases
+    { programModuleName = module_name
+    , programImports = hs_imports
+    , programHsBlocks = hs_blocks
+    , programIncludes = p_includes
+    , programRelationDeclarations = p_relations
+    , programPartialOrdDeclarations = partial_ords
+    , programRules = p_rules
+    , programPriorities = p_priorities
+    , programQueries = p_queries
+    , programPhases = p_phases
     } =
     let mod_doc =
           annotate
             (color Green <> bold)
-            ( pretty "module"
-                <+> pretty (fullIdentifier (nameOf module_name))
+            ( "module"
+                <+> pretty (fullIdentifier (module_name ^. moduleName))
             )
 
         imports_doc =
@@ -1446,7 +1401,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "imports")
+                <> annotate (color Blue <> bold) "imports"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyHsImport <$> hs_imports))
@@ -1456,7 +1411,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "haskell source blocks")
+                <> annotate (color Blue <> bold) "haskell source blocks"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyHsBlock <$> hs_blocks))
@@ -1466,7 +1421,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "includes")
+                <> annotate (color Blue <> bold) "includes"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyInclude <$> p_includes))
@@ -1476,7 +1431,11 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "relations")
+                <> annotate
+                  (color Blue <> bold)
+                  ( pretty $
+                      unpack "relations"
+                  )
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyRelation <$> p_relations))
@@ -1486,7 +1445,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "lattice declarations")
+                <> annotate (color Blue <> bold) "lattice declarations"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyPartialOrd <$> partial_ords))
@@ -1496,7 +1455,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "rules")
+                <> annotate (color Blue <> bold) "rules"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyRule <$> p_rules))
@@ -1506,7 +1465,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "priorities")
+                <> annotate (color Blue <> bold) "priorities"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyPriority <$> p_priorities))
@@ -1516,7 +1475,7 @@ prettyProgram
             then mempty
             else
               line
-                <> annotate (color Blue <> bold) (pretty "queries")
+                <> annotate (color Blue <> bold) "queries"
                 <> colon
                 <> line
                 <> indent 2 (prettyList' (prettyQuery <$> p_queries))
@@ -1526,7 +1485,7 @@ prettyProgram
             Nothing -> mempty
             Just p ->
               line
-                <> annotate (color Blue <> bold) (pretty "phases")
+                <> annotate (color Blue <> bold) "phases"
                 <> colon
                 <> line
                 <> indent 2 (prettyPhases p)
@@ -1548,7 +1507,7 @@ prettyProgram
 --
 --   Output format: @Data.List (42)@
 prettyHsImport :: HsImport -> Doc ann
-prettyHsImport HsImport {hsImportNodeId = p, hsImportImport = module_name} =
+prettyHsImport HsImport {hsImportNodeId = p, hsImportModuleName = module_name} =
   pretty (fullIdentifier module_name) <+> (lparen <> pretty p <> rparen)
 
 -- | Pretty-print a 'HsBlock' node.
@@ -1598,18 +1557,11 @@ prettyType :: Type -> Doc AnsiStyle
 
 -- | A named type: render in red and bold.
 prettyType (TypeName _ v) = annotate (color Red <> bold) $ pretty (fullIdentifier v)
--- \| Type application: parenthesize the LHS and RHS separated by space.
-prettyType (TypeApp _ lhs rhs) = lparen <> prettyType lhs <+> prettyType rhs <> rparen
--- \| List type: wrap the element type in brackets.
+prettyType (TypeApp _ l r) = lparen <> prettyType l <+> prettyType r <> rparen
 prettyType (TypeList _ t) = lbracket <> prettyType t <> rbracket
--- \| Tuple type: enclose all elements (first + rest) in parentheses,
---   comma-separated.
 prettyType (TypeTuple _ t ls) = encloseSep lparen rparen comma (prettyType <$> (t : NonEmpty.toList ls))
--- \| Unit type: render as empty parentheses.
 prettyType (TypeUnit _) = lparen <> rparen
--- \| Natural number literal type: render in red.
 prettyType (TypeNatLit _ i) = annotate (color Red) $ pretty i
--- \| Symbol (string) literal type: render in yellow.
 prettyType (TypeSymbolLit _ s) = annotate (color Yellow) $ pretty (show s)
 
 -- | Pretty-print a 'Relation' declaration with syntax highlighting.
@@ -1625,15 +1577,14 @@ prettyType (TypeSymbolLit _ s) = annotate (color Yellow) $ pretty (show s)
 --       - Integer
 --       - Integer
 --   @
-prettyRelation :: Relation -> Doc AnsiStyle
+prettyRelation :: RelationDeclaration -> Doc AnsiStyle
 
 -- | Render the \"relation\" keyword in bold, the name in red+bold,
 --   and the nodeId in parentheses.
-prettyRelation (Relation _ name args) =
-  annotate (color Red <> bold) (pretty (fullIdentifier name))
+prettyRelation (RelationDeclaration _ n a) =
+  annotate (color Red <> bold) (pretty (fullIdentifier n))
     <> line
-    -- \| Indent the \"types:\" label and the list of argument types.
-    <> indent 2 (annotate (color Yellow) (pretty "types:") <> line <> indent 2 (prettyList' (prettyType <$> args)))
+    <> indent 2 (annotate (color Yellow) "types:" <> line <> indent 2 (prettyList' (prettyType <$> a)))
 
 -- | Pretty-print a 'PartialOrdDeclaration' with syntax highlighting.
 --
@@ -1654,39 +1605,20 @@ prettyPartialOrd :: PartialOrdDeclaration -> Doc AnsiStyle
 -- | Render the \"partial ord\" keyword in bold, the name in red+bold,
 --   and the nodeId in parentheses.
 prettyPartialOrd (PartialOrdDeclaration p n t l m) =
-  annotate bold (pretty "partial ord")
+  annotate bold "partial ord"
     <+> annotate (color Red <> bold) (pretty (fullIdentifier n))
     <+> (lparen <> pretty p <> rparen)
     <> line
     -- \| Indent the three fields: type, leq, and mlbs.
     <> indent
       2
-      ( (annotate (color Yellow) (pretty "type ") <> colon <+> prettyType t)
+      ( (annotate (color Yellow) "type " <> colon <+> prettyType t)
           <> line
           -- \| Render the less-than-or-equal (⊑) function in red+bold.
-          <> (annotate (color Yellow) (pretty "(⊑)  ") <> colon <+> (annotate (color Red <> bold) $ pretty (fullIdentifier l)))
+          <> (annotate (color Yellow) "(⊑)  " <> colon <+> (annotate (color Red <> bold) $ pretty (fullIdentifier l)))
           <> line
           -- \| Render the mlbs function name in red+bold.
-          <> annotate (color Yellow) (pretty "mlbs ")
+          <> annotate (color Yellow) "mlbs "
           <> colon
           <+> (annotate (color Red <> bold) $ pretty (fullIdentifier m))
       )
-
--- | Pretty-print an 'Extern' declaration with syntax highlighting.
---
---   Renders the keyword \"extern\" in blue and bold, followed by a
---   list of extern symbol names, each with its 'NodeId' annotation,
---   indented and dash-prefixed.
---
---   Output format:
---   @
---   extern:
---       - myFunction (1)
---       - anotherSymbol (2)
---   @
-prettyExtern :: Extern -> Doc AnsiStyle
-
--- | Render the \"extern:\" label and the list of extern symbols
---   with their node IDs.
-prettyExtern (Extern _ ls) =
-  line <> annotate (color Blue <> bold) (pretty "extern") <> colon <> line <> indent 2 (prettyList' (prettySimpleIdentifierWithAnnotation <$> (NonEmpty.toList ls)))

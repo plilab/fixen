@@ -4,8 +4,7 @@ import Control.Lens
 import Data.IntMap.Strict qualified as IntMap
 import Data.List
 import Data.Map.Strict qualified as Map
-
--- import Fixen.Data.NodeId
+import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.Monad
@@ -19,7 +18,7 @@ getDatabaseRepresentation = do
 
 getRepresentation :: RelationInfo -> FixenPass RelationRepresentationState RelationRepresentationInfo
 getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relationArgMatchInfo = rel_arg_match_info} = do
-  let rel_args = relationParams rel_declaration
+  let rel_args = rel_declaration ^. args
   rel_underlying_types <- mapM getUnderlyingType rel_args
   rel_kinds <- mapM getKind rel_args
   rel_query_types <- mapM getMeetMechanism rel_args
@@ -67,15 +66,15 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
 
 getMeetMechanism :: Type -> FixenPass RelationRepresentationState QueryType
 getMeetMechanism t = do
-  let name = calculateRepresentativeFromType t
+  let n = calculateRepresentativeFromType t
   p_ord <- fixenGetPartialOrdInfo
-  case p_ord ^. at name of
+  case p_ord ^. at n of
     Nothing -> return Match
     Just p_ord_decl -> return $ Meet (partialOrdDeclarationLeq p_ord_decl) (partialOrdDeclarationMlbs p_ord_decl)
 
 getKind :: Type -> FixenPass RelationRepresentationState Kind
 getKind t = do
-  let name = calculateRepresentativeFromType t
+  let n = calculateRepresentativeFromType t
   pk_info <- fixenGetRelationParamKindInfo
   -- guaranteed to succeed
-  return $ pk_info Map.! name
+  return $ pk_info Map.! n

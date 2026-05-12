@@ -9,8 +9,7 @@ import Data.List
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Set qualified as Set
-
--- import Fixen.Data.NodeId
+import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
@@ -51,16 +50,16 @@ initEnvWithRule env r = do
                   }
                   & typeCheck env
               env
-                & ruleMap ∘ at (getNodeId r) ?~ rul_info
+                & ruleInfos ∘ at (r ^. nodeId) ?~ rul_info
                 & foldMWith initEnvWithExternSymbol fvs
                 <&> insertMatchInfo r var_usage_info
   where
     mkLocalVarInfo mp =
       let mp' = \(v, u) ->
-            LocalVarInfo
-              { _localVarType = Dynamic
-              , _localVarUsage = u
-              , _localVarVar = v
+            RuleParameterInfo
+              { _ruleParamType = Dynamic
+              , _ruleParamUsage = u
+              , _ruleParamVar = v
               }
        in mp' <$> mp
 
@@ -84,12 +83,12 @@ insertMatchInfo r mp e = foldl' mkMatched e all_usages
             r
               & ruleAssumptions
               & (!! i)
-              & relationName
+              & (^. name)
               & simpleIdentifier
        in env
-            & relationMap
+            & relationInfos
               . ix rel_name
-              . relationArgMatchInfo
+              . matchInfos
               %~ setMatched
       where
         setMatched ls = take j ls ++ (Matched : drop (j + 1) ls)
@@ -98,11 +97,11 @@ typeCheck :: SymbolEnv -> RuleInfo -> FixenPass SymbolState RuleInfo
 typeCheck env RuleInfo {_ruleDeclaration = r, _ruleBoundVars = mp} = do
   let asm_type_candidates =
         mp
-          <&> _localVarUsage -- get the usage map
+          <&> _ruleParamUsage -- get the usage map
           <&> assumptionsOnly -- let's deal with the assumptions first
           <&> catMaybes -- eliminating non assumption uses
           <&> (fmap (mapIndicesToType env r)) -- map each usage to a type
-      conc_args = ruleConclusion r & relationParams
+      conc_args = r ^. conclusion . args
       conc_type_candidates =
         zip [0 .. length conc_args] conc_args
           & varsOnly
@@ -129,29 +128,29 @@ foldListMap f e m = foldMWithKey f' e m
     foldMWithKey :: Monad m => (a -> k -> b -> m a) -> a -> Map.Map k b -> m a
     foldMWithKey f1 e1 m1 = foldM (\a' (k, b) -> f1 a' k b) e1 (Map.toList m1)
 
-typeCheckType :: Rule -> NameMap LocalVarInfo -> Name -> (Either (Int, Int) Int, Type) -> FixenPass SymbolState (NameMap LocalVarInfo)
-typeCheckType rule mp v_repr (Left (i, j), t) = do
+typeCheckType :: Rule -> NameMap RuleParameterInfo -> Name -> (Either (Int, Int) Int, Type) -> FixenPass SymbolState (NameMap RuleParameterInfo)
+typeCheckType r mp v_repr (Left (i, j), t) = do
   let curr_info = mp Map.! v_repr
-      curr_type = curr_info ^. localVarType
+      curr_type = curr_info ^. ty
   case curr_type of
     Bottom -> return mp
     Dynamic ->
       -- update the map
-      return $ Map.insert v_repr (curr_info & localVarType .~ ActualType t (TypedViaAssumption i j)) mp
+      return $ Map.insert v_repr (curr_info & ty .~ ActualType t (TypedViaAssumption i j)) mp
     ActualType t' evidence ->
       if t === t'
         then return mp
         else case evidence of
           TypedViaAssumption i' j' -> do
-            let original_asm = rule & ruleAssumptions & (!! i')
-                original_var = original_asm & relationParams & (!! j')
-                curr_asm = rule & ruleAssumptions & (!! i)
-                curr_var = curr_asm & relationParams & (!! j)
-            original_var_pos <- fixenGetPosition original_var
-            original_ty_pos <- fixenGetPosition t'
-            curr_asm_pos <- fixenGetPosition curr_asm
-            curr_var_pos <- fixenGetPosition curr_var
-            curr_ty_pos <- fixenGetPosition t
+            let original_asm = r & ruleAssumptions & (!! i')
+                original_var = original_asm & (^. args) & (!! j')
+                curr_asm = r & ruleAssumptions & (!! i)
+                curr_var = curr_asm & (^. args) & (!! j)
+            original_var_pos <- getPosition original_var
+            original_ty_pos <- getPosition t'
+            curr_asm_pos <- getPosition curr_asm
+            curr_var_pos <- getPosition curr_var
+            curr_ty_pos <- getPosition t
             accumErr
               Nothing
               "type mismatch"
@@ -162,16 +161,16 @@ typeCheckType rule mp v_repr (Left (i, j), t) = do
               , (curr_ty_pos, Where "has this type")
               ]
               [Note "matched variables must have the same type!"]
-            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+            return $ Map.insert v_repr (curr_info & ty .~ Bottom) mp
           TypedViaConclusion i' -> do
-            let original_var = rule & ruleConclusion & relationParams & (!! i')
-                curr_asm = rule & ruleAssumptions & (!! i)
-                curr_var = curr_asm & relationParams & (!! j)
-            original_var_pos <- fixenGetPosition original_var
-            original_ty_pos <- fixenGetPosition t'
-            curr_asm_pos <- fixenGetPosition curr_asm
-            curr_var_pos <- fixenGetPosition curr_var
-            curr_ty_pos <- fixenGetPosition t
+            let original_var = r ^. conclusion . args & (!! i')
+                curr_asm = r ^. assumptions & (!! i)
+                curr_var = curr_asm & (^. args) & (!! j)
+            original_var_pos <- getPosition original_var
+            original_ty_pos <- getPosition t'
+            curr_asm_pos <- getPosition curr_asm
+            curr_var_pos <- getPosition curr_var
+            curr_ty_pos <- getPosition t
             accumErr
               Nothing
               "type mismatch"
@@ -182,28 +181,28 @@ typeCheckType rule mp v_repr (Left (i, j), t) = do
               , (curr_ty_pos, Where "has this type")
               ]
               [Note "matched variables must have the same type!"]
-            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
-typeCheckType rule mp v_repr (Right i, t) = do
+            return $ Map.insert v_repr (curr_info & ty .~ Bottom) mp
+typeCheckType r mp v_repr (Right i, t) = do
   let curr_info = mp Map.! v_repr
-      curr_type = curr_info ^. localVarType
+      curr_type = curr_info ^. ty
   case curr_type of
     Bottom -> return mp
     Dynamic ->
       -- update the map
-      return $ Map.insert v_repr (curr_info & localVarType .~ ActualType t (TypedViaConclusion i)) mp
+      return $ Map.insert v_repr (curr_info & ty .~ ActualType t (TypedViaConclusion i)) mp
     ActualType t' evidence ->
       if t === t'
         then return mp
         else case evidence of
           TypedViaAssumption i' j' -> do
-            let original_asm = rule & ruleAssumptions & (!! i')
-                original_var = original_asm & relationParams & (!! j')
-                curr_conc = rule & ruleConclusion
-                curr_var = curr_conc & relationParams & (!! i)
-            original_var_pos <- fixenGetPosition original_var
-            original_ty_pos <- fixenGetPosition t'
-            curr_var_pos <- fixenGetPosition curr_var
-            curr_ty_pos <- fixenGetPosition t
+            let original_asm = r ^. assumptions & (!! i')
+                original_var = original_asm & (^. args) & (!! j')
+                curr_conc = r ^. conclusion
+                curr_var = curr_conc & (^. args) & (!! i)
+            original_var_pos <- getPosition original_var
+            original_ty_pos <- getPosition t'
+            curr_var_pos <- getPosition curr_var
+            curr_ty_pos <- getPosition t
             accumErr
               Nothing
               "type mismatch"
@@ -213,15 +212,15 @@ typeCheckType rule mp v_repr (Right i, t) = do
               , (curr_ty_pos, Where "has this type")
               ]
               [Note "matched variables must have the same type!"]
-            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+            return $ Map.insert v_repr (curr_info & ty .~ Bottom) mp
           TypedViaConclusion i' -> do
-            let original_var = rule & ruleConclusion & relationParams & (!! i')
-                curr_conc = rule & ruleConclusion
-                curr_var = curr_conc & relationParams & (!! i)
-            original_var_pos <- fixenGetPosition original_var
-            original_ty_pos <- fixenGetPosition t'
-            curr_var_pos <- fixenGetPosition curr_var
-            curr_ty_pos <- fixenGetPosition t
+            let original_var = r & ruleConclusion & (^. args) & (!! i')
+                curr_conc = r & ruleConclusion
+                curr_var = curr_conc & (^. args) & (!! i)
+            original_var_pos <- getPosition original_var
+            original_ty_pos <- getPosition t'
+            curr_var_pos <- getPosition curr_var
+            curr_ty_pos <- getPosition t
             accumErr
               Nothing
               "type mismatch"
@@ -231,45 +230,45 @@ typeCheckType rule mp v_repr (Right i, t) = do
               , (curr_ty_pos, Where "has this type")
               ]
               [Note "matched variables must have the same type!"]
-            return $ Map.insert v_repr (curr_info & localVarType .~ Bottom) mp
+            return $ Map.insert v_repr (curr_info & ty .~ Bottom) mp
 
 mapIndicesToType :: SymbolEnv -> Rule -> Either (Int, Int) Int -> (Either (Int, Int) Int, Type)
 mapIndicesToType env r (Left (i, j)) =
   let rel_name =
         ruleAssumptions r !! i
-          & relationName
+          & (^. name)
           & simpleIdentifier
-   in (env ^. relationMap)
+   in (env ^. relationInfos)
         & (Map.! rel_name)
-        & (^. relationDeclaration)
-        & relationParams
+        & (^. declaration)
+        & (^. args)
         & (!! j)
         & (Left (i, j),)
 mapIndicesToType env r (Right i) =
   let rel_name =
         ruleConclusion r
-          & relationName
+          & (^. name)
           & simpleIdentifier
-   in (env ^. relationMap)
+   in (env ^. relationInfos)
         & (Map.! rel_name)
-        & (^. relationDeclaration)
-        & relationParams
+        & (^. declaration)
+        & (^. args)
         & (!! i)
         & (Right i,)
 
 getFreeVars :: Rule -> NameMap (SimpleIdentifier, [UsageInfo]) -> [SimpleIdentifier]
 getFreeVars r mp =
   let conds = ruleConditions r <&> conditionExpr <&> getAllExprNames <&> Set.toList & concat
-      conc = ruleConclusion r & relationParams <&> getAllExprNames <&> Set.toList & concat
+      conc = ruleConclusion r & (^. args) <&> getAllExprNames <&> Set.toList & concat
       all_vars = conds ++ conc
    in filter ((/= "_") . simpleIdentifier) $ filter ((`Map.notMember` mp) ∘ simpleIdentifier) all_vars
 
 checkFreeVarsInAssumptions :: Rule -> NameMap (SimpleIdentifier, [UsageInfo]) -> FixenPass SymbolState Bool
 checkFreeVarsInAssumptions r mp = do
-  let fvs = ruleAssumptions r <&> relationParams & concat & filter (\i -> simpleIdentifier i /= "_" && simpleIdentifier i `Map.notMember` mp)
+  let fvs = ruleAssumptions r <&> (^. args) & concat & filter (\i -> simpleIdentifier i /= "_" && simpleIdentifier i `Map.notMember` mp)
   if (¬) (null fvs)
     then do
-      pos <- mapM fixenGetPosition fvs
+      pos <- mapM getPosition fvs
       accumErr
         Nothing
         "free variables in premise"
@@ -303,9 +302,9 @@ getBoundVarUsageInfo r v =
         & Map.singleton (simpleIdentifier v)
 
 getBoundVarUsageInfoFromAssumption :: SimpleIdentifier -> (Int, Assumption) -> [UsageInfo]
-getBoundVarUsageInfoFromAssumption i (idx, Relation _ _ args) =
-  zip [0 .. length args - 1] args
-    & filter (\(_, a) -> a === i)
+getBoundVarUsageInfoFromAssumption i (idx, Assumption _ _ a) =
+  zip [0 .. length a - 1] a
+    & filter (\(_, a') -> a' === i)
     <&> fst
     <&> UsedInAssumption idx
 
@@ -317,7 +316,7 @@ getBoundVarUsageInfoFromCondition i c =
 
 getBoundVarUsageInfoFromConclusion :: SimpleIdentifier -> Conclusion -> [UsageInfo]
 getBoundVarUsageInfoFromConclusion i c =
-  let p = relationParams c
+  let p = (^. args) c
       n = p <&> getAllExprNames & Set.unions & Set.toList <&> simpleIdentifier
    in if simpleIdentifier i ∈ n then [UsedInConclusion] else []
 
@@ -329,7 +328,7 @@ getRuleBoundVars :: Rule -> FixenPass SymbolState [SimpleIdentifier]
 getRuleBoundVars r = do
   -- get the bound variables.
   let rule_bound_vars =
-        case Fixen.IR.AST.ruleBoundVars r of
+        case r ^. args of
           [] -> getAssumptionVariables r
           v -> v
       -- time to look for duplicate bound variables (that happens when users
@@ -356,7 +355,7 @@ getRuleBoundVars r = do
 
 handleDupErrors :: Set.Set SimpleIdentifier -> FixenPass SymbolState ()
 handleDupErrors s = do
-  poss <- mapM fixenGetPosition (Set.toList s)
+  poss <- mapM getPosition (Set.toList s)
   let errs = (\pos -> (pos, This "variable")) <$> poss
   accumErr
     Nothing
@@ -369,7 +368,7 @@ getAssumptionVariables r =
   -- get the assumptions
   Fixen.IR.AST.ruleAssumptions r
     -- get the relation parameters
-    <&> relationParams
+    <&> (^. args)
     -- concatenate them to get one giant list of simple identifiers
     & Prelude.concat
     -- get the unique ones
@@ -394,9 +393,9 @@ validateRelationsInRule =
       return $ concat $ concl_rep : asm_rep
     checkForRelationsWithAllHoles :: SymbolRule Rule
     checkForRelationsWithAllHoles r _ = do
-      let asms_all_holes = ruleAssumptions r <&> relationParams <&> fmap simpleIdentifier & zip (ruleAssumptions r) & filter (\(_, ls) -> all (== "_") ls && length ls > 0) <&> fst
+      let asms_all_holes = ruleAssumptions r <&> (^. args) <&> fmap simpleIdentifier & zip (ruleAssumptions r) & filter (\(_, ls) -> all (== "_") ls && length ls > 0) <&> fst
       forM asms_all_holes $ \asm -> do
-        pos <- fixenGetPosition asm
+        pos <- getPosition asm
         return $
           Err
             Nothing
@@ -414,18 +413,18 @@ validateRelationsInRule =
         Just n -> do
           let conflicting_rule_names =
                 env
-                  ^. ruleMap
+                  ^. ruleInfos
                   & IntMap.toList
                   <&> snd
-                  <&> (^. ruleDeclaration)
+                  <&> (^. declaration)
                   <&> ruleName
                   & catMaybes
                   & filter (=== n)
           case conflicting_rule_names of
             [] -> return []
             (x : _) -> do
-              pos <- fixenGetPosition r
-              pos' <- fixenGetPosition x
+              pos <- getPosition r
+              pos' <- getPosition x
               return
                 [ Err
                     Nothing
@@ -454,7 +453,7 @@ checkUnboundVariable mp = do
             _ -> False
         )
     err_on_unbounds v = do
-      pos <- fixenGetPosition v
+      pos <- getPosition v
       accumErr
         Nothing
         "unbound rule parameter"

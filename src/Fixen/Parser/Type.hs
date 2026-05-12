@@ -1,48 +1,48 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
---     Module      : Fixen.Parser.Type
---     Description : Parsers for Fixen (Haskell) types
---     Copyright   : (c) Programming Languages Innovation Lab@NUS
---     License     : MIT
---     Maintainer  : yongqi@nus.edu.sg
---     Stability   : experimental
+-- Module      : Fixen.Parser.Type
+-- Description : Parsers for Fixen (Haskell) types
+-- Copyright   : (c) Programming Languages Innovation Lab@NUS
+-- License     : MIT
+-- Maintainer  : yongqi@nus.edu.sg
+-- Stability   : experimental
 --
---     Parsers for Fixen types. Types in Fixen follow a simple grammar
---     where compound operands in infix type applications must be parenthesized:
+-- Parsers for Fixen types. Types in Fixen follow a simple grammar
+-- where compound operands in infix type applications must be parenthesized:
 --
---     @
---     type ::= \<atom_type\>+                          -- Type applications
+-- @
+-- type ::= \<atom_type\>+                          -- Type applications
 --
---     atom_type ::= '(' \<type\> ')'
---                |  \<ident\>
---                |  \<nat_literal\>
---                |  \<symbol_literal\>
---                |  '()'
---                |  '(' \<type\> ',' \<type\> (',' \<type\>)* ')'
---                |  '[' \<type\> (',' \<type\>)* ']'
---     @
+-- atom_type ::= '(' \<type\> ')'
+--            |  \<ident\>
+--            |  \<nat_literal\>
+--            |  \<symbol_literal\>
+--            |  '()'
+--            |  '(' \<type\> ',' \<type\> (',' \<type\>)* ')'
+--            |  '[' \<type\> (',' \<type\>)* ']'
+-- @
 --
---     "Atom types" (@\<atom_type\>@) are factored out from the main
---     @\<type\>@ production because they are simpler to parse. This design
---     avoids the need for precedence parsing — infix types with compound
---     operands must be parenthesized (e.g., @(T1 -> T2) -> T3@ instead of
---     @T1 -> T2 -> T3@).
+-- "Atom types" (@\<atom_type\>@) are factored out from the main
+-- @\<type\>@ production because they are simpler to parse. This design
+-- avoids the need for precedence parsing — infix types with compound
+-- operands must be parenthesized (e.g., @(T1 -> T2) -> T3@ instead of
+-- @T1 -> T2 -> T3@).
 --
---     The module provides parsers for all type forms:
+-- The module provides parsers for all type forms:
 --
---     * 'parseType' — top-level entry point
---     * 'parseInfixType' — infix type applications (colon @(:)@ restricted)
---     * 'parseNestedInfixType' — infix types inside parentheses
---     * 'parseTypeApp' — type applications (@T1 T2 T3@)
---     * 'parseTypeVar' — type variables (capitalized identifiers)
---     * 'parseTypeNatLit' — natural number literals (@42@)
---     * 'parseTypeSymbolLit' — symbol literals (@@"hello"@@)
---     * 'parseTypeUnit' — unit type (@()@)
---     * 'parseTupleType' — tuple types (@(T1, T2)@)
---     * 'parseListType' — list types (@[T]@)
---     * 'parseParenType' — atomic types including parenthesized sub-types
---     * 'parseAnyType' — any type at the atom level
+-- * 'parseType' — top-level entry point
+-- * 'parseInfixType' — infix type applications (colon @(:)@ restricted)
+-- * 'parseNestedInfixType' — infix types inside parentheses
+-- * 'parseTypeApp' — type applications (@T1 T2 T3@)
+-- * 'parseTypeVar' — type variables (capitalized identifiers)
+-- * 'parseTypeNatLit' — natural number literals (@42@)
+-- * 'parseTypeSymbolLit' — symbol literals (@@"hello"@@)
+-- * 'parseTypeUnit' — unit type (@()@)
+-- * 'parseTupleType' — tuple types (@(T1, T2)@)
+-- * 'parseListType' — list types (@[T]@)
+-- * 'parseParenType' — atomic types including parenthesized sub-types
+-- * 'parseAnyType' — any type at the atom level
 module Fixen.Parser.Type where
 
 import Control.Applicative.Combinators (
@@ -57,6 +57,12 @@ import Fixen.Parser.Common
 import Fixen.Parser.Token
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Pos qualified as MPos
+
+--------------------------------------------------------------------------------
+
+-- * Top-level Types
+
+--------------------------------------------------------------------------------
 
 -- | Parse a 'Type' at the top level.
 --
@@ -75,8 +81,83 @@ import Text.Megaparsec.Pos qualified as MPos
 --   The @indentCheck@ argument is a parser that verifies correct indentation
 --   before each token. It is threaded through both branches to enforce that
 --   every syntactic element is properly indented relative to its context.
-parseType :: Parser MPos.Pos -> Parser Type
+parseType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseType indentCheck = P.try (parseInfixType indentCheck) <|> parseTypeApp indentCheck
+
+--------------------------------------------------------------------------------
+
+-- * Atomic Types
+
+--------------------------------------------------------------------------------
+
+-- | Parse an atomic (parenthesized) type — the smallest indivisible type units.
+--
+--   This is the central fallback parser used throughout the type grammar.
+--   Every type ultimately resolves to one of these alternatives. The parser
+--   tries each option in order, using 'P.try' to backtrack on failure
+--   (except for the last alternative, which is guaranteed to succeed or fail
+--   the entire parse).
+--
+--   The alternatives, in priority order, are:
+--
+--   1. **Parenthesized types** (@(T)@) — handled by the local helper @f@.
+--      This captures types wrapped in parentheses, which can contain infix
+--      type applications (via 'parseNestedInfixType') or type applications
+--      (via 'parseTypeApp'). This is tried first because parentheses have the
+--      highest precedence.
+--
+--   2. **Unit types** (@()@) — handled by 'parseTypeUnit'.
+--
+--   3. **Tuple types** (@(T1, T2, ...)@) — handled by 'parseTupleType'.
+--      Note that single-element groups like @(T)@ are not tuples; they fall
+--      through to alternative 1.
+--
+--   4. **List types** (@[T1, T2, ...]@) — handled by 'parseListType'.
+--
+--   5. **Type variables** (@Int@, @Data.Map.Map@) — handled by
+--      'parseTypeVar'.
+--
+--   6. **Natural number literals** (@42@, @0@) — handled by 'parseTypeNatLit'.
+--
+--   7. **Symbol literals** (@@"hello"@@, @""@) — handled by 'parseTypeSymbolLit'.
+--
+--   === The parenthesized type helper (@f@)
+--
+--   The local helper @f@ handles types enclosed in parentheses that are not
+--   unit types, tuple types, or list types. It verifies indentation with
+--   'indented' (which requires the opening parenthesis to be at the correct
+--   level), then delegates to 'parseNestedInfixType' (for infix types like
+--   @(T1 -> T2)@) or 'parseTypeApp' (for applications like @(T a)@).
+--
+--   The 'parsePositioned' wrapper ensures the position spans the entire
+--   @(...)@, including the parentheses.
+parseParenType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
+parseParenType indent_check =
+  P.try f
+    <|> P.try (parseTypeUnit indent_check)
+    <|> P.try (parseTupleType indent_check)
+    <|> P.try (parseListType indent_check)
+    <|> P.try (parseTypeVar indent_check)
+    <|> P.try (parseTypeNatLit indent_check)
+    <|> parseTypeSymbolLit indent_check
+  where
+    -- \| Handle parenthesized types that are not unit/tuple/list types.
+    -- Verifies indentation, then delegates to parseNestedInfixType or parseTypeApp.
+    f = do
+      -- Verify that the opening parenthesis is at the correct indentation level.
+      _ <- indented
+      -- Parse the content inside parentheses and capture the position of the
+      -- entire (...) span.
+      parsePositioned $ betweenParentheses indent_check item
+    -- \| The content inside parentheses: either an infix type or a type
+    -- application. Infix is tried first because it has higher precedence.
+    item = P.try (parseNestedInfixType indent_check) <|> parseTypeApp indent_check
+
+--------------------------------------------------------------------------------
+
+-- * Other 'Type' Parsers
+
+--------------------------------------------------------------------------------
 
 -- | Parse an infix 'Type' at the top level.
 --
@@ -139,7 +220,7 @@ parseType indentCheck = P.try (parseInfixType indentCheck) <|> parseTypeApp inde
 --   @T1 -> T2@ is neither atomic nor parenthesized. To nest infix types,
 --   parentheses are required: @((T1 -> T2) -> T3)@ parses as two separate
 --   infix types, and @T1 -> (T2 -> T3)@ similarly.
-parseInfixType :: Parser MPos.Pos -> Parser Type
+parseInfixType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseInfixType indentCheck =
   parsePositioned $ do
     -- Step 1: Parse the left operand. Wrapped with 'l' to enforce indentation
@@ -166,16 +247,16 @@ parseInfixType indentCheck =
     -- 5a: Create the operator as a TypeName. We generate a fresh NodeId
     --     and inherit the operator's position from when it was originally
     --     parsed.
-    op_id <- fixenGetNewNodeId
-    op_pos <- fixenGetPosition op
+    op_id <- getNewNodeId
+    op_pos <- getPosition op
     let op_expr = TypeName op_id op
-    fixenSetPosition op_expr op_pos
+    setPosition op_expr op_pos
     -- 5b: Compute the position span for the partial application (op lhs).
     --     This spans from the start of lhs to the end of op, capturing the
     --     first-level application before rhs is applied.
-    start_pos <- DPos.begin <$> fixenGetPosition lhs
-    end_pos <- DPos.end <$> fixenGetPosition op
-    file_name <- DPos.file <$> fixenGetPosition lhs
+    start_pos <- DPos.begin <$> getPosition lhs
+    end_pos <- DPos.end <$> getPosition op
+    file_name <- DPos.file <$> getPosition lhs
     let first_app_pos =
           DPos.Position
             { DPos.begin = start_pos
@@ -183,13 +264,13 @@ parseInfixType indentCheck =
             , DPos.file = file_name
             }
     -- 5c: Create the partial application node: (op lhs).
-    first_app_id <- fixenGetNewNodeId
+    first_app_id <- getNewNodeId
     let first_app = TypeApp first_app_id op_expr lhs
-    fixenSetPosition first_app first_app_pos
+    setPosition first_app first_app_pos
     -- 5d: Create the final application node: ((op lhs) rhs). The position for
     --     this node is set automatically by parsePositioned (which wraps the
     --     entire do-block), capturing the full span of lhs op rhs.
-    second_app_id <- fixenGetNewNodeId
+    second_app_id <- getNewNodeId
     return $ TypeApp second_app_id first_app rhs
 
 -- | Parse a type variable, which is a capitalized identifier.
@@ -206,7 +287,7 @@ parseInfixType indentCheck =
 --
 --   Indentation is enforced: the type variable must appear at the correct
 --   indentation level relative to its context.
-parseTypeVar :: Parser MPos.Pos -> Parser Type
+parseTypeVar :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeVar indentCheck = parsePositioned $ do
   -- Verify correct indentation before parsing the type variable.
   _ <- indentCheck
@@ -215,7 +296,7 @@ parseTypeVar indentCheck = parsePositioned $ do
   -- if parseCapitalizedIdentifier fails, we backtrack and try the fallback.
   ident <- P.try parseCapitalizedIdentifier <|> parseNonInfixOpIdentifier indentCheck
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the identifier in a TypeName node. The position is set by
   -- parsePositioned (the outer wrapper), which captures the span from the
   -- start of the identifier to its end.
@@ -253,9 +334,9 @@ parseTypeVar indentCheck = parsePositioned $ do
 --   - The final node spans the entire application chain
 --
 --   The 'NodeId' for each application node is freshly generated, and the
---   position is set via 'fixenSetPosition'. The outermost position is also
+--   position is set via 'setPosition'. The outermost position is also
 --   captured by 'parsePositioned' (the wrapper around the entire do-block).
-parseTypeApp :: Parser MPos.Pos -> Parser Type
+parseTypeApp :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeApp indent_check = parsePositioned $ do
   -- Parse a non-empty left-associative chain of atom types.
   -- someI ensures each type is properly indented.
@@ -269,13 +350,13 @@ parseTypeApp indent_check = parsePositioned $ do
     -- \| Combine two types into a type application: @t t'@.
     -- Generates a fresh NodeId and computes the position span from the
     -- start of @t@ to the end of @t'@.
-    folder :: Type -> Type -> Parser Type
+    folder :: ParserState σ => Type -> Type -> Parser σ Type
     folder t t' = do
       -- Generate a fresh NodeId for this application node.
-      new_id <- fixenGetNewNodeId
+      new_id <- getNewNodeId
       -- Retrieve the positions of both operands from the PositionEnv.
-      t_pos <- fixenGetPosition t
-      t'_pos <- fixenGetPosition t'
+      t_pos <- getPosition t
+      t'_pos <- getPosition t'
       -- Compute the position span: from the beginning of the left operand
       -- to the end of the right operand, preserving the file name.
       let new_pos =
@@ -287,7 +368,7 @@ parseTypeApp indent_check = parsePositioned $ do
       -- Create the application node: t applied to t'.
       let app = TypeApp new_id t t'
       -- Set the position for this node in the PositionEnv.
-      fixenSetPosition app new_pos
+      setPosition app new_pos
       return app
 
 -- | Parse a natural number literal type, such as @42@ or @0@.
@@ -300,14 +381,14 @@ parseTypeApp indent_check = parsePositioned $ do
 --
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the start to the end of the number digits.
-parseTypeNatLit :: Parser MPos.Pos -> Parser Type
+parseTypeNatLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeNatLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the natural number.
   _ <- indent_check
   -- Parse the raw natural number digits (delegates to parseRawNatural).
   n <- parseRawNatural
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the natural in a TypeNatLit node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ TypeNatLit i n
@@ -322,14 +403,14 @@ parseTypeNatLit indent_check = parsePositioned $ do
 --
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening quote to the closing quote.
-parseTypeSymbolLit :: Parser MPos.Pos -> Parser Type
+parseTypeSymbolLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeSymbolLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the string.
   _ <- indent_check
   -- Parse the raw string content (delegates to parseRawString).
   str <- parseRawString
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the string in a TypeSymbolLit node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ TypeSymbolLit i str
@@ -343,7 +424,7 @@ parseTypeSymbolLit indent_check = parsePositioned $ do
 --
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening parenthesis to the closing parenthesis.
-parseTypeUnit :: Parser MPos.Pos -> Parser Type
+parseTypeUnit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeUnit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the unit type.
   _ <- indent_check
@@ -351,7 +432,7 @@ parseTypeUnit indent_check = parsePositioned $ do
   -- no payload, but the parentheses themselves define the syntax.
   betweenParentheses indent_check (return ())
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap in a TypeUnit node. The position is set by parsePositioned
   -- (the outer wrapper), which spans the entire @()@.
   return $ TypeUnit i
@@ -378,7 +459,7 @@ parseTypeUnit indent_check = parsePositioned $ do
 --
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening parenthesis to the closing parenthesis.
-parseTupleType :: Parser MPos.Pos -> Parser Type
+parseTupleType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTupleType indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the tuple type.
   _ <- indent_check
@@ -390,7 +471,7 @@ parseTupleType indent_check = parsePositioned $ do
       indent_check
       (commaSepBy2 indent_check (parseAnyType indent_check))
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the tuple in a TypeTuple node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ TypeTuple i e exprs
@@ -408,7 +489,7 @@ parseTupleType indent_check = parsePositioned $ do
 --
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening bracket to the closing bracket.
-parseListType :: Parser MPos.Pos -> Parser Type
+parseListType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseListType indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the list type.
   _ <- indent_check
@@ -419,7 +500,7 @@ parseListType indent_check = parsePositioned $ do
       indent_check
       (parseAnyType indent_check)
   -- Generate a fresh NodeId for this type node.
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Wrap the list in a TypeList node. The position is set by
   -- parsePositioned (the outer wrapper).
   return $ TypeList i expr
@@ -434,73 +515,10 @@ parseListType indent_check = parsePositioned $ do
 --
 --   This function does NOT handle atomic types directly — those are parsed
 --   by 'parseParenType', which wraps this function.
-parseAnyType :: Parser MPos.Pos -> Parser Type
+parseAnyType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseAnyType indent_check =
   P.try (parseNestedInfixType indent_check)
     <|> parseTypeApp indent_check
-
--- | Parse an atomic (parenthesized) type — the smallest indivisible type units.
---
---   This is the central fallback parser used throughout the type grammar.
---   Every type ultimately resolves to one of these alternatives. The parser
---   tries each option in order, using 'P.try' to backtrack on failure
---   (except for the last alternative, which is guaranteed to succeed or fail
---   the entire parse).
---
---   The alternatives, in priority order, are:
---
---   1. **Parenthesized types** (@(T)@) — handled by the local helper @f@.
---      This captures types wrapped in parentheses, which can contain infix
---      type applications (via 'parseNestedInfixType') or type applications
---      (via 'parseTypeApp'). This is tried first because parentheses have the
---      highest precedence.
---
---   2. **Unit types** (@()@) — handled by 'parseTypeUnit'.
---
---   3. **Tuple types** (@(T1, T2, ...)@) — handled by 'parseTupleType'.
---      Note that single-element groups like @(T)@ are not tuples; they fall
---      through to alternative 1.
---
---   4. **List types** (@[T1, T2, ...]@) — handled by 'parseListType'.
---
---   5. **Type variables** (@Int@, @Data.Map.Map@) — handled by
---      'parseTypeVar'.
---
---   6. **Natural number literals** (@42@, @0@) — handled by 'parseTypeNatLit'.
---
---   7. **Symbol literals** (@@"hello"@@, @""@) — handled by 'parseTypeSymbolLit'.
---
---   === The parenthesized type helper (@f@)
---
---   The local helper @f@ handles types enclosed in parentheses that are not
---   unit types, tuple types, or list types. It verifies indentation with
---   'indented' (which requires the opening parenthesis to be at the correct
---   level), then delegates to 'parseNestedInfixType' (for infix types like
---   @(T1 -> T2)@) or 'parseTypeApp' (for applications like @(T a)@).
---
---   The 'parsePositioned' wrapper ensures the position spans the entire
---   @(...)@, including the parentheses.
-parseParenType :: Parser MPos.Pos -> Parser Type
-parseParenType indent_check =
-  P.try f
-    <|> P.try (parseTypeUnit indent_check)
-    <|> P.try (parseTupleType indent_check)
-    <|> P.try (parseListType indent_check)
-    <|> P.try (parseTypeVar indent_check)
-    <|> P.try (parseTypeNatLit indent_check)
-    <|> parseTypeSymbolLit indent_check
-  where
-    -- \| Handle parenthesized types that are not unit/tuple/list types.
-    -- Verifies indentation, then delegates to parseNestedInfixType or parseTypeApp.
-    f = do
-      -- Verify that the opening parenthesis is at the correct indentation level.
-      _ <- indented
-      -- Parse the content inside parentheses and capture the position of the
-      -- entire (...) span.
-      parsePositioned $ betweenParentheses indent_check item
-    -- \| The content inside parentheses: either an infix type or a type
-    -- application. Infix is tried first because it has higher precedence.
-    item = P.try (parseNestedInfixType indent_check) <|> parseTypeApp indent_check
 
 -- | Parse an infix 'Type' that is part of a larger expression, i.e.,
 -- is enclosed in parentheses.
@@ -525,7 +543,7 @@ parseParenType indent_check =
 --
 --   See 'parseInfixType' for details on the representation and position
 --   computation.
-parseNestedInfixType :: Parser MPos.Pos -> Parser Type
+parseNestedInfixType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseNestedInfixType indent_check =
   parsePositioned $ do
     -- Step 1: Parse the left operand. Wrapped with 'l' to enforce indentation
@@ -548,16 +566,16 @@ parseNestedInfixType indent_check =
     -- 4a: Create the operator as a TypeName. We generate a fresh NodeId
     --     and inherit the operator's position from when it was originally
     --     parsed.
-    op_id <- fixenGetNewNodeId
-    op_pos <- fixenGetPosition op
+    op_id <- getNewNodeId
+    op_pos <- getPosition op
     let op_expr = TypeName op_id op
-    fixenSetPosition op_expr op_pos
+    setPosition op_expr op_pos
     -- 4b: Compute the position span for the partial application (op lhs).
     --     This spans from the start of lhs to the end of op, capturing the
     --     first-level application before rhs is applied.
-    start_pos <- DPos.begin <$> fixenGetPosition lhs
-    end_pos <- DPos.end <$> fixenGetPosition op
-    file_name <- DPos.file <$> fixenGetPosition lhs
+    start_pos <- DPos.begin <$> getPosition lhs
+    end_pos <- DPos.end <$> getPosition op
+    file_name <- DPos.file <$> getPosition lhs
     let first_app_pos =
           DPos.Position
             { DPos.begin = start_pos
@@ -565,11 +583,11 @@ parseNestedInfixType indent_check =
             , DPos.file = file_name
             }
     -- 4c: Create the partial application node: (op lhs).
-    first_app_id <- fixenGetNewNodeId
+    first_app_id <- getNewNodeId
     let first_app = TypeApp first_app_id op_expr lhs
-    fixenSetPosition first_app first_app_pos
+    setPosition first_app first_app_pos
     -- 4d: Create the final application node: ((op lhs) rhs). The position for
     --     this node is set automatically by parsePositioned (which wraps the
     --     entire do-block), capturing the full span of lhs op rhs.
-    second_app_id <- fixenGetNewNodeId
+    second_app_id <- getNewNodeId
     return $ TypeApp second_app_id first_app rhs

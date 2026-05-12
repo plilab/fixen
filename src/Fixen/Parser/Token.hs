@@ -123,7 +123,7 @@ import Text.Megaparsec.Pos qualified as MPos
 -- Examples: @hello@ (accepted), @x'@ (accepted), @_123X@ (accepted),
 --           @Int@ (rejected—starts with uppercase), @if@ (rejected — reserved),
 --           @_@ (rejected—hole)
-parseRawLowerHsIdentifierString :: Parser Text
+parseRawLowerHsIdentifierString :: Parser σ Text
 parseRawLowerHsIdentifierString = do
   -- Capture the current byte offset so we can report errors at the
   -- correct source position if the result turns out to be a reserved keyword
@@ -161,7 +161,7 @@ parseRawLowerHsIdentifierString = do
 
 -- | Same as 'parseRawLowerHsIdentifierString', except that it also accepts
 -- the hole @_@.
-parseRawLowerHsIdentifierStringOrHole :: Parser Text
+parseRawLowerHsIdentifierStringOrHole :: Parser σ Text
 parseRawLowerHsIdentifierStringOrHole = do
   -- Capture the current byte offset so we can report errors at the
   -- correct source position if the result turns out to be a reserved keyword
@@ -194,7 +194,7 @@ parseRawLowerHsIdentifierStringOrHole = do
 -- keywords because type/constructor names cannot conflict with keywords.
 --
 -- Examples: @Int@ (accepted), @A'@ (accepted), @int@ (rejected — starts lowercase)
-parseRawCapitalizedHsIdentifierString :: Parser Text
+parseRawCapitalizedHsIdentifierString :: Parser σ Text
 parseRawCapitalizedHsIdentifierString =
   -- Parse the capitalized identifier string and convert [Char] to Text
   fmap pack $
@@ -211,7 +211,7 @@ parseRawCapitalizedHsIdentifierString =
 --
 -- Examples: @hello@ (accepted), @Hello@ (accepted), @_123@ (accepted),
 --           @if@ (rejected—reserved), @_@ (rejected—hole).
-parseRawAnyCaseHsIdentifierString :: Parser Text
+parseRawAnyCaseHsIdentifierString :: Parser σ Text
 parseRawAnyCaseHsIdentifierString = do
   -- Capture the current byte offset for error reporting
   offset_start <- P.getOffset
@@ -247,7 +247,7 @@ parseRawAnyCaseHsIdentifierString = do
 
 -- | Same as 'parseRawAnyCaseHsIdentifierString' except that the hole
 -- @_@ is rejected.
-parseRawAnyCaseHsIdentifierStringNotHole :: Parser Text
+parseRawAnyCaseHsIdentifierStringNotHole :: Parser σ Text
 parseRawAnyCaseHsIdentifierStringNotHole = do
   -- Capture the current byte offset for error reporting
   offset_start <- P.getOffset
@@ -284,7 +284,7 @@ parseRawAnyCaseHsIdentifierStringNotHole = do
 -- | Parses a single character from the set of valid Haskell operator
 -- characters defined in 'opChars'. Each character in 'opChars' is wrapped
 -- in 'P.single' and combined with 'choice' to try each in turn.
-parseRawOpChar :: Parser Char
+parseRawOpChar :: Parser σ Char
 parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
 
 -- | Parses a non-empty string of operator characters (from 'opChars').
@@ -292,7 +292,7 @@ parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
 -- Requires at least one operator character.
 --
 -- Examples: @++@ (accepted), @<=@ (accepted), @=@ (rejected — reserved)
-parseRawOpIdentifierString :: Parser Text
+parseRawOpIdentifierString :: Parser σ Text
 parseRawOpIdentifierString = do
   -- Capture the current byte offset for error reporting
   offset_start <- P.getOffset
@@ -331,13 +331,13 @@ parseRawOpIdentifierString = do
 --
 -- The result is wrapped in 'AST.ModuleName' with a fresh node ID and
 -- source position recorded via 'parsePositioned'.
-parseModuleName :: Parser AST.ModuleName
+parseModuleName :: ParserState σ => Parser σ AST.ModuleName
 parseModuleName = parsePositioned $ do
   -- Parse one or more capitalized identifiers separated by dots,
   -- producing a NonEmpty list of SimpleIdentifiers
   ls <- PNE.sepBy1 parseCapitalizedSimpleIdentifier (P.single '.')
   -- Allocate a fresh node ID for the module name AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the AST.ModuleName value
   return $ AST.ModuleName i ls
 
@@ -346,23 +346,23 @@ parseModuleName = parsePositioned $ do
 -- variables that are __not__ used in infix position.
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
-parseLowerFirstSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseLowerFirstSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
   str <- parseRawLowerHsIdentifierString
   -- Allocate a fresh node ID for the AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the SimpleIdentifier AST node
   return $ AST.SimpleIdentifier i str
 
 -- | Same as 'parseLowerFirstSimpleIdentifier', except that it accepts
 -- the hole @_@.
-parseLowerFirstSimpleIdentifierOrHole :: Parser AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifierOrHole :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
   str <- parseRawLowerHsIdentifierStringOrHole
   -- Allocate a fresh node ID for the AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the SimpleIdentifier AST node
   return $ AST.SimpleIdentifier i str
 
@@ -372,7 +372,7 @@ parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
 -- The structure is: capitalized module path (e.g. @Data.List@) followed by
 -- a dot and a lowercase-starting simple identifier. The result is wrapped in
 -- 'AST.FullyQualifiedName' with source position recorded via 'parsePositioned'.
-parseLowerFirstFQN :: Parser AST.FullyQualifiedName
+parseLowerFirstFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseLowerFirstFQN = parsePositioned $ do
   -- Parse the module prefix: one or more capitalized identifiers separated by dots
   module_name <- parsePrefix
@@ -381,23 +381,23 @@ parseLowerFirstFQN = parsePositioned $ do
   -- Parse the final lowercase-first simple identifier
   ident <- parseLowerFirstSimpleIdentifier
   -- Allocate a fresh node ID and construct the FullyQualifiedName AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ AST.FullyQualifiedName i module_name ident
   where
     -- Parse a module name as one or more capitalized identifiers separated by dots
-    parsePrefix :: Parser AST.ModuleName
+    parsePrefix :: ParserState σ => Parser σ AST.ModuleName
     parsePrefix = parsePositioned $ do
       -- Parse the first capitalized identifier (head of the module path)
       hd <- parseCapitalizedSimpleIdentifier
       -- Parse zero or more additional capitalized identifiers, each preceded by a dot
       tl <- manyNonFailing (P.single '.' *> parseCapitalizedSimpleIdentifier)
       -- Allocate a fresh node ID and construct the ModuleName AST node
-      i <- fixenGetNewNodeId
+      i <- getNewNodeId
       return $ AST.ModuleName i (hd NE.:| tl)
     -- Parse zero or more repetitions of a parser without failing if zero matches
     -- Uses 'P.observing' to backtrack: if the parser fails, returns empty list
     -- without consuming input; if it succeeds, recurses to find more
-    manyNonFailing :: Parser a -> Parser [a]
+    manyNonFailing :: Parser σ a -> Parser σ [a]
     manyNonFailing p = do
       -- Attempt to parse with backtracking on failure
       m <- P.observing (P.try p)
@@ -410,12 +410,12 @@ parseLowerFirstFQN = parsePositioned $ do
 -- capitalized variables that are __not__ used in infix position.
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
-parseCapitalizedSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseCapitalizedSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseCapitalizedSimpleIdentifier = parsePositioned $ do
   -- Parse the raw capitalized identifier string
   str <- parseRawCapitalizedHsIdentifierString
   -- Allocate a fresh node ID for the AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the SimpleIdentifier AST node
   return $ AST.SimpleIdentifier i str
 
@@ -425,12 +425,12 @@ parseCapitalizedSimpleIdentifier = parsePositioned $ do
 -- The structure is: one or more capitalized identifiers separated by dots.
 -- The result is split into a 'AST.ModuleName' (all but the last component)
 -- and a final 'AST.SimpleIdentifier' (the last component). Source positions
--- are manually computed and attached via 'fixenSetPosition'.
+-- are manually computed and attached via 'setPosition'.
 --
 -- Requires at least two dot-separated identifiers; a single identifier
 -- (e.g. @Just@) is rejected here and should be parsed by
 -- 'parseCapitalizedSimpleIdentifier' instead.
-parseCapitalizedFQN :: Parser AST.FullyQualifiedName
+parseCapitalizedFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseCapitalizedFQN = do
   -- Capture the current byte offset for error reporting
   offset_start <- P.getOffset
@@ -446,10 +446,10 @@ parseCapitalizedFQN = do
           -- The final name component is the last element
           name = NE.last remaining_idents
       -- Get source positions for the first and last module name components
-      m_init_pos <- fixenGetPosition first_ident
-      m_last_pos <- fixenGetPosition (NE.last mod_name)
+      m_init_pos <- getPosition first_ident
+      m_last_pos <- getPosition (NE.last mod_name)
       -- Get source position for the final name component
-      name_pos <- fixenGetPosition name
+      name_pos <- getPosition name
       let -- The module name position spans from the start of the first
           -- component to the end of the last module name component
           m_pos =
@@ -467,14 +467,14 @@ parseCapitalizedFQN = do
               , file = file m_init_pos
               }
       -- Allocate fresh node IDs for the ModuleName and FullyQualifiedName nodes
-      i <- fixenGetNewNodeId
-      i' <- fixenGetNewNodeId
+      i <- getNewNodeId
+      i' <- getNewNodeId
       -- Construct the AST nodes
       let parsed_mod_name = AST.ModuleName i mod_name
           parsed_fqn = AST.FullyQualifiedName i' parsed_mod_name name
       -- Attach source positions to the ModuleName and FullyQualifiedName nodes
-      fixenSetPosition parsed_mod_name m_pos
-      fixenSetPosition parsed_fqn fqn_pos
+      setPosition parsed_mod_name m_pos
+      setPosition parsed_fqn fqn_pos
       -- Return the FullyQualifiedName AST node
       return $ AST.FullyQualifiedName i' (AST.ModuleName i mod_name) name
     -- If fewer than two components, emit an error requiring a module name
@@ -493,7 +493,7 @@ parseCapitalizedFQN = do
 --
 -- Uses 'P.try' on 'parseCapitalizedFQN' to backtrack if the FQN parse
 -- fails, falling through to 'parseCapitalizedSimpleIdentifier'.
-parseCapitalizedIdentifier :: Parser AST.Identifier
+parseCapitalizedIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseCapitalizedIdentifier =
   -- Attempt to parse a capitalized fully qualified name first
   (AST.IdentifierFullyQualifiedName <$> P.try parseCapitalizedFQN)
@@ -505,12 +505,12 @@ parseCapitalizedIdentifier =
 -- that are __not__ used in infix position.
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
-parseAnyCasedLetterSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseAnyCasedLetterSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseAnyCasedLetterSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (any case, not reserved)
   str <- parseRawAnyCaseHsIdentifierString
   -- Allocate a fresh node ID for the AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the SimpleIdentifier AST node
   return $ AST.SimpleIdentifier i str
 
@@ -519,7 +519,7 @@ parseAnyCasedLetterSimpleIdentifier = parsePositioned $ do
 -- then falls back to 'parseCapitalizedFQN' (for names like @Data.List@).
 --
 -- Uses 'P.try' on the lower-first variant to backtrack on failure.
-parseAnyCasedLetterFQN :: Parser AST.FullyQualifiedName
+parseAnyCasedLetterFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 
 -- | Parses either a fully qualified name (any case last component, e.g.
@@ -528,7 +528,7 @@ parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 -- 'AST.Identifier' constructor.
 --
 -- These represent normal terms or constructors that are __not__ used in infix.
-parseAnyCasedLetterIdentifier :: Parser AST.Identifier
+parseAnyCasedLetterIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseAnyCasedLetterIdentifier =
   -- Attempt to parse a fully qualified name first (with backtracking)
   (AST.IdentifierFullyQualifiedName <$> P.try parseAnyCasedLetterFQN)
@@ -540,12 +540,12 @@ parseAnyCasedLetterIdentifier =
 -- The parsed string must not match any entry in 'reservedOps'.
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
-parseOpSimpleIdentifier :: Parser AST.SimpleIdentifier
+parseOpSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseOpSimpleIdentifier = parsePositioned $ do
   -- Parse the raw operator identifier string (non-empty, not reserved)
   str <- parseRawOpIdentifierString
   -- Allocate a fresh node ID for the AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   -- Construct and return the SimpleIdentifier AST node
   return $ AST.SimpleIdentifier i str
 
@@ -553,7 +553,7 @@ parseOpSimpleIdentifier = parsePositioned $ do
 -- The structure is: capitalized module path followed by a dot and an
 -- operator identifier. The result is wrapped in 'AST.FullyQualifiedName'
 -- with source position recorded via 'parsePositioned'.
-parseOpFQN :: Parser AST.FullyQualifiedName
+parseOpFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseOpFQN = parsePositioned $ do
   -- Parse the module prefix: one or more capitalized identifiers separated by dots
   module_name <- parsePrefix
@@ -562,23 +562,23 @@ parseOpFQN = parsePositioned $ do
   -- Parse the operator identifier
   ident <- parseOpSimpleIdentifier
   -- Allocate a fresh node ID and construct the FullyQualifiedName AST node
-  i <- fixenGetNewNodeId
+  i <- getNewNodeId
   return $ AST.FullyQualifiedName i module_name ident
   where
     -- Parse a module name as one or more capitalized identifiers separated by dots
-    parsePrefix :: Parser AST.ModuleName
+    parsePrefix :: ParserState σ => Parser σ AST.ModuleName
     parsePrefix = parsePositioned $ do
       -- Parse the first capitalized identifier (head of the module path)
       hd <- parseCapitalizedSimpleIdentifier
       -- Parse zero or more additional capitalized identifiers, each preceded by a dot
       tl <- manyNonFailing (P.single '.' *> parseCapitalizedSimpleIdentifier)
       -- Allocate a fresh node ID and construct the ModuleName AST node
-      i <- fixenGetNewNodeId
+      i <- getNewNodeId
       return $ AST.ModuleName i (hd NE.:| tl)
     -- Parse zero or more repetitions of a parser without failing if zero matches
     -- Uses 'P.observing' to backtrack: if the parser fails, returns empty list
     -- without consuming input; if it succeeds, recurses to find more
-    manyNonFailing :: Parser a -> Parser [a]
+    manyNonFailing :: Parser σ a -> Parser σ [a]
     manyNonFailing p = do
       -- Attempt to parse with backtracking on failure
       m <- P.observing (P.try p)
@@ -591,7 +591,7 @@ parseOpFQN = parsePositioned $ do
 -- the corresponding 'AST.Identifier' constructor.
 --
 -- Uses 'P.try' on 'parseOpFQN' to backtrack if the FQN parse fails.
-parseOpIdentifier :: Parser AST.Identifier
+parseOpIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseOpIdentifier =
   -- Attempt to parse a fully qualified operator name first
   (AST.IdentifierFullyQualifiedName <$> P.try parseOpFQN)
@@ -605,7 +605,7 @@ parseOpIdentifier =
 --
 -- The 'indent_check' argument is used by 'parseInfixLetterIdentifier' to
 -- verify proper indentation around the backticks.
-parseInfixTermIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseInfixTermIdentifier indent_check =
   -- Attempt to parse a backtick-wrapped letter identifier (with backtracking)
   P.try (parseInfixLetterIdentifier indent_check)
@@ -619,7 +619,7 @@ parseInfixTermIdentifier indent_check =
 --
 -- The 'indentCheck' argument verifies that both the opening and closing
 -- backticks are at proper indentation levels.
-parseInfixLetterIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseInfixLetterIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseInfixLetterIdentifier indentCheck = do
   -- Consume the opening backtick
   _ <- P.single '`'
@@ -643,7 +643,7 @@ parseInfixLetterIdentifier indentCheck = do
 --
 -- The 'indent_check' argument is passed to 'parseNonInfixOpIdentifier' to
 -- verify proper indentation of the parentheses.
-parseNonInfixTermIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseNonInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseNonInfixTermIdentifier indent_check =
   -- Attempt to parse any cased letter identifier first (FQN or simple)
   P.try parseAnyCasedLetterIdentifier
@@ -656,7 +656,7 @@ parseNonInfixTermIdentifier indent_check =
 --
 -- The 'indent_check' argument verifies proper indentation of both the
 -- opening and closing parentheses.
-parseNonInfixOpIdentifier :: Parser MPos.Pos -> Parser AST.Identifier
+parseNonInfixOpIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseNonInfixOpIdentifier indent_check =
   -- Parse the operator between parentheses, checking indentation after the
   -- opening paren and before the closing paren
@@ -675,7 +675,7 @@ parseNonInfixOpIdentifier indent_check =
 --
 -- Examples: @\"hello\"@ (accepted, yields @\"hello\"@),
 --           @\"line1\\nline2\"@ (accepted, yields @\"line1\\nline2\"@)
-parseRawString :: Parser Text
+parseRawString :: Parser σ Text
 parseRawString =
   -- Consume the opening double quote, then parse character literals until
   -- the closing double quote, converting the resulting [Char] to Text
@@ -689,7 +689,7 @@ parseRawString =
 -- 'L.decimal' for the decimal integer digits.
 --
 -- Examples: @42@ (accepted), @-7@ (accepted), @+3@ (accepted)
-parseRawInteger :: Parser Integer
+parseRawInteger :: Parser σ Integer
 parseRawInteger = L.signed sc L.decimal -- optional sign followed by decimal digits
 
 -- | Parses an unsigned natural number literal (no sign allowed).
@@ -698,7 +698,7 @@ parseRawInteger = L.signed sc L.decimal -- optional sign followed by decimal dig
 -- Uses 'L.decimal' to parse non-negative decimal digits.
 --
 -- Examples: @0@ (accepted), @123@ (accepted), @-5@ (rejected — no sign allowed)
-parseRawNatural :: Parser Natural
+parseRawNatural :: Parser σ Natural
 parseRawNatural = L.decimal -- decimal digits only, no sign
 
 -------------------------------------------------------------------------------
@@ -776,7 +776,7 @@ reservedOps = ["="]
 -- This guard prevents partial keyword matches — for example, parsing the
 -- keyword @if@ will reject input like @ifdef@ because the 'd' after @if@
 -- is a valid identifier continuation character.
-keyword :: Text -> Parser Text
+keyword :: Text -> Parser σ Text
 keyword s = do
   -- Consume the keyword string
   x <- C.string s
@@ -791,7 +791,7 @@ keyword s = do
 -- This guard prevents partial operator matches — for example, parsing the
 -- operator @<=@ will reject input like @<=<@ because the trailing '<'
 -- is a valid operator character.
-keywordOp :: Text -> Parser Text
+keywordOp :: Text -> Parser σ Text
 keywordOp s = do
   -- Consume the operator string
   x <- C.string s
@@ -805,7 +805,7 @@ keywordOp s = do
 --
 -- Uses 'P.try' on the Unicode variant to backtrack if it fails, then
 -- falls through to the ASCII variant.
-turnstile :: Parser Text
+turnstile :: Parser σ Text
 turnstile =
   -- Attempt the Unicode turnstile first (with backtracking)
   P.try (keywordOp "⊢")
@@ -818,7 +818,7 @@ turnstile =
 --
 -- Uses 'P.try' on the ASCII variant to backtrack if it fails, then
 -- falls through to the Unicode variant.
-ltOrSqSubsetEq :: Parser Text
+ltOrSqSubsetEq :: Parser σ Text
 ltOrSqSubsetEq =
   -- Attempt the ASCII less-than first (with backtracking)
   P.try (keywordOp "<")

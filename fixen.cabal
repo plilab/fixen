@@ -62,6 +62,7 @@ library
     -- Import common warning flags.
     import:             warnings
     exposed-modules:    Fixen.CodeGen
+                      , Fixen.Fields
                       , Fixen.IR.AST
                       , Fixen.IR.RelationRepresentation
                       , Fixen.IR.RuleForest
@@ -92,6 +93,7 @@ library
                       , Fixen.SymbolSolver.Relation
                       , Fixen.SymbolSolver.Rule
                       , Fixen.SymbolSolver.Validation
+                      , Fixen.Utils
     build-depends:      base==4.22.0.0
                       , base-unicode-symbols==0.2.4.2
                       , containers==0.8

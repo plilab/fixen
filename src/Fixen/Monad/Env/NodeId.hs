@@ -68,17 +68,11 @@ type NodeIded σ = σ :>: NodeId
 --   newId <- fixenGetNewNodeId
 --   -- newId :: NodeId  — a unique, never-before-seen identifier
 --   @
-fixenGetNewNodeId :: (NodeIded σ, MonadState σ μ) => μ NodeId
-fixenGetNewNodeId = do
-  -- Retrieve the current pass state
+getNewNodeId :: (NodeIded σ, MonadState σ μ) => μ NodeId
+getNewNodeId = do
   st <- get
-  -- Project the NodeId counter from the state
   let i :: NodeId = (↓) st
-      -- The next counter value
       j = i + 1
-      -- Update the NodeId component in the state with the incremented value
       new_state = st *<-: j
-  -- Write the updated state back
   put new_state
-  -- Return the allocated (pre-increment) value as the new unique ID
   return j
