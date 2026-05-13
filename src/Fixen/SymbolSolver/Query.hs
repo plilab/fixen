@@ -34,11 +34,12 @@ import Fixen.SymbolSolver.Validation
 --
 -- @since 0.0.1
 initEnvWithQuery
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv'
   -> Query
   -- ^ The 'Query'
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 initEnvWithQuery env q = do
   _ <- validateQuery q env
   let q_repr = simpleIdentifier $ q ^. name
@@ -68,7 +69,7 @@ initEnvWithQuery env q = do
 --   declared has the same name as a term in Prelude.
 --
 -- @since 0.0.1
-validateQuery :: SymbolValidator Query
+validateQuery :: SymbolState σ => SymbolValidator σ Query
 validateQuery = validate r
   where
     r =
@@ -97,7 +98,6 @@ validateQuery = validate r
       validateNamed
         (validateAgainstFixenLowercase "query declaration" "query declaration")
 
-    matchRelationArity :: SymbolRule Query
     matchRelationArity q env =
       let rel = queryRel q
        in relationExistsAndHasRightArity rel "query" env

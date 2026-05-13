@@ -333,7 +333,7 @@ data UsageInfo
 -- | The types of states that contain a 'SymbolEnv'.
 --
 -- @since 0.0.1
-type Symboled σ = σ :>: SymbolEnv
+type WithSymbolEnv σ = σ :>: SymbolEnv
 
 isUsedInAssumption :: UsageInfo -> Bool
 isUsedInAssumption (UsedInAssumption _ _) = True
@@ -379,49 +379,49 @@ emptySymbolEnv =
     , _priorityMap = IntMap.empty
     }
 
-fixenGetSymbolEnv :: Symboled a => FixenPass a (SymbolEnv)
+fixenGetSymbolEnv :: WithSymbolEnv a => FixenPass a (SymbolEnv)
 fixenGetSymbolEnv = do
   st <- State.get
   let env :: SymbolEnv = (↓) st
   return env
 
-fixenGetRelationInfo :: Symboled a => FixenPass a (NameMap RelationInfo)
+fixenGetRelationInfo :: WithSymbolEnv a => FixenPass a (NameMap RelationInfo)
 fixenGetRelationInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. relationInfos
 
-fixenGetPhases :: Symboled a => FixenPass a (NonEmpty NodeSet)
+fixenGetPhases :: WithSymbolEnv a => FixenPass a (NonEmpty NodeSet)
 fixenGetPhases = do
   st <- State.get
   let env :: SymbolEnv = (↓) st
   return $ env ^. phaseInfos
 
-fixenGetPartialOrdInfo :: Symboled a => FixenPass a (NameMap PartialOrdDeclaration)
+fixenGetPartialOrdInfo :: WithSymbolEnv a => FixenPass a (NameMap PartialOrdDeclaration)
 fixenGetPartialOrdInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. partialOrdInfos
 
-fixenGetRelationParamKindInfo :: Symboled a => FixenPass a (NameMap Kind)
+fixenGetRelationParamKindInfo :: WithSymbolEnv a => FixenPass a (NameMap Kind)
 fixenGetRelationParamKindInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. kindInfos
 
-fixenGetRelationParamKind :: Symboled a => Type -> FixenPass a Kind
+fixenGetRelationParamKind :: WithSymbolEnv a => Type -> FixenPass a Kind
 fixenGetRelationParamKind t = do
   let n = calculateRepresentativeFromType t
   fixenGetRelationParamKindFromName n
 
-fixenGetRelationParamKindFromName :: Symboled a => Text -> FixenPass a Kind
+fixenGetRelationParamKindFromName :: WithSymbolEnv a => Text -> FixenPass a Kind
 fixenGetRelationParamKindFromName n = do
   info <- fixenGetRelationParamKindInfo
   return $ info Map.! n
 
-fixenGetRuleInfo :: Symboled a => FixenPass a (NodeMap RuleInfo)
+fixenGetRuleInfo :: WithSymbolEnv a => FixenPass a (NodeMap RuleInfo)
 fixenGetRuleInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. ruleInfos
 
-getUnderlyingType :: Symboled a => Type -> FixenPass a Type
+getUnderlyingType :: WithSymbolEnv a => Type -> FixenPass a Type
 getUnderlyingType t = do
   let n = calculateRepresentativeFromType t
   p_ord <- fixenGetPartialOrdInfo
@@ -429,7 +429,7 @@ getUnderlyingType t = do
     Nothing -> return t
     Just p_ord_dec -> return $ partialOrdDeclarationType p_ord_dec
 
-fixenGetPriorities :: Symboled a => FixenPass a (NodeMap PriorityInfo)
+fixenGetPriorities :: WithSymbolEnv a => FixenPass a (NodeMap PriorityInfo)
 fixenGetPriorities = do
   env <- fixenGetSymbolEnv
   return $ env ^. priorityInfos

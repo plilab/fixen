@@ -23,10 +23,15 @@ import Fixen.Utils
 
 --------------------------------------------------------------------------------
 
--- | The state used by the symbol solver.
+-- | The state carried by the symbol solver.
+--
+--   This must be a product of at least three components:
+--
+--   * 'PositionEnv' — maps 'NodeId' values to source positions
+--   * 'FixenErrors' — accumulated error diagnostics
 --
 -- @since 0.0.1
-type SymbolState = PositionEnv :*: NodeId :*: FixenErrors
+type SymbolState σ = (WithPositionEnv σ, WithErrors σ) -- PositionEnv :*: NodeId :*: FixenErrors
 
 --------------------------------------------------------------------------------
 

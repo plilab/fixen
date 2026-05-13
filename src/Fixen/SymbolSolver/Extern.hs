@@ -35,11 +35,12 @@ import Fixen.SymbolSolver.Validation
 --
 -- @since 0.0.1
 initEnvWithExternSymbol
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv'
   -> SimpleIdentifier
   -- ^ The symbol to insert
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 initEnvWithExternSymbol env i = do
   let symb_id = simpleIdentifier i
       node_id = i ^. nodeId
@@ -71,7 +72,9 @@ initEnvWithExternSymbol env i = do
 --   rule.
 --
 -- @since 0.0.1
-validateExternSymbol :: SymbolValidator SimpleIdentifier
+validateExternSymbol
+  :: SymbolState σ
+  => SymbolValidator σ SimpleIdentifier
 validateExternSymbol = validate r
   where
     r =
@@ -81,7 +84,6 @@ validateExternSymbol = validate r
       , againstFixenLowerCase
       , againstRuleParams
       ]
-    againstRelations :: SymbolRule SimpleIdentifier
     againstRelations i env =
       validateAgainstRelation
         "an existing use of the same name"

@@ -45,7 +45,7 @@ import Fixen.Utils
 -- 'PartialOrdDeclaration's and 'RelationDeclaration's.
 --
 -- @since 0.0.1
-initEnvWithRule :: SymbolEnv -> Rule -> FixenPass SymbolState SymbolEnv
+initEnvWithRule :: SymbolState σ => SymbolEnv -> Rule -> FixenPass σ SymbolEnv
 initEnvWithRule env r = do
   rels_not_well_formed <- validateRelationsInRule r env
   if rels_not_well_formed
@@ -119,7 +119,7 @@ initEnvWithRule env r = do
 -- * __Against Other Rules__: There cannot be duplicate rule names.
 --
 -- @since 0.0.1
-validateRelationsInRule :: SymbolValidator Rule
+validateRelationsInRule :: SymbolState σ => SymbolValidator σ Rule
 validateRelationsInRule =
   validate
     [ matchRelationsArity
@@ -127,7 +127,6 @@ validateRelationsInRule =
     , noDuplicateRuleNames
     ]
   where
-    matchRelationsArity :: SymbolRule Rule
     matchRelationsArity r env = do
       let asms = r ^. assumptions
           concl = r ^. conclusion
@@ -137,7 +136,6 @@ validateRelationsInRule =
       -- return all the errors
       return $ concat $ concl_rep : asm_rep
 
-    checkForRelationsWithAllHoles :: SymbolRule Rule
     checkForRelationsWithAllHoles r _ = do
       let asms_all_holes =
             r
@@ -167,7 +165,6 @@ validateRelationsInRule =
                 "remove this premise from the rule"
             ]
 
-    noDuplicateRuleNames :: SymbolRule Rule
     noDuplicateRuleNames r env =
       case ruleName r of
         Nothing -> return []
@@ -204,7 +201,7 @@ validateRelationsInRule =
 -- symbols (including prelude terms) will throw warnings
 --
 -- @since 0.0.1
-getRuleParameters :: Rule -> FixenPass SymbolState [SimpleIdentifier]
+getRuleParameters :: SymbolState σ => Rule -> FixenPass σ [SimpleIdentifier]
 getRuleParameters r = do
   -- get the parameters.
   let rule_parameters =
@@ -230,7 +227,6 @@ getRuleParameters r = do
   return nub_bv
   where
     -- Throws errors on a set of variables that have duplicates
-    handleDupErrors :: Set.Set SimpleIdentifier -> FixenPass SymbolState ()
     handleDupErrors s = do
       poss <- mapM getPosition (Set.toList s)
       let errs = (\pos -> (pos, This "variable")) <$> poss
@@ -324,9 +320,10 @@ getParamUsageInfo r v =
 --
 -- @since 0.0.1
 checkUnboundVariable
-  :: NameMap (SimpleIdentifier, [UsageInfo])
+  :: SymbolState σ
+  => NameMap (SimpleIdentifier, [UsageInfo])
   -- ^ The parameter map
-  -> FixenPass SymbolState Bool
+  -> FixenPass σ Bool
 checkUnboundVariable mp = do
   let unbounds = Map.filter isUnbound mp
   unbounds
@@ -350,7 +347,8 @@ checkUnboundVariable mp = do
 --
 -- @since 0.0.1
 checkFreeVarsInAssumptions
-  :: Rule
+  :: SymbolState σ
+  => Rule
   -- ^ The 'Rule'
   --
   -- @since 0.0.1
@@ -358,7 +356,7 @@ checkFreeVarsInAssumptions
   -- ^ The variable mappiung
   --
   -- @since 0.0.1
-  -> FixenPass SymbolState Bool
+  -> FixenPass σ Bool
 checkFreeVarsInAssumptions r mp = do
   let fvs =
         r ^. assumptions ^.. each . args
@@ -406,7 +404,8 @@ getFreeVars r mp =
 --
 -- @since 0.0.1
 typeCheck
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv' used for looking up the type of relation arguments
   --
   -- @since 0.0.1
@@ -414,7 +413,7 @@ typeCheck
   -- ^ The initial information about the rule (with no type information)
   --
   -- @since 0.0.1
-  -> FixenPass SymbolState RuleInfo
+  -> FixenPass σ RuleInfo
 typeCheck env RuleInfo {_ruleDeclaration = the_rule, _ruleBoundVars = param_info} = do
   -- Get everything in the assumptions that need to be type-checked
   let asm_type_candidates =
@@ -488,7 +487,8 @@ mapIndicesToType env r (Right i) =
 --
 -- @since 0.0.1
 typeCheckVar
-  :: Rule
+  :: SymbolState σ
+  => Rule
   -- ^ The rule being type-checked
   --
   -- @since 0.0.1
@@ -508,7 +508,7 @@ typeCheckVar
   -- supposed type.
   --
   -- @since 0.0.1
-  -> FixenPass SymbolState (NameMap RuleParameterInfo)
+  -> FixenPass σ (NameMap RuleParameterInfo)
 typeCheckVar the_rule param_info var_name (occ, the_type) = do
   -- Get whatever typing information we have about this variable.
   let curr_info = param_info Map.! var_name

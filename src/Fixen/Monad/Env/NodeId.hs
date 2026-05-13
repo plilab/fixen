@@ -29,11 +29,7 @@ import Control.Monad.State.Strict (
   put,
  )
 import Fixen.IR.AST (NodeId)
-import Fixen.Monad.Type (
-  (*<-:),
-  (:>:),
-  (↓),
- )
+import Fixen.Utils
 
 -- | Constraint alias indicating that a state type @σ@ contains a 'NodeId'.
 --

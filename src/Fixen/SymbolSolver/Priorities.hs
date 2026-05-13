@@ -45,11 +45,12 @@ import Prelude hiding (map)
 --
 -- @since 0.0.1
 initEnvWithPriorities
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv'
   -> Priority
   -- ^ The 'Priority' declaration
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 initEnvWithPriorities env p = do
   let prem = p ^. premise
       concl = p ^. conclusion
@@ -136,10 +137,9 @@ initEnvWithPriorities env p = do
 -- never added to the priority queue.
 --
 -- @since 0.0.1
-validateRuleInstance :: SymbolValidator RuleInstance
+validateRuleInstance :: SymbolState σ => SymbolValidator σ RuleInstance
 validateRuleInstance = validate [ruleExists]
   where
-    ruleExists :: SymbolRule RuleInstance
     ruleExists rule_inst env = do
       let rule_name = rule_inst ^. rule
           rule_inst_params = Map.keys $ ruleInstanceMap rule_inst
@@ -188,11 +188,12 @@ validateRuleInstance = validate [ruleExists]
 --
 -- @since 0.0.1
 getRuleFromRuleInstance
-  :: RuleInstance
+  :: SymbolState σ
+  => RuleInstance
   -- ^ The 'RuleInstance'
   -> SymbolEnv
   -- ^ The 'SymbolEnv'
-  -> FixenPass SymbolState (Maybe Rule)
+  -> FixenPass σ (Maybe Rule)
 getRuleFromRuleInstance rule_inst env = do
   let rule_name = rule_inst ^. rule
       all_relevant_names =

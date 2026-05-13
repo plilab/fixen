@@ -27,7 +27,7 @@ import Data.IntMap.Strict
 import Error.Diagnose.Position
 import Fixen.Fields
 import Fixen.IR.AST
-import Fixen.Monad.Type
+import Fixen.Utils
 
 --------------------------------------------------------------------------------
 

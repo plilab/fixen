@@ -42,11 +42,12 @@ import Fixen.Utils
 --
 -- @since 0.0.1
 initEnvWithPhases
-  :: Maybe PhasesDeclaration
+  :: SymbolState σ
+  => Maybe PhasesDeclaration
   -- ^ The 'PhasesDeclaration'
   -> SymbolEnv
   -- ^ The 'SymbolEnv'
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 initEnvWithPhases Nothing env =
   -- trivial. Just get all the rules and use that as the phases
   return $ env & phaseInfos .~ (all_rules :| [])

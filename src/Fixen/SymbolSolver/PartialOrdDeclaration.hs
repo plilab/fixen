@@ -37,11 +37,12 @@ import Fixen.Utils
 --
 -- @since 0.0.1
 initEnvWithPartialOrd
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv'
   -> PartialOrdDeclaration
   -- ^ The 'PartialOrdDeclaration'
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 initEnvWithPartialOrd env p = do
   _ <- validatePartialOrd p env
   env
@@ -82,7 +83,7 @@ initEnvWithPartialOrd env p = do
 -- by 'initEnvWithExternSymbol'.
 --
 -- @since 0.0.1
-validatePartialOrd :: SymbolValidator PartialOrdDeclaration
+validatePartialOrd :: SymbolState σ => SymbolValidator σ PartialOrdDeclaration
 validatePartialOrd = validate r
   where
     r =

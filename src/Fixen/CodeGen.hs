@@ -19,6 +19,7 @@ import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
 import Fixen.Monad
 import Fixen.Parser.Token (opChars)
+import Fixen.Utils
 
 type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 

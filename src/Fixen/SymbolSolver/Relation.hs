@@ -36,7 +36,7 @@ import Fixen.Utils
 -- 'PartialOrdDeclaration's.
 --
 -- @since 0.0.1
-initEnvWithRelation :: SymbolEnv -> RelationDeclaration -> FixenPass SymbolState SymbolEnv
+initEnvWithRelation :: SymbolState σ => SymbolEnv -> RelationDeclaration -> FixenPass σ SymbolEnv
 initEnvWithRelation env r = do
   _ <- validateRelation r env
   env
@@ -103,7 +103,7 @@ initEnvWithRelation env r = do
 --   has the same name as a type or term in Prelude.
 --
 -- @since 0.0.1
-validateRelation :: SymbolValidator RelationDeclaration
+validateRelation :: SymbolState σ => SymbolValidator σ RelationDeclaration
 validateRelation = validate r
   where
     r =

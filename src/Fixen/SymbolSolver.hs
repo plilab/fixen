@@ -42,11 +42,12 @@ import Fixen.Utils
 --
 -- @since 0.0.1
 solveSymbols
-  :: Program
+  :: SymbolState σ
+  => Program
   -- ^ The program whose symbols are being solved
   --
   -- @since 0.0.1
-  -> FixenPass SymbolState SymbolEnv
+  -> FixenPass σ SymbolEnv
 solveSymbols prog = do
   env_with_rels_and_pords <-
     pure emptySymbolEnv

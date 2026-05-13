@@ -11,7 +11,7 @@
 --
 --     1. /Resolves/ each include path to a canonical absolute file path
 --     2. /Recursively parses/ each included file
---     3. /Merges/ all parsed programs into a single unified 'AST.Program'
+--     3. /Merges/ all parsed programs into a single 'Program'
 --
 --     The module also deduplicates imports, tracks visited files to avoid
 --     infinite cycles, and accumulates errors (e.g. missing files) without
@@ -38,6 +38,7 @@ import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser (parse)
+import Fixen.Utils
 import System.Directory (canonicalizePath)
 import System.FilePath
 import System.IO (readFile')
@@ -47,6 +48,17 @@ import System.IO (readFile')
 -- * Main Entry Point
 
 --------------------------------------------------------------------------------
+
+-- | The state carried by the module system.
+--
+--   This must be a product of at least three components:
+--
+--   * 'PositionEnv' — maps 'NodeId' values to source positions
+--   * 'NodeId' — the current node ID counter (incremented on each new node)
+--   * 'FixenErrors' — accumulated error diagnostics
+--
+-- @since 0.0.1
+type ModuleSystemState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 
 -- | Process all @include@ statements in a parsed Fixen program.
 --
@@ -61,7 +73,7 @@ import System.IO (readFile')
 --   3. /Recursively processes/ each include via 'loop' — reading, parsing,
 --      and combining included files
 --
---   The result is a single unified 'AST.Program' containing all rules,
+--   The result is a single unified 'Program' containing all rules,
 --   relations, and other constructs from the original file and all
 --   transitive includes.
 --
@@ -74,7 +86,7 @@ import System.IO (readFile')
 --   file per parse result).
 --
 -- @since 0.0.1
-getIncludes :: Program -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) Program
+getIncludes :: ModuleSystemState σ => Program -> FixenPass σ Program
 getIncludes in_program = do
   -- Step 1: Extract the canonical file path of the source file from the
   -- error-tracking file map. The parser records the file path for each
@@ -159,28 +171,16 @@ resolveIncludeToPath file_path incl = do
 --   * /New file/ — read the file, parse it, combine it into the program,
 --     resolve its own includes, and add them to the front of the queue.
 --
---   /Parameters./
---
---   * @in_prog@ — the accumulated program so far
---   * @v@ — the set of already-visited file paths (cycle detection)
---   * The third argument is a list of @(filePath, includeNode)@ pairs
---     representing the queue of includes to process. New includes from
---     parsed files are prepended to the front of this queue.
---
---   /Error handling./ If a file cannot be read or a parse fails, the
---   error is recorded (via 'safeReadFile') and processing continues
---   with the remaining includes. The function never fails due to a
---   single bad include — all errors are accumulated.
---
 -- @since 0.0.1
 loop
-  :: Program
+  :: ModuleSystemState σ
+  => Program
   -- ^ The 'Program' to process
   -> Set.Set FilePath
   -- ^ The \"visited\" set
   -> [(FilePath, Include)]
   -- ^ The queue of file paths (and associated 'Include' declarations) to process
-  -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) Program
+  -> FixenPass σ Program
 loop in_prog _ [] = return in_prog
 loop in_prog v ((p, i) : ps)
   -- Already visited: skip this file to avoid cycles and duplicates.
@@ -217,29 +217,29 @@ loop in_prog v ((p, i) : ps)
               loop new_prog (p `Set.insert` v) (parsed_program_includes ++ ps)
 
 {- FOURMOLU_DISABLE -}
--- | Merge two 'AST.Program' values into a single program.
+-- | Merge two 'Program's into a single program.
 --
---   This function combines the constructs from @new_prog@ (the included
---   file) into @in_prog@ (the accumulated program). The merge strategy
---   for each construct type is:
+-- This function combines the constructs from @new_prog@ (the included
+-- file) into @in_prog@ (the accumulated program). The merge strategy
+-- for each construct type is:
 --
---   /Concatenated (new before old)/ — rules, relations, partial order
---   declarations, Haskell code blocks, queries and extern symbols. New
---   constructs are placed first so they take precedence during symbol
---   resolution.
+-- /Concatenated (new before old)/ — rules, relations, partial order
+-- declarations, Haskell code blocks, queries and extern symbols. New
+-- constructs are placed first so they take precedence during symbol
+-- resolution.
 --
---   /Deduplicated/ — Haskell imports. Import statements that already exist
---   in @in_prog@ are filtered out from @new_prog@ to avoid duplicates.
---   Deduplication is based on the full module identifier (e.g. @Data.List@).
+-- /Deduplicated/ — Haskell imports. Import statements that already exist
+-- in @in_prog@ are filtered out from @new_prog@ to avoid duplicates.
+-- Deduplication is based on the full module identifier (e.g. @Data.List@).
 --
---   /Omitted/ — priorities, and phases from @new_prog@ are not
---   merged. These are not included because they are typically file-scoped
---   declarations that should not be combined across files.
+-- /Omitted/ — priorities, and phases from @new_prog@ are not
+-- merged. These are not included because they are typically file-scoped
+-- declarations that should not be combined across files.
 --
---   /Record update./ The function uses Haskell record update syntax to
---   produce a new 'AST.Program' with only the relevant fields replaced.
---   All other fields (module name, includes, etc.) are preserved from
---   @in_prog@.
+-- /Record update./ The function uses Haskell record update syntax to
+-- produce a new 'AST.Program' with only the relevant fields replaced.
+-- All other fields (module name, includes, etc.) are preserved from
+-- @in_prog@.
 --
 -- @since 0.0.1
 combineProgram 
@@ -293,11 +293,12 @@ combineProgram in_prog new_prog =
 --
 -- @since 0.0.1
 safeReadFile
-  :: FilePath
+  :: ModuleSystemState σ
+  => FilePath
   -- ^ The canonical file path to read.
   -> Include
   -- ^ The include node, used to extract the source position for error reporting.
-  -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) (Maybe String)
+  -> FixenPass σ (Maybe String)
   -- ^ 'Just' the file contents on success, or 'Nothing' on failure.
 safeReadFile file_path include = do
   -- Attempt to read the file, catching any IOException.
@@ -334,7 +335,7 @@ safeReadFile file_path include = do
 -- 2. At least one rule
 --
 -- @since 0.0.1
-highLevelStructuralChecks :: Program -> FixenPass (PositionEnv :*: NodeId :*: FixenErrors) Program
+highLevelStructuralChecks :: ModuleSystemState σ => Program -> FixenPass σ Program
 highLevelStructuralChecks prog = do
   when (null (prog ^. relationDeclarations)) $
     accumErr

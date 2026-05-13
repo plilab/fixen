@@ -33,19 +33,19 @@ import Fixen.Utils
 -- | A rule for a syntactic category.
 --
 -- @since 0.0.1
-type SymbolRule α = α -> SymbolEnv -> FixenPass SymbolState [Report String]
+type SymbolRule σ α = α -> SymbolEnv -> FixenPass σ [Report String]
 
 -- | A symbol validator, i.e., a function that checks the validity of a symbol
 -- with respect to a 'SymbolEnv'.
 --
 -- @since 0.0.1
-type SymbolValidator α = α -> SymbolEnv -> FixenPass SymbolState Bool
+type SymbolValidator σ α = α -> SymbolEnv -> FixenPass σ Bool
 
 -- | A 'SymbolRule' that uses the name of the symbol for validation. We also
 -- require these to have 'NodeId's for source position tracking.
 --
 -- @since 0.0.1
-type NamedSymbolRule α = HasNodeId α NodeId => Name -> SymbolRule α
+type NamedSymbolRule σ α = HasNodeId α NodeId => Name -> SymbolRule σ α
 
 --------------------------------------------------------------------------------
 
@@ -67,11 +67,12 @@ type NamedSymbolRule α = HasNodeId α NodeId => Name -> SymbolRule α
 --
 -- @since 0.0.1
 validate
-  :: [SymbolRule α]
+  :: SymbolState σ
+  => [SymbolRule σ α]
   -- ^ The list of rules for this symbol
   --
   -- @since 0.0.1
-  -> SymbolValidator α
+  -> SymbolValidator σ α
 validate ruls subject env = do
   reports <- ruls <&> (\f -> f subject env) & sequence
   let all_reports = concat reports
@@ -81,7 +82,7 @@ validate ruls subject env = do
 -- Turns a 'NamedSymbolRule' into a regular 'SymbolRule'.
 --
 -- @since 0.0.1
-validateNamed :: (HasNodeId a NodeId, HasName a n, IdentifierLike n) => NamedSymbolRule a -> SymbolRule a
+validateNamed :: (HasNodeId a NodeId, HasName a n, IdentifierLike n) => NamedSymbolRule σ a -> SymbolRule σ a
 validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 
 --------------------------------------------------------------------------------
@@ -101,12 +102,13 @@ validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 --
 -- @since 0.0.1
 validateAgainstRelation
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message attached to the symbol being validated (in the case of
   -- a validation error)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ a
 validateAgainstRelation where_msg repr i env = do
   case env ^. relationInfos . at repr of
     -- not a relation name, all is good
@@ -129,7 +131,8 @@ validateAgainstRelation where_msg repr i env = do
 --
 -- @since 0.0.1
 relationExistsAndHasRightArity
-  :: RelationLike b
+  :: SymbolState σ
+  => RelationLike b
   -- ^ The relation
   --
   -- @since 0.0.1
@@ -138,7 +141,7 @@ relationExistsAndHasRightArity
   --
   -- @since 0.0.1
   -> SymbolEnv
-  -> FixenPass SymbolState [Report String]
+  -> FixenPass σ [Report String]
 relationExistsAndHasRightArity rel containing_name env = do
   case env ^. relationInfos . at (simpleIdentifier (rel ^. name)) of
     Nothing -> do
@@ -185,7 +188,8 @@ relationExistsAndHasRightArity rel containing_name env = do
 --
 -- @since 0.0.1
 validateAgainstPartialOrd
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message attached to the symbol being validated (in the case of
   -- a validation error)
   --
@@ -194,7 +198,7 @@ validateAgainstPartialOrd
   -- ^ Notes to attach to the error message in the case of a validation error
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 validateAgainstPartialOrd this_msg notes repr i env = do
   case env ^. partialOrdInfos . at repr of
     Nothing -> return []
@@ -223,7 +227,8 @@ validateAgainstPartialOrd this_msg notes repr i env = do
 --
 -- @since 0.0.1
 validateAgainstExtern
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to the symbol (in the case of a validation
   -- error)
   --
@@ -232,7 +237,7 @@ validateAgainstExtern
   -- ^ Notes to attach to the error message in the case of a validation error
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 validateAgainstExtern this_msg notes repr i env = do
   case env ^. externInfos . at repr of
     Nothing -> return []
@@ -255,7 +260,8 @@ validateAgainstExtern this_msg notes repr i env = do
 --
 -- @since 0.0.1
 validateAgainstFixenCapitalized
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to this symbol (in the case of a validation
   -- error)
   --
@@ -264,7 +270,7 @@ validateAgainstFixenCapitalized
   -- ^ The name of the type of this symbol (relation declaration, query, etc.)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 validateAgainstFixenCapitalized this_msg decl_type repr i _ =
   if repr ∈ fixenTypesCons
     then do
@@ -284,7 +290,8 @@ validateAgainstFixenCapitalized this_msg decl_type repr i _ =
 --
 -- @since 0.0.1
 validateAgainstFixenLowercase
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to this symbol (in the case of a validation
   -- error)
   --
@@ -293,7 +300,7 @@ validateAgainstFixenLowercase
   -- ^ The name of the type of this symbol (relation declaration, query, etc.)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 validateAgainstFixenLowercase this_msg decl_type repr i _ =
   if repr ∈ fixenTerms
     then do
@@ -314,12 +321,13 @@ validateAgainstFixenLowercase this_msg decl_type repr i _ =
 --
 -- @since 0.0.1
 validateAgainstQuery
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to the symbol, in the case of a validation
   -- error
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 validateAgainstQuery where_msg repr i env = do
   case env ^. queryInfos . at repr of
     Nothing -> return []
@@ -356,11 +364,12 @@ validateAgainstQuery where_msg repr i env = do
 --
 -- @since 0.0.1
 warnUnusedRuleParameters
-  :: SymbolEnv
+  :: SymbolState σ
+  => SymbolEnv
   -- ^ The 'SymbolEnv' to check
   --
   -- @since 0.0.1
-  -> FixenPass SymbolState ()
+  -> FixenPass σ ()
 warnUnusedRuleParameters env = do
   unused_rule_params <- getUnusedRuleParams
   when ((¬) (null unused_rule_params)) $ do
@@ -406,11 +415,12 @@ warnUnusedRuleParameters env = do
 --
 -- @since 0.0.1
 warnNameShadowingAgainstBoundVar
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to the variable
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 warnNameShadowingAgainstBoundVar where_msg repr i env = do
   let matching_bvs =
         values (env ^. ruleInfos)
@@ -453,11 +463,12 @@ warnNameShadowingAgainstBoundVar where_msg repr i env = do
 --
 -- @since 0.0.1
 warnNameShadowingAgainstExtern
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The name of the thing (e.g., rule parameter, local variable)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 warnNameShadowingAgainstExtern decl_name repr i env = do
   against_extern <- case env ^. externInfos . at repr of
     Nothing -> return []
@@ -492,7 +503,8 @@ warnNameShadowingAgainstExtern decl_name repr i env = do
 --
 -- @since 0.0.1
 warnAgainstPreludeCapitalized
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to the thing being validated
   --
   -- @since 0.0.1
@@ -500,7 +512,7 @@ warnAgainstPreludeCapitalized
   -- ^ The type of the thing being validated (e.g., relation, variable, etc.)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 warnAgainstPreludeCapitalized this_msg decl_type repr i _ =
   if repr ∈ preludeTermsCons
     then do
@@ -519,7 +531,8 @@ warnAgainstPreludeCapitalized this_msg decl_type repr i _ =
 --
 -- @since 0.0.1
 warnAgainstPreludeLowercase
-  :: String
+  :: SymbolState σ
+  => String
   -- ^ The error message to attach to the thing being validated
   --
   -- @since 0.0.1
@@ -527,7 +540,7 @@ warnAgainstPreludeLowercase
   -- ^ The type of the thing being validated (e.g., relation, variable, etc.)
   --
   -- @since 0.0.1
-  -> NamedSymbolRule a
+  -> NamedSymbolRule σ α
 warnAgainstPreludeLowercase this_msg decl_type repr i _ =
   if repr ∈ preludeTerms
     then do

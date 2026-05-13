@@ -1,29 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
---     Module      : Fixen.Parser
---     Description : High-level parser for Fixen programs
---     Copyright   : (c) Programming Languages Innovation Lab@NUS
---     License     : MIT
---     Maintainer  : yongqi@nus.edu.sg
---     Stability   : experimental
+-- Module      : Fixen.Parser
+-- Description : Parser for Fixen programs
+-- Copyright   : (c) Programming Languages Innovation Lab@NUS
+-- License     : MIT
+-- Maintainer  : yongqi@nus.edu.sg
+-- Stability   : experimental
 --
---     This module provides the top-level parser entry point for Fixen programs.
---     It coordinates the parsing of all program constructs — module declarations,
---     imports, extern declarations, relations, rules, priority declarations,
---     queries, partial order declarations, include statements, Haskell code
---     blocks, and phase declarations — into a complete 'AST.Program'.
+-- This module provides the top-level parser entry point for Fixen programs.
+-- It coordinates the parsing of all program constructs — module declarations,
+-- imports, extern declarations, relations, rules, priority declarations,
+-- queries, partial order declarations, include statements, Haskell code
+-- blocks, and phase declarations — into a complete 'Program'.
 --
---     The main entry point is 'parse', which takes a file path and contents
---     and returns a fully constructed 'AST.Program'. Internally, it:
+-- The main entry point is 'parse', which takes a file path and contents
+-- and returns a fully constructed 'Program'. Internally, it:
 --
---     1. Runs 'parseProgram' to get a module declaration and a flat list of
---        top-level declarations ('TopLevel')
---     2. Calls 'partitionTopLevels' to distribute those declarations into the
---        appropriate fields of 'AST.Program', producing the final result
---
---     Individual declaration parsers (e.g. 'parseRelation', 'parseRule') are
---     also exported for reuse by other modules.
+-- 1. Runs 'parseProgram' to get a module declaration and a flat list of
+--    top-level declarations ('TopLevel')
+-- 2. Calls 'partitionTopLevels' to distribute those declarations into the
+--    appropriate fields of 'Program', producing the final result
 --
 -- @since 0.0.1
 module Fixen.Parser where
@@ -66,9 +63,9 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --   1. Runs 'parseProgram' to extract the module declaration and a flat list
 --      of top-level declarations ('TopLevel')
 --   2. Calls 'partitionTopLevels' to distribute those declarations into the
---      appropriate fields of 'AST.Program'
+--      appropriate fields of 'Program'
 --
---   The result is a fully constructed 'AST.Program' with all declarations
+--   The result is a fully constructed 'Program' with all declarations
 --   organized into their respective categories (relations, rules, priorities,
 --   etc.).
 --
@@ -99,27 +96,33 @@ parse file_path file_contents = do
 -- | Runs a 'Parser' in the 'FixenPass' monad, converting parse errors
 -- into 'FixenPass' failures.
 --
---   This function:
+-- This function:
 --
---   1. Captures the current 'ParserState' (including error accumulator)
---   2. Runs the Megaparsec parser via 'P.runParserT'
---   3. Restores the updated state (including any position tracking)
---   4. On success, returns the parsed value
---   5. On failure, converts the Megaparsec error bundle into a 'Diagnostic'
---      and fails the pass via 'failD'
+-- 1. Captures the current 'ParserState' (including error accumulator)
+-- 2. Runs the Megaparsec parser via 'P.runParserT'
+-- 3. Restores the updated state (including any position tracking)
+-- 4. On success, returns the parsed value
+-- 5. On failure, converts the Megaparsec error bundle into a 'Diagnostic'
+--    and fails the pass via 'failD'
 --
---   This is the bridge between the Megaparsec parser layer and the
---   'FixenPass' compiler pass layer.
+-- This is the bridge between the Megaparsec parser layer and the
+-- 'FixenPass' compiler pass layer.
 --
 -- @since 0.0.1
 fixenParse
   :: ParserState σ
   => Parser σ a
   -- ^ The 'Parser' to run
+  --
+  -- @since 0.0.1
   -> FilePath
   -- ^ The file path of the program (used as the Megaparsec source name)
+  --
+  -- @since 0.0.1
   -> Text
   -- ^ The contents of the file to parse
+  --
+  -- @since 0.0.1
   -> FixenPass σ a
 fixenParse parser file_path file_contents = do
   -- Capture the current parser state (position env, node ID counter, errors)
@@ -149,14 +152,14 @@ fixenParse parser file_path file_contents = do
 -- | Parses a complete Fixen program: a module declaration followed by
 -- zero or more top-level declarations, with mandatory end-of-file.
 --
---   Returns a tuple of:
+-- Returns a tuple of:
 --
---   * 'AST.ModuleDeclaration' — the parsed module declaration
---   * '[TopLevel]' — the flat list of all top-level declarations found
---     (before partitioning into AST.Program fields)
+-- * 'ModuleDeclaration' — the parsed module declaration
+-- * ['TopLevel'] — the flat list of all top-level declarations found
+--   (before partitioning into 'Program' fields)
 --
---   The 'eof' parser ensures that the entire file is consumed; any trailing
---   content after the last declaration will cause a parse error.
+-- The 'eof' parser ensures that the entire file is consumed; any trailing
+-- content after the last declaration will cause a parse error.
 --
 -- @since 0.0.1
 parseProgram :: ParserState σ => Parser σ (ModuleDeclaration, [TopLevel])
@@ -164,30 +167,30 @@ parseProgram = do
   -- Parse the module declaration (e.g. "module Foo where") and consume trailing whitespace
   mod_head <- l parseModuleDeclaration
   -- Parse all remaining top-level declarations, consuming whitespace after each
-  top_levels <- l parseAST
+  top_levels <- l parseTopLevels
   -- Ensure no trailing content after the last declaration
   _ <- eof
   return (mod_head, top_levels)
 
 -- | Parses a list of top-level declarations. Each declaration is one of:
 --
---   * @extern@ declarations
---   * @rel@ (relation) declarations
---   * @rule@ declarations
---   * @partial ord@ declarations
---   * @priority@ declarations
---   * @query@ declarations
---   * @include@ statements
---   * @import@ statements
---   * Haskell code blocks (```hs … ```)
---   * @phases@ declarations
+-- * @extern@ declarations
+-- * @rel@ (relation) declarations
+-- * @rule@ declarations
+-- * @partial ord@ declarations
+-- * @priority@ declarations
+-- * @query@ declarations
+-- * @include@ statements
+-- * @import@ statements
+-- * Haskell code blocks (```hs ... ```)
+-- * @phases@ declarations
 --
---   Each item is parsed independently with whitespace consumed after it.
---   At least one top-level declaration is required.
+-- Each item is parsed independently with whitespace consumed after it.
+-- At least one top-level declaration is required.
 --
 -- @since 0.0.1
-parseAST :: ParserState σ => Parser σ [TopLevel]
-parseAST =
+parseTopLevels :: ParserState σ => Parser σ [TopLevel]
+parseTopLevels =
   -- Parse one or more top-level declarations, consuming whitespace after each
   some $
     l $
@@ -206,19 +209,19 @@ parseAST =
 --
 --   Each constructor wraps the corresponding AST type. The 'TopLevel' type
 --   is used during the initial parsing phase before declarations are
---   partitioned into the structured 'AST.Program' type.
+--   partitioned into the structured 'Program' type.
 --
 -- @since 0.0.1
 data TopLevel
-  = -- | A 'rel' declaration defining a relation (fact type)
+  = -- | A @rel@ declaration defining a relation (fact type)
     --
     -- @since 0.0.1
     TLRelation RelationDeclaration
-  | -- | A 'rule' declaration defining inference rules
+  | -- | A @rule@ declaration defining inference rules
     --
     -- @since 0.0.1
     TLRule Rule
-  | -- | A 'partial ord' declaration defining a partial order on a type
+  | -- | A @partial ord@ declaration defining a partial order on a type
     --
     -- @since 0.0.1
     TLPartialOrd PartialOrdDeclaration
@@ -226,37 +229,37 @@ data TopLevel
     --
     -- @since 0.0.1
     TLHsBlock HsBlock
-  | -- | A 'priority' declaration defining ordering between rule instances
+  | -- | A @priority@ declaration defining ordering between rule instances
     --
     -- @since 0.0.1
     TLPriority Priority
-  | -- | A 'query' declaration specifying a query mode for a relation
+  | -- | A @query@ declaration specifying a query mode for a relation
     --
     -- @since 0.0.1
     TLQuery Query
-  | -- | An 'include' statement importing another Fixen file
+  | -- | An @include@ statement importing another Fixen file
     --
     -- @since 0.0.1
     TLInclude Include
-  | -- | An 'import' statement importing a Haskell module
+  | -- | An @import@ statement importing a Haskell module
     --
     -- @since 0.0.1
     TLImport HsImport
-  | -- | A 'phases' declaration defining multi-phase rule execution
+  | -- | A @phases@ declaration defining multi-phase rule execution
     --
     -- @since 0.0.1
     TLPhases PhasesDeclaration
 
 -- | Distributes a flat list of 'TopLevel' declarations into the structured
--- 'AST.Program' type, placing each declaration into its appropriate field.
+-- 'Program' type, placing each declaration into its appropriate field.
 --
 --   This function processes the list in order, accumulating declarations
---   into the correct 'AST.Program' fields. It also performs validation:
+--   into the correct 'Program' fields. It also performs validation:
 --
 --   * /Multiple extern declarations/ — produces a /warning/ (the last one wins)
 --   * /Multiple phase declarations/ — produces a /fatal error/ (only one allowed)
 --
---   The result is an 'AST.Program' with all fields populated from the
+--   The result is an 'Program' with all fields populated from the
 --   parsed top-level declarations.
 --
 -- @since 0.0.1
@@ -316,8 +319,8 @@ partitionTopLevels mod_decl (x : xs) = do
 
 -- | Parses a module declaration: @module My.Haskell.Module where@.
 --
--- The module name is parsed as a 'AST.ModuleName' (a series of capitalized
--- identifiers separated by dots). The 'module' keyword must
+-- The module name is parsed as a 'ModuleName' (a series of capitalized
+-- identifiers separated by dots). The @module@ keyword must
 -- not be indented.
 --
 -- This declaration is compulsory in every Fixen program.
@@ -344,7 +347,7 @@ parseModuleDeclaration = parsePositioned $ do
 -- rel RelationName: Type1, Type2
 -- @
 --
--- The 'rel' keyword must not be indented. The relation name must be
+-- The @rel@ keyword must not be indented. The relation name must be
 -- capitalized (since relations are constructor-like). Arguments are
 -- optional — if present, they follow a colon and are comma-separated types.
 --
@@ -397,11 +400,11 @@ parseRelation = parsePositioned $ do
 --  |- conclusion
 -- @
 --
--- The 'rule' keyword must not be indented. A rule consists of:
+-- The @rule@ keyword must not be indented. A rule consists of:
 --
 -- 1. An optional rule name (lowercase identifier) followed by optional
---    bound variables
--- 2. A colon separator
+--    parameters
+-- 2. A colon @:@
 -- 3. Zero or more premises (assumptions and conditions), separated by commas
 -- 4. A turnstile (@|-@ or @⊢@)
 -- 5. A conclusion (a capitalized fact name followed by expression arguments)
@@ -454,18 +457,10 @@ parseRule = parsePositioned $ do
 --
 -- @since 0.0.1
 data RulePremise
-  = RPAssumption Assumption -- a relation assumption (e.g. MyFact a b)
-  | RPCondition Condition -- an 'if' condition (e.g. if a <= b)
+  = RPAssumption Assumption
+  | RPCondition Condition
 
 -- | Separates a list of 'RulePremise' values into assumptions and conditions.
---
--- Assumptions always come before conditions in the output lists.
--- This function processes the list in reverse order (from the end) to
--- maintain the original ordering within each group.
---
--- For example, given @[Assumption a, Condition c, Assumption b]@,
--- the result is @([b, a], [c])@ — assumptions @b@ and @a@ first (in
--- reverse input order), then condition @c@.
 --
 -- @since 0.0.1
 partitionPremises
@@ -508,8 +503,7 @@ parsePremise =
 -- @
 --
 -- The conclusion must start with a capitalized identifier (since facts
--- are constructor-like), followed by expression arguments. The arguments
--- are separated by commas with indentation checking.
+-- are constructor-like), followed by expression arguments.
 --
 -- @since 0.0.1
 parseConclusion :: ParserState σ => Parser σ Conclusion
@@ -559,13 +553,13 @@ parseAssumption = parsePositioned $ do
   return $ Assumption i header arguments
 
 -- | Parses a condition within a rule body: an expression guarded by
--- the 'if' keyword.
+-- the @if@ keyword.
 --
 -- @
 -- if a <= b
 -- @
 --
--- The 'if' keyword must not be immediately followed by identifier
+-- The @if@ keyword must not be immediately followed by identifier
 -- continuation characters (guaranteed by 'keyword'). The expression
 -- is parsed with indentation checking.
 --
@@ -587,24 +581,23 @@ parseCondition = parsePositioned $ do
 
 -- | Parses a partial order declaration:
 --
---   @
---   partial ord Dist
---       where
---       type = Dist
---       leq = (<=)
---       mlbs = meet
---   @
+-- @
+-- partial ord Dist
+--     where
+--     type = Dist
+--     leq = (<=)
+--     mlbs = meet
+-- @
 --
---   This defines a partial order (reflexive, transitive, antisymmetric
---   relation) on a given type. It specifies:
+-- This defines a partial order (reflexive, transitive, antisymmetric
+-- relation) on a given type. It specifies:
 --
---   * The base type ('type' field)
---   * The less-than-or-equal function ('leq' field)
---   * The maximal lower bounds function ('mlbs' field)
+-- * The base type (@type@ field)
+-- * The less-than-or-equal function (@leq@ field)
+-- * The maximal lower bounds function (@mlbs@ field)
 --
---   The 'partial' and 'ord' keywords must not be indented. The 'where'
---   block contains exactly three fields, each indented relative to the
---   'partial ord' line.
+-- The @partial@ keyword must not be indented. The @where@
+-- block contains exactly the three fields above, in that order.
 --
 -- @since 0.0.1
 parsePartialOrd :: ParserState σ => Parser σ PartialOrdDeclaration
@@ -635,7 +628,7 @@ parsePartialOrd = parsePositioned $ do
   i <- getNewNodeId
   return $ PartialOrdDeclaration i pord_name type_expr leq_func mlbs_func
 
--- | Parses a single field within a 'partial ord' declaration.
+-- | Parses a single field within a @partial ord@ declaration.
 --
 -- Each field has the form: @fieldName = value@, where:
 --
@@ -653,7 +646,7 @@ parsePartialOrd = parsePositioned $ do
 parsePartialOrdField
   :: ParserState σ
   => Text
-  -- ^ Field name ("type", "leq", or "mlbs")
+  -- ^ Field name (@type@, @leq@, or @mlbs@)
   --
   -- @since 0.0.1
   -> Parser σ a
@@ -678,7 +671,7 @@ parsePartialOrdField fieldName valueParser = do
 -- A priority declaration specifies an ordering between two rule instances.
 -- It consists of:
 --
--- 1. The 'priority' keyword (must not be indented)
+-- 1. The @priority@ keyword (must not be indented)
 -- 2. A colon separator
 -- 3. A premise expression (left side of the turnstile)
 -- 4. A turnstile (@|-@ or @⊢@)
@@ -739,7 +732,7 @@ parsePriorityConclusion = parsePositioned $ do
 -- @
 --
 -- The rule name is a lowercase-starting simple identifier. Substitutions
--- are comma-separated pairs of identifiers separated by '='.
+-- are comma-separated pairs of identifiers separated by @=@.
 --
 -- @since 0.0.1
 parseRuleInstance :: ParserState σ => Parser σ RuleInstance
@@ -801,11 +794,11 @@ parseSubstitution = do
 --
 -- A query declaration specifies a query mode for a relation. It consists of:
 --
--- 1. The 'query' keyword (must not be indented)
--- 2. A relation name (capitalized identifier)
--- 3. The 'as' keyword
--- 4. A query name (lowercase identifier)
--- 5. One or more mode symbols (@+@ for input, @-@ for output)
+-- 1. The @query@ keyword (must not be indented)
+-- 2. A query name (lowercase identifier)
+-- 3. A colon
+-- 4. A relation name (capitalized identifier)
+-- 5. Some number of query mode symbols (@+@ for input, @-@ for output)
 --
 -- Modes indicate whether each argument of the relation is an input or
 -- output variable for the query.
@@ -874,10 +867,10 @@ parseQueryMode = parsePositioned $ do
 -- | Parses an include statement:
 --
 -- @
--- include \"ppth\/to\/Fixen.fix\"
+-- include \"path\/to\/Fixen.fix\"
 -- @
 --
--- The 'include' keyword must not be indented. The path is a string
+-- The @include@ keyword must not be indented. The path is a string
 -- literal (double-quoted, with escape sequences supported).
 --
 -- Include statements allow one Fixen program to import and reuse
@@ -905,8 +898,8 @@ parseInclude = parsePositioned $ do
 -- import My.Haskell.Module
 -- @
 --
--- The 'import' keyword must not be indented. The module name is parsed
--- as a 'AST.ModuleName' (a series of capitalized identifiers separated
+-- The @import@ keyword must not be indented. The module name is parsed
+-- as a 'ModuleName' (a series of capitalized identifiers separated
 -- by dots).
 --
 -- Import statements allow a Fixen program to reference Haskell symbols
@@ -936,9 +929,9 @@ parseImport = parsePositioned $ do
 -- @
 --
 -- A phases declaration defines multi-phase rule execution for the
--- FPOP (Fixed Point Over lattices) solver. It consists of:
+-- FPOP solver. It consists of:
 --
--- 1. The 'phases' keyword (must not be indented)
+-- 1. The @phases@ keyword (must not be indented)
 -- 2. A colon separator
 -- 3. A square-bracket-delimited list of rulesets
 --
@@ -946,9 +939,9 @@ parseImport = parsePositioned $ do
 --
 -- * An /explicit ruleset/ — curly-brace-delimited list of rule names
 --   (e.g. @\{ rule1, rule2 @})
--- * The wildcard @*@ — representing "all remaining rules"
+-- * The wildcard @*@ — representing \"all remaining rules\"
 --
--- Only one phases declaration is allowed per program.
+-- Only one @phases@ declaration is allowed per program.
 --
 -- @since 0.0.1
 parsePhases :: ParserState σ => Parser σ PhasesDeclaration
@@ -996,7 +989,7 @@ parseExplicitRuleset = parsePositioned $ do
   i <- getNewNodeId
   return $ Ruleset i ruleset_rules
 
--- | Parses the wildcard ruleset (@*@), representing "all remaining rules"
+-- | Parses the wildcard ruleset (@*@), representing \"all remaining rules\"
 -- in a phases declaration.
 --
 -- The wildcard must appear at most once and typically comes last in
@@ -1023,12 +1016,12 @@ parseEverythingElseRuleset = parsePositioned $ do
 -- ```
 -- @
 --
--- The opening fence (```hs) must not be indented. The block contents
--- are captured as raw 'Text' until the closing fence (```) is found.
+-- The opening fence (@```hs@) must not be indented. The block contents
+-- are captured as raw 'Text' until the closing fence (@```@) is found.
 --
 -- Haskell code blocks allow embedding Haskell source directly in Fixen
 -- programs, typically for defining external symbols referenced by
--- 'extern' declarations.
+-- @extern@ declarations.
 --
 -- @since 0.0.1
 parseHaskellCodeBlock :: ParserState σ => Parser σ HsBlock

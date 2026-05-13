@@ -49,6 +49,9 @@ class HasKindInfos σ φ | σ -> φ where
 class HasLHS σ φ | σ -> φ where
   lhs :: Lens' σ φ
 
+class HasLeaves σ φ | σ -> φ where
+  leaves :: Lens' σ φ
+
 class HasLeq σ φ | σ -> φ where
   leq :: Lens' σ φ
 
@@ -120,6 +123,9 @@ class HasRules σ φ | σ -> φ where
 
 class HasRuleInfos σ φ | σ -> φ where
   ruleInfos :: Lens' σ φ
+
+class HasTrees σ φ | σ -> φ where
+  trees :: Lens' σ φ
 
 class HasType σ φ | σ -> φ where
   ty :: Lens' σ φ
