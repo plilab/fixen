@@ -92,7 +92,7 @@ narrowConditional e st = case e of
   Gte e1 e2 -> st
   Eq e1 e2 -> case (e1, eval e2 st) of
     (Id id, evenness) -> insert id evenness st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st
   _ -> error "Unexpected case"
 
 narrowConditionalFalse :: Expr -> State -> State
@@ -105,5 +105,5 @@ narrowConditionalFalse e st = case e of
     (_, _) -> error "Unexpected conditional"    
   Eq e1 e2 -> case (e1, eval e2 st) of
     (Id id, evenness) -> insert id EvenBot st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st
   _ -> error "Unexpected case"
