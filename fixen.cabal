@@ -46,7 +46,7 @@ library diagnose
                         , LambdaCase
                         , BlockArguments
     build-depends:        array==0.5.8.0
-                        , base==4.22.0.0
+                        , base==4.21.0.0
                         , containers==0.8
                         , data-default==0.8.0.2
                         , dlist==1.0
@@ -102,7 +102,7 @@ library
                       , Fixen.SymbolSolver.Rule
                       , Fixen.SymbolSolver.Validation
                       , Fixen.Utils
-    build-depends:      base==4.22.0.0
+    build-depends:      base==4.21.0.0
                       , base-unicode-symbols==0.2.4.2
                       , containers==0.8
                       , directory==1.3.10.1
@@ -189,14 +189,23 @@ benchmark shortest-path
   hs-source-dirs: benchmarks/ShortestPath
   main-is: Main.hs
   other-modules:
-      ShortestPath.Hand
+        ShortestPath.Converter
+      , ShortestPath.FixenNoPriorities
+      , ShortestPath.FixenWithPriorities
+      , ShortestPath.Hand
   hs-source-dirs:
       benchmarks
   default-extensions:
       OverloadedStrings
   build-depends:      base
+                    , aeson
                     , containers 
+                    , criterion
+                    , deepseq
+                    , directory
+                    , filepath
                     , pqueue 
+                    , unordered-containers
   default-language: GHC2021
 
 benchmark pareto

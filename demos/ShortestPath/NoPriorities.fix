@@ -1,6 +1,8 @@
-module Demos.ShortestPath where
+-- Put this in benchmarks/ShortestPath/FixenNoPriorities.hs
+module ShortestPath.FixenNoPriorities where
 
 import Numeric.Natural
+import Control.DeepSeq
 
 rel DistTo : Vertex, Dist
 rel Edge   : Vertex, Vertex, Dist
