@@ -1,15 +1,15 @@
 module Main where
 
-import Control.Monad (filterM, forM)
+import Control.Monad (filterM, forM, forM_)
 import Criterion.Main
 
 import Control.DeepSeq
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
 import System.FilePath (takeBaseName, takeExtension, (</>))
 
-import qualified ReducedProduct.IntervalAnalysis as IG
-import qualified ReducedProduct.IntervalHand as IH
-import qualified ReducedProduct.IntervalTest as IT
+-- import qualified ReducedProduct.IntervalAnalysis as IG
+-- import qualified ReducedProduct.IntervalHand as IH
+-- import qualified ReducedProduct.IntervalTest as IT
 import ShortestPath.Converter (
     Graph,
     convertToFixedKleen,
@@ -22,16 +22,20 @@ import qualified ShortestPath.HandwrittenDijkstra as HW
 import qualified ShortestPath.ShortestPath as SP
 import qualified ShortestPath.ShortestPathFixed as FSP
 import qualified ShortestPath.ShortestPathNoPriority as SPNP
+import qualified ShortestPath.ShortestPathNoPriorityFixed as SPNPF
 import qualified ShortestPath.SubOptHandwrittenDijkstra as SOHD
 
-instance NFData FSP.DataBase where
-    rnf (FSP.DataBase x y z a) = rnf (x, y, z, a)
+instance NFData FSP.Database where
+    rnf (FSP.Database x y) = rnf (x, y)
 
 instance NFData SP.DataBase where
     rnf (SP.DataBase x y z a) = rnf (x, y, z, a)
 
 instance NFData SPNP.DataBase where
     rnf (SPNP.DataBase x y z) = rnf (x, y, z)
+
+instance NFData SPNPF.DataBase where
+    rnf (SPNPF.DataBase x y z a) = rnf (x, y, z, a)
 
 instance NFData SP.Fact where
     rnf (SP.StartFact s) = rnf (s)
@@ -61,8 +65,8 @@ instance NFData SPNP.Edge where
 instance NFData SPNP.DistTo where
     rnf (SPNP.DistTo x y) = rnf (x, y)
 
-instance NFData IG.DataBase where
-    rnf (IG.DataBase a b c d e) = rnf (a, b, c, d, e)
+-- instance NFData IG.DataBase where
+--     rnf (IG.DataBase a b c d e) = rnf (a, b, c, d, e)
 
 -- data DataBase = DataBase{factsStateBefore ::
 --                          M.HashMap Natural (S.HashSet IState),
@@ -105,26 +109,24 @@ main = do
                         adj `deepseq`
                             bgroup
                                 name
-                                [ --   bench "Kleen solve" $
-                                  --     nf SP.compute facts
-                                  -- , bench "Fixed Kleen solve" $
-                                  --     nf FSP.compute fixed
-                                  -- , bench "Kleen (no priority) solve" $
-                                  --     nf SPNP.compute noPriorityFacts
+                                [ -- bench "Kleen solve" $
+                                  --  nf SP.compute facts
+                                  bench "Fixed Kleen solve" $
+                                    nf FSP.solve fixed
+                                , -- , bench "Kleen (no priority) (fixed) solve" $
+                                  --     nf SPNPF.compute noPriorityFacts
                                   bench "Handwritten Dijsktra solve" $
                                     nf (SOHD.dijkstra "0") adj
-                                , bench "Handwritten Anti-Dijsktra solve" $
-                                    nf (SOHD.dijkstraNT "0") adj
-                                , bench "Handwritten Bellman-Ford solve" $
-                                    nf (SOHD.dijkstraNoPQ "0") adj
+                                    -- , bench "Handwritten Anti-Dijsktra solve" $
+                                    --     nf (SOHD.dijkstraNT "0") adj
+                                    -- bench "Handwritten Bellman-Ford solve" $
+                                    --   nf (SOHD.dijkstraNoPQ "0") adj
                                     -- , bench "Handwritten Proper Dijkstra" $
                                     --     nf (HW.dijkstra "0") adj
                                     -- , bench "Handwritten V2 Dijkstra solve" $
                                     --     nf (HW.dijkstra "0") adj
                                 ]
-    let intervalGroups = bgroup "Intervals" [bench "Handwritten" $ nf IH.solveHand IH.testHand, bench "Kleen" $ nf IG.compute IT.test]
-    -- defaultMain $ map toBenchmarkGroups graphs
-    defaultMain $ [intervalGroups] -- ++ (map toBenchmarkGroups graphs)
+    defaultMain $ map toBenchmarkGroups graphs
 
 -- main :: IO ()
 -- main = do
@@ -134,13 +136,15 @@ main = do
 --         case e of
 --             Left err -> ioError (userError (fp <> ": " <> err))
 --             Right g -> pure (takeBaseName fp, g)
---     let facts = convertToKleen (snd $ head $ tail graphs)
---     let fixed = convertToFixedKleen (snd $ head $ tail graphs)
---     let hand = convertToHandwritten (snd $ head $ tail graphs)
---     let d_res = SOHD.dijkstra "0" hand
---     let bf_res = SOHD.dijkstra "0" hand
---     print $ SP.count $ SP.compute facts
---     print $ snd $ SOHD.dijkstra "0" hand
---     print $ snd $ SOHD.dijkstraNoPQ "0" hand
---     print $ FSP.count $ FSP.compute fixed
---     print $ fst d_res == fst bf_res
+--     forM_ graphs $ \x -> do
+--         putStrLn (fst x)
+--         putStrLn ""
+--         let fixed = convertToFixedKleen (snd x)
+--         let npfacts = convertToNoPriorityKleen (snd x)
+--         let hand = convertToHandwritten (snd x)
+--         putStrLn "Kleen (Fixed)"
+--         print $ FSP.count $ FSP.compute fixed
+--         putStrLn "Kleen (no priorities)"
+--         print $ SPNPF.count $ SPNPF.compute npfacts
+--         putStrLn "Handwritten"
+--         print $ snd $ SOHD.dijkstra "0" hand

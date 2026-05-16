@@ -1,0 +1,7 @@
+module MyReachable where
+
+rel Edge: Vertex, Vertex
+rel Reachable: Vertex, Vertex
+
+rule: Edge a b, Reachable b c |- Reachable a c
+

@@ -1,244 +1,171 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# OPTIONS_GHC
-  -Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists#-}
+{-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-matches -Wno-unused-imports -Wno-missing-signatures -Wno-missing-export-lists #-}
+
 module ShortestPath.ShortestPathFixed where
-import ShortestPath.Dist
-import Algebra.PartialOrd
-import Common.Definitions
-import Data.Bifunctor (Bifunctor(first))
-import Data.Foldable (Foldable(foldl'))
-import Data.Hashable
-import qualified Data.HashSet as S
-import qualified Data.HashMap.Strict as M
+
+----- FIXEN IMPORTS -----
+
+import Control.Monad
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import Data.Maybe
 import qualified Data.PQueue.Max as Q
-import GHC.Generics (Generic)
 import Numeric.Natural
 
--- added for helper function
-import Data.List (partition)
+----- USER CODE START -----
+type Vertex = String
 
--- | added insert/merge for a single (dst, dist) under a given src, respecting subsumption
-updateEdgeList :: [(String, Dist)] -> String -> Dist -> ([(String, Dist)], Bool)
-updateEdgeList xs dst dNew =
-  let (sameDst, others) = partition (\(dst', _) -> dst' == dst) xs
-      dsAtDst = [d | (_, d) <- sameDst]
-      hasSubsuming = any (`subsumes` dNew) dsAtDst
-  in if hasSubsuming
-    then (xs, False)
-    else
-      -- drop entries strictly subsumed by the new one then add new dist
-      let same' = filter (\(_, d) -> not (dNew `strictlySubsumes` d)) sameDst
-      in ((dst, dNew) : (same' ++ others), True)
+distMlbs :: Natural -> Natural -> [Natural]
+distMlbs x y = [(max x y)]
 
-subsumes :: (PartialOrd a) => a -> a -> Bool
-subsumes = flip leq
+----- USER CODE END -----
 
-strictlySubsumes :: (PartialOrd a) => a -> a -> Bool
-strictlySubsumes y x = leq x y && not (leq y x)
+----- FACTS -----
+data Fact
+    = DistTo Vertex Natural
+    | Edge Vertex Vertex Natural
+    deriving (Show, Eq)
 
-data Start = Start String
-               deriving (Eq, Show, Generic, Read)
+----- FACT DATABASE -----
+data Database = Database
+    { _factsDistTo :: HashMap Vertex (HashSet Natural)
+    , _factsEdge :: HashMap Vertex (HashMap Vertex (HashSet Natural))
+    }
+    deriving (Eq)
 
-instance Hashable Start
+emptyDb :: Database
+emptyDb =
+    Database
+        { _factsDistTo = HashMap.empty
+        , _factsEdge = HashMap.empty
+        }
 
-instance PartialOrd Start where
-        leq (Start v0) (Start v0') = (v0 `leq` v0')
-mkStart v0 = StartFact (Start v0)
+----- ENTAILMENT -----
+infix 0 |=
 
-data DistTo = DistTo String Dist
-                deriving (Eq, Show, Generic, Read)
+(|=) :: Database -> Fact -> Bool
+db |= (DistTo _v0 _v1) =
+    let db' = _factsDistTo db
+     in fromMaybe False $ do
+            step1 <- db' HashMap.!? _v0
+            return $ any ((>=) _v1) step1
+db |= (Edge _v0 _v1 _v2) =
+    let db' = _factsEdge db
+     in fromMaybe False $ do
+            step1 <- db' HashMap.!? _v0
+            step2 <- step1 HashMap.!? _v1
+            return $ any ((>=) _v2) step2
 
-instance Hashable DistTo
+----- INSERTION -----
+insertToDb :: Database -> Fact -> Maybe Database
+insertToDb db fact
+    | db |= fact = Nothing
+insertToDb db (DistTo _v0 _v1) =
+    let mp = _factsDistTo db
+        new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+        mp' =
+            HashMap.unionWith
+                ( ( \s1 s2 ->
+                        HashSet.union
+                            s1
+                            ( HashSet.filter
+                                (\_t -> not (_t /= _v1 && (>=) _t _v1))
+                                s2
+                            )
+                  )
+                )
+                new_fact
+                mp
+     in Just db{_factsDistTo = mp'}
+insertToDb db (Edge _v0 _v1 _v2) =
+    let mp = _factsEdge db
+        new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton _v2))
+        mp' =
+            HashMap.unionWith
+                ( HashMap.unionWith
+                    ( ( \s1 s2 ->
+                            HashSet.union
+                                s1
+                                ( HashSet.filter
+                                    (\_t -> not (_t /= _v2 && (>=) _t _v2))
+                                    s2
+                                )
+                      )
+                    )
+                )
+                new_fact
+                mp
+     in Just db{_factsEdge = mp'}
 
-instance PartialOrd DistTo where
-        leq (DistTo v0 v1) (DistTo v0' v1')
-          = (v0 `leq` v0') && (v1 `leq` v1')
-mkDistTo v0 v1 = DistToFact (DistTo v0 v1)
+----- RULE INSTANCES -----
+data RuleInstance
+    = RuleAddDist Vertex Vertex Natural Natural
+    | Init Fact
+    deriving (Show)
 
-data Edge = Edge String String Dist
-              deriving (Eq, Show, Generic, Read)
+type Queue = Q.MaxQueue RuleInstance
 
-instance Hashable Edge
+instance Eq RuleInstance where
+    f == f'
+        | f < f' = False
+        | f' < f = False
+        | otherwise = True
 
-instance PartialOrd Edge where
-        leq (Edge v0 v1 v2) (Edge v0' v1' v2')
-          = (v0 `leq` v0') && (v1 `leq` v1') && (v2 `leq` v2')
-mkEdge v0 v1 v2 = EdgeFact (Edge v0 v1 v2)
+instance Ord RuleInstance where
+    i <= i' = not (i' < i)
 
-data Fact = StartFact Start
-          | DistToFact DistTo
-          | EdgeFact Edge
-              deriving (Show, Eq)
+    ----- PRIORITIES -----
+    Init _ < Init _ = False
+    _ < Init _ = True
+    (RuleAddDist _ _ d1 d1') < (RuleAddDist _ _ d2 d2') = (((>) (((+) d1) d1')) (((+) d2) d2'))
+    _ < _ = False
 
-data Continuation = Initial Fact
-                  | AddDistCont String Dist String Dist
-                  | InitCont String
-                      deriving (Show, Eq)
+evaluate :: RuleInstance -> Fact
+evaluate (RuleAddDist a b d d') = DistTo b (((+) d) d')
+evaluate (Init f) = f
 
-evaluate :: DataBase -> Continuation -> [Fact]
-evaluate _ (Initial f) = [f]
-evaluate db (AddDistCont v10 d10 v20 d20)
-  = [DistToFact (DistTo v20 (add d10 d20))]
-evaluate db (InitCont s0) = [DistToFact (DistTo s0 (DistNat 0))]
+----- STEP FUNCTION -----
+step :: Database -> Fact -> Queue -> Queue
+step db fact q = case fact of
+    DistTo _t0 _t1 -> Q.union q $
+        Q.fromList $
+            do
+                let _v0_0 = _t0
+                let _v1_0 = _t1
+                step0 <- maybeToList (_factsEdge db HashMap.!? _v0_0)
+                (_v2_0, step1) <- HashMap.toList step0
+                _v3_0 <- HashSet.toList step1
+                return $ RuleAddDist _v0_0 _v2_0 _v1_0 _v3_0
+    Edge _t0 _t1 _t2 -> Q.union q $
+        Q.fromList $
+            do
+                let _v0_0 = _t0
+                let _v1_0 = _t1
+                let _v2_0 = _t2
+                step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
+                _v3_0 <- HashSet.toList step0
+                return $ RuleAddDist _v0_0 _v1_0 _v3_0 _v2_0
 
-instance Ord Continuation where
-        (<=) (AddDistCont _ d11 _ d21) (AddDistCont _ d12 _ d22)
-          = leq (add d11 d21) (add d12 d22)
-        (<=) _ (Initial _) = True
-        (<=) _ _ = False
+----- SOLVER -----
+loop :: Queue -> Database -> Database
+loop q db
+    | Just (p, q') <- Q.maxView q =
+        let f = evaluate p
+         in case insertToDb db f of
+                Nothing -> loop q' db
+                Just db' -> loop (step db' f q') db'
+    | otherwise = db
 
-data DataBase = DataBase{factsStart :: S.HashSet String,
-                         factsEdge :: M.HashMap String [(String, Dist)],
-                         factsDistTo :: M.HashMap String (S.HashSet Dist),
-                         count :: Int}
-                  deriving (Show, Eq)
+solve :: [Fact] -> Database
+solve = reSolve emptyDb
 
-emptyDB :: DataBase
-emptyDB = DataBase S.empty M.empty M.empty 0
-
-insertDB :: Fact -> DataBase -> (DataBase, Bool)
-insertDB fact db
-  = let update hset vnew
-          = if not (S.null hset) && any (`subsumes` vnew) hset then
-              (hset, False) else
-              let hset' = S.filter (not . (vnew `strictlySubsumes`)) hset in
-                (S.insert vnew hset', True)
-      in
-      case fact of
-          StartFact (Start v0) -> if S.member v0 (factsStart db) then
-                                    (db, False) else
-                                    (db{factsStart = S.insert v0 (factsStart db)}, True)
-          -- changed here since factsEdge :: Map src [(dst, dist)]
-          EdgeFact (Edge v0 v1 v2) -> 
-            case M.lookup v0 (factsEdge db) of
-              Just lst ->
-                let (lst', changed) = updateEdgeList lst v1 v2
-                in (db { factsEdge = M.insert v0 lst' (factsEdge db) }, changed)
-              Nothing ->
-                (db { factsEdge = M.insert v0 [(v1, v2)] (factsEdge db) }, True)
-          DistToFact (DistTo v0 v1) -> if M.member v0 (factsDistTo db) then
-                                         first
-                                           (\ hset ->
-                                              db{factsDistTo = M.insert v0 hset (factsDistTo db)})
-                                           (update ((M.!) (factsDistTo db) v0) v1)
-                                         else
-                                         (db{factsDistTo =
-                                               M.insert v0 (S.singleton v1) (factsDistTo db)},
-                                          True)
-
-type Queue = Q.MaxQueue Continuation
-
-step :: DataBase -> Fact -> Queue -> (Queue, Int)
-step db fact q_1
-  = case fact of
-        StartFact (Start v_2) -> let wtv = foldl'
-                                      (\ q_3 (Start s0) ->
-                                         Q.unions [q_3, Q.singleton (InitCont s0)])
-                                      Q.empty
-                                      (S.foldl' (\ rest v_4 -> Start v_4 : rest) []
-                                         (S.singleton v_2))
-                                  in
-                                  (Q.unions
-                                   [q_1,
-                                    wtv], Q.size wtv)
-        -- change here
-        DistToFact (DistTo v d) ->
-          case M.lookup v (factsEdge db) of
-            Just outs ->
-              let toAdd = [ AddDistCont v d u w | (u, w) <- outs]
-              in (Q.unions [q_1, Q.fromList toAdd], length toAdd)
-            Nothing ->
-              (q_1, 0)
-        EdgeFact (Edge v_15 v_16 v_17) -> let wtv = foldl'
-                                               (\ q_18 (Edge v10 v20 d20) ->
-                                                  Q.unions
-                                                    [q_18,
-                                                     foldl'
-                                                       (\ q_20 (DistTo v10_19 d10) ->
-                                                          Q.unions
-                                                            [q_20,
-                                                             Q.singleton
-                                                               (AddDistCont v10_19 d10 v20 d20)])
-                                                       Q.empty
-                                                       (M.foldlWithKey'
-                                                          (\ rest v_21 vals ->
-                                                             concatMap
-                                                               (\ v_22 ->
-                                                                  pure DistTo <*> mlbs v_21 v10 <*>
-                                                                    pure v_22)
-                                                               vals
-                                                               ++ rest)
-                                                          []
-                                                          (factsDistTo db))])
-                                               Q.empty
-                                               (M.foldlWithKey'
-                                                  (\ rest (v_23, v_24) vals ->
-                                                     S.foldl'
-                                                       (\ acc v_25 -> Edge v_23 v_24 v_25 : acc)
-                                                       []
-                                                       vals
-                                                       ++ rest)
-                                                  []
-                                                  (M.singleton (v_15, v_16) (S.singleton v_17)))
-                                            in
-                                            (Q.unions
-                                            [q_1,
-                                             wtv], Q.size wtv)
-
-enumDistTo :: DataBase -> [DistTo]
-enumDistTo db
-  = M.foldlWithKey'
-      (\ rest v_28 vals ->
-         S.foldl' (\ acc v_29 -> DistTo v_28 v_29 : acc) [] vals ++ rest)
-      []
-      (factsDistTo db)
-
-closerThan :: Dist -> DataBase -> [DistTo]
-closerThan v_31 db
-  = M.foldlWithKey'
-      (\ rest v_32 vals ->
-         concatMap (\ v_33 -> pure DistTo <*> pure v_32 <*> mlbs v_33 v_31)
-           vals
-           ++ rest)
-      []
-      (factsDistTo db)
-
-distTo :: String -> DataBase -> [DistTo]
-distTo v_34 db
-  = M.foldlWithKey'
-      (\ rest v_36 vals ->
-         concatMap (\ v_37 -> pure DistTo <*> mlbs v_36 v_34 <*> pure v_37)
-           vals
-           ++ rest)
-      []
-      (factsDistTo db)
-
-reachableIn :: String -> Dist -> DataBase -> [DistTo]
-reachableIn v_38 v_39 db
-  = M.foldlWithKey'
-      (\ rest v_40 vals ->
-         concatMap
-           (\ v_41 -> pure DistTo <*> mlbs v_40 v_38 <*> mlbs v_41 v_39)
-           vals
-           ++ rest)
-      []
-      (factsDistTo db)
-
-compute :: [Fact] -> DataBase
-compute = go emptyDB . Q.fromList . map Initial
-  where go :: DataBase -> Queue -> DataBase
-        go db pq
-          | Q.null pq = db
-          | otherwise =
-            let (nextFacts, pq') = first (evaluate db) $ Q.deleteFindMax pq
-                (db', pq'')
-                  = foldl'
-                      (\ (dbOld, pqOld) f ->
-                         let (dbNew, changed) = insertDB f dbOld
-                             (dbNew', pqNew) = if changed then
-                                let (p, i) = step dbNew f pqOld 
-                                in (dbNew { count = count dbNew + i}, p) else (dbNew, pqOld)
-                           in (dbNew', pqNew))
-                      (db, pq')
-                      nextFacts
-              in go db' pq''
+reSolve :: Database -> [Fact] -> Database
+reSolve db f =
+    let q =
+            Q.fromList $
+                concat
+                    [ Init <$> f
+                    ]
+     in loop q db

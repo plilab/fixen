@@ -85,7 +85,9 @@ pushAll :: S.Set a -> Q a -> Q a
 pushAll s (Q [] []) = Q (S.toList s) []
 pushAll s (Q xs ys) = Q xs (S.toList s ++ ys)
 
-type StateMap = IM.IntMap (M.Map String Interval)
+type IState = M.Map String Interval
+
+type StateMap = IM.IntMap IState
 
 joinI :: M.Map String Interval -> M.Map String Interval -> M.Map String Interval
 joinI = M.unionWith joinSign

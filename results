@@ -1,0 +1,100 @@
+Running 1 benchmarks...
+Benchmark fixed-point-lang-benchmark: RUNNING...
+benchmarking test/Fixed Kleen solve
+time                 1.606 μs   (1.603 μs .. 1.608 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.594 μs   (1.588 μs .. 1.598 μs)
+std dev              17.84 ns   (15.12 ns .. 20.74 ns)
+
+benchmarking test/Kleen (no priority) (fixed) solve
+time                 1.738 μs   (1.734 μs .. 1.743 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.732 μs   (1.730 μs .. 1.734 μs)
+std dev              6.839 ns   (5.099 ns .. 10.27 ns)
+
+benchmarking test/Handwritten Dijsktra solve
+time                 346.5 ns   (344.1 ns .. 348.2 ns)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 344.1 ns   (343.4 ns .. 345.6 ns)
+std dev              3.267 ns   (2.552 ns .. 4.129 ns)
+
+benchmarking test/Handwritten Bellman-Ford solve
+time                 277.6 ns   (275.7 ns .. 279.2 ns)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 276.1 ns   (275.4 ns .. 277.1 ns)
+std dev              3.147 ns   (2.416 ns .. 3.971 ns)
+
+benchmarking oclinks/Fixed Kleen solve
+time                 33.16 ms   (32.03 ms .. 34.18 ms)
+                     0.996 R²   (0.991 R² .. 0.998 R²)
+mean                 32.43 ms   (31.97 ms .. 32.93 ms)
+std dev              1.096 ms   (877.2 μs .. 1.351 ms)
+variance introduced by outliers: 11% (moderately inflated)
+
+benchmarking oclinks/Kleen (no priority) (fixed) solve
+time                 246.8 ms   (195.5 ms .. 365.5 ms)
+                     0.894 R²   (0.716 R² .. 1.000 R²)
+mean                 205.5 ms   (185.0 ms .. 252.5 ms)
+std dev              40.48 ms   (8.697 ms .. 58.13 ms)
+variance introduced by outliers: 48% (moderately inflated)
+
+benchmarking oclinks/Handwritten Dijsktra solve
+time                 17.57 ms   (17.30 ms .. 17.89 ms)
+                     0.998 R²   (0.997 R² .. 0.999 R²)
+mean                 17.52 ms   (17.40 ms .. 17.69 ms)
+std dev              325.7 μs   (222.8 μs .. 449.5 μs)
+
+benchmarking oclinks/Handwritten Bellman-Ford solve
+time                 14.38 ms   (14.13 ms .. 14.63 ms)
+                     0.996 R²   (0.989 R² .. 0.998 R²)
+mean                 14.16 ms   (13.93 ms .. 14.41 ms)
+std dev              607.4 μs   (454.9 μs .. 768.5 μs)
+variance introduced by outliers: 15% (moderately inflated)
+
+benchmarking full/Fixed Kleen solve
+time                 9.483 s    (9.324 s .. 9.734 s)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 9.499 s    (9.445 s .. 9.558 s)
+std dev              62.84 ms   (28.71 ms .. 87.36 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking full/Kleen (no priority) (fixed) solve
+time                 36.84 s    (31.35 s .. 39.70 s)
+                     0.997 R²   (0.994 R² .. 1.000 R²)
+mean                 38.62 s    (37.09 s .. 41.17 s)
+std dev              2.454 s    (323.5 ms .. 3.141 s)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking full/Handwritten Dijsktra solve
+time                 2.285 s    (2.202 s .. 2.373 s)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 2.252 s    (2.228 s .. 2.266 s)
+std dev              22.89 ms   (10.66 ms .. 28.82 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking full/Handwritten Bellman-Ford solve
+time                 2.632 s    (2.284 s .. 3.212 s)
+                     0.995 R²   (0.986 R² .. 1.000 R²)
+mean                 2.730 s    (2.610 s .. 2.860 s)
+std dev              139.3 ms   (71.41 ms .. 196.1 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+Benchmark fixed-point-lang-benchmark: FINISH
+
+-- NUM CONTINUATIONS
+
+OCLINKS
+Kleen (Fixed)                 
+20187                         
+Kleen (no priorities)         
+149315                        
+Handwritten                   
+20186                         
+
+FULL
+Kleen (Fixed)                 
+999001                        
+Kleen (no priorities)         
+15409576                      
+Handwritten                   
+999000                
