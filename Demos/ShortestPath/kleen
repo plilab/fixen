@@ -1,0 +1,1 @@
+[EdgeFact (Edge "0" "1" (DistNat 1)), EdgeFact (Edge "0" "2" (DistNat 1)), EdgeFact (Edge "1" "2" (DistNat 1)), EdgeFact (Edge "2" "0" (DistNat 0)), StartFact (Start "0")]

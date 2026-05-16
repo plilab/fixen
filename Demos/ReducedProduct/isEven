@@ -1,0 +1,51 @@
+module ReducedProduct.IsEvenAnalysis where
+
+import ReducedProduct.Common
+import ReducedProduct.IsEven
+
+
+rel stateBefore: Nat, State
+
+-- statement
+rel var:    Nat, String             -- variable declaration:   (var X)^l
+rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
+rel cond:   Nat, Expr, Nat, Nat     -- conditional expression  (E_{consequent;alternative})^l
+
+-- other cfg edges
+rel seq:    Nat, Nat
+
+-- Initial facts (just intializing our DB)
+
+rule assignInit:
+  assign l x e
+  |- stateBefore l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule condInit:
+  cond l e jlt jlf
+  |- stateBefore l (empty 0)
+
+rule varInit:
+  var l x
+  ---------------------------------
+  |- stateBefore l (empty 0)
+
+-- Actual transfer functions.
+
+rule assignStep:
+  assign lAssign x e, stateBefore lAssign stAssign, seq lAssign lAfter, stateBefore lAfter stAfter
+  -----------------------------------------------------------------------------------------------
+  |- stateBefore lAfter (join (insert x (eval e stAssign) stAssign) stAfter)
+
+
+rule evalCondTrue:
+  stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlt stt
+  -----------------------------------------------------------------------------------------------------
+  |- stateBefore jlt (join (narrowConditional e stc) stt)
+
+rule evalCondFalse:
+  stateBefore lcond stc, cond lcond e jlt jlf, stateBefore jlf stf
+  -----------------------------------------------------------------------------------------------------
+  |- stateBefore jlf (join (narrowConditionalFalse e stc) stf)
+
+
+query stateBefore as stateBefore  +

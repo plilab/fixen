@@ -1,0 +1,40 @@
+module Dataflow.SignAnalysis where
+
+import Dataflow.Sign
+
+
+-- rel state: Nat, String, Sign, or
+-- type State = Map String Sign
+rel stateAfter: Nat, State
+-- statement
+rel var:    Nat, String             -- variable declaration:   (var X)^l
+rel assign: Nat, String,  Expr      -- variable assignment:    (X := E)^l
+rel cond:   Nat, Expr               -- conditional expression  (E)^l
+-- cfg
+rel seq:    Nat, Nat            -- edge in the cfg
+
+rule varInit:
+  var l x
+  ---------------------------------
+  |- stateAfter l (singleton x Bot)
+
+rule assignInit:
+  assign l x e
+  |- stateAfter l (empty 0) -- the argument to empty is ignored, see the comment in Dataflow.Sign
+
+rule condInit:
+  cond l e
+  |- stateAfter l (empty 0)
+
+rule assignStep:
+  stateAfter l st, assign l x e
+  ------------------------------------------
+  |- stateAfter l (insert x (eval e st) st)
+
+rule seqStep: 
+  seq l1 l2, stateAfter l1 st1, stateAfter l2 st2 
+  -----------------------------------------------
+  |- stateAfter l2 (join st1 st2)
+
+
+query stateAfter as stateAfter - +

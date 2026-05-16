@@ -1,0 +1,348 @@
+fixed-point-lang> benchmarks  
+Running 1 benchmarks...       
+Benchmark fixed-point-lang-benchmark: RUNNING...
+benchmarking freemans/Fixed Kleen solve
+time                 715.0 μs   (714.5 μs .. 715.6 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 713.7 μs   (712.9 μs .. 714.3 μs)
+std dev              1.923 μs   (1.609 μs .. 2.453 μs)
+                              
+benchmarking freemans/Kleen (no priority) (fixed) solve
+time                 1.846 ms   (1.815 ms .. 1.894 ms)
+                     0.996 R²   (0.994 R² .. 0.999 R²)
+mean                 1.839 ms   (1.822 ms .. 1.865 ms)
+std dev              78.59 μs   (41.81 μs .. 120.5 μs)
+variance introduced by outliers: 29% (moderately inflated)
+                              
+benchmarking freemans/Handwritten Dijsktra solve
+time                 336.0 μs   (335.3 μs .. 336.9 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 335.2 μs   (334.9 μs .. 335.7 μs)
+std dev              1.339 μs   (853.1 ns .. 1.974 μs)
+                              
+benchmarking freemans/Handwritten Bellman-Ford solve
+time                 61.22 μs   (60.99 μs .. 61.62 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 61.04 μs   (60.89 μs .. 61.26 μs)
+std dev              612.3 ns   (445.7 ns .. 770.5 ns)
+                              
+benchmarking powergrid/Fixed Kleen solve
+time                 19.88 ms   (18.75 ms .. 20.75 ms)
+                     0.990 R²   (0.983 R² .. 0.996 R²)
+mean                 19.70 ms   (19.34 ms .. 20.27 ms)
+std dev              1.157 ms   (942.2 μs .. 1.556 ms)
+variance introduced by outliers: 22% (moderately inflated)
+                              
+benchmarking powergrid/Kleen (no priority) (fixed) solve
+time                 57.24 ms   (51.30 ms .. 62.15 ms)
+                     0.898 R²   (0.657 R² .. 1.000 R²)
+mean                 59.04 ms   (55.19 ms .. 73.13 ms)
+std dev              11.90 ms   (1.787 ms .. 20.67 ms)
+variance introduced by outliers: 65% (severely inflated)
+                              
+benchmarking powergrid/Handwritten Dijsktra solve
+time                 11.81 ms   (11.60 ms .. 12.13 ms)
+                     0.997 R²   (0.994 R² .. 1.000 R²)
+mean                 11.69 ms   (11.61 ms .. 11.83 ms)
+std dev              270.7 μs   (136.4 μs .. 426.5 μs)
+                              
+benchmarking powergrid/Handwritten Bellman-Ford solve
+time                 5.821 ms   (5.649 ms .. 6.014 ms)
+                     0.995 R²   (0.992 R² .. 0.999 R²)
+mean                 5.694 ms   (5.649 ms .. 5.770 ms)
+std dev              195.3 μs   (120.1 μs .. 288.9 μs)
+variance introduced by outliers: 15% (moderately inflated)
+                              
+benchmarking cross-value/Fixed Kleen solve
+time                 735.6 μs   (734.5 μs .. 736.8 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 733.4 μs   (732.4 μs .. 734.5 μs)
+std dev              3.313 μs   (2.420 μs .. 4.093 μs)
+                              
+benchmarking cross-value/Kleen (no priority) (fixed) solve
+time                 3.077 ms   (3.005 ms .. 3.160 ms)
+                     0.994 R²   (0.991 R² .. 0.997 R²)
+mean                 3.028 ms   (2.988 ms .. 3.120 ms)
+std dev              184.3 μs   (118.1 μs .. 280.4 μs)
+variance introduced by outliers: 41% (moderately inflated)
+                              
+benchmarking cross-value/Handwritten Dijsktra solve
+time                 376.9 μs   (376.1 μs .. 378.2 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 377.2 μs   (376.7 μs .. 378.0 μs)
+std dev              2.261 μs   (1.048 μs .. 3.663 μs)
+                              
+benchmarking cross-value/Handwritten Bellman-Ford solve
+time                 117.7 μs   (117.5 μs .. 118.1 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 118.0 μs   (117.8 μs .. 118.1 μs)
+std dev              517.5 ns   (413.0 ns .. 639.3 ns)
+                              
+benchmarking of-message/Fixed Kleen solve
+time                 471.1 ms   (364.1 ms .. 573.4 ms)
+                     0.993 R²   (0.976 R² .. 1.000 R²)
+mean                 455.5 ms   (440.9 ms .. 474.2 ms)
+std dev              20.90 ms   (290.6 μs .. 25.74 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking of-message/Kleen (no priority) (fixed) solve
+time                 3.043 s    (2.262 s .. 3.686 s)
+                     0.992 R²   (0.972 R² .. 1.000 R²)
+mean                 3.233 s    (3.117 s .. 3.344 s)
+std dev              140.6 ms   (95.65 ms .. 169.1 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking of-message/Handwritten Dijsktra solve
+time                 150.0 ms   (142.9 ms .. 157.9 ms)
+                     0.998 R²   (0.991 R² .. 1.000 R²)
+mean                 145.8 ms   (143.5 ms .. 148.8 ms)
+std dev              3.782 ms   (2.333 ms .. 5.270 ms)
+variance introduced by outliers: 12% (moderately inflated)
+                              
+benchmarking of-message/Handwritten Bellman-Ford solve
+time                 116.3 ms   (103.9 ms .. 125.7 ms)
+                     0.991 R²   (0.969 R² .. 1.000 R²)
+mean                 121.5 ms   (118.6 ms .. 128.2 ms)
+std dev              6.795 ms   (1.726 ms .. 10.27 ms)
+variance introduced by outliers: 12% (moderately inflated)
+                              
+benchmarking test/Fixed Kleen solve
+time                 1.597 μs   (1.588 μs .. 1.606 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.606 μs   (1.602 μs .. 1.609 μs)
+std dev              13.39 ns   (8.363 ns .. 19.14 ns)
+                              
+benchmarking test/Kleen (no priority) (fixed) solve
+time                 1.737 μs   (1.734 μs .. 1.743 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.746 μs   (1.743 μs .. 1.752 μs)
+std dev              16.12 ns   (9.661 ns .. 24.66 ns)
+                              
+benchmarking test/Handwritten Dijsktra solve
+time                 345.2 ns   (343.6 ns .. 346.8 ns)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 348.4 ns   (346.7 ns .. 351.8 ns)
+std dev              7.565 ns   (3.085 ns .. 13.46 ns)
+variance introduced by outliers: 29% (moderately inflated)
+                              
+benchmarking test/Handwritten Bellman-Ford solve
+time                 275.9 ns   (275.6 ns .. 276.2 ns)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 276.7 ns   (276.2 ns .. 277.5 ns)
+std dev              2.267 ns   (1.132 ns .. 4.116 ns)
+                              
+benchmarking of-char/Fixed Kleen solve
+time                 536.6 ms   (478.3 ms .. 620.5 ms)
+                     0.997 R²   (0.992 R² .. 1.000 R²)
+mean                 504.0 ms   (483.9 ms .. 520.2 ms)
+std dev              22.48 ms   (15.90 ms .. 26.50 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking of-char/Kleen (no priority) (fixed) solve
+time                 6.890 s    (5.657 s .. 8.486 s)
+                     0.994 R²   (0.980 R² .. 1.000 R²)
+mean                 7.080 s    (6.773 s .. 7.261 s)
+std dev              304.0 ms   (121.2 ms .. 418.5 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking of-char/Handwritten Dijsktra solve
+time                 148.3 ms   (139.5 ms .. 153.9 ms)
+                     0.998 R²   (0.993 R² .. 1.000 R²)
+mean                 157.5 ms   (152.9 ms .. 164.0 ms)
+std dev              8.198 ms   (5.552 ms .. 11.62 ms)
+variance introduced by outliers: 13% (moderately inflated)
+                              
+benchmarking of-char/Handwritten Bellman-Ford solve
+time                 279.7 ms   (276.0 ms .. 287.3 ms)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 270.0 ms   (264.5 ms .. 274.5 ms)
+std dev              6.386 ms   (4.620 ms .. 7.859 ms)
+variance introduced by outliers: 16% (moderately inflated)
+                              
+benchmarking cross-aware/Fixed Kleen solve
+time                 2.659 ms   (2.600 ms .. 2.720 ms)
+                     0.997 R²   (0.995 R² .. 0.998 R²)
+mean                 2.618 ms   (2.594 ms .. 2.652 ms)
+std dev              104.3 μs   (68.05 μs .. 150.3 μs)
+variance introduced by outliers: 24% (moderately inflated)
+                              
+benchmarking cross-aware/Kleen (no priority) (fixed) solve
+time                 11.74 ms   (11.32 ms .. 12.14 ms)
+                     0.990 R²   (0.980 R² .. 0.997 R²)
+mean                 11.49 ms   (11.26 ms .. 11.79 ms)
+std dev              625.8 μs   (484.9 μs .. 782.3 μs)
+variance introduced by outliers: 24% (moderately inflated)
+                              
+benchmarking cross-aware/Handwritten Dijsktra solve
+time                 1.128 ms   (1.124 ms .. 1.131 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.125 ms   (1.124 ms .. 1.127 ms)
+std dev              5.906 μs   (4.859 μs .. 7.694 μs)
+                              
+benchmarking cross-aware/Handwritten Bellman-Ford solve
+time                 550.5 μs   (549.9 μs .. 551.2 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 550.5 μs   (549.4 μs .. 552.7 μs)
+std dev              4.972 μs   (2.991 μs .. 7.397 μs)
+                              
+benchmarking oclinks/Fixed Kleen solve
+time                 33.00 ms   (31.96 ms .. 34.08 ms)
+                     0.994 R²   (0.983 R² .. 0.999 R²)
+mean                 32.64 ms   (32.12 ms .. 33.51 ms)
+std dev              1.576 ms   (1.066 ms .. 2.231 ms)
+variance introduced by outliers: 12% (moderately inflated)
+                              
+benchmarking oclinks/Kleen (no priority) (fixed) solve
+time                 198.0 ms   (179.8 ms .. 217.6 ms)
+                     0.990 R²   (0.943 R² .. 1.000 R²)
+mean                 189.1 ms   (181.4 ms .. 197.5 ms)
+std dev              11.00 ms   (6.751 ms .. 15.35 ms)
+variance introduced by outliers: 15% (moderately inflated)
+                              
+benchmarking oclinks/Handwritten Dijsktra solve
+time                 17.65 ms   (17.23 ms .. 18.15 ms)
+                     0.995 R²   (0.990 R² .. 0.999 R²)
+mean                 17.47 ms   (17.29 ms .. 17.90 ms)
+std dev              589.0 μs   (325.9 μs .. 907.5 μs)
+variance introduced by outliers: 12% (moderately inflated)
+                              
+benchmarking oclinks/Handwritten Bellman-Ford solve
+time                 14.41 ms   (13.97 ms .. 15.04 ms)
+                     0.993 R²   (0.986 R² .. 0.999 R²)
+mean                 14.36 ms   (14.16 ms .. 14.69 ms)
+std dev              640.9 μs   (427.7 μs .. 822.1 μs)
+variance introduced by outliers: 15% (moderately inflated)
+                              
+benchmarking openflights/Fixed Kleen solve
+time                 50.64 ms   (49.17 ms .. 52.57 ms)
+                     0.997 R²   (0.993 R² .. 1.000 R²)
+mean                 50.56 ms   (49.84 ms .. 51.61 ms)
+std dev              1.669 ms   (1.198 ms .. 2.414 ms)
+                              
+benchmarking openflights/Kleen (no priority) (fixed) solve
+time                 280.4 ms   (180.6 ms .. 382.2 ms)
+                     0.968 R²   (0.847 R² .. 1.000 R²)
+mean                 287.1 ms   (271.1 ms .. 313.6 ms)
+std dev              28.29 ms   (3.911 ms .. 38.90 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking openflights/Handwritten Dijsktra solve
+time                 26.48 ms   (26.24 ms .. 26.92 ms)
+                     0.999 R²   (0.997 R² .. 1.000 R²)
+mean                 26.78 ms   (26.51 ms .. 27.21 ms)
+std dev              679.1 μs   (465.7 μs .. 975.5 μs)
+                              
+benchmarking openflights/Handwritten Bellman-Ford solve
+time                 15.23 ms   (14.71 ms .. 15.67 ms)
+                     0.996 R²   (0.993 R² .. 0.998 R²)
+mean                 15.32 ms   (15.09 ms .. 15.60 ms)
+std dev              674.6 μs   (460.5 μs .. 970.1 μs)
+variance introduced by outliers: 16% (moderately inflated)
+                              
+benchmarking cross-manufactoring/Fixed Kleen solve
+time                 2.572 ms   (2.524 ms .. 2.631 ms)
+                     0.997 R²   (0.994 R² .. 0.999 R²)
+mean                 2.574 ms   (2.551 ms .. 2.623 ms)
+std dev              111.7 μs   (77.81 μs .. 178.0 μs)
+variance introduced by outliers: 27% (moderately inflated)
+                              
+benchmarking cross-manufactoring/Kleen (no priority) (fixed) solve
+time                 12.53 ms   (12.06 ms .. 12.97 ms)
+                     0.993 R²   (0.987 R² .. 0.997 R²)
+mean                 12.71 ms   (12.50 ms .. 13.07 ms)
+std dev              691.5 μs   (433.2 μs .. 1.071 ms)
+variance introduced by outliers: 25% (moderately inflated)
+                              
+benchmarking cross-manufactoring/Handwritten Dijsktra solve
+time                 1.109 ms   (1.097 ms .. 1.119 ms)
+                     0.999 R²   (0.998 R² .. 1.000 R²)
+mean                 1.100 ms   (1.095 ms .. 1.112 ms)
+std dev              26.52 μs   (7.454 μs .. 51.56 μs)
+variance introduced by outliers: 14% (moderately inflated)
+                              
+benchmarking cross-manufactoring/Handwritten Bellman-Ford solve
+time                 642.5 μs   (641.1 μs .. 643.9 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 641.9 μs   (639.6 μs .. 648.5 μs)
+std dev              12.19 μs   (4.333 μs .. 24.39 μs)
+                              
+benchmarking full/Fixed Kleen solve
+time                 9.487 s    (9.388 s .. 9.529 s)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 9.473 s    (9.447 s .. 9.491 s)
+std dev              25.51 ms   (7.620 ms .. 34.66 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking full/Kleen (no priority) (fixed) solve
+time                 35.25 s    (34.24 s .. 37.37 s)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 37.83 s    (36.57 s .. 39.91 s)
+std dev              1.969 s    (132.1 ms .. 2.457 s)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking full/Handwritten Dijsktra solve
+time                 2.164 s    (1.942 s .. 2.261 s)
+                     0.999 R²   (0.997 R² .. 1.000 R²)
+mean                 2.165 s    (2.122 s .. 2.194 s)
+std dev              43.17 ms   (16.49 ms .. 55.41 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking full/Handwritten Bellman-Ford solve
+time                 2.571 s    (1.514 s .. 3.398 s)
+                     0.981 R²   (0.931 R² .. 1.000 R²)
+mean                 2.706 s    (2.592 s .. 2.827 s)
+std dev              148.5 ms   (82.47 ms .. 198.8 ms)
+variance introduced by outliers: 19% (moderately inflated)
+                              
+benchmarking celegans/Fixed Kleen solve
+time                 2.647 ms   (2.628 ms .. 2.662 ms)
+                     0.999 R²   (0.999 R² .. 1.000 R²)
+mean                 2.655 ms   (2.641 ms .. 2.672 ms)
+std dev              50.95 μs   (41.68 μs .. 64.88 μs)
+                              
+benchmarking celegans/Kleen (no priority) (fixed) solve
+time                 7.548 ms   (7.126 ms .. 8.084 ms)
+                     0.981 R²   (0.958 R² .. 0.998 R²)
+mean                 7.089 ms   (6.974 ms .. 7.347 ms)
+std dev              444.4 μs   (240.4 μs .. 786.9 μs)
+variance introduced by outliers: 36% (moderately inflated)
+                              
+benchmarking celegans/Handwritten Dijsktra solve
+time                 1.323 ms   (1.319 ms .. 1.327 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.315 ms   (1.313 ms .. 1.319 ms)
+std dev              10.59 μs   (9.629 μs .. 12.23 μs)
+                              
+benchmarking celegans/Handwritten Bellman-Ford solve
+time                 681.1 μs   (677.8 μs .. 683.0 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 682.2 μs   (680.2 μs .. 683.5 μs)
+std dev              6.077 μs   (4.741 μs .. 7.261 μs)
+                              
+benchmarking cross-info/Fixed Kleen solve
+time                 792.3 μs   (784.5 μs .. 800.3 μs)
+                     0.999 R²   (0.999 R² .. 1.000 R²)
+mean                 792.4 μs   (789.7 μs .. 797.0 μs)
+std dev              12.38 μs   (7.972 μs .. 18.77 μs)
+                              
+benchmarking cross-info/Kleen (no priority) (fixed) solve
+time                 1.880 ms   (1.811 ms .. 1.959 ms)
+                     0.991 R²   (0.987 R² .. 0.997 R²)
+mean                 1.849 ms   (1.829 ms .. 1.878 ms)
+std dev              85.32 μs   (58.18 μs .. 125.4 μs)
+variance introduced by outliers: 31% (moderately inflated)
+                              
+benchmarking cross-info/Handwritten Dijsktra solve
+time                 379.5 μs   (378.1 μs .. 382.3 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 381.1 μs   (379.9 μs .. 382.9 μs)
+std dev              5.528 μs   (4.038 μs .. 8.238 μs)
+                              
+benchmarking cross-info/Handwritten Bellman-Ford solve
+time                 103.0 μs   (102.6 μs .. 103.3 μs)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 102.2 μs   (101.9 μs .. 102.5 μs)
+std dev              1.133 μs   (960.4 ns .. 1.358 μs)
+                              
+Benchmark fixed-point-lang-benchmark: FINISH
+Completed 2 action(s).        
