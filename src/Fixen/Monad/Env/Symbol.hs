@@ -421,6 +421,11 @@ fixenGetRuleInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. ruleInfos
 
+getRuleInfo :: WithSymbolEnv a => Rule -> FixenPass a RuleInfo
+getRuleInfo the_rule = do
+  rule_info <- fixenGetRuleInfo
+  return $ rule_info IntMap.! (the_rule ^. nodeId)
+
 getUnderlyingType :: WithSymbolEnv a => Type -> FixenPass a Type
 getUnderlyingType t = do
   let n = calculateRepresentativeFromType t

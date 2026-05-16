@@ -31,6 +31,7 @@ module Fixen.IR.RelationRepresentation where
 import Data.IntMap.Strict
 import Data.Map.Strict
 import Data.Text
+import Fixen.Fields
 import Fixen.IR.AST
 
 --------------------------------------------------------------------------------
@@ -60,6 +61,12 @@ data RelationRepresentationInfo = RelationRepresentationInfo
   -- @since 0.0.1
   }
   deriving (Show, Eq)
+
+instance HasDatabase RelationRepresentationInfo Database where
+  database = lens _databaseRepresentation (\s i -> s {_databaseRepresentation = i})
+
+instance HasFact RelationRepresentationInfo Fact where
+  fact = lens _factRepresentation (\s i -> s {_factRepresentation = i})
 
 -- TODO: Seriously look at how _extractionMap and _insertionMap is used in
 -- 'codeGen' and rethink the naming.
@@ -98,6 +105,12 @@ data Database = Database
   }
   deriving (Show, Eq)
 
+instance HasTypes Database [(QueryType, StoreType, Type)] where
+  types = lens _databaseTypes (\s i -> s {_databaseTypes = i})
+
+instance HasMap Database (IntMap Int) where
+  map = lens _extractionMap (\s i -> s {_extractionMap = i})
+
 -- | Describes how a fact is laid out.
 --
 -- /Invariants for '_factTypes'/:
@@ -124,6 +137,12 @@ data Fact = Fact
   -- @since 0.0.1
   }
   deriving (Show, Eq)
+
+instance HasTypes Fact [(QueryType, Type)] where
+  types = lens _factTypes (\s i -> s {_factTypes = i})
+
+instance HasMap Fact (IntMap Int) where
+  map = lens _insertionMap (\s i -> s {_insertionMap = i})
 
 -- | Describes how a type is stored in the database.
 --

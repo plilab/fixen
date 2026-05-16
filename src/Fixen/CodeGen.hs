@@ -2,85 +2,60 @@
 
 module Fixen.CodeGen where
 
-import Data.Char qualified as Char
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Fixen.CodeGen.Common
+import Fixen.CodeGen.Database
+import Fixen.CodeGen.Fact
+import Fixen.CodeGen.HsBlock
+import Fixen.CodeGen.Import
+import Fixen.CodeGen.ModuleDeclaration
+import Fixen.CodeGen.MultiPhase
+import Fixen.CodeGen.RuleInstance
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
 import Fixen.Monad
-import Fixen.Parser.Token (opChars)
-import Fixen.Utils
-
-type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 
 codeGen :: NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
 codeGen forest relation_rep prog = do
-  let mod_head = prog ^. moduleName
-      std_impts =
-        Text.intercalate
-          "\n"
-          [ "\n----- FIXEN IMPORTS -----"
-          , "import Data.HashMap.Strict (HashMap)"
-          , "import qualified Data.HashMap.Strict as HashMap"
-          , "import Data.HashSet (HashSet)"
-          , "import qualified Data.HashSet as HashSet"
-          , "import Data.Maybe"
-          , "import Control.Monad"
-          , "import qualified Data.PQueue.Max as Q"
-          ]
-      mod_head_code = codeGenModuleDeclaration mod_head
-      import_code = if null (prog ^. imports) then "" else Text.append "\n----- USER IMPORTS -----\n" $ Text.intercalate "\n" $ codeGenImportStmt <$> (prog ^. imports)
-      hs_blocks_code = codeGenHsBlocks $ prog ^. hsBlocks
+  let mod_head_code = codeGenModuleDeclaration prog
+      import_code = codeGenImports prog
+      hs_blocks_code = codeGenHsBlocks prog
       fact_code = codeGenFacts relation_rep
-      db_code = codeGenDb relation_rep
-      empty_db_code = codeGenEmptyDb relation_rep
-  interpretation_code <- codeGenInterpretation
-  entailment_code <- codeGenEntailment relation_rep
-  insertion_code <- codeGenFactInsertions relation_rep
-  cont_code <- codeGenContinuationTypes
+  db_code <- codeGenDb relation_rep
+  cont_code <- codeGenRuleInstance
   step_code <- codeGenStep forest relation_rep
   loop_and_solve_code <- codeGenLoopAndSolve
   re_solve_code <- codeGenReSolve forest
   q_code <- mapM (codeGenQuery relation_rep) (prog ^. queries)
+  multi_phase <- codeGenMultiPhase
   return
     $ Text.intercalate
-      "\n"
+      "\n\n"
     $ [ mod_head_code
-      , std_impts
       , import_code
       , hs_blocks_code
-      , "\n----- FACTS -----"
       , fact_code
-      , "\n----- FACT DATABASE -----"
       , db_code
-      , ""
-      , empty_db_code
+      , cont_code
+      , "\n----- STEP FUNCTION -----"
+      , step_code
+      , "\n----- SOLVER -----"
+      , loop_and_solve_code
+      , re_solve_code
+      , "\n----- QUERIES -----"
+      , Text.intercalate "\n\n" q_code
+      , multi_phase
       ]
-      ++ interpretation_code
-      ++ [ "\n----- ENTAILMENT -----"
-         , entailment_code
-         , "\n----- INSERTION -----"
-         , insertion_code
-         , "\n----- RULE INSTANCES -----"
-         , cont_code
-         , "\n----- STEP FUNCTION -----"
-         , step_code
-         , "\n----- SOLVER -----"
-         , loop_and_solve_code
-         , re_solve_code
-         , "\n----- QUERIES -----"
-         , Text.intercalate "\n\n" q_code
-         ]
 
 codeGenQuery :: RelationRepresentation -> Query -> FixenPass CodeGenState Text
 codeGenQuery r q = do
@@ -120,8 +95,8 @@ codeGenQuery r q = do
         Text.concat
           [ fn_name
           , " :: "
-          , Text.intercalate " -> " ty_sig
-          , " -> Database -> [Fact]\n"
+          , Text.intercalate " -> " (ty_sig ++ ["Database", "[Fact]"])
+          , "\n"
           , body_head
           , " db = do\n"
           , remaining
@@ -203,8 +178,8 @@ codeGenReSolve :: NonEmpty RuleForest -> FixenPass CodeGenState Text
 codeGenReSolve f =
   case f of
     x :| [] -> do
-      let leaves = _ruleForestLeaves x
-      l_c <- mapM (codeGenFactLeaves Nothing) leaves
+      let leaves' = _ruleForestLeaves x
+      l_c <- mapM (codeGenFactLeaves Nothing) leaves'
       return $
         Text.concat
           [ "\nreSolve :: Database -> [Fact] -> Database\nreSolve db f =\n  let q = Q.fromList $ concat [\n            Init <$> f"
@@ -401,19 +376,19 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
 codeGenSinglePhaseForest :: RelationRepresentation -> IntMap Int -> Int -> RuleForest -> Maybe Int -> FixenPass CodeGenState Text
 codeGenSinglePhaseForest rel_rep name_supply indent forest phase_no = do
   let branches = (Map.toList $ _ruleForestTrees forest) >>= (\(t, l) -> (t,) <$> NonEmpty.toList l)
-      leaves = _ruleForestLeaves forest
-  if length branches + length leaves <= 1
+      leaves' = _ruleForestLeaves forest
+  if length branches + length leaves' <= 1
     then -- continue in the straight line
 
       if length branches == 0
         then do
-          leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply indent phase_no) leaves
+          leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply indent phase_no) leaves'
           return $ Text.concat leaves_code
         else do
           branches_code <- mapM (codeGenSinglePhaseBranch rel_rep name_supply indent 0 phase_no) branches
           return $ Text.concat branches_code
     else do
-      leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply (indent + 1) phase_no) leaves
+      leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply (indent + 1) phase_no) leaves'
       branches_code <- mapM (codeGenSinglePhaseBranch rel_rep name_supply (indent + 1) 0 phase_no) branches
       -- branch out, indent by 1. put do headers everywhere
       return $ Text.concat [stepIndent indent, "concat [", Text.intercalate "," (Text.append (Text.concat [stepIndent indent, "  do"]) <$> branches_code ++ leaves_code), stepIndent indent, "  ]"]
@@ -456,27 +431,6 @@ codeGenSinglePhaseLeaves name_supply indent phase_no leaf = do
           , Text.show p
           , ")"
           ]
-
-codeGenExprWithNameReplacement :: IntMap Int -> Map Text Int -> Expr -> Text
-codeGenExprWithNameReplacement name_supply var_map (ExprVar _ (IdentifierSimpleIdentifier (SimpleIdentifier _ i)))
-  | i `Map.member` var_map =
-      let c_v = var_map Map.! i
-       in Text.concat ["_v", Text.show c_v, "_", Text.show $ name_supply IntMap.! c_v]
-codeGenExprWithNameReplacement _ _ (ExprVar _ i) = codeGenIdentifier i
-codeGenExprWithNameReplacement name_supply var_map (ExprApp _ lhs' rhs') =
-  Text.concat ["(", codeGenExprWithNameReplacement name_supply var_map lhs', " ", codeGenExprWithNameReplacement name_supply var_map rhs', ")"]
-codeGenExprWithNameReplacement _ _ (ExprIntLit _ i) = Text.show i
-codeGenExprWithNameReplacement _ _ (ExprStrLit _ s) = Text.show s
-codeGenExprWithNameReplacement name_supply var_map (ExprTuple _ hd tl) =
-  let hd' = codeGenExprWithNameReplacement name_supply var_map hd
-      tl' = codeGenExprWithNameReplacement name_supply var_map <$> NonEmpty.toList tl
-      comp = Text.intercalate ", " $ hd' : tl'
-   in Text.concat ["(", comp, ")"]
-codeGenExprWithNameReplacement name_supply var_map (ExprList _ ls) =
-  let comp = codeGenExprWithNameReplacement name_supply var_map <$> ls
-      comp_code = Text.intercalate ", " comp
-   in Text.concat ["[", comp_code, "]"]
-codeGenExprWithNameReplacement _ _ (ExprUnit _) = "()"
 
 codeGenSinglePhaseBranch :: RelationRepresentation -> IntMap Int -> Int -> Int -> Maybe Int -> (Text, RuleTreeChoppedHead) -> FixenPass CodeGenState Text
 codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name, tree) = do
@@ -680,105 +634,6 @@ stepIndent n = Text.cons '\n' $ Text.replicate (8 + (4 * n)) " "
 
 -- else return "?"
 
-codeGenContinuationTypes :: FixenPass CodeGenState Text
-codeGenContinuationTypes = do
-  rule_map <- fixenGetRuleInfo
-  let rules' = IntMap.toList rule_map
-  rule_cases <- concat <$> mapM codeGenRuleContinuationType rules'
-  phase_info <- fixenGetPhases
-  let q_ty = if length phase_info == 1 then "RuleInstance" else "(RuleInstance, Phase)"
-      eval_decl = "\n\nevaluate :: RuleInstance -> Fact\n"
-  eval_cases <- concat <$> mapM codeGenRuleContinuationEvaluate rules'
-  let eval_int =
-        if length phase_info == 1
-          then ""
-          else "\n\nevaluatePhased :: (RuleInstance, Phase) -> (Fact, Phase)\nevaluatePhased (r, p) = (evaluate r, nextPhase p)"
-      eq_instance = "\n\ninstance Eq RuleInstance where\n  f == f'\n    | f < f' = False\n    | f' < f = False\n    | otherwise = True"
-  pr <- fixenGetPriorities
-  let priorities' = snd <$> IntMap.toList pr
-  pr_code <- codeGenPriorities priorities'
-  return $
-    Text.concat
-      [ "data RuleInstance\n       = "
-      , (Text.intercalate "\n       | " rule_cases)
-      , "\n       | Init Fact"
-      , "\n  deriving Show\n\n"
-      , "type Queue = Q.MaxQueue "
-      , q_ty
-      , eq_instance
-      , pr_code
-      , eval_decl
-      , Text.intercalate "\n" eval_cases
-      , "\nevaluate (Init f) = f"
-      , eval_int
-      ]
-
-codeGenPriorities :: [PriorityInfo] -> FixenPass CodeGenState Text
-codeGenPriorities ls = do
-  let header = "\n\ninstance Ord RuleInstance where\n  i <= i' = not (i' < i)\n  ----- PRIORITIES -----\n  Init _ < Init _ = False\n  _ < Init _ = True\n"
-  cases <- mapM codeGenPriority ls
-  return $ Text.concat [header, Text.intercalate "\n" cases, "\n  _ < _ = False"]
-
-codeGenPriority :: PriorityInfo -> FixenPass CodeGenState Text
-codeGenPriority p_info = do
-  let p = _priorityDeclaration p_info
-      p_exp = priorityPremise p
-      c = priorityConclusion p
-      c_lhs = priorityConclusionLHS c
-      c_rhs = priorityConclusionRHS c
-      lhs_rule = ruleInstanceRule c_lhs
-      lhs_vars = Map.fromList $ (\(t, t') -> (simpleIdentifier t, simpleIdentifier t')) <$> (Map.toList $ ruleInstanceMap c_lhs)
-      rhs_rule = ruleInstanceRule c_rhs
-      rhs_vars = Map.fromList $ (\(t, t') -> (simpleIdentifier t, simpleIdentifier t')) <$> (Map.toList $ ruleInstanceMap c_rhs)
-      lhs_rule_name = Text.append "Rule" (capitalize $ simpleIdentifier lhs_rule)
-      rhs_rule_name = Text.append "Rule" (capitalize $ simpleIdentifier rhs_rule)
-      (lhs_rule_id, rhs_rule_id) = _priorityRules p_info
-  rule_info_map <- fixenGetRuleInfo
-  let lhs_rule_dec = rule_info_map IntMap.! lhs_rule_id
-      lhs_bound_vars = Map.keys $ _ruleBoundVars lhs_rule_dec
-      lhs_code_vars =
-        ( \v -> case lhs_vars Map.!? v of
-            Nothing -> "_"
-            Just v' -> v'
-        )
-          <$> lhs_bound_vars
-      rhs_rule_dec = rule_info_map IntMap.! rhs_rule_id
-      rhs_bound_vars = Map.keys $ _ruleBoundVars rhs_rule_dec
-      rhs_code_vars =
-        ( \v -> case rhs_vars Map.!? v of
-            Nothing -> "_"
-            Just v' -> v'
-        )
-          <$> rhs_bound_vars
-
-  return $
-    Text.concat
-      [ "  ("
-      , lhs_rule_name
-      , " "
-      , Text.intercalate " " lhs_code_vars
-      , ") < ("
-      , rhs_rule_name
-      , " "
-      , Text.intercalate " " rhs_code_vars
-      , ") = "
-      , codeGenExprWithNameReplacement IntMap.empty Map.empty p_exp
-      ]
-
-codeGenRuleContinuationEvaluate :: (Int, RuleInfo) -> FixenPass CodeGenState [Text]
-codeGenRuleContinuationEvaluate (i, r) = do
-  n <- codeGenGetRuleContinuationName i
-  let rul = _ruleDeclaration r
-  if length (ruleAssumptions rul) == 0
-    then return []
-    else do
-      let bv = Map.keys $ _ruleBoundVars r
-          conc = ruleConclusion $ rul
-          conc_name = conc ^. name
-          conc_args = conc ^. args
-          conc_args_code = codeGenExprWithNameReplacement IntMap.empty Map.empty <$> conc_args
-      return $ [Text.concat ["evaluate (", n, " ", Text.intercalate " " bv, ") = ", simpleIdentifier conc_name, " ", Text.intercalate " " conc_args_code]]
-
 codeGenGetRuleContinuationName :: Int -> FixenPass CodeGenState Text
 codeGenGetRuleContinuationName i = do
   r_i <- fixenGetRuleInfo
@@ -787,372 +642,3 @@ codeGenGetRuleContinuationName i = do
   case ruleName decl of
     Nothing -> return $ Text.append "UnnamedRule" (Text.show i)
     Just v -> return $ Text.append "Rule" (capitalize $ simpleIdentifier v)
-
-codeGenRuleContinuationType :: (Int, RuleInfo) -> FixenPass CodeGenState [Text]
-codeGenRuleContinuationType (n, r) = do
-  let rule_dec = _ruleDeclaration r
-  if null (ruleAssumptions rule_dec)
-    then return []
-    else do
-      name' <- codeGenGetRuleContinuationName n
-      let bv = _ruleBoundVars r
-          args' = _ruleParamType . snd <$> Map.toList bv
-      arg_ty <- mapM fromTypeLattice args'
-      arg_u_ty <- mapM getUnderlyingType arg_ty
-      let arg_ty_code = codeGenType <$> arg_u_ty
-      return [Text.intercalate " " (name' : arg_ty_code)]
-  where
-    fromTypeLattice Dynamic = failErr (Just "panic") "something went wrong; dynamic type found in codegen!" [] []
-    fromTypeLattice (ActualType t _) = return t
-    fromTypeLattice Bottom = failErr (Just "panic") "something went wrong; bottom type found in codegen!" [] []
-capitalize :: Text -> Text
-capitalize t = case Text.uncons t of
-  Just (c, t') -> Text.cons (Char.toUpper c) t'
-  Nothing -> t
-
-codeGenHsBlocks :: [HsBlock] -> Text
-codeGenHsBlocks [] = ""
-codeGenHsBlocks ls =
-  let t = Text.intercalate "\n\n" $ (Text.strip . hsBlockContents) <$> ls
-   in Text.concat ["\n----- USER CODE START -----\n", t, "\n----- USER CODE END -----"]
-
-codeGenModuleDeclaration :: ModuleDeclaration -> Text
-codeGenModuleDeclaration m =
-  let n = moduleDeclarationName m
-   in Text.concat ["module ", fullIdentifier n, " where"]
-
-codeGenImportStmt :: HsImport -> Text
-codeGenImportStmt i =
-  let n = i ^. moduleName
-   in Text.concat ["import ", fullIdentifier n]
-
-codeGenEntailment :: RelationRepresentation -> FixenPass CodeGenState Text
-codeGenEntailment rep = do
-  let ty_decl = "infix 0 |=\n\n(|=) :: Database -> Fact -> Bool"
-      all_cases = Map.toList rep
-  all_cases_code <- mapM codeGenEntailmentCase all_cases
-  return $ Text.intercalate "\n" (ty_decl : all_cases_code)
-
-codeGenEntailmentCase :: (Text, RelationRepresentationInfo) -> FixenPass CodeGenState Text
-codeGenEntailmentCase (name', rep_info) = do
-  if null db_ty
-    then return header
-    else
-      if length steps_individual_code <= 1
-        then return $ Text.concat (header : steps_individual_code)
-        else return $ Text.concat [header, "fromMaybe False $ do\n        ", (Text.intercalate "\n        " (init steps_individual_code)), "\n        return $ ", last steps_individual_code]
-  where
-    db_rep = _databaseRepresentation rep_info
-    e_map = _extractionMap db_rep
-    db_ty = _databaseTypes db_rep
-    fact_rep = _factRepresentation rep_info
-    fact_ty = _factTypes fact_rep
-    case_vars = (Text.append "_v") <$> Text.show <$> [0 .. length fact_ty - 1]
-    header = if null db_ty then Text.concat ["db |= ", name', " = _facts", name', " db"] else Text.concat ["db |= ", "(", (Text.intercalate " " (name' : case_vars)), ") =\n  let db' = _facts", name', " db\n   in "]
-    extraction_order = (e_map IntMap.!) <$> [0 .. length fact_ty - 1]
-    extraction_proc = zipWith (\x (y, _, z) -> (x, y, z)) extraction_order db_ty
-    steps_individual_code = steps 0 extraction_proc
-    steps :: Int -> [(Int, QueryType, Type)] -> [Text]
-    steps _ [] = [] -- no one cares; this case never happens anyway!
-    steps step_no ls@((idx, Meet l _, _) : _) =
-      let n = length ls -- how big is this tuple? is it standalone?
-          curr_db = getCurrDb step_no
-       in if n == 1
-            then -- HashSet (ty). Just look for anything inside that subsumes the var
-              [Text.concat ["any (", codeGenIdentifier l, " _v", Text.show idx, ") ", curr_db]]
-            else -- HashSet (ty1, ty2, ...). Use `any` to look through stuff.
-
-              let fn_params = Text.append "_t" <$> Text.show <$> [0 .. n - 1]
-                  remaining_vars_idx = fmap (\(i, _, _) -> i) ls
-                  remaining_vars_leq =
-                    fmap
-                      ( \(_, l', _) -> case l' of
-                          Match -> "(==)"
-                          Meet x _ -> codeGenIdentifier x
-                      )
-                      ls
-                  remaining_vars = Text.append "_v" <$> Text.show <$> remaining_vars_idx
-                  fn_arg_tup = Text.intercalate ", " fn_params
-                  fn_header = Text.concat ["\\(", fn_arg_tup, ") -> "]
-                  fn_body_components = zipWith3 (\t v leq' -> Text.concat ["(", leq', " ", v, " ", t, ")"]) fn_params remaining_vars remaining_vars_leq
-                  fn_body = Text.intercalate " && " fn_body_components
-                  any_fn = Text.concat ["(", fn_header, fn_body, ")"]
-               in [Text.concat ["any ", any_fn, " ", curr_db]]
-    steps step_no [(idx, Match, _)] =
-      -- HashSet of some discrete stuff. Just check element membership.
-      [Text.concat ["_v", Text.show idx, " `HashSet.member` step", Text.show step_no]]
-    steps step_no ((idx, Match, _) : xs) =
-      -- lookup from the hashmap
-      let curr_db = getCurrDb step_no
-          curr_step = Text.concat ["step", Text.show (step_no + 1), " <- ", curr_db, " HashMap.!? _v", Text.show idx]
-       in curr_step : steps (step_no + 1) xs
-    getCurrDb 0 = "db'"
-    getCurrDb n = Text.append "step" (Text.show n)
-
-codeGenFactInsertions :: RelationRepresentation -> FixenPass CodeGenState Text
-codeGenFactInsertions rep = do
-  let ty_decl = "insertToDb :: Database -> Fact -> Maybe Database\ninsertToDb db fact\n  | db |= fact = Nothing"
-      all_cases = Map.toList rep
-  all_cases_code <- mapM codeGenFactInsertionCase all_cases
-  phases' <- fixenGetPhases
-  if NonEmpty.length phases' == 1
-    then return $ Text.intercalate "\n" (ty_decl : all_cases_code)
-    else
-      return $
-        Text.concat
-          [ Text.intercalate "\n" (ty_decl : all_cases_code)
-          , "\n\ninsertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation"
-          , "\ninsertToInterpretation i f p = do\n"
-          , "  let db = selectDb i p\n"
-          , "  db' <- insertToDb db f\n"
-          , "  return (replaceDb i db' p)"
-          ]
-
-codeGenFactInsertionCase :: (Text, RelationRepresentationInfo) -> FixenPass CodeGenState Text
-codeGenFactInsertionCase (name', rep_info) = do
-  if null db_ty
-    then return header
-    else return $ Text.concat [header, steps_individual_code, new_mp_code]
-  where
-    db_rep = _databaseRepresentation rep_info
-    db_ty = _databaseTypes db_rep
-    fact_rep = _factRepresentation rep_info
-    fact_ty = _factTypes fact_rep
-    i_map = _extractionMap db_rep
-    case_vars = (Text.append "_v") <$> Text.show <$> [0 .. length fact_ty - 1]
-    header =
-      if null db_ty
-        then
-          Text.concat
-            [ "insertToDb db "
-            , name'
-            , " = Just db { _facts"
-            , name'
-            , " = True }"
-            ]
-        else
-          Text.concat
-            [ "insertToDb db "
-            , "("
-            , (Text.intercalate " " (name' : case_vars))
-            , ") =\n  let mp = _facts"
-            , name'
-            , " db\n      new_fact = "
-            ]
-    insertion_order = (i_map IntMap.!) <$> [0 .. length fact_ty - 1]
-    extraction_proc = zipWith (\x (y, _, z) -> (x, y, z)) insertion_order db_ty
-    steps_individual_code = steps extraction_proc
-    new_mp_code =
-      Text.concat
-        [ "\n      mp' = "
-        , insertionFn 0 extraction_proc
-        , "\n              new_fact\n              mp\n   in Just db { _facts"
-        , name'
-        , " = mp' }"
-        ]
-    steps :: [(Int, QueryType, Type)] -> Text
-    steps [] = "" -- no one cares; this case never happens anyway!
-    steps ls@((idx, Meet _ _, _) : _) =
-      if length ls == 1
-        then -- just a hashset
-          Text.concat ["HashSet.singleton _v", Text.show idx]
-        else
-          let remaining_vars_idx = fmap (\(i, _, _) -> i) ls
-              remaining_vars_vars = fmap (\i -> Text.append "_v" (Text.show i)) remaining_vars_idx
-              tup_components = Text.intercalate ", " remaining_vars_vars
-           in Text.concat ["HashSet.singleton (", tup_components, ")"]
-    steps [(idx, _, _)] = Text.concat ["HashSet.singleton _v", Text.show idx]
-    steps ((idx, _, _) : xs) = Text.concat ["HashMap.singleton _v", Text.show idx, " (", steps xs, ")"]
-    insertionFn :: Int -> [(Int, QueryType, Type)] -> Text
-    insertionFn _ [] = "" -- no one cares; this case never happens anyway!
-    insertionFn indent ls@((idx, Meet l _, _) : _) =
-      let n = length ls
-       in if n == 1
-            then
-              Text.concat
-                [ "(\\s1 s2 ->"
-                , indentation (indent + 2)
-                , "HashSet.union"
-                , indentation (indent + 3)
-                , "s1"
-                , indentation (indent + 3)
-                , "(HashSet.filter"
-                , indentation (indent + 4)
-                , "(\\_t -> not (_t /= _v"
-                , Text.show idx
-                , " && "
-                , codeGenIdentifier l
-                , " _t _v"
-                , Text.show idx
-                , "))"
-                , indentation (indent + 4)
-                , "s2))"
-                ]
-            else
-              let db_vars = Text.append "_t" <$> Text.show <$> [0 .. n - 1]
-                  filter_fn_hd =
-                    Text.concat
-                      [ indentation (indent + 4)
-                      , "(\\("
-                      , Text.intercalate ", " db_vars
-                      , ") -> not ("
-                      ]
-                  remaining_vars_idx = fmap (\(i, _, _) -> i) ls
-                  remaining_vars_leq =
-                    fmap
-                      ( \(_, l', _) -> case l' of
-                          Match -> "(==)"
-                          Meet x _ -> codeGenIdentifier x
-                      )
-                      ls
-                  remaining_vars = Text.append "_v" <$> Text.show <$> remaining_vars_idx
-                  fn_body_components = zipWith3 (\t v leq' -> Text.concat [t, " /= ", v, " && ", leq', " ", t, " ", v]) db_vars remaining_vars remaining_vars_leq
-                  fn_body = Text.intercalate " && " fn_body_components
-                  any_fn =
-                    Text.concat
-                      [ "(\\s1 s2 ->"
-                      , indentation (indent + 2)
-                      , "HashSet.union"
-                      , indentation (indent + 3)
-                      , "s1"
-                      , indentation (indent + 3)
-                      , "(HashSet.filter"
-                      , filter_fn_hd
-                      , fn_body
-                      , "))"
-                      , indentation (indent + 4)
-                      , "s2))"
-                      ]
-               in any_fn
-    insertionFn _ [(_, Match, _)] = "HashSet.union"
-    insertionFn indent (_ : xs) = Text.concat ["HashMap.unionWith", indentation (indent + 1), "(", insertionFn (indent + 1) xs, ")"]
-    indentation 0 = " "
-    indentation n = Text.cons '\n' $ Text.replicate (12 + (n * 2)) " "
-
-codeGenEmptyDb :: RelationRepresentation -> Text
-codeGenEmptyDb r =
-  let hd = "emptyDb :: Database\nemptyDb = Database\n  { "
-      facts = Map.toList r
-      fds = codeGenEmptyDbArgs <$> facts
-      all_fds = Text.intercalate "\n  , " fds
-   in Text.concat [hd, all_fds, "\n  }"]
-
-codeGenEmptyDbArgs :: (Text, RelationRepresentationInfo) -> Text
-codeGenEmptyDbArgs (t, r) =
-  let field_name = Text.append "_facts" t
-      db_rep = _databaseRepresentation r
-      db_ty = _databaseTypes db_rep
-   in case db_ty of
-        [] -> Text.concat [field_name, " = False"]
-        [_] -> Text.concat [field_name, " = HashSet.empty"]
-        ((Meet _ _, _, _) : _) -> Text.concat [field_name, " = HashSet.empty"]
-        _ -> Text.concat [field_name, " = HashMap.empty"]
-
-codeGenDb :: RelationRepresentation -> Text
-codeGenDb r =
-  let facts = Map.toList r
-      header = "data Database = Database\n  { "
-      db_fields = Text.intercalate "\n  , " (codeGenDbField <$> facts)
-   in Text.concat [header, db_fields, "\n  } deriving Eq"]
-
-codeGenDbField :: (Text, RelationRepresentationInfo) -> Text
-codeGenDbField (t, r) =
-  let db_rep = _databaseRepresentation r
-      db_ty = _databaseTypes db_rep
-      db_ty_code = codeGenDbTypeArg db_ty
-   in Text.concat ["_facts", t, " :: ", db_ty_code]
-
-codeGenDbTypes :: RelationRepresentation -> Text
-codeGenDbTypes r =
-  let facts = Map.toList r
-   in Text.intercalate "\n" $ codeGenDbType <$> facts
-
-codeGenDbType :: (Text, RelationRepresentationInfo) -> Text
-codeGenDbType (t, r) =
-  let type_name = Text.append t "Facts"
-      db_rep = _databaseRepresentation r
-      db_ty = _databaseTypes db_rep
-      db_ty_code = codeGenDbTypeArg db_ty
-   in Text.concat ["type ", type_name, " = ", db_ty_code]
-
-codeGenDbTypeArg :: [(QueryType, StoreType, Type)] -> Text
-codeGenDbTypeArg [] = "Bool"
-codeGenDbTypeArg [(_, _, x)] = Text.append "HashSet " (codeGenType x)
-codeGenDbTypeArg ((Meet _ _, _, t) : x : xs) =
-  let remaining_types = (\(_, _, x') -> x') <$> (x :| xs)
-   in Text.append "HashSet " (codeGenType (TypeTuple 0 t remaining_types))
-codeGenDbTypeArg ((Match, _, t) : xs) = Text.concat ["HashMap ", codeGenType t, " (", codeGenDbTypeArg xs, ")"]
-
-codeGenFacts :: RelationRepresentation -> Text
-codeGenFacts r =
-  let header :: Text = "data Fact = "
-      facts = Map.toList r
-   in Text.concat [header, Text.intercalate "\n          | " (codeGenFact <$> facts), "\n  deriving (Show, Eq)"]
-
-codeGenFact :: (Text, RelationRepresentationInfo) -> Text
-codeGenFact (t, r) =
-  let fact_rep = _factRepresentation r
-      fact_ty = snd <$> _factTypes fact_rep
-      ty_code = codeGenType <$> fact_ty
-   in Text.intercalate " " (t : ty_code)
-
-codeGenType :: Type -> Text
-codeGenType (TypeName _ n) = codeGenIdentifier n
-codeGenType (TypeApp _ lhs' rhs') = Text.concat ["(", codeGenType lhs', " ", codeGenType rhs', ")"]
-codeGenType (TypeList _ t) = Text.concat ["[", codeGenType t, "]"]
-codeGenType (TypeTuple _ hd tl) = Text.concat ["(", codeGenType hd, ", ", (Text.intercalate ", " (codeGenType <$> (NonEmpty.toList tl))), ")"]
-codeGenType (TypeNatLit _ i) = Text.show i
-codeGenType (TypeSymbolLit _ s) = Text.show s
-codeGenType (TypeUnit _) = "()"
-
-codeGenIdentifier :: Identifier -> Text
-codeGenIdentifier i =
-  if any (`elem` opChars) (Text.unpack $ simpleIdentifier i)
-    then Text.concat ["(", fullIdentifier i, ")"]
-    else fullIdentifier i
-
-codeGenInterpretation :: FixenPass CodeGenState [Text]
-codeGenInterpretation = do
-  phases' <- fixenGetPhases
-  let n = NonEmpty.length phases'
-  if n == 1
-    then return []
-    else do
-      let t = Text.intercalate ", " (replicate n "Database")
-          p =
-            Text.concat
-              [ "\n\ndata Phase = "
-              , (Text.intercalate "\n           | " (Text.append "Phase" . Text.show <$> [1 .. n]))
-              , "\n deriving (Eq, Show, Ord)"
-              ]
-          nextPhases = Text.intercalate "\n" $ (\i -> Text.concat ["nextPhase Phase", Text.show i, " = Phase", Text.show (mod i n + 1)]) <$> [1 .. n]
-          selectorPhases = Text.intercalate "\n" $ (`Text.append` " = db") . selectLhsTup n <$> [1 .. n]
-          selector = Text.concat ["\n\nselectDb :: Interpretation -> Phase -> Database\n", selectorPhases]
-          insertionPhases = Text.intercalate "\n" $ insertCase n <$> [1 .. n]
-          insert_code = Text.concat ["\n\nreplaceDb :: Interpretation -> Database -> Phase -> Interpretation\n", insertionPhases]
-          ent = Text.concat ["\n\n(||=) :: Interpretation -> Fact -> Phase -> Bool\n(i ||= f) p = selectDb i p |= f\n\ninfix 1 ||="]
-      return
-        [ Text.concat
-            [ "\ntype Interpretation = ("
-            , t
-            , ")"
-            , "\n\nemptyInterpretation :: Interpretation\nemptyInterpretation = ("
-            , Text.intercalate ", " (replicate n "emptyDb")
-            , ")"
-            , p
-            , "\n\nnextPhase :: Phase -> Phase\n"
-            , nextPhases
-            , selector
-            , ent
-            , insert_code
-            ]
-        ]
-  where
-    selectLhsTup n' i = Text.concat ["selectDb (", Text.intercalate ", " $ (replicate (i - 1) "_") ++ ("db" : replicate (n' - i) "_"), ") Phase", Text.show i]
-    insertLhsTup n' i =
-      let components = (\i' -> if i == i' then "_" else Text.concat ["db", Text.show i']) <$> [1 .. n']
-       in Text.concat ["replaceDb (", Text.intercalate ", " components, ")"]
-    insertRhsTup n' i =
-      let components = (\i' -> if i == i' then "db'" else Text.concat ["db", Text.show i']) <$> [1 .. n']
-       in Text.concat ["(", Text.intercalate ", " components, ")"]
-    insertCase n' i = Text.concat [insertLhsTup n' i, " db' Phase", Text.show i, " = ", insertRhsTup n' i]

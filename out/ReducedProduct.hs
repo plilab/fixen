@@ -16,6 +16,7 @@ import GHC.Generics
 import Control.DeepSeq
 import Data.Hashable
 
+
 ----- USER CODE START -----
 stateILeq :: HashMap String Interval -> HashMap String Interval -> Bool
 stateILeq = leq
@@ -287,8 +288,8 @@ test = [
 data Fact = Assign Label String Expr
           | Cond Label Expr Label Label
           | Seq Label Label
-          | StateBeforeI Label ((HashMap String) Interval)
-          | StateBeforeP Label ((HashMap String) Parity)
+          | StateBeforeI Label (HashMap String Interval)
+          | StateBeforeP Label (HashMap String Parity)
           | Var Label String
   deriving (Show, Eq)
 
@@ -297,8 +298,8 @@ data Database = Database
   { _factsAssign :: HashMap Label (HashMap String (HashSet Expr))
   , _factsCond :: HashMap Label (HashMap Label (HashMap Label (HashSet Expr)))
   , _factsSeq :: HashMap Label (HashSet Label)
-  , _factsStateBeforeI :: HashMap Label (HashSet ((HashMap String) Interval))
-  , _factsStateBeforeP :: HashMap Label (HashSet ((HashMap String) Parity))
+  , _factsStateBeforeI :: HashMap Label (HashSet (HashMap String Interval))
+  , _factsStateBeforeP :: HashMap Label (HashSet (HashMap String Parity))
   , _factsVar :: HashMap Label (HashSet String)
   } deriving Eq
 
@@ -312,33 +313,6 @@ emptyDb = Database
   , _factsVar = HashMap.empty
   }
 
-type Interpretation = (Database, Database)
-
-emptyInterpretation :: Interpretation
-emptyInterpretation = (emptyDb, emptyDb)
-
-data Phase = Phase1
-           | Phase2
- deriving (Eq, Show, Ord)
-
-nextPhase :: Phase -> Phase
-nextPhase Phase1 = Phase2
-nextPhase Phase2 = Phase1
-
-selectDb :: Interpretation -> Phase -> Database
-selectDb (db, _) Phase1 = db
-selectDb (_, db) Phase2 = db
-
-(||=) :: Interpretation -> Fact -> Phase -> Bool
-(i ||= f) p = selectDb i p |= f
-
-infix 1 ||=
-
-replaceDb :: Interpretation -> Database -> Phase -> Interpretation
-replaceDb (_, db2) db' Phase1 = (db', db2)
-replaceDb (db1, _) db' Phase2 = (db1, db')
-
------ ENTAILMENT -----
 infix 0 |=
 
 (|=) :: Database -> Fact -> Bool
@@ -376,7 +350,6 @@ db |= (Var _v0 _v1) =
         step1 <- db' HashMap.!? _v0
         return $ _v1 `HashSet.member` step1
 
------ INSERTION -----
 insertToDb :: Database -> Fact -> Maybe Database
 insertToDb db fact
   | db |= fact = Nothing
@@ -442,32 +415,41 @@ insertToDb db (Var _v0 _v1) =
               mp
    in Just db { _factsVar = mp' }
 
-insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation
-insertToInterpretation i f p = do
-  let db = selectDb i p
-  db' <- insertToDb db f
-  return (replaceDb i db' p)
-
 ----- RULE INSTANCES -----
 data RuleInstance
-       = RuleReducedExchangeP Label ((HashMap String) Parity)
-       | RuleReducedExchangeI Label ((HashMap String) Parity) ((HashMap String) Interval)
+       = Init Fact
+       | RuleReducedExchangeP Label (HashMap String Parity)
+       | RuleReducedExchangeI Label (HashMap String Parity) (HashMap String Interval)
        | RuleAssignInitP Label
        | RuleCondInitP Label
        | RuleVarInitP Label
-       | RuleAssignStepP Expr Label Label ((HashMap String) Parity) ((HashMap String) Parity) String
-       | RuleEvalCondTP Expr Label ((HashMap String) Parity) ((HashMap String) Parity) Label
-       | RuleEvalCondFP Expr Label Label ((HashMap String) Parity) ((HashMap String) Parity)
+       | RuleAssignStepP Expr Label Label (HashMap String Parity) (HashMap String Parity) String
+       | RuleEvalCondTP Expr Label (HashMap String Parity) (HashMap String Parity) Label
+       | RuleEvalCondFP Expr Label Label (HashMap String Parity) (HashMap String Parity)
        | RuleAssignInitI Label
        | RuleCondInitI Label
        | RuleVarInitI Label
-       | RuleAssignStepI Expr Label Label ((HashMap String) Interval) ((HashMap String) Interval) String
-       | RuleEvalCondTI Expr Label ((HashMap String) Interval) ((HashMap String) Interval) Label
-       | RuleEvalCondFI Expr Label Label ((HashMap String) Interval) ((HashMap String) Interval)
-       | Init Fact
+       | RuleAssignStepI Expr Label Label (HashMap String Interval) (HashMap String Interval) String
+       | RuleEvalCondTI Expr Label (HashMap String Interval) (HashMap String Interval) Label
+       | RuleEvalCondFI Expr Label Label (HashMap String Interval) (HashMap String Interval)
   deriving Show
 
-type Queue = Q.MaxQueue (RuleInstance, Phase)
+evaluate :: RuleInstance -> Fact
+evaluate (Init f) = f
+evaluate (RuleReducedExchangeP l st) = StateBeforeP l st
+evaluate (RuleReducedExchangeI l st st') = StateBeforeI l (reduceInterval st st')
+evaluate (RuleAssignInitP l) = StateBeforeP l HashMap.empty
+evaluate (RuleCondInitP l) = StateBeforeP l HashMap.empty
+evaluate (RuleVarInitP l) = StateBeforeP l HashMap.empty
+evaluate (RuleAssignStepP e l l' st st' x) = StateBeforeP l' (joinP (HashMap.insert x (evalP e st) st) st')
+evaluate (RuleEvalCondTP e l st st' t) = StateBeforeP t (joinP (refineTP e st) st')
+evaluate (RuleEvalCondFP e f l st st') = StateBeforeP f (joinP (refineFP e st) st')
+evaluate (RuleAssignInitI l) = StateBeforeI l HashMap.empty
+evaluate (RuleCondInitI l) = StateBeforeI l HashMap.empty
+evaluate (RuleVarInitI l) = StateBeforeI l HashMap.empty
+evaluate (RuleAssignStepI e l l' st st' x) = StateBeforeI l' (joinI (HashMap.insert x (evalI e st) st) st')
+evaluate (RuleEvalCondTI e l st st' t) = StateBeforeI t (joinI (refineTI e st) st')
+evaluate (RuleEvalCondFI e f l st st') = StateBeforeI f (joinI (refineFI e st) st')
 
 instance Eq RuleInstance where
   f == f'
@@ -480,30 +462,13 @@ instance Ord RuleInstance where
   ----- PRIORITIES -----
   Init _ < Init _ = False
   _ < Init _ = True
-
   _ < _ = False
 
-evaluate :: RuleInstance -> Fact
-evaluate (RuleReducedExchangeP l st) = StateBeforeP l st
-evaluate (RuleReducedExchangeI l st st') = StateBeforeI l ((reduceInterval st) st')
-evaluate (RuleAssignInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleCondInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleVarInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleAssignStepP e l l' st st' x) = StateBeforeP l' ((joinP (((HashMap.insert x) ((evalP e) st)) st)) st')
-evaluate (RuleEvalCondTP e l st st' t) = StateBeforeP t ((joinP ((refineTP e) st)) st')
-evaluate (RuleEvalCondFP e f l st st') = StateBeforeP f ((joinP ((refineFP e) st)) st')
-evaluate (RuleAssignInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleCondInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleVarInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleAssignStepI e l l' st st' x) = StateBeforeI l' ((joinI (((HashMap.insert x) ((evalI e) st)) st)) st')
-evaluate (RuleEvalCondTI e l st st' t) = StateBeforeI t ((joinI ((refineTI e) st)) st')
-evaluate (RuleEvalCondFI e f l st st') = StateBeforeI f ((joinI ((refineFI e) st)) st')
-evaluate (Init f) = f
+type Queue = Q.MaxQueue (RuleInstance, Phase)
 
-evaluatePhased :: (RuleInstance, Phase) -> (Fact, Phase)
-evaluatePhased (r, p) = (evaluate r, nextPhase p)
 
 ----- STEP FUNCTION -----
+
 step :: Interpretation -> Fact -> Phase -> Queue -> Queue
 step i f p q = let db = selectDb i p in case p of
   Phase1 -> case f of
@@ -742,7 +707,9 @@ step i f p q = let db = selectDb i p in case p of
           ]
     _ -> q
 
+
 ----- SOLVER -----
+
 loop :: Queue -> Interpretation -> Interpretation
 loop q i
   | Just (p, q') <- Q.maxView q =
@@ -755,6 +722,7 @@ loop q i
 solve :: [Fact] -> Interpretation
 solve = reSolve emptyInterpretation
 
+
 reSolve :: Interpretation -> [Fact] -> Interpretation
 reSolve i f =
   let q = Q.fromList $ concat [
@@ -762,7 +730,9 @@ reSolve i f =
           ]
    in loop q i
 
+
 ----- QUERIES -----
+
 stateI :: Label -> Interpretation -> Phase -> [Fact]
 stateI _v0_0 i p = do
   let db = selectDb i p
@@ -807,3 +777,39 @@ stateP _v0_0 i p = do
   step0 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
   _v1_0 <- HashSet.toList step0
   return $ StateBeforeP _v0_0 _v1_0
+
+----- MULTI-PHASE FIXEN PROGRAM DEFINITIONS -----
+type Interpretation = (Database, Database)
+
+emptyInterpretation :: Interpretation
+emptyInterpretation = (emptyDb, emptyDb)
+
+data Phase = Phase1
+           | Phase2
+ deriving (Eq, Show, Ord)
+
+nextPhase :: Phase -> Phase
+nextPhase Phase1 = Phase2
+nextPhase Phase2 = Phase1
+
+selectDb :: Interpretation -> Phase -> Database
+selectDb (db, _) Phase1 = db
+selectDb (_, db) Phase2 = db
+
+(||=) :: Interpretation -> Fact -> Phase -> Bool
+(i ||= f) p = selectDb i p |= f
+
+infix 1 ||=
+
+replaceDb :: Interpretation -> Database -> Phase -> Interpretation
+replaceDb (_, db2) db' Phase1 = (db', db2)
+replaceDb (db1, _) db' Phase2 = (db1, db')
+
+insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation
+insertToInterpretation i f p = do
+  let db = selectDb i p
+  db' <- insertToDb db f
+  return $ replaceDb i db' p
+
+evaluatePhased :: (RuleInstance, Phase) -> (Fact, Phase)
+evaluatePhased (r, p) = (evaluate r, nextPhase p)

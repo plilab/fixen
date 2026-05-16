@@ -173,6 +173,9 @@ foldMWith f = flip (foldM f)
 concatNonEmpty :: NonEmpty.NonEmpty (NonEmpty.NonEmpty a) -> NonEmpty.NonEmpty a
 concatNonEmpty (x NonEmpty.:| xs) = foldl' NonEmpty.append x xs
 
+thrd :: (a, b, c) -> c
+thrd (_, _, x) = x
+
 -------------------------------------------------------------------------------
 -- Sum types
 -------------------------------------------------------------------------------

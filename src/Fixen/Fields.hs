@@ -19,6 +19,9 @@ class HasConditions σ φ | σ -> φ where
 class HasContents σ φ | σ -> φ where
   contents :: Lens' σ φ
 
+class HasDatabase σ φ | σ -> φ where
+  database :: Lens' σ φ
+
 class HasDeclaration σ φ | σ -> φ where
   declaration :: Lens' σ φ
 
@@ -30,6 +33,9 @@ class HasExpr σ φ | σ -> φ where
 
 class HasExternInfos σ φ | σ -> φ where
   externInfos :: Lens' σ φ
+
+class HasFact σ φ | σ -> φ where
+  fact :: Lens' σ φ
 
 class HasFileMap σ φ | σ -> φ where
   fileMap :: Lens' σ φ
@@ -129,6 +135,9 @@ class HasTrees σ φ | σ -> φ where
 
 class HasType σ φ | σ -> φ where
   ty :: Lens' σ φ
+
+class HasTypes σ φ | σ -> φ where
+  types :: Lens' σ φ
 
 class HasUsageInfo σ φ | σ -> φ where
   usageInfo :: Lens' σ φ

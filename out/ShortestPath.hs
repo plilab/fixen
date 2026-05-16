@@ -12,6 +12,7 @@ import qualified Data.PQueue.Max as Q
 ----- USER IMPORTS -----
 import Numeric.Natural
 
+
 ----- USER CODE START -----
 type Vertex = String
 
@@ -39,7 +40,6 @@ emptyDb = Database
   , _factsEdge = HashMap.empty
   }
 
------ ENTAILMENT -----
 infix 0 |=
 
 (|=) :: Database -> Fact -> Bool
@@ -55,7 +55,6 @@ db |= (Edge _v0 _v1 _v2) =
         step2 <- step1 HashMap.!? _v1
         return $ any ((>=) _v2) step2
 
------ INSERTION -----
 insertToDb :: Database -> Fact -> Maybe Database
 insertToDb db fact
   | db |= fact = Nothing
@@ -89,11 +88,13 @@ insertToDb db (Edge _v0 _v1 _v2) =
 
 ----- RULE INSTANCES -----
 data RuleInstance
-       = RuleAddDist Vertex Vertex Natural Natural
-       | Init Fact
+       = Init Fact
+       | RuleAddDist Vertex Vertex Natural Natural
   deriving Show
 
-type Queue = Q.MaxQueue RuleInstance
+evaluate :: RuleInstance -> Fact
+evaluate (Init f) = f
+evaluate (RuleAddDist a b d d') = DistTo b (d + d')
 
 instance Eq RuleInstance where
   f == f'
@@ -106,14 +107,14 @@ instance Ord RuleInstance where
   ----- PRIORITIES -----
   Init _ < Init _ = False
   _ < Init _ = True
-  (RuleAddDist _ _ d1 d1') < (RuleAddDist _ _ d2 d2') = (((>) (((+) d1) d1')) (((+) d2) d2'))
+  (RuleAddDist _ _ d1 d1') < (RuleAddDist _ _ d2 d2') = (d1 + d1') > (d2 + d2')
   _ < _ = False
 
-evaluate :: RuleInstance -> Fact
-evaluate (RuleAddDist a b d d') = DistTo b (((+) d) d')
-evaluate (Init f) = f
+type Queue = Q.MaxQueue RuleInstance
+
 
 ----- STEP FUNCTION -----
+
 step :: Database -> Fact -> Queue -> Queue 
 step db fact q = case fact of
     DistTo _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -133,7 +134,9 @@ step db fact q = case fact of
         _v3_0 <- HashSet.toList step0
         return $ RuleAddDist _v0_0 _v1_0 _v3_0 _v2_0
 
+
 ----- SOLVER -----
+
 loop :: Queue -> Database -> Database
 loop q db
   | Just (p, q') <- Q.maxView q =
@@ -146,6 +149,7 @@ loop q db
 solve :: [Fact] -> Database
 solve = reSolve emptyDb
 
+
 reSolve :: Database -> [Fact] -> Database
 reSolve db f =
   let q = Q.fromList $ concat [
@@ -153,7 +157,9 @@ reSolve db f =
           ]
    in loop q db
 
+
 ----- QUERIES -----
+
 distTo :: Vertex -> Database -> [Fact]
 distTo _v0_0 db = do
   step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
@@ -167,8 +173,9 @@ reachableIn _v1_0 db = do
   guard ((>=) _v1_0 _v1_1)
   return $ DistTo _v0_0 _v1_1
 
-distances ::  -> Database -> [Fact]
+distances :: Database -> [Fact]
 distances db = do
   (_v0_0, step0) <- HashMap.toList (_factsDistTo db)
   _v1_0 <- HashSet.toList step0
   return $ DistTo _v0_0 _v1_0
+

@@ -28,7 +28,6 @@ emptyDb = Database
   , _factsT = HashMap.empty
   }
 
------ ENTAILMENT -----
 infix 0 |=
 
 (|=) :: Database -> Fact -> Bool
@@ -44,7 +43,6 @@ db |= (T _v0 _v1 _v2) =
         step2 <- step1 HashMap.!? _v1
         return $ _v2 `HashSet.member` step2
 
------ INSERTION -----
 insertToDb :: Database -> Fact -> Maybe Database
 insertToDb db fact
   | db |= fact = Nothing
@@ -68,13 +66,17 @@ insertToDb db (T _v0 _v1 _v2) =
 
 ----- RULE INSTANCES -----
 data RuleInstance
-       = RuleTransitive String String String
+       = Init Fact
+       | RuleTransitive String String String
        | RuleReflexive String
        | RuleReflexive' String
-       | Init Fact
   deriving Show
 
-type Queue = Q.MaxQueue RuleInstance
+evaluate :: RuleInstance -> Fact
+evaluate (Init f) = f
+evaluate (RuleTransitive b c d) = R b d
+evaluate (RuleReflexive a) = R a a
+evaluate (RuleReflexive' y) = R y y
 
 instance Eq RuleInstance where
   f == f'
@@ -87,16 +89,13 @@ instance Ord RuleInstance where
   ----- PRIORITIES -----
   Init _ < Init _ = False
   _ < Init _ = True
-
   _ < _ = False
 
-evaluate :: RuleInstance -> Fact
-evaluate (RuleTransitive b c d) = R b d
-evaluate (RuleReflexive a) = R a a
-evaluate (RuleReflexive' y) = R y y
-evaluate (Init f) = f
+type Queue = Q.MaxQueue RuleInstance
+
 
 ----- STEP FUNCTION -----
+
 step :: Database -> Fact -> Queue -> Queue 
 step db fact q = case fact of
     R _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -119,7 +118,9 @@ step db fact q = case fact of
           ]
     _ -> q
 
+
 ----- SOLVER -----
+
 loop :: Queue -> Database -> Database
 loop q db
   | Just (p, q') <- Q.maxView q =
@@ -132,6 +133,7 @@ loop q db
 solve :: [Fact] -> Database
 solve = reSolve emptyDb
 
+
 reSolve :: Database -> [Fact] -> Database
 reSolve db f =
   let q = Q.fromList $ concat [
@@ -139,9 +141,12 @@ reSolve db f =
           ]
    in loop q db
 
+
 ----- QUERIES -----
+
 r :: String -> String -> Database -> [Fact]
 r _v0_0 _v1_0 db = do
   step0 <- maybeToList (_factsR db HashMap.!? _v0_0)
   guard (_v1_0 `HashSet.member` step0)
   return $ R _v0_0 _v1_0
+
