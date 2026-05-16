@@ -77,7 +77,7 @@ rule addDist: DistTo a d, Edge a b e |- DistTo b (d + e)
 
 Then run the Fixen compiler on these declarations to generate Haskell source code that implements the work-queue algorithm that computes shortest paths. The generated source code is a Haskell module that can be imported and used by application code.
 
-This library and executable has been tested on GHC version 9.8.4.
+This library and executable has been tested on GHC version 9.12.2.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -88,7 +88,7 @@ This is an example of how you may give instructions on setting up your project l
 To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
-- [GHC](https://www.haskell.org/ghc/) v9.14.1 (base v4.22.0.0)
+- [GHC](https://www.haskell.org/ghc/) v9.12.2 (base v4.21.0.0)
 - [Cabal](https://www.haskell.org/cabal/) v3.16.0.0
 - HLS v2.13.0.0
 - git
