@@ -147,7 +147,7 @@ instance HasMap Fact (IntMap Int) where
 -- | Describes how a type is stored in the database.
 --
 -- @since 0.0.1
-data StoreType = StoredAsHashMap | StoredAsHashSet
+data StoreType = StoredAsHashMap | StoredAsHashSet | StoredAsSingleton
   deriving (Show, Eq)
 
 -- | Describes how you would match against an argument.
@@ -168,4 +168,17 @@ data QueryType
       -- ^ The leq function
       Identifier
       -- ^ The mlbs function
+  | -- | Partially ordered in a lattice, i.e., set lookup guarded by leq, or
+    -- matched via meet function
+    --
+    -- @since 0.0.1
+    LatticeMeet
+      Identifier
+      -- ^ The leq function
+      Identifier
+      -- ^ The join function
+      Identifier
+      -- ^ The meet function
+      Identifier
+      -- ^ The bot function
   deriving (Show, Eq)

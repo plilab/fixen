@@ -1,4 +1,4 @@
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -372,7 +372,7 @@ pattern MkIdentifierFQN uniq mod i = IdentifierFullyQualifiedName (FullyQualifie
 instance HasNodeId Identifier NodeId where
   nodeId =
     lens
-      ( \x -> case x of
+      ( \case
           MkIdentifierSimple u _ -> u
           MkIdentifierFQN u _ _ -> u
       )
@@ -1290,7 +1290,7 @@ instance HasNodeId EverythingElseRuleset NodeId where
   nodeId = lens __everythingElseRulesetGetNodeId __everythingElseRulesetSetNodeId
     where
       __everythingElseRulesetGetNodeId (EverythingElseRuleset i) = i
-      __everythingElseRulesetSetNodeId (EverythingElseRuleset _) i = EverythingElseRuleset i
+      __everythingElseRulesetSetNodeId (EverythingElseRuleset _) = EverythingElseRuleset
 
 -- | A set of rule names, representing the contents of a phase declaration.
 --
@@ -1411,6 +1411,82 @@ instance HasLeq PartialOrdDeclaration Identifier where
 instance HasMLBs PartialOrdDeclaration Identifier where
   mlbs = lens partialOrdDeclarationMlbs (\s i -> s {partialOrdDeclarationMlbs = i})
 
+-- ** Lattice Declarations
+
+-- | A lattice declaration.
+--
+-- Lattice declarations inform Fixen how to:
+--
+-- * Compare elements of the type (via the 'leq' function)
+-- * Join two elements of the type (via the @join@ function)
+-- * Meet two elements of the type (via the @meet@ function)
+--
+-- This is used by Fixen to generate optimized database representations.
+--
+-- Example:
+--
+-- @
+-- lat Dist where
+--   type = Dist
+--   leq = (<=)
+--   join = joinDist
+--   meet = meetDist
+-- @
+--
+-- @since 0.0.1
+data LatticeDeclaration = LatticeDeclaration
+  { latticeDeclarationNodeId :: NodeId
+  -- ^ The 'NodeId'.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationName :: SimpleIdentifier
+  -- ^ The type being defined as a partial order.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationType :: Type
+  -- ^ The base type of the partial order.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationLeq :: Identifier
+  -- ^ The less-than-or-equal comparison function.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationJoin :: Identifier
+  -- ^ The join function.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationMeet :: Identifier
+  -- ^ The meet function.
+  --
+  -- @since 0.0.1
+  , latticeDeclarationBot :: Identifier
+  -- ^ The meet function.
+  --
+  -- @since 0.0.1
+  }
+  deriving (Show, Eq)
+
+instance HasNodeId LatticeDeclaration NodeId where
+  nodeId = lens latticeDeclarationNodeId (\s i -> s {latticeDeclarationNodeId = i})
+
+instance HasName LatticeDeclaration SimpleIdentifier where
+  name = lens latticeDeclarationName (\s i -> s {latticeDeclarationName = i})
+
+instance HasType LatticeDeclaration Type where
+  ty = lens latticeDeclarationType (\s i -> s {latticeDeclarationType = i})
+
+instance HasLeq LatticeDeclaration Identifier where
+  leq = lens latticeDeclarationLeq (\s i -> s {latticeDeclarationLeq = i})
+
+instance HasJoin LatticeDeclaration Identifier where
+  join = lens latticeDeclarationJoin (\s i -> s {latticeDeclarationJoin = i})
+
+instance HasMeet LatticeDeclaration Identifier where
+  meet = lens latticeDeclarationMeet (\s i -> s {latticeDeclarationMeet = i})
+
+instance HasBot LatticeDeclaration Identifier where
+  bot = lens latticeDeclarationBot (\s i -> s {latticeDeclarationBot = i})
+
 -------------------------------------------------------------------------------
 
 -- * Fixen Programs
@@ -1445,6 +1521,10 @@ data Program = Program
   --
   -- @since 0.0.1
   , programPartialOrdDeclarations :: [PartialOrdDeclaration]
+  -- ^ Partial order declarations.
+  --
+  -- @since 0.0.1
+  , programLatticeDeclarations :: [LatticeDeclaration]
   -- ^ Partial order declarations.
   --
   -- @since 0.0.1
@@ -1484,6 +1564,9 @@ instance HasRelationDeclarations Program [RelationDeclaration] where
 
 instance HasPartialOrdDeclarations Program [PartialOrdDeclaration] where
   partialOrdDeclarations = lens programPartialOrdDeclarations (\s i -> s {programPartialOrdDeclarations = i})
+
+instance HasLatticeDeclarations Program [LatticeDeclaration] where
+  latticeDeclarations = lens programLatticeDeclarations (\s i -> s {programLatticeDeclarations = i})
 
 instance HasRules Program [Rule] where
   rules = lens programRules (\s i -> s {programRules = i})

@@ -21,6 +21,9 @@ import Data.Hashable
 stateILeq :: HashMap String Interval -> HashMap String Interval -> Bool
 stateILeq = leq
 
+meetI :: HashMap String Interval -> HashMap String Interval -> HashMap String Interval
+meetI x y = HashMap.intersectionWith meetInterval x y
+
 stateIMlbs :: HashMap String Interval -> HashMap String Interval -> [HashMap String Interval]
 stateIMlbs x y = [HashMap.intersectionWith meetInterval x y]
 
@@ -251,6 +254,9 @@ refineFP e st = case e of
 statePLeq :: HashMap String Parity -> HashMap String Parity -> Bool
 statePLeq = leq
 
+meetP :: HashMap String Parity -> HashMap String Parity -> HashMap String Parity
+meetP x y = HashMap.intersectionWith meetSign x y
+
 statePMlbs :: HashMap String Parity -> HashMap String Parity -> [HashMap String Parity]
 statePMlbs x y = [HashMap.intersectionWith meetSign x y]
 
@@ -289,10 +295,10 @@ data Fact = Assign Label String Expr
 ----- FACT DATABASE -----
 data Database = Database
   { _factsAssign :: HashMap Label (HashMap String (HashSet Expr))
-  , _factsCond :: HashMap Label (HashMap Label (HashMap Label (HashSet Expr)))
+  , _factsCond :: HashMap Label (HashMap Expr (HashMap Label (HashSet Label)))
   , _factsSeq :: HashMap Label (HashSet Label)
-  , _factsStateBeforeI :: HashMap Label (HashSet (HashMap String Interval))
-  , _factsStateBeforeP :: HashMap Label (HashSet (HashMap String Parity))
+  , _factsStateBeforeI :: HashMap Label (HashMap String Interval)
+  , _factsStateBeforeP :: HashMap Label (HashMap String Parity)
   , _factsVar :: HashMap Label (HashSet String)
   } deriving Eq
 
@@ -319,9 +325,9 @@ db |= (Cond _v0 _v1 _v2 _v3) =
   let db' = _factsCond db
    in fromMaybe False $ do
         step1 <- db' HashMap.!? _v0
-        step2 <- step1 HashMap.!? _v2
-        step3 <- step2 HashMap.!? _v3
-        return $ _v1 `HashSet.member` step3
+        step2 <- step1 HashMap.!? _v1
+        step3 <- step2 HashMap.!? _v2
+        return $ _v3 `HashSet.member` step3
 db |= (Seq _v0 _v1) =
   let db' = _factsSeq db
    in fromMaybe False $ do
@@ -330,13 +336,13 @@ db |= (Seq _v0 _v1) =
 db |= (StateBeforeI _v0 _v1) =
   let db' = _factsStateBeforeI db
    in fromMaybe False $ do
-        step1 <- db' HashMap.!? _v0
-        return $ any (stateILeq _v1) step1
+        _t0 <- db' HashMap.!? _v0
+        return $ stateILeq _v1 _t0
 db |= (StateBeforeP _v0 _v1) =
   let db' = _factsStateBeforeP db
    in fromMaybe False $ do
-        step1 <- db' HashMap.!? _v0
-        return $ any (statePLeq _v1) step1
+        _t0 <- db' HashMap.!? _v0
+        return $ statePLeq _v1 _t0
 db |= (Var _v0 _v1) =
   let db' = _factsVar db
    in fromMaybe False $ do
@@ -357,7 +363,7 @@ insertToDb db (Assign _v0 _v1 _v2) =
    in Just db { _factsAssign = mp' }
 insertToDb db (Cond _v0 _v1 _v2 _v3) =
   let mp = _factsCond db
-      new_fact = HashMap.singleton _v0 (HashMap.singleton _v2 (HashMap.singleton _v3 (HashSet.singleton _v1)))
+      new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashMap.singleton _v2 (HashSet.singleton _v3)))
       mp' = HashMap.unionWith
               (HashMap.unionWith
                 (HashMap.unionWith
@@ -375,27 +381,17 @@ insertToDb db (Seq _v0 _v1) =
    in Just db { _factsSeq = mp' }
 insertToDb db (StateBeforeI _v0 _v1) =
   let mp = _factsStateBeforeI db
-      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              ((\s1 s2 ->
-                  HashSet.union
-                    s1
-                    (HashSet.filter
-                      (\_t -> not (_t /= _v1 && stateILeq _t _v1))
-                      s2)))
+              (joinI)
               new_fact
               mp
    in Just db { _factsStateBeforeI = mp' }
 insertToDb db (StateBeforeP _v0 _v1) =
   let mp = _factsStateBeforeP db
-      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              ((\s1 s2 ->
-                  HashSet.union
-                    s1
-                    (HashSet.filter
-                      (\_t -> not (_t /= _v1 && statePLeq _t _v1))
-                      s2)))
+              (joinP)
               new_fact
               mp
    in Just db { _factsStateBeforeP = mp' }
@@ -416,15 +412,15 @@ data RuleInstance
        | RuleAssignInitP Label
        | RuleCondInitP Label
        | RuleVarInitP Label
-       | RuleAssignStepP Expr Label Label (HashMap String Parity) (HashMap String Parity) String
-       | RuleEvalCondTP Expr Label (HashMap String Parity) (HashMap String Parity) Label
-       | RuleEvalCondFP Expr Label Label (HashMap String Parity) (HashMap String Parity)
+       | RuleAssignStepP Expr Label Label (HashMap String Parity) String
+       | RuleEvalCondTP Expr Label (HashMap String Parity) Label
+       | RuleEvalCondFP Expr Label Label (HashMap String Parity)
        | RuleAssignInitI Label
        | RuleCondInitI Label
        | RuleVarInitI Label
-       | RuleAssignStepI Expr Label Label (HashMap String Interval) (HashMap String Interval) String
-       | RuleEvalCondTI Expr Label (HashMap String Interval) (HashMap String Interval) Label
-       | RuleEvalCondFI Expr Label Label (HashMap String Interval) (HashMap String Interval)
+       | RuleAssignStepI Expr Label Label (HashMap String Interval) String
+       | RuleEvalCondTI Expr Label (HashMap String Interval) Label
+       | RuleEvalCondFI Expr Label Label (HashMap String Interval)
   deriving Show
 
 evaluate :: RuleInstance -> Fact
@@ -434,15 +430,15 @@ evaluate (RuleReducedExchangeI l st st') = StateBeforeI l (reduceInterval st st'
 evaluate (RuleAssignInitP l) = StateBeforeP l HashMap.empty
 evaluate (RuleCondInitP l) = StateBeforeP l HashMap.empty
 evaluate (RuleVarInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleAssignStepP e l l' st st' x) = StateBeforeP l' (joinP (HashMap.insert x (evalP e st) st) st')
-evaluate (RuleEvalCondTP e l st st' t) = StateBeforeP t (joinP (refineTP e st) st')
-evaluate (RuleEvalCondFP e f l st st') = StateBeforeP f (joinP (refineFP e st) st')
+evaluate (RuleAssignStepP e l l' st x) = StateBeforeP l' (HashMap.insert x (evalP e st) st)
+evaluate (RuleEvalCondTP e l st t) = StateBeforeP t (refineTP e st)
+evaluate (RuleEvalCondFP e f l st) = StateBeforeP f (refineFP e st)
 evaluate (RuleAssignInitI l) = StateBeforeI l HashMap.empty
 evaluate (RuleCondInitI l) = StateBeforeI l HashMap.empty
 evaluate (RuleVarInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleAssignStepI e l l' st st' x) = StateBeforeI l' (joinI (HashMap.insert x (evalI e st) st) st')
-evaluate (RuleEvalCondTI e l st st' t) = StateBeforeI t (joinI (refineTI e st) st')
-evaluate (RuleEvalCondFI e f l st st') = StateBeforeI f (joinI (refineFI e st) st')
+evaluate (RuleAssignStepI e l l' st x) = StateBeforeI l' (HashMap.insert x (evalI e st) st)
+evaluate (RuleEvalCondTI e l st t) = StateBeforeI t (refineTI e st)
+evaluate (RuleEvalCondFI e f l st) = StateBeforeI f (refineFI e st)
 
 instance Eq RuleInstance where
   f == f'
@@ -474,16 +470,12 @@ step i f p q = let db = selectDb i p in case p of
             concat [
               do
                 step1 <- maybeToList (_factsStateBeforeI db HashMap.!? _v0_0)
-                _v4_0 <- HashSet.toList step1
-                step2 <- maybeToList (_factsStateBeforeI db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step2
-                return (RuleAssignStepI _v2_0 _v0_0 _v3_0 _v4_0 _v5_0 _v1_0, Phase1),
+                let _v4_0 = step1
+                return (RuleAssignStepI _v2_0 _v0_0 _v3_0 _v4_0 _v1_0, Phase1),
               do
                 step1 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
-                _v4_0 <- HashSet.toList step1
-                step2 <- maybeToList (_factsStateBeforeP db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step2
-                return (RuleAssignStepP _v2_0 _v0_0 _v3_0 _v4_0 _v5_0 _v1_0, Phase1)
+                let _v4_0 = step1
+                return (RuleAssignStepP _v2_0 _v0_0 _v3_0 _v4_0 _v1_0, Phase1)
               ],
           do
             return (RuleAssignInitP _v0_0, Phase1),
@@ -499,31 +491,23 @@ step i f p q = let db = selectDb i p in case p of
         concat [
           do
             step0 <- maybeToList (_factsStateBeforeI db HashMap.!? _v0_0)
-            _v4_0 <- HashSet.toList step0
+            let _v4_0 = step0
             concat [
               do
-                step1 <- maybeToList (_factsStateBeforeI db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step1
-                guard (((leq BFalse) ((evalCondI _v1_0) _v4_0)))
-                return (RuleEvalCondFI _v1_0 _v3_0 _v0_0 _v4_0 _v5_0, Phase1),
-              do
-                step1 <- maybeToList (_factsStateBeforeI db HashMap.!? _v2_0)
-                _v5_0 <- HashSet.toList step1
                 guard (((leq BTrue) ((evalCondI _v1_0) _v4_0)))
-                return (RuleEvalCondTI _v1_0 _v0_0 _v4_0 _v5_0 _v2_0, Phase1)
+                return (RuleEvalCondTI _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
+              do
+                guard (((leq BFalse) ((evalCondI _v1_0) _v4_0)))
+                return (RuleEvalCondFI _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
               ],
           do
             step0 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
-            _v4_0 <- HashSet.toList step0
+            let _v4_0 = step0
             concat [
               do
-                step1 <- maybeToList (_factsStateBeforeP db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step1
-                return (RuleEvalCondFP _v1_0 _v3_0 _v0_0 _v4_0 _v5_0, Phase1),
+                return (RuleEvalCondTP _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
               do
-                step1 <- maybeToList (_factsStateBeforeP db HashMap.!? _v2_0)
-                _v5_0 <- HashSet.toList step1
-                return (RuleEvalCondTP _v1_0 _v0_0 _v4_0 _v5_0 _v2_0, Phase1)
+                return (RuleEvalCondFP _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
               ],
           do
             return (RuleCondInitP _v0_0, Phase1),
@@ -540,16 +524,12 @@ step i f p q = let db = selectDb i p in case p of
         concat [
           do
             step2 <- maybeToList (_factsStateBeforeI db HashMap.!? _v0_0)
-            _v4_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v1_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepI _v3_0 _v0_0 _v1_0 _v4_0 _v5_0 _v2_0, Phase1),
+            let _v4_0 = step2
+            return (RuleAssignStepI _v3_0 _v0_0 _v1_0 _v4_0 _v2_0, Phase1),
           do
             step2 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
-            _v4_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v1_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepP _v3_0 _v0_0 _v1_0 _v4_0 _v5_0 _v2_0, Phase1)
+            let _v4_0 = step2
+            return (RuleAssignStepP _v3_0 _v0_0 _v1_0 _v4_0 _v2_0, Phase1)
           ]
     StateBeforeI _t0 _t1 -> Q.union q $ Q.fromList $ 
       do
@@ -557,57 +537,24 @@ step i f p q = let db = selectDb i p in case p of
         let _v1_0 = _t1
         concat [
           do
-            (_v2_0, step0) <- HashMap.toList (_factsAssign db)
-            (_v3_0, step1) <- HashMap.toList step0
-            _v4_0 <- HashSet.toList step1
-            step2 <- maybeToList (_factsSeq db HashMap.!? _v2_0)
-            guard (_v0_0 `HashSet.member` step2)
-            step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepI _v4_0 _v2_0 _v0_0 _v5_0 _v1_0 _v3_0, Phase1),
-          do
             step0 <- maybeToList (_factsAssign db HashMap.!? _v0_0)
             (_v2_0, step1) <- HashMap.toList step0
             _v3_0 <- HashSet.toList step1
             step2 <- maybeToList (_factsSeq db HashMap.!? _v0_0)
             _v4_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v4_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepI _v3_0 _v0_0 _v4_0 _v1_0 _v5_0 _v2_0, Phase1),
-          do
-            (_v2_0, step0) <- HashMap.toList (_factsCond db)
-            (_v4_0, step1) <- HashMap.toList step0
-            step2 <- maybeToList (step1 HashMap.!? _v0_0)
-            _v3_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            guard (((leq BFalse) ((evalCondI _v3_0) _v5_0)))
-            return (RuleEvalCondFI _v3_0 _v0_0 _v2_0 _v5_0 _v1_0, Phase1),
-          do
-            (_v2_0, step0) <- HashMap.toList (_factsCond db)
-            step1 <- maybeToList (step0 HashMap.!? _v0_0)
-            (_v4_0, step2) <- HashMap.toList step1
-            _v3_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            guard (((leq BTrue) ((evalCondI _v3_0) _v5_0)))
-            return (RuleEvalCondTI _v3_0 _v2_0 _v5_0 _v1_0 _v0_0, Phase1),
+            return (RuleAssignStepI _v3_0 _v0_0 _v4_0 _v1_0 _v2_0, Phase1),
           do
             step0 <- maybeToList (_factsCond db HashMap.!? _v0_0)
-            (_v3_0, step1) <- HashMap.toList step0
-            (_v4_0, step2) <- HashMap.toList step1
-            _v2_0 <- HashSet.toList step2
+            (_v2_0, step1) <- HashMap.toList step0
+            (_v3_0, step2) <- HashMap.toList step1
+            _v4_0 <- HashSet.toList step2
             concat [
               do
-                step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v4_0)
-                _v5_0 <- HashSet.toList step3
-                guard (((leq BFalse) ((evalCondI _v2_0) _v1_0)))
-                return (RuleEvalCondFI _v2_0 _v4_0 _v0_0 _v1_0 _v5_0, Phase1),
-              do
-                step3 <- maybeToList (_factsStateBeforeI db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step3
                 guard (((leq BTrue) ((evalCondI _v2_0) _v1_0)))
-                return (RuleEvalCondTI _v2_0 _v0_0 _v1_0 _v5_0 _v3_0, Phase1)
+                return (RuleEvalCondTI _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
+              do
+                guard (((leq BFalse) ((evalCondI _v2_0) _v1_0)))
+                return (RuleEvalCondFI _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
               ]
           ]
     StateBeforeP _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -616,53 +563,22 @@ step i f p q = let db = selectDb i p in case p of
         let _v1_0 = _t1
         concat [
           do
-            (_v2_0, step0) <- HashMap.toList (_factsAssign db)
-            (_v3_0, step1) <- HashMap.toList step0
-            _v4_0 <- HashSet.toList step1
-            step2 <- maybeToList (_factsSeq db HashMap.!? _v2_0)
-            guard (_v0_0 `HashSet.member` step2)
-            step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepP _v4_0 _v2_0 _v0_0 _v5_0 _v1_0 _v3_0, Phase1),
-          do
             step0 <- maybeToList (_factsAssign db HashMap.!? _v0_0)
             (_v2_0, step1) <- HashMap.toList step0
             _v3_0 <- HashSet.toList step1
             step2 <- maybeToList (_factsSeq db HashMap.!? _v0_0)
             _v4_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v4_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleAssignStepP _v3_0 _v0_0 _v4_0 _v1_0 _v5_0 _v2_0, Phase1),
-          do
-            (_v2_0, step0) <- HashMap.toList (_factsCond db)
-            (_v4_0, step1) <- HashMap.toList step0
-            step2 <- maybeToList (step1 HashMap.!? _v0_0)
-            _v3_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleEvalCondFP _v3_0 _v0_0 _v2_0 _v5_0 _v1_0, Phase1),
-          do
-            (_v2_0, step0) <- HashMap.toList (_factsCond db)
-            step1 <- maybeToList (step0 HashMap.!? _v0_0)
-            (_v4_0, step2) <- HashMap.toList step1
-            _v3_0 <- HashSet.toList step2
-            step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v2_0)
-            _v5_0 <- HashSet.toList step3
-            return (RuleEvalCondTP _v3_0 _v2_0 _v5_0 _v1_0 _v0_0, Phase1),
+            return (RuleAssignStepP _v3_0 _v0_0 _v4_0 _v1_0 _v2_0, Phase1),
           do
             step0 <- maybeToList (_factsCond db HashMap.!? _v0_0)
-            (_v3_0, step1) <- HashMap.toList step0
-            (_v4_0, step2) <- HashMap.toList step1
-            _v2_0 <- HashSet.toList step2
+            (_v2_0, step1) <- HashMap.toList step0
+            (_v3_0, step2) <- HashMap.toList step1
+            _v4_0 <- HashSet.toList step2
             concat [
               do
-                step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v4_0)
-                _v5_0 <- HashSet.toList step3
-                return (RuleEvalCondFP _v2_0 _v4_0 _v0_0 _v1_0 _v5_0, Phase1),
+                return (RuleEvalCondTP _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
               do
-                step3 <- maybeToList (_factsStateBeforeP db HashMap.!? _v3_0)
-                _v5_0 <- HashSet.toList step3
-                return (RuleEvalCondTP _v2_0 _v0_0 _v1_0 _v5_0 _v3_0, Phase1)
+                return (RuleEvalCondFP _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
               ]
           ]
     Var _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -681,7 +597,7 @@ step i f p q = let db = selectDb i p in case p of
         let _v0_0 = _t0
         let _v1_0 = _t1
         step0 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
-        _v2_0 <- HashSet.toList step0
+        let _v2_0 = step0
         return (RuleReducedExchangeI _v0_0 _v2_0 _v1_0, Phase2)
     StateBeforeP _t0 _t1 -> Q.union q $ Q.fromList $ 
       do
@@ -690,7 +606,7 @@ step i f p q = let db = selectDb i p in case p of
         concat [
           do
             step0 <- maybeToList (_factsStateBeforeI db HashMap.!? _v0_0)
-            _v2_0 <- HashSet.toList step0
+            let _v2_0 = step0
             return (RuleReducedExchangeI _v0_0 _v1_0 _v2_0, Phase2),
           do
             return (RuleReducedExchangeP _v0_0 _v1_0, Phase2)
@@ -727,7 +643,14 @@ stateI :: Label -> Interpretation -> Phase -> [Fact]
 stateI _v0_0 i p = do
   let db = selectDb i p
   step0 <- maybeToList (_factsStateBeforeI db HashMap.!? _v0_0)
-  _v1_0 <- HashSet.toList step0
+  let _v1_0 = step0
+  return $ StateBeforeI _v0_0 _v1_0
+
+stateIs :: Interpretation -> Phase -> [Fact]
+stateIs i p = do
+  let db = selectDb i p
+  (_v0_0, step0) <- HashMap.toList (_factsStateBeforeI db)
+  let _v1_0 = step0
   return $ StateBeforeI _v0_0 _v1_0
 
 vars :: Label -> Interpretation -> Phase -> [Fact]
@@ -746,13 +669,13 @@ assigns _v0_0 i p = do
   return $ Assign _v0_0 _v1_0 _v2_0
 
 conds :: Expr -> Interpretation -> Phase -> [Fact]
-conds _v3_0 i p = do
+conds _v1_0 i p = do
   let db = selectDb i p
   (_v0_0, step0) <- HashMap.toList (_factsCond db)
-  (_v1_0, step1) <- HashMap.toList (step0)
+  step1 <- maybeToList (step0 HashMap.!? _v1_0)
   (_v2_0, step2) <- HashMap.toList (step1)
-  guard (_v3_0 `HashSet.member` step2)
-  return $ Cond _v0_0 _v3_0 _v1_0 _v2_0
+  _v3_0 <- HashSet.toList (step2)
+  return $ Cond _v0_0 _v1_0 _v2_0 _v3_0
 
 seqs :: Label -> Interpretation -> Phase -> [Fact]
 seqs _v0_0 i p = do
@@ -765,7 +688,7 @@ stateP :: Label -> Interpretation -> Phase -> [Fact]
 stateP _v0_0 i p = do
   let db = selectDb i p
   step0 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
-  _v1_0 <- HashSet.toList step0
+  let _v1_0 = step0
   return $ StateBeforeP _v0_0 _v1_0
 
 ----- MULTI-PHASE FIXEN PROGRAM DEFINITIONS -----

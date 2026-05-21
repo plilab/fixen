@@ -79,7 +79,8 @@ initEnvWithRelation env r = do
 
     notAPartialOrd (TypeName _ (IdentifierSimpleIdentifier (SimpleIdentifier _ s))) =
       let partial_ords = env ^. partialOrdInfos
-       in s ∉ partial_ords
+          lattice_decls = env ^. latticeInfos
+       in s ∉ partial_ords ∧ s ∉ lattice_decls
     notAPartialOrd _ = True
 
 --------------------------------------------------------------------------------
@@ -109,6 +110,7 @@ validateRelation = validate r
     r =
       [ againstOtherRelations
       , againstPartialOrd
+      , againstLattice
       , againstExtern
       , againstPrelude
       , againstFixenCapitalized
@@ -119,6 +121,12 @@ validateRelation = validate r
     againstPartialOrd =
       validateNamed
         ( validateAgainstPartialOrd
+            "rel declaration"
+            relationValidationErrorNotes
+        )
+    againstLattice =
+      validateNamed
+        ( validateAgainstLattice
             "rel declaration"
             relationValidationErrorNotes
         )

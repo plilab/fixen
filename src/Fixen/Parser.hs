@@ -198,6 +198,7 @@ parseTopLevels =
       (TLRelation <$> parseRelation)
         <|> (TLRule <$> parseRule)
         <|> (TLPartialOrd <$> parsePartialOrd)
+        <|> (TLLattice <$> parseLattice)
         <|> (TLPriority <$> parsePriority)
         <|> (TLQuery <$> parseQuery)
         <|> (TLInclude <$> parseInclude)
@@ -225,6 +226,10 @@ data TopLevel
     --
     -- @since 0.0.1
     TLPartialOrd PartialOrdDeclaration
+  | -- | A @lattice@ declaration defining a lattice on a type
+    --
+    -- @since 0.0.1
+    TLLattice LatticeDeclaration
   | -- | A Haskell code block (```hs … ```)
     --
     -- @since 0.0.1
@@ -279,6 +284,7 @@ partitionTopLevels mod_decl [] =
       , programIncludes = []
       , programPhases = Nothing
       , programPartialOrdDeclarations = []
+      , programLatticeDeclarations = []
       }
 partitionTopLevels mod_decl (x : xs) = do
   -- Recursively partition the rest of the list
@@ -292,6 +298,7 @@ partitionTopLevels mod_decl (x : xs) = do
     TLQuery q -> return $ rest & queries %~ (q :)
     TLInclude i -> return $ rest & includes %~ (i :)
     TLImport i -> return $ rest & imports %~ (i :)
+    TLLattice i -> return $ rest & latticeDeclarations %~ (i :)
     TLPhases p ->
       -- Phases: validate that there's at most one (fatal error if multiple)
       case programPhases rest of
@@ -659,6 +666,54 @@ parsePartialOrdField fieldName valueParser = do
   _ <- indented *> keyword fieldName *> indented *> keywordOp "=" *> indented
   -- Parse the value (type expression, identifier, etc.)
   valueParser
+
+-- | Parses a lattice declaration:
+--
+-- @
+-- lat Dist
+--     where
+--     type = Dist
+--     leq = (<=)
+--     join = joinD
+--     meet = meetD
+-- @
+--
+-- This defines a lattice on a given type. It specifies:
+--
+-- * The base type (@type@ field)
+-- * The less-than-or-equal function (@leq@ field)
+-- * The join function (@join@ field)
+-- * The meet function (@meet@ field)
+--
+-- The @lat@ keyword must not be indented. The @where@
+-- block contains exactly the three fields above, in that order.
+--
+-- @since 0.0.1
+parseLattice :: ParserState σ => Parser σ LatticeDeclaration
+parseLattice = parsePositioned $ do
+  -- Parse the 'partial' keyword (must not be indented)
+  -- Need 'try' since partial ord is among many top-level alternatives
+  _ <- P.try $ l $ L.nonIndented sc $ keyword "lat"
+  -- Verify proper indentation before the type name
+  _ <- indented
+  -- Parse the type name being defined (e.g. Dist)
+  pord_name <- parseCapitalizedSimpleIdentifier
+  -- Verify proper indentation before 'where'
+  _ <- indented
+  -- Parse the 'where' keyword
+  _ <- keyword "where"
+  -- Verify proper indentation before the fields
+  _ <- indented
+  -- Parse the three required fields: type, leq, mlbs
+  -- Each field must be indented relative to the 'partial ord' line
+  type_expr <- parsePartialOrdField "type" (parseType indented)
+  leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
+  join_func <- parsePartialOrdField "join" (parseNonInfixTermIdentifier indented)
+  meet_func <- parsePartialOrdField "meet" (parseNonInfixTermIdentifier indented)
+  bottom <- parsePartialOrdField "bot" (parseNonInfixTermIdentifier indented)
+  -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
+  i <- getNewNodeId
+  return $ LatticeDeclaration i pord_name type_expr leq_func join_func meet_func bottom
 
 -- ** Priority-Declaration Parsers
 

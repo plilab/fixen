@@ -15,6 +15,7 @@ import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.SymbolSolver.Common
+import Fixen.SymbolSolver.Lattice
 import Fixen.SymbolSolver.PartialOrdDeclaration
 import Fixen.SymbolSolver.Phases
 import Fixen.SymbolSolver.Priorities
@@ -50,21 +51,19 @@ solveSymbols
   -> FixenPass σ SymbolEnv
 solveSymbols prog = do
   env_with_rels_and_pords <-
-    pure emptySymbolEnv
-      >>= foldMWith initEnvWithPartialOrd (prog ^. partialOrdDeclarations)
+    foldMWith initEnvWithPartialOrd (prog ^. partialOrdDeclarations) emptySymbolEnv
+      >>= foldMWith initEnvWithLattice (prog ^. latticeDeclarations)
       >>= foldMWith initEnvWithRelation (prog ^. relationDeclarations)
   -- flush all errors, and continue. Now, we are certain that the relations and
   -- partialOrdDeclarations are correctly added to the symbol environment.
   failIfErrored
   env_with_queries_and_rules <-
-    pure env_with_rels_and_pords
-      >>= foldMWith initEnvWithQuery (prog ^. queries)
+    foldMWith initEnvWithQuery (prog ^. queries) env_with_rels_and_pords
       >>= foldMWith initEnvWithRule (prog ^. rules)
   -- flush all errors, and continue. Queries and rules have been added.
   failIfErrored
   env_with_phases_and_priorities <-
-    pure env_with_queries_and_rules
-      >>= foldMWith initEnvWithPriorities (prog ^. priorities)
+    foldMWith initEnvWithPriorities (prog ^. priorities) env_with_queries_and_rules
       >>= initEnvWithPhases (prog ^. phases)
   -- flush all errors, and continue.
   failIfErrored

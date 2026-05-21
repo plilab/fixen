@@ -91,6 +91,11 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
   rel_query_types <- mapM getMeetMechanism rel_args
   let sorting_metric i j
         -- handle the kinds first
+        | i_k == Discrete ∧ j_k == Lattice = LT
+        | i_k == PartiallyOrdered ∧ j_k == Lattice = LT
+        | i_k == Lattice ∧ j_k == Lattice = EQ
+        | i_k == Lattice ∧ j_k == Discrete = GT
+        | i_k == Lattice ∧ j_k == PartiallyOrdered = GT
         | i_k == Discrete ∧ j_k == PartiallyOrdered = LT
         | i_k == PartiallyOrdered ∧ j_k == Discrete = GT
         | i_k == PartiallyOrdered ∧ j_k == PartiallyOrdered = EQ
@@ -127,6 +132,7 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
   where
     getStoreType [] = []
     getStoreType [Match] = [StoredAsHashSet]
+    getStoreType (LatticeMeet {} : xs) = replicate (length xs + 1) StoredAsSingleton
     getStoreType (Meet _ _ : xs) = replicate (length xs + 1) StoredAsHashSet
     getStoreType (_ : xs) = StoredAsHashMap : getStoreType xs
 
@@ -137,6 +143,10 @@ getMeetMechanism :: RelationRepresentationState σ => Type -> FixenPass σ Query
 getMeetMechanism t = do
   let n = calculateRepresentativeFromType t
   p_ord <- fixenGetPartialOrdInfo
+  l_info <- fixenGetLatticeInfo
   case p_ord ^. at n of
-    Nothing -> return Match
-    Just p_ord_decl -> return $ Meet (partialOrdDeclarationLeq p_ord_decl) (partialOrdDeclarationMlbs p_ord_decl)
+    Nothing -> case l_info ^. at n of
+      Nothing -> return Match
+      Just l_dec -> return $ LatticeMeet (l_dec ^. leq) (l_dec ^. join) (l_dec ^. meet) (l_dec ^. bot)
+    -- return Match
+    Just p_ord_decl -> return $ Meet (p_ord_decl ^. leq) (p_ord_decl ^. mlbs)

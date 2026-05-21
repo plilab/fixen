@@ -82,16 +82,21 @@ refineFP e st = case e of
 statePLeq :: HashMap String Parity -> HashMap String Parity -> Bool
 statePLeq = leq
 
+meetP :: HashMap String Parity -> HashMap String Parity -> HashMap String Parity
+meetP x y = HashMap.intersectionWith meetSign x y
+
 statePMlbs :: HashMap String Parity -> HashMap String Parity -> [HashMap String Parity]
 statePMlbs x y = [HashMap.intersectionWith meetSign x y]
 ```
 
 rel StateBeforeP: Label, StateP
 
-partial ord StateP where
+lat StateP where
   type = HashMap String Parity
   leq  = statePLeq
-  mlbs = statePMlbs
+  join = joinP
+  meet = meetP
+  bot = HashMap.empty
 
 rule assignInitP : Assign l _ _   |- StateBeforeP l HashMap.empty
 rule condInitP   : Cond l _ _ _ |- StateBeforeP l HashMap.empty
@@ -99,18 +104,18 @@ rule varInitP    : Var l _        |- StateBeforeP l HashMap.empty
 
 -- actual transfer functions
 rule assignStepP :
-  Assign l x e, Seq l l', StateBeforeP l st, StateBeforeP l' st'
+  Assign l x e, Seq l l', StateBeforeP l st
   -----------------------------------------------------------
-  |- StateBeforeP l' (joinP (HashMap.insert x (evalP e st) st) st')
+  |- StateBeforeP l' (HashMap.insert x (evalP e st) st)
 
 rule evalCondTP :
-  Cond l e t _, StateBeforeP l st, StateBeforeP t st'
+  Cond l e t _, StateBeforeP l st
   ---------------------------------------------------
-  |- StateBeforeP t (joinP (refineTP e st) st')
+  |- StateBeforeP t (refineTP e st)
 
 rule evalCondFP :
-  Cond l e _ f, StateBeforeP l st, StateBeforeP f st'
+  Cond l e _ f, StateBeforeP l st
   ---------------------------------------------------
-  |- StateBeforeP f (joinP (refineFP e st) st')
+  |- StateBeforeP f (refineFP e st)
 
 query stateP: StateBeforeP + -

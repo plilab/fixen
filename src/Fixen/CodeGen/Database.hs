@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultilineStrings #-}
 
 -- |
@@ -104,6 +105,11 @@ buildDbFieldType
   -> Type
 -- If the relation has no arguments, just use a bool.
 buildDbFieldType [] = buildSimpleType "Bool"
+buildDbFieldType [(LatticeMeet {}, _, x)] = x
+buildDbFieldType ((LatticeMeet {}, _, t) : x : xs) =
+  -- build a tuple of those stuff.
+  let remaining_types = thrd <$> (x :| xs)
+   in TypeTuple (-1) t remaining_types
 -- The last thing should be a hashset of the argument's type
 buildDbFieldType [(_, _, x)] = TypeApp (-1) (buildSimpleType "HashSet") x
 -- At any point, the moment we see a partially ordered type, just use a HashSet
@@ -155,6 +161,14 @@ codeGenEmptyDbFields (t, r) =
    in Text.append field_name $ 
         case r ^. database . types of
           [] -> " = False"
+          [(LatticeMeet _ _ _ b, _, _)] -> Text.append " = " $ codeGenIdentifier b
+          ls@((LatticeMeet {}, _, _) : _) ->
+            let remaining_bots = (\case
+                  (LatticeMeet _ _ _ b, _,_) -> codeGenIdentifier b
+                  _ -> error "non lattice argument comes after lattice argument!") 
+                    <$> ls
+                tup = parenthesize $ Text.intercalate ", " remaining_bots
+             in Text.append " = " tup
           [_] -> " = HashSet.empty"
           ((Meet _ _, _, _) : _) -> " = HashSet.empty"
           _ -> " = HashMap.empty"
@@ -186,6 +200,8 @@ codeGenEntailmentCase
   -> FixenPass CodeGenState Text
 codeGenEntailmentCase (rel_name, rep_info)
   | null db_ty = return header
+  | (LatticeMeet {}, _, _) : _ <- db_ty
+    = return header
   | length steps_individual_code <= 1 =
     return $ Text.concat (header : steps_individual_code)
   | otherwise =
@@ -205,15 +221,43 @@ codeGenEntailmentCase (rel_name, rep_info)
     -- The header of the pattern:
     -- Either:
     --   db |= MyRel = _factsMyRel db
-    -- if MyRel has no arguments (i.e., just a Bool), otherwise:
+    -- if MyRel has no arguments (i.e., just a Bool), otherwise,
+    -- if MyRel only has lattice arguments
+    --   db |= (MyRel _v0 ...) = 
+    --     let (_t0, ...) = _factsMyRel db
+    --      in leq0 _v0 _t0 && leq1 _v1 _t1 && ...
+    -- otherwise:
     --   db |= (MyRel _v0 _v1 ...) =
     --     let db' = _factsMyRel db
     --      in 
-    header = 
-      if null db_ty 
-        then Text.concat ["db |= ", rel_name, " = ", dbFactSelector rel_name , " db"]
-        else
-          Text.concat
+    header
+      | null db_ty = Text.concat ["db |= ", rel_name, " = ", dbFactSelector rel_name , " db"]
+      | ((LatticeMeet {}, _, _) : _) <- db_ty
+        = let leqs = 
+                fmap
+                  ( \(l', _, _) -> case l' of
+                      Match -> "(==)" -- technically impossible, since we
+                                      -- are in a set of partially ordered
+                                      -- terms
+                      Meet x _ -> codeGenIdentifier x -- technically impossible
+                                        -- since we are in lattice-only land
+                      LatticeMeet x _ _ _ -> codeGenIdentifier x
+                  )
+                  db_ty
+              idxed_leqs = zip [0 .. length leqs - 1] leqs
+              conds = fmap
+                        (\(i, l) -> Text.intercalate " " [l, v i, t i]) idxed_leqs
+              lhs_tup = 
+                if length db_ty == 1 
+                  then t 0 
+                  else parenthesize (Text.intercalate ", " $ t <$> [0 .. length db_ty - 1])
+           in Text.concat [
+                  "db |= ", case_pattern, " =\n",
+                  "  let ", lhs_tup, " = ", dbFactSelector rel_name, " db\n",
+                  "   in ", Text.intercalate " && " conds
+                ]
+      | otherwise 
+        = Text.concat
             [ "db |= ", case_pattern, " =\n"
             , "  let db' = ", dbFactSelector rel_name, " db\n"
             , "   in "
@@ -286,6 +330,57 @@ codeGenEntailmentCase (rel_name, rep_info)
                                           -- are in a set of partially ordered
                                           -- terms
                           Meet x _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ _ -> codeGenIdentifier x
+                      )
+                      ls
+                  -- now we build the \(t0, t1, ... ) -> function header
+                  fn_arg_tup = parenthesize $ Text.intercalate ", " fn_params
+                  fn_header = Text.concat ["\\", fn_arg_tup, " -> "]
+
+                  -- the components are just a series of conjunctions of leqs.
+                  fn_body_components =
+                    zipWith3 
+                      (\t_var v_var leq' -> 
+                          parenthesize 
+                            (Text.intercalate " " [leq', v_var, t_var])) 
+                      fn_params 
+                      remaining_vars 
+                      remaining_vars_leq
+                  fn_body = Text.intercalate " && " fn_body_components
+
+                  -- now we finally have the function
+                  any_fn = parenthesize $ Text.concat [fn_header, fn_body]
+               in [Text.concat ["any ", any_fn, " ", curr_db]]
+    -- We reached a HashSet of partially ordered stuff, again. This is essentially
+    -- the same exact case as the one before.
+    -- Just check if any of the elements in the HashSet subsume the corresponding
+    -- variables. It looks like
+    --   any (\(t0, t1, ...) -> leq4 v4 t0 && leq0 v0 t1 && ...) step{step_no}
+    steps step_no ls@((idx, LatticeMeet leq_function _ _ _, _) : _) =
+      let n = length ls -- how big is this tuple? is it standalone?
+          curr_db = getCurrDb step_no
+       in if n == 1
+            then -- HashSet (ty). Just look for anything inside that subsumes
+                 --the var
+              [Text.concat 
+                 ["any (", codeGenIdentifier leq_function, " ", v idx, ") ", curr_db]
+              ]
+            else -- HashSet (ty1, ty2, ...). Use `any` to look through stuff.
+                 -- the idea is that we will use
+                 --   any (\(t0, t1, ...) -> leq3 t0 v3 && leq2 t1 v2 ...)
+                 -- where the v numbers are given in idx.
+              let -- just a series of variables _t0 to _t{n - 1}
+                  fn_params = t <$> [0 .. n - 1]
+                  -- the _v{x} variables
+                  remaining_vars = (\(i, _, _) -> v i) <$> ls
+                  remaining_vars_leq =
+                    fmap
+                      ( \(_, l', _) -> case l' of
+                          Match -> "(==)" -- technically impossible, since we
+                                          -- are in a set of partially ordered
+                                          -- terms
+                          Meet x _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ _ -> codeGenIdentifier x
                       )
                       ls
                   -- now we build the \(t0, t1, ... ) -> function header
@@ -309,6 +404,32 @@ codeGenEntailmentCase (rel_name, rep_info)
     -- HashSet of some discrete stuff. Just check element membership.
     steps step_no [(idx, Match, _)] =
       [Text.concat [v idx, " `HashSet.member` ", getCurrDb step_no]]
+    -- lookup from the hashmap and immediately destructure
+    steps step_no ((idx, Match, _) : xs@((_, LatticeMeet {}, _) : _)) =
+      let lhs_tup = 
+            if length xs == 1 
+              then t 0 
+              else parenthesize (Text.intercalate ", " $ t <$> [0 .. length xs - 1])
+          curr_db = getCurrDb step_no
+          curr_step = 
+            Text.concat 
+              [lhs_tup, " <- ", curr_db, " HashMap.!? ", v idx]
+          idxes =
+            fmap
+              (\(i, x, _) -> 
+                case x of
+                  Match -> (i, "==")
+                  Meet l _ -> (i, codeGenIdentifier l)
+                  LatticeMeet l _ _ _ -> (i, codeGenIdentifier l)
+              )
+              xs
+          conds =
+            fmap
+              (\(tidx, (vidx, l)) ->
+                Text.intercalate " " [l, v vidx, t tidx]
+              )
+              (zip [0 .. length xs] idxes)
+       in [curr_step, Text.intercalate " && " conds]
     -- lookup from the hashmap
     steps step_no ((idx, Match, _) : xs) =
       let curr_db = getCurrDb step_no
@@ -345,10 +466,34 @@ codeGenInsertCase
   :: (Text, RelationRepresentationInfo)
   -- ^ The 'Text' is the relation's name
   -> FixenPass CodeGenState Text
-codeGenInsertCase (rel_name, rep_info) = do
-  return $ if null db_ty
-    then header
-    else Text.concat [header, singleton_fact_code, new_mp_code]
+codeGenInsertCase (rel_name, rep_info)
+  | null db_ty = return header
+  | only_lattices =
+      let lhs_tup = 
+            if length db_ty == 1
+              then t 0
+              else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length db_ty - 1]
+          idxed_db_ty = zip [0 .. length db_ty - 1] db_ty
+          inserted_fact = 
+            case idxed_db_ty of
+              [(_, (LatticeMeet _ j _ _, _, _))] ->
+                Text.intercalate " " [codeGenIdentifier j, t 0, v 0]
+              _ -> parenthesize $ Text.intercalate ", " $
+                      fmap
+                        (\(i, (x, _, _)) ->
+                            case x of
+                              LatticeMeet _ j _ _ -> 
+                                Text.intercalate " " [codeGenIdentifier j, t i, v i]
+                              _ -> error "non-lattice argument found after lattice argument!"
+                        )
+                        idxed_db_ty
+       in return $ Text.concat [
+            "insertToDb db ", case_pattern, " =\n",
+            "  let ", lhs_tup, " = ", dbFactSelector rel_name, " db\n",
+            "      new_fact = ", inserted_fact, "\n",
+            "   in Just db { ", dbFactSelector rel_name, " = new_fact }"
+          ]
+  | otherwise = return $ Text.concat [header, singleton_fact_code, new_mp_code]
   where
     db_ty = rep_info ^. database . types
 
@@ -374,6 +519,10 @@ codeGenInsertCase (rel_name, rep_info) = do
             , "  let mp = ", dbFactSelector rel_name, " db\n"
             , "      new_fact = "
             ]
+
+    only_lattices = case db_ty of
+      (LatticeMeet {}, _, _) : _ -> True
+      _ -> False
 
     -- The pattern (MyRel _v0 _v1 ... _vn)
     case_pattern = parenthesize $ Text.intercalate " " (rel_name : case_vars)
@@ -404,6 +553,15 @@ codeGenInsertCase (rel_name, rep_info) = do
           let remaining_vars = fmap (\(i, _, _) -> v i) ls
               tuple = parenthesize $ Text.intercalate ", " remaining_vars
            in Text.concat ["HashSet.singleton ", tuple]
+    -- arrived at a sequence of lattices. Put it in a tuple.
+    singleton_steps ls@((idx, LatticeMeet {}, _) : _) =
+      if length ls == 1
+        then v idx -- just the thing itself -- a hashset
+          
+        else
+          let remaining_vars = fmap (\(i, _, _) -> v i) ls
+              tuple = parenthesize $ Text.intercalate ", " remaining_vars
+           in tuple
     -- arrived at the rightmost thing. simply put it as a singleton in the hashset
     singleton_steps [(idx, _, _)] = Text.concat ["HashSet.singleton ", v idx]
     -- arrived at some discrete hashmap key.
@@ -431,6 +589,9 @@ codeGenInsertCase (rel_name, rep_info) = do
     --   (\s1 s2 -> HashSet.union s1 (HashSet.filter (\... -> ...) s2))
     -- where the filter function removes all the stuff in s2 that is strictly
     -- subsumed by the new fact.
+    --
+    -- TODO. Handle the fact that we actually have to take MLBs of partial ords
+    -- and joins of lattices, if they are present.
     insertionFn indent ls@((idx, Meet l _, _) : _) =
       let n = length ls
        in if n == 1
@@ -463,11 +624,12 @@ codeGenInsertCase (rel_name, rep_info) = do
                       ( \(_, l', _) -> case l' of
                           Match -> "(==)"
                           Meet x _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ _ -> codeGenIdentifier x
                       )
                       ls
                   filter_fn_body_components = 
                     zipWith3 
-                      (\t' v' leq' -> Text.intercalate " " [t', "/=", v', "&&", leq', t', v']) 
+                      (\t'' v' leq' -> Text.intercalate " " [t'', "/=", v', "&&", leq', t'', v']) 
                       db_vars
                       remaining_vars
                       remaining_vars_leq
@@ -481,6 +643,30 @@ codeGenInsertCase (rel_name, rep_info) = do
                       , "(HashSet.filter", filter_fn_hd, filter_fn_body, "))"
                       , indentation (indent + 4), "s2))"
                       ]
+    insertionFn _ ls@((_, LatticeMeet _ j _ _, _) : _) =
+      let n = length ls
+       in if n == 1
+            then codeGenIdentifier j 
+            else
+              -- tuple. do an N-wise join.
+              let fst_tup = parenthesize $ Text.intercalate ", " $ t <$> [0 .. n - 1]
+                  snd_tup = parenthesize $ Text.intercalate ", " $ t' <$> [0 .. n - 1]
+                  remaining_vars_join =
+                    fmap
+                      ( \(_, l', _) -> case l' of
+                          Match -> error "discrete variable appearing after lattice argument"
+                          Meet _ _ -> error "partial ord appearing after lattice argument"
+                          LatticeMeet _ j' _ _ -> j'
+                      )
+                      ls
+                  idxd_remaining_vars = zip [0 .. n - 1] remaining_vars_join
+                  body =
+                    parenthesize $ Text.intercalate ", " $ fmap
+                      (\(i, j') -> Text.intercalate " " [codeGenIdentifier j', t i, t' i])
+                      idxd_remaining_vars
+               in Text.concat
+                      [ "\\", fst_tup, " ", snd_tup, " -> ", body]
+
     -- Rightmost discrete argument. Just union.
     insertionFn _ [(_, Match, _)] = "HashSet.union"
     -- HashMap key. Just use HashMap.unionWith
@@ -500,3 +686,7 @@ codeGenInsertCase (rel_name, rep_info) = do
     -- Generates _t0, _t1, etc, for any i.
     t :: Int -> Text
     t = Text.append "_t" ∘ Text.show
+
+    -- Generates _t'0, _t'1, etc, for any i.
+    t' :: Int -> Text
+    t' = Text.append "_t'" ∘ Text.show

@@ -10,6 +10,9 @@ class HasArgs σ φ | σ -> φ where
 class HasAssumptions σ φ | σ -> φ where
   assumptions :: Lens' σ φ
 
+class HasBot σ φ | σ -> φ where
+  bot :: Lens' σ φ
+
 class HasConclusion σ φ | σ -> φ where
   conclusion :: Lens' σ φ
 
@@ -49,8 +52,17 @@ class HasImports σ φ | σ -> φ where
 class HasIncludes σ φ | σ -> φ where
   includes :: Lens' σ φ
 
+class HasJoin σ φ | σ -> φ where
+  join :: Lens' σ φ
+
 class HasKindInfos σ φ | σ -> φ where
   kindInfos :: Lens' σ φ
+
+class HasLatticeDeclarations σ φ | σ -> φ where
+  latticeDeclarations :: Lens' σ φ
+
+class HasLatticeInfos σ φ | σ -> φ where
+  latticeInfos :: Lens' σ φ
 
 class HasLHS σ φ | σ -> φ where
   lhs :: Lens' σ φ
@@ -66,6 +78,9 @@ class HasMap σ φ | σ -> φ where
 
 class HasMatchInfos σ φ | σ -> φ where
   matchInfos :: Lens' σ φ
+
+class HasMeet σ φ | σ -> φ where
+  meet :: Lens' σ φ
 
 class HasMLBs σ φ | σ -> φ where
   mlbs :: Lens' σ φ

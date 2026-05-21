@@ -73,6 +73,10 @@ data SymbolEnv = SymbolEnv
   -- ^ Information about partial ord symbols
   --
   -- @since 0.0.1
+  , _latticeMap :: NameMap LatticeDeclaration
+  -- ^ Information about partial ord symbols
+  --
+  -- @since 0.0.1
   , _ruleMap :: NodeMap RuleInfo
   -- ^ Information about rules. Importantly, rules may not be named,
   -- so we use their node IDs to keep track of them.
@@ -103,6 +107,9 @@ instance HasRelationInfos SymbolEnv (NameMap RelationInfo) where
 
 instance HasKindInfos SymbolEnv (NameMap Kind) where
   kindInfos = lens _relationParamKindMap (\s i -> s {_relationParamKindMap = i})
+
+instance HasLatticeInfos SymbolEnv (NameMap LatticeDeclaration) where
+  latticeInfos = lens _latticeMap (\s i -> s {_latticeMap = i})
 
 instance HasPartialOrdInfos SymbolEnv (NameMap PartialOrdDeclaration) where
   partialOrdInfos = lens _partialOrdMap (\s i -> s {_partialOrdMap = i})
@@ -155,7 +162,7 @@ data RelationArgMatchInfo = Unmatched | Matched
 -- | Kind information about relation argument types.
 --
 -- @since 0.0.1
-data Kind = Discrete | PartiallyOrdered
+data Kind = Discrete | PartiallyOrdered | Lattice
   deriving (Show, Eq)
 
 -- | Information about rules.
@@ -372,6 +379,7 @@ emptySymbolEnv =
     { _relationMap = Map.empty
     , _relationParamKindMap = Map.empty
     , _partialOrdMap = Map.empty
+    , _latticeMap = Map.empty
     , _ruleMap = IntMap.empty
     , _queryMap = Map.empty
     , _externMap = Map.empty
@@ -379,7 +387,7 @@ emptySymbolEnv =
     , _priorityMap = IntMap.empty
     }
 
-fixenGetSymbolEnv :: WithSymbolEnv a => FixenPass a (SymbolEnv)
+fixenGetSymbolEnv :: WithSymbolEnv a => FixenPass a SymbolEnv
 fixenGetSymbolEnv = do
   st <- State.get
   let env :: SymbolEnv = (↓) st
@@ -400,6 +408,11 @@ fixenGetPartialOrdInfo :: WithSymbolEnv a => FixenPass a (NameMap PartialOrdDecl
 fixenGetPartialOrdInfo = do
   env <- fixenGetSymbolEnv
   return $ env ^. partialOrdInfos
+
+fixenGetLatticeInfo :: WithSymbolEnv a => FixenPass a (NameMap LatticeDeclaration)
+fixenGetLatticeInfo = do
+  env <- fixenGetSymbolEnv
+  return $ env ^. latticeInfos
 
 fixenGetRelationParamKindInfo :: WithSymbolEnv a => FixenPass a (NameMap Kind)
 fixenGetRelationParamKindInfo = do
@@ -430,8 +443,11 @@ getUnderlyingType :: WithSymbolEnv a => Type -> FixenPass a Type
 getUnderlyingType t = do
   let n = calculateRepresentativeFromType t
   p_ord <- fixenGetPartialOrdInfo
+  l_info <- fixenGetLatticeInfo
   case p_ord ^. at n of
-    Nothing -> return t
+    Nothing -> case l_info ^. at n of
+      Nothing -> return t
+      Just l_dec -> return $ l_dec ^. ty
     Just p_ord_dec -> return $ partialOrdDeclarationType p_ord_dec
 
 fixenGetPriorities :: WithSymbolEnv a => FixenPass a (NodeMap PriorityInfo)

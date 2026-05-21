@@ -93,6 +93,7 @@ library
                       , Fixen.SymbolSolver
                       , Fixen.SymbolSolver.Common
                       , Fixen.SymbolSolver.Extern
+                      , Fixen.SymbolSolver.Lattice
                       , Fixen.SymbolSolver.PartialOrdDeclaration
                       , Fixen.SymbolSolver.Phases
                       , Fixen.SymbolSolver.Prelude

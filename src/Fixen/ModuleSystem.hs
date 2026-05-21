@@ -132,7 +132,7 @@ getIncludes in_program = do
 -- 5. /Canonicalizes/ the resulting path (resolves @.@, @..@, symlinks, etc.)
 --
 -- The returned pair includes both the resolved 'FilePath' and the original
--- 'AST.Include' node, so the caller retains the source position information.
+-- 'Include' node, so the caller retains the source position information.
 --
 -- /Example./ If the current file is @/home/user/project/main.fix@ and the
 -- include path is @lib/utils@, the resolved path will be
@@ -250,6 +250,7 @@ combineProgram in_prog new_prog =
   let new_rules = new_prog ^. rules
       new_rels = new_prog ^. relationDeclarations
       new_partial_ords = new_prog ^. partialOrdDeclarations
+      new_lattices = new_prog ^. latticeDeclarations
       old_import_set =
         -- Build a set of already-imported module identifiers for deduplication.
         Set.fromList (in_prog ^. imports ^.. each . moduleName <&> fullIdentifier)
@@ -264,6 +265,7 @@ combineProgram in_prog new_prog =
         & rules %~ (new_rules ++)
         & relationDeclarations %~ (new_rels ++)
         & partialOrdDeclarations %~ (new_partial_ords ++)
+        & latticeDeclarations %~ (new_lattices ++)
         & imports %~ (new_imports ++)
         & hsBlocks %~ (new_hs_blocks ++)
         & queries %~ (new_queries ++)

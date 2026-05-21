@@ -21,35 +21,26 @@ Haskell operators (like /- and -/).
 data Dist = D Int | Bot deriving (Show, Eq)
 ```
 
--- Partial order/lattice declarations. Used to create
--- instances of PartialOrd for the underlying type, 
--- and also as information to Fixen that certain argument positions
+-- Partial order/lattice declarations. Used as information to Fixen that 
+-- certain argument positions
 -- of relations are partially ordered.
 partial ord Dist where
   type = Dist
   leq = distLeq
   mlbs = distMlbs
 
-
--- Optional lattice declarations. I think for the upcoming paper
--- we can just ignore it, unless we intend to include a discussion
--- of using lattices (automatic joins) in the paper. Probably not though.
 lat StateP where
   type = HashMap Label Parity
+  leq = statePLeq
   join = statePJoin
   meet = statePMeet
-  leq = statePLeq
+  bot = HashMap.empty
   
-
 -- include clauses import other Fixen files. Currently, we only import relations,
 -- rules and haskell code blocks (and recursively, other Fixen files). Priorities and 
 -- queries and "stages" should be redefined since each new analysis may use completely different 
 -- priorities and interfaces
 include "../AbstractInterpretation/IntervalAnalysis"
-
--- extern declarations, solely for the symbol solver to work. Completely optional.
--- I think for the time being we will omit having a symbol solver/type checker.
-extern join
 
 -- relations. Pretty straightforward.
 rel DistTo : Vertex, Dist

@@ -35,8 +35,8 @@ data Fact = DistTo Vertex Natural
 
 ----- FACT DATABASE -----
 data Database = Database
-  { _factsDistTo :: HashMap Vertex (HashSet Natural)
-  , _factsEdge :: HashMap Vertex (HashMap Vertex (HashSet Natural))
+  { _factsDistTo :: HashMap Vertex Natural
+  , _factsEdge :: HashMap Vertex (HashMap Vertex Natural)
   } deriving Eq
 
 emptyDb :: Database
@@ -51,42 +51,32 @@ infix 0 |=
 db |= (DistTo _v0 _v1) =
   let db' = _factsDistTo db
    in fromMaybe False $ do
-        step1 <- db' HashMap.!? _v0
-        return $ any ((>=) _v1) step1
+        _t0 <- db' HashMap.!? _v0
+        return $ (>=) _v1 _t0
 db |= (Edge _v0 _v1 _v2) =
   let db' = _factsEdge db
    in fromMaybe False $ do
         step1 <- db' HashMap.!? _v0
-        step2 <- step1 HashMap.!? _v1
-        return $ any ((>=) _v2) step2
+        _t0 <- step1 HashMap.!? _v1
+        return $ (>=) _v2 _t0
 
 insertToDb :: Database -> Fact -> Maybe Database
 insertToDb db fact
   | db |= fact = Nothing
 insertToDb db (DistTo _v0 _v1) =
   let mp = _factsDistTo db
-      new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
+      new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              ((\s1 s2 ->
-                  HashSet.union
-                    s1
-                    (HashSet.filter
-                      (\_t -> not (_t /= _v1 && (>=) _t _v1))
-                      s2)))
+              (min)
               new_fact
               mp
    in Just db { _factsDistTo = mp' }
 insertToDb db (Edge _v0 _v1 _v2) =
   let mp = _factsEdge db
-      new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton _v2))
+      new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (_v2))
       mp' = HashMap.unionWith
               (HashMap.unionWith
-                ((\s1 s2 ->
-                    HashSet.union
-                      s1
-                      (HashSet.filter
-                        (\_t -> not (_t /= _v2 && (>=) _t _v2))
-                        s2))))
+                (min))
               new_fact
               mp
    in Just db { _factsEdge = mp' }
@@ -128,7 +118,7 @@ step db fact q = case fact of
         let _v1_0 = _t1
         step0 <- maybeToList (_factsEdge db HashMap.!? _v0_0)
         (_v2_0, step1) <- HashMap.toList step0
-        _v3_0 <- HashSet.toList step1
+        let _v3_0 = step1
         return $ RuleAddDist _v0_0 _v2_0 _v1_0 _v3_0
     Edge _t0 _t1 _t2 -> Q.union q $ Q.fromList $ 
       do
@@ -136,7 +126,7 @@ step db fact q = case fact of
         let _v1_0 = _t1
         let _v2_0 = _t2
         step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
-        _v3_0 <- HashSet.toList step0
+        let _v3_0 = step0
         return $ RuleAddDist _v0_0 _v1_0 _v3_0 _v2_0
 
 
@@ -168,19 +158,19 @@ reSolve db f =
 distTo :: Vertex -> Database -> [Fact]
 distTo _v0_0 db = do
   step0 <- maybeToList (_factsDistTo db HashMap.!? _v0_0)
-  _v1_0 <- HashSet.toList step0
+  let _v1_0 = step0
   return $ DistTo _v0_0 _v1_0
 
 reachableIn :: Natural -> Database -> [Fact]
 reachableIn _v1_0 db = do
   (_v0_0, step0) <- HashMap.toList (_factsDistTo db)
-  _v1_1 <- HashSet.toList step0
+  let _v1_1 = step0
   guard ((>=) _v1_0 _v1_1)
   return $ DistTo _v0_0 _v1_1
 
 distances :: Database -> [Fact]
 distances db = do
   (_v0_0, step0) <- HashMap.toList (_factsDistTo db)
-  _v1_0 <- HashSet.toList step0
+  let _v1_0 = step0
   return $ DistTo _v0_0 _v1_0
 

@@ -215,6 +215,40 @@ validateAgainstPartialOrd this_msg notes repr i env = do
             notes
         ]
 
+-- ** Lattice Declarations
+
+-- | Validates a symbol against a lattice declaration. This rule prevents
+-- the symbol from sharing the same name as a lattice declaration.
+--
+-- @since 0.0.1
+validateAgainstLattice
+  :: SymbolState σ
+  => String
+  -- ^ The error message attached to the symbol being validated (in the case of
+  -- a validation error)
+  --
+  -- @since 0.0.1
+  -> [Note String]
+  -- ^ Notes to attach to the error message in the case of a validation error
+  --
+  -- @since 0.0.1
+  -> NamedSymbolRule σ α
+validateAgainstLattice this_msg notes repr i env = do
+  case env ^. latticeInfos . at repr of
+    Nothing -> return []
+    Just p_ord -> do
+      pos <- getPosition p_ord
+      pos' <- getPosition i
+      return
+        [ Err
+            Nothing
+            "duplicate names!"
+            [ (pos', This this_msg)
+            , (pos, Where "lat declaration with the same name")
+            ]
+            notes
+        ]
+
 -- ** External Symbols
 
 -- $externalSymbols

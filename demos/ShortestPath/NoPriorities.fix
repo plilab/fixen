@@ -7,24 +7,12 @@ import Control.DeepSeq
 rel DistTo : Vertex, Dist
 rel Edge   : Vertex, Vertex, Dist
 
-```hs
-type Vertex = String
-
-distMlbs :: Natural -> Natural -> [Natural]
-distMlbs x y = [max x y]
-
-instance NFData Database where
-  rnf (Database x y) = rnf (x, y)
-
-instance NFData Fact where
-  rnf (DistTo x y) = rnf (x, y)
-  rnf (Edge a b c) = rnf (a, b, c)
-```
-
-partial ord Dist where
+lat Dist where
   type = Natural -- the underlying Dist type we declared earlier
   leq  = (>=)
-  mlbs = distMlbs
+  join = min
+  meet = max
+  bot  = undefined
 
 -- The main rule.
 rule addDist: DistTo a d, Edge a b d'
@@ -35,3 +23,13 @@ query distTo: DistTo + -
 query reachableIn: DistTo - +
 query distances: DistTo - -
 
+```hs
+type Vertex = String
+
+instance NFData Database where
+  rnf (Database x y) = rnf (x, y)
+
+instance NFData Fact where
+  rnf (DistTo x y) = rnf (x, y)
+  rnf (Edge a b c) = rnf (a, b, c)
+```

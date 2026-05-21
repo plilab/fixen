@@ -1,16 +1,4 @@
--- |
---     Module      : Fixen.SymbolSolver.PartialOrdDeclaration
---     Description : Symbol solving for partial ord declarations
---     Copyright   : (c) Programming Languages Innovation Lab@NUS
---     License     : MIT
---     Maintainer  : yongqi@nus.edu.sg
---     Stability   : experimental
---
---     This module provides facilities for solving partial ord declaration
---     symbols.
---
--- @since 0.0.1
-module Fixen.SymbolSolver.PartialOrdDeclaration where
+module Fixen.SymbolSolver.Lattice where
 
 import Control.Lens
 import Fixen.Fields
@@ -27,43 +15,45 @@ import Fixen.Utils
 
 -- $mainEntryPoint
 --
--- You should only need 'initEnvWithPartialOrd'.
+-- You should only need 'initEnvWithLattice'.
 
 --------------------------------------------------------------------------------
 
--- | Initializes a 'SymbolEnv' with a 'PartialOrdDeclaration'. The types, leq
--- and mlbs symbols are added as extern symbols to the environment (see
+-- | Initializes a 'SymbolEnv' with a 'LatticeDeclaration'. The types, leq, join
+-- and meet symbols are added as extern symbols to the environment (see
 -- "Fixen.SymbolSolver.Extern").
 --
 -- @since 0.0.1
-initEnvWithPartialOrd
+initEnvWithLattice
   :: SymbolState σ
   => SymbolEnv
   -- ^ The 'SymbolEnv'
-  -> PartialOrdDeclaration
-  -- ^ The 'PartialOrdDeclaration'
+  -> LatticeDeclaration
+  -- ^ The 'LatticeDeclaration'
   -> FixenPass σ SymbolEnv
-initEnvWithPartialOrd env p = do
-  _ <- validatePartialOrd p env
+initEnvWithLattice env p = do
+  _ <- validateLattice p env
   env
-    & insertPartialOrdInfo
+    & insertLatticeInfo
     & insertRelationParamKindInfo
     & foldMWith initEnvWithExternSymbol extern_symbols
   where
     repr = simpleIdentifier $ p ^. name
-    extern_symbols = (⋃) [type_symb, leq_symb, mlb_symb]
-    type_symb = getAllTypeNames $ partialOrdDeclarationType p
-    leq_symb = getSimpleIdentifierFromIdentifier $ partialOrdDeclarationLeq p
-    mlb_symb = getSimpleIdentifierFromIdentifier $ partialOrdDeclarationMlbs p
-    insertPartialOrdInfo e =
+    extern_symbols = (⋃) [type_symb, leq_symb, join_symb, meet_symb, bot_symb]
+    type_symb = getAllTypeNames $ latticeDeclarationType p
+    leq_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationLeq p
+    join_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationJoin p
+    meet_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationMeet p
+    bot_symb = getSimpleIdentifierFromIdentifier $ p ^. bot
+    insertLatticeInfo e =
       -- do not insert if already exists
-      case e ^. partialOrdInfos . at repr of
+      case e ^. latticeInfos . at repr of
         Just _ -> e
-        Nothing -> e & partialOrdInfos . at repr ?~ p
+        Nothing -> e & latticeInfos . at repr ?~ p
     -- unconditionally insert the partial order (i.e., join it with
     -- whatever is inside, just in case it was intiialized as being
     -- discrete)
-    insertRelationParamKindInfo = kindInfos . at repr ?~ PartiallyOrdered
+    insertRelationParamKindInfo = kindInfos . at repr ?~ Lattice
 
 --------------------------------------------------------------------------------
 
@@ -83,12 +73,12 @@ initEnvWithPartialOrd env p = do
 -- by 'initEnvWithExternSymbol'.
 --
 -- @since 0.0.1
-validatePartialOrd :: SymbolState σ => SymbolValidator σ PartialOrdDeclaration
-validatePartialOrd = validate r
+validateLattice :: SymbolState σ => SymbolValidator σ LatticeDeclaration
+validateLattice = validate r
   where
     r =
       [ againstOtherPartialOrds
-      , againstLattices
+      , againstOtherLattices
       , againstRelations
       ]
 
@@ -96,14 +86,14 @@ validatePartialOrd = validate r
       validateNamed
         ( validateAgainstPartialOrd
             "a partial ord declaration"
-            [Note "partial ord declarations must have distinct names"]
+            [Note "lat/partial ord declarations must have distinct names"]
         )
 
-    againstLattices =
+    againstOtherLattices =
       validateNamed
         ( validateAgainstLattice
-            "a partial ord declaration"
-            [Note "lat/partial ord declarations must have distinct names"]
+            "a lat declaration"
+            [Note "lat ord declarations must have distinct names"]
         )
 
     againstRelations =

@@ -103,7 +103,7 @@ codeGenQuery r q = do
           ]
     else do
       remaining <- codeGenQueryStep 0 rel_rep var_map rel_name
-      return $ Text.concat [fn_name, " :: ", Text.intercalate " -> " ty_sig, " -> Interpretation -> Phase -> [Fact]\n", body_head, " i p = do\n  let db = selectDb i p\n", remaining]
+      return $ Text.concat [fn_name, " :: ", Text.intercalate " -> " (ty_sig ++ ["Interpretation", "Phase", "[Fact]"]), "\n", body_head, " i p = do\n  let db = selectDb i p\n", remaining]
 
 codeGenQueryStep :: Int -> RelationRepresentationInfo -> IntMap Int -> Text -> FixenPass CodeGenState Text
 codeGenQueryStep n rel_rep name_supply rel_name = do
@@ -152,7 +152,7 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
                     -- match.
                     remaining <- codeGenQueryStep (n + 1) rel_rep name_supply rel_name
                     return $ Text.concat ["  guard (_v", Text.show curr_var, "_", Text.show curr_num, " `HashSet.member` ", prev_step, ")\n", remaining]
-          _ -> do
+          (Meet _ _, _, _) -> do
             let prev_step = case name_supply IntMap.!? (-1) of
                   Nothing -> Text.concat ["_facts", rel_name, " ", "db"]
                   Just i -> Text.concat ["step", Text.show i]
@@ -168,10 +168,28 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
                 guards = (\i -> Text.concat ["  guard (", codeGenIdentifier $ get_leq ty' i, " _v", Text.show i, "_0 _v", Text.show i, "_1)\n"]) <$> need_to_leq
             remaining <- codeGenQueryStep (length ty') rel_rep (IntMap.unionsWith max [name_supply, IntMap.fromList [(i, 0) | i <- [n .. length ty' - 1]], IntMap.fromList [(i, 1) | i <- need_to_leq]]) rel_name
             return $ Text.concat [fst_i, Text.concat guards, remaining]
+          (LatticeMeet {}, _, _) -> do
+            let prev_step = case name_supply IntMap.!? (-1) of
+                  Nothing -> Text.concat ["_facts", rel_name, " ", "db"]
+                  Just i -> Text.concat ["step", Text.show i]
+                lhs' =
+                  ( \i -> case name_supply IntMap.!? i of
+                      Nothing -> Text.concat ["_v", Text.show i, "_0"]
+                      Just num -> Text.concat ["_v", Text.show i, "_", Text.show (num + 1)]
+                  )
+                    <$> [n .. length ty' - 1]
+                lhs_tup = if length lhs' == 1 then lhs' !! 0 else Text.concat ["(", Text.intercalate ", " lhs', ")"]
+                fst_i = Text.concat ["  let ", lhs_tup, " = ", prev_step, "\n"]
+                need_to_leq = filter (`IntMap.member` name_supply) [n .. length ty' - 1]
+                guards = (\i -> Text.concat ["  guard (", codeGenIdentifier $ get_leq ty' i, " _v", Text.show i, "_0 _v", Text.show i, "_1)\n"]) <$> need_to_leq
+            remaining <- codeGenQueryStep (length ty') rel_rep (IntMap.unionsWith max [name_supply, IntMap.fromList [(i, 0) | i <- [n .. length ty' - 1]], IntMap.fromList [(i, 1) | i <- need_to_leq]]) rel_name
+            return $ Text.concat [fst_i, Text.concat guards, remaining]
+          _ -> error "unreachable"
   where
     get_leq ty' i =
       case ty' !! i of
         (Meet l _, _, _) -> l
+        (LatticeMeet l _ _ _, _, _) -> l
         _ -> error "panic: discrete term found after partially ordered terms!"
 
 codeGenReSolve :: NonEmpty RuleForest -> FixenPass CodeGenState Text
@@ -362,6 +380,23 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                       , Text.show (curr_var_curr_number + 1)
                       , " <- "
                       , codeGenIdentifier mlbs_fn
+                      , " _v"
+                      , Text.show curr_v
+                      , "_"
+                      , Text.show curr_var_curr_number
+                      , " _t"
+                      , Text.show curr_pos
+                      , remainin
+                      ]
+                LatticeMeet _ _ m _ ->
+                  return $
+                    Text.concat
+                      [ "\n        let _v"
+                      , Text.show curr_v
+                      , "_"
+                      , Text.show (curr_var_curr_number + 1)
+                      , " = "
+                      , codeGenIdentifier m
                       , " _v"
                       , Text.show curr_v
                       , "_"
@@ -569,13 +604,19 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
             (Meet _ _, _, _) -> do
               -- get the list of supposed var names.
               -- fake curr_pos
-              let prev_step = if curr_pos == 0 then Text.concat ["(_facts", rel_name, " db)"] else Text.concat ["step", Text.show (name_supply IntMap.! (-1))]
+              let prev_step =
+                    if curr_pos == 0
+                      then Text.concat ["(_facts", rel_name, " db)"]
+                      else Text.concat ["step", Text.show (name_supply IntMap.! (-1))]
               let fake_curr_pos = [curr_pos .. length tree_args - 1]
                   real_curr_poses = (i_map IntMap.!) <$> fake_curr_pos
                   list_curr_v = (tree_args !!) <$> real_curr_poses
                   folder :: Int -> [Int] -> [Either Int (Int, Int)]
                   folder _ [] = []
-                  folder ctr (c_v : xs) = if c_v `IntMap.notMember` name_supply then Left c_v : folder ctr xs else Right (c_v, ctr) : folder (ctr + 1) xs
+                  folder ctr (c_v : xs) =
+                    if c_v `IntMap.notMember` name_supply
+                      then Left c_v : folder ctr xs
+                      else Right (c_v, ctr) : folder (ctr + 1) xs
                   lhs' = folder (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
                   lhs_tup_comp =
                     ( \t -> case t of
@@ -592,25 +633,39 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                   remaining_steps n_s (Right (c_v, str) : xs) =
                     let n_s' = IntMap.insert (-1) str $ IntMap.insert c_v ((n_s IntMap.! c_v) + 1) n_s
                         (q_ty, _, _) = db_ty !! (length db_ty - length xs - 1)
-                        q_id = case q_ty of
-                          Meet _ l -> l
+                        hd = case q_ty of
+                          Meet _ l ->
+                            Text.concat
+                              [ stepIndent indent
+                              , "_v"
+                              , Text.show c_v
+                              , "_"
+                              , Text.show (n_s' IntMap.! c_v)
+                              , " <- "
+                              , codeGenIdentifier l
+                              , " step"
+                              , Text.show str
+                              , " _v"
+                              , Text.show c_v
+                              , "_"
+                              , Text.show (n_s IntMap.! c_v)
+                              ]
+                          LatticeMeet _ _ l _ ->
+                            Text.concat
+                              [ stepIndent indent
+                              , "let _v"
+                              , Text.show c_v
+                              , "_"
+                              , Text.show (n_s' IntMap.! c_v)
+                              , " = "
+                              , codeGenIdentifier l
+                              , " step"
+                              , Text.show str
+                              , " _v"
+                              , Text.show c_v
+                              , Text.show (n_s IntMap.! c_v)
+                              ]
                           _ -> error "panic! Discrete variable coming after partially ordered variable"
-                        hd =
-                          Text.concat
-                            [ stepIndent indent
-                            , "_v"
-                            , Text.show c_v
-                            , "_"
-                            , Text.show (n_s' IntMap.! c_v)
-                            , " <- "
-                            , codeGenIdentifier q_id
-                            , " step"
-                            , Text.show str
-                            , " _v"
-                            , Text.show c_v
-                            , "_"
-                            , Text.show (n_s IntMap.! c_v)
-                            ]
                         (n_s'', ls) = remaining_steps n_s' xs
                      in (n_s'', hd : ls)
                   (name_supply', r_s) = remaining_steps name_supply lhs'
@@ -625,6 +680,72 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                   , Text.concat r_s
                   , remaining
                   ]
+            (LatticeMeet _ _ _ _, _, _) -> do
+              -- get the list of supposed var names.
+              -- fake curr_pos
+              let prev_step =
+                    if curr_pos == 0
+                      then Text.concat ["(_facts", rel_name, " db)"]
+                      else Text.concat ["step", Text.show (name_supply IntMap.! (-1))]
+              let fake_curr_pos = [curr_pos .. length tree_args - 1]
+                  real_curr_poses = (i_map IntMap.!) <$> fake_curr_pos
+                  list_curr_v = (tree_args !!) <$> real_curr_poses
+                  folder :: Int -> [Int] -> [Either Int (Int, Int)]
+                  folder _ [] = []
+                  folder ctr (c_v : xs) =
+                    if c_v `IntMap.notMember` name_supply
+                      then Left c_v : folder ctr xs
+                      else Right (c_v, ctr) : folder (ctr + 1) xs
+                  lhs' = folder (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
+                  lhs_tup_comp =
+                    ( \t -> case t of
+                        Right (_, i) -> Text.append "step" (Text.show i)
+                        Left i -> Text.concat ["_v", Text.show i, "_0"]
+                    )
+                      <$> lhs'
+                  lhs_tup =
+                    if length lhs_tup_comp == 1
+                      then lhs_tup_comp !! 0
+                      else Text.concat ["(", Text.intercalate ", " lhs_tup_comp, ")"]
+                  remaining_steps n_s [] = (n_s, [])
+                  remaining_steps n_s (Left c_v : xs) = remaining_steps (IntMap.insert c_v 0 n_s) xs
+                  remaining_steps n_s (Right (c_v, str) : xs) =
+                    let n_s' = IntMap.insert (-1) str $ IntMap.insert c_v ((n_s IntMap.! c_v) + 1) n_s
+                        (q_ty, _, _) = db_ty !! (length db_ty - length xs - 1)
+                        hd = case q_ty of
+                          Meet _ _ -> error "panic! partial ord argument coming after lattice argument"
+                          LatticeMeet _ _ l _ ->
+                            Text.concat
+                              [ stepIndent indent
+                              , "let _v"
+                              , Text.show c_v
+                              , "_"
+                              , Text.show (n_s' IntMap.! c_v)
+                              , " = "
+                              , codeGenIdentifier l
+                              , " step"
+                              , Text.show str
+                              , " _v"
+                              , Text.show c_v
+                              , Text.show (n_s IntMap.! c_v)
+                              ]
+                          _ -> error "panic! Discrete variable coming after partially ordered variable"
+                        (n_s'', ls) = remaining_steps n_s' xs
+                     in (n_s'', hd : ls)
+                  (name_supply', r_s) = remaining_steps name_supply lhs'
+              remaining <- codeGenSinglePhaseForest rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
+              -- is a hashset. walk down set and mlbs
+              return $
+                Text.concat
+                  [ stepIndent indent
+                  , "let "
+                  , lhs_tup
+                  , " = "
+                  , prev_step
+                  , Text.concat r_s
+                  , remaining
+                  ]
+            (Match, StoredAsSingleton, _) -> error "unreachable"
         else -- proceed with the next calls.
           codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
 
