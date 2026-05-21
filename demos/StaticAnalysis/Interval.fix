@@ -1,4 +1,5 @@
-module StaticAnalysis.Interval where
+-- put this in benchmarks/ReducedProduct/Interval.hs
+module ReducedProduct.FixenNoPriorities where
 
 include "Common"
 
@@ -8,7 +9,6 @@ partial ord StateI where
   mlbs = stateIMlbs
 
 rel StateBeforeI: Label, StateI
-
 
 rule assignInitI : Assign l _ _   |- StateBeforeI l HashMap.empty
 rule condInitI   : Cond l _ _ _ |- StateBeforeI l HashMap.empty
@@ -69,15 +69,6 @@ meetInterval :: Interval -> Interval -> Interval
 meetInterval s1 s2 = case (s1, s2) of
         (Pair (a, b), Pair (c, d)) -> if max a c <= min b d then Pair (max a c, min b d) else IBot
         (_, _) -> IBot
-
-{-
-widenState :: (Foldable db) => (IState -> f) -> IState -> db IState -> [f]
-widenState k s db = map (k . widen) (s : toList db)
-  where
-    widen = M.map widenInterval
-    widenInterval p@(Pair (m, n)) = if n - m > 30 then ITop else p
-    widenInterval other = other
--}
 
 data BBool = BTop | BFalse | BTrue | BBot
     deriving (Eq, Show, Generic)
@@ -151,15 +142,15 @@ refineTI e st = case e of
         (Id id, Pair (c, d)) -> case evalI e1 st of
             Pair (a, b) -> HashMap.fromList [(id, Pair (min a c, min b d))]
             _ -> HashMap.fromList [(id, IBot)]
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     Gte e1 e2 -> case (e1, evalI e2 st) of
         (Id id, Pair (c, d)) -> case evalI e1 st of
             Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (max a c, max b d))]) st
             _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     Eq e1 e2 -> case (e1, evalI e2 st) of
         (Id id, Pair (c, d)) -> HashMap.union (HashMap.fromList [(id, Pair (c, d))]) st
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     _ -> error "Unexpected case"
 
 refineFI :: Expr -> HashMap String Interval -> HashMap String Interval
@@ -169,15 +160,15 @@ refineFI e st = case e of
         (Id id, Pair (c, d)) -> case evalI e1 st of
             Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (d + 1, max (d + 1) b))]) st
             _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     Gte e1 e2 -> case (e1, evalI e2 st) of
         (Id id, Pair (c, d)) -> case evalI e1 st of
             Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (min (c - 1) a, c - 1))]) st
             _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     Eq e1 e2 -> case (e1, evalI e2 st) of
         (Id id, Pair (c, d)) -> HashMap.union (HashMap.fromList [(id, Pair (c, d))]) st
-        (_, _) -> error "Unexpected conditional"
+        (_, _) -> st -- error "Unexpected conditional"
     _ -> error "Unexpected case"
 ```
 

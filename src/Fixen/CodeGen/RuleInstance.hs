@@ -156,20 +156,28 @@ codeGenEqInstance =
 codeGenPriorities :: FixenPass CodeGenState Text
 codeGenPriorities = do
   priority_info <- values <$> fixenGetPriorities
-  let header =
-        """
-        instance Ord RuleInstance where
-          i <= i' = not (i' < i)
-          ----- PRIORITIES -----
-          Init _ < Init _ = False
-          _ < Init _ = True
-        """
-  cases <- mapM codeGenPriority priority_info
-  return $ Text.concat
-    [ header
-    , Text.concat $ Text.append "\n" <$> cases
-    , "\n  _ < _ = False"
-    ]
+  if null priority_info
+    then return
+      """
+      instance Ord RuleInstance where
+        _ <= Init _ = True
+        _ <= _ = False
+      """
+    else do
+      let header =
+            """
+            instance Ord RuleInstance where
+              i <= i' = not (i' < i)
+              ----- PRIORITIES -----
+              Init _ < Init _ = False
+              _ < Init _ = True
+            """
+      cases <- mapM codeGenPriority priority_info
+      return $ Text.concat
+        [ header
+        , Text.concat $ Text.append "\n" <$> cases
+        , "\n  _ < _ = False"
+        ]
 
 -- | Generates a @<@ case using a @priority@ declaration.
 --

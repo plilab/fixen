@@ -11,10 +11,14 @@ rel Edge   : Vertex, Vertex, Dist
 type Vertex = String
 
 distMlbs :: Natural -> Natural -> [Natural]
-distMlbs x y = [(max x y)]
+distMlbs x y = [max x y]
 
 instance NFData Database where
   rnf (Database x y) = rnf (x, y)
+
+instance NFData Fact where
+  rnf (DistTo x y) = rnf (x, y)
+  rnf (Edge a b c) = rnf (a, b, c)
 ```
 
 partial ord Dist where
@@ -26,14 +30,8 @@ partial ord Dist where
 rule addDist: DistTo a d, Edge a b d'
             |- DistTo b (d + d')
 
--- Priorities for Dijkstra's
-priority:
-  (d1 + d1') > (d2 + d2') 
-    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
-
 -- interface
 query distTo: DistTo + -
 query reachableIn: DistTo - +
 query distances: DistTo - -
-
 

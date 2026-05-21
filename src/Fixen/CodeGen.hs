@@ -166,7 +166,7 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
                 fst_i = Text.concat ["  ", lhs_tup, " <- HashSet.toList ", prev_step, "\n"]
                 need_to_leq = filter (`IntMap.member` name_supply) [n .. length ty' - 1]
                 guards = (\i -> Text.concat ["  guard (", codeGenIdentifier $ get_leq ty' i, " _v", Text.show i, "_0 _v", Text.show i, "_1)\n"]) <$> need_to_leq
-            remaining <- codeGenQueryStep (n + 1) rel_rep (IntMap.unionsWith max [name_supply, IntMap.fromList [(i, 0) | i <- [n .. length ty' - 1]], IntMap.fromList [(i, 1) | i <- need_to_leq]]) rel_name
+            remaining <- codeGenQueryStep (length ty') rel_rep (IntMap.unionsWith max [name_supply, IntMap.fromList [(i, 0) | i <- [n .. length ty' - 1]], IntMap.fromList [(i, 1) | i <- need_to_leq]]) rel_name
             return $ Text.concat [fst_i, Text.concat guards, remaining]
   where
     get_leq ty' i =

@@ -1,8 +1,8 @@
-module StaticAnalysis.ReducedProduct where
+-- put this in benchmarks/ReducedProduct/FixenNoPriorities.hs
+module ReducedProduct.FixenNoPriorities where
 
 include "Parity"
 include "Interval"
-
 
 ```hs
 reduceInterval :: HashMap String Parity -> HashMap String Interval -> HashMap String Interval
@@ -16,25 +16,17 @@ reduceInterval st st' = HashMap.mapWithKey enrich st' where
          (ParityBot, _) -> IBot
          (_, i) -> i
 
-test :: [Fact]
-test = [
-  -- V = 1
-  Var 0 "V", Seq 0 1,
-  Assign 2 "V" (Num 1), Seq 2 4,
-  -- while V <= 10
-  Cond 4 (Leq (Id "V") (Num 9)) 5 6,
-  Assign 5 "V" (Plus (Id "V") (Num 2)), Seq 5 4,
-  -- if V == 11 then:
-  Cond 6 (Eq (Id "V") (Num 11)) 7 101,
-  Assign 7 "V" (Num 0), Seq 7 101,
-  -- end
-  Var 101 "END"
-  ]
-```
+instance NFData Database where
+  rnf (Database a b c d e f) = rnf (a, b, c, d, e, f)
 
--- returns refined parity information from intervals 
--- rule reducedExchangeP : StateBeforeP l st, StateBeforeI l st' 
---     |- StateBeforeP l (reduceParity st st')
+instance NFData Fact where
+  rnf (Assign a b c) = rnf (a, b, c)
+  rnf (Cond a b c d) = rnf (a, b, c, d)
+  rnf (Seq a b) = rnf (a, b)
+  rnf (StateBeforeI l m) = rnf (l, m)
+  rnf (StateBeforeP l m) = rnf (l, m)
+  rnf (Var l s) = rnf (l, s)
+```
 
 -- For the time being, we focus only on intervals
 rule reducedExchangeP : StateBeforeP l st
@@ -44,14 +36,8 @@ rule reducedExchangeP : StateBeforeP l st
 rule reducedExchangeI : StateBeforeP l st, StateBeforeI l st' 
                      |- StateBeforeI l (reduceInterval st st') 
 
--- widenIntervals function takes intervals of size >= 30 and brings it to inf
--- rule widenInterval : StateBeforeI l st |- StateBeforeI l (widenIntervals st)
--- Needed so that StateBeforeP updates from stage 1 are carried back to stage 0
--- rule widenParity   : StateBeforeP l st |- StateBeforeP l st 
-
 -- The important bit
 phases: [
     * -- everything else
     , {reducedExchangeP, reducedExchangeI }
-   -- , { widenInterval, widenParity }
   ]

@@ -1,10 +1,17 @@
-module StaticAnalysis.Parity where
+-- put this in benchmarks/ReducedProduct/Parity.hs
+module ReducedProduct.Parity where
 
 include "Common"
 
 ```hs
 data Parity = IsEven | IsOdd | ParityTop | ParityBot
   deriving (Eq, Show, Generic)
+
+instance NFData Parity where
+  rnf IsEven = ()
+  rnf IsOdd = ()
+  rnf ParityTop = ()
+  rnf ParityBot = ()
 
 instance PartialOrd Parity where
   leq ParityBot _ = True
@@ -56,20 +63,20 @@ refineTP e st = case e of
   Gte e1 e2 -> st
   Eq e1 e2 -> case (e1, evalP e2 st) of
     (Id id, evenness) -> insertP id evenness st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st -- error "Unexpected conditional"    
   _ -> error "Unexpected case"
 
 refineFP :: Expr -> HashMap String Parity -> HashMap String Parity
 refineFP e st = case e of
   Leq e1 e2 -> case (e1, evalP e2 st) of
     (Id id, evenness) -> insertP id ParityBot st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st -- error "Unexpected conditional"    
   Gte e1 e2 -> case (e1, evalP e2 st) of
     (Id id, evenness) -> insertP id ParityBot st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st -- error "Unexpected conditional"    
   Eq e1 e2 -> case (e1, evalP e2 st) of
     (Id id, evenness) -> insertP id ParityBot st
-    (_, _) -> error "Unexpected conditional"    
+    (_, _) -> st -- error "Unexpected conditional"    
   _ -> error "Unexpected case"
 
 statePLeq :: HashMap String Parity -> HashMap String Parity -> Bool

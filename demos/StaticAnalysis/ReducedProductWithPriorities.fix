@@ -1,0 +1,129 @@
+-- put this in benchmarks/ReducedProduct/FixenWithPriorities.hs
+module ReducedProduct.FixenWithPriorities where
+
+include "ReducedProduct"
+
+-- exchanged rules come first
+priority:
+  True |- assignInitP { } < reducedExchangeP { }
+priority:
+  True |- condInitP { } < reducedExchangeP { }
+priority:
+  True |- varInitP { } < reducedExchangeP { }
+priority:
+  True |- assignInitI { } < reducedExchangeP { }
+priority:
+  True |- condInitI { } < reducedExchangeP { }
+priority:
+  True |- varInitI { } < reducedExchangeP { }
+priority:
+  True |- assignInitP { } < reducedExchangeI { }
+priority:
+  True |- condInitP { } < reducedExchangeI { }
+priority:
+  True |- varInitP { } < reducedExchangeI { }
+priority:
+  True |- assignInitI { } < reducedExchangeI { }
+priority:
+  True |- condInitI { } < reducedExchangeI { }
+priority:
+  True |- varInitI { } < reducedExchangeI { }
+
+-- followed by init rules
+priority:
+  True |- assignStepI { } < assignInitI { }
+priority:
+  True |- evalCondTI { } < assignInitI { }
+priority:
+  True |- evalCondFI { } < assignInitI { }
+priority:
+  True |- assignStepI { } < condInitI { }
+priority:
+  True |- evalCondTI { } < condInitI { }
+priority:
+  True |- evalCondFI { } < condInitI { }
+priority:
+  True |- assignStepI { } < varInitI { }
+priority:
+  True |- evalCondTI { } < varInitI { }
+priority:
+  True |- evalCondFI { } < varInitI { }
+priority:
+  True |- assignStepP { } < assignInitP { }
+priority:
+  True |- evalCondTP { } < assignInitP { }
+priority:
+  True |- evalCondFP { } < assignInitP { }
+priority:
+  True |- assignStepP { } < condInitP { }
+priority:
+  True |- evalCondTP { } < condInitP { }
+priority:
+  True |- evalCondFP { } < condInitP { }
+priority:
+  True |- assignStepP { } < varInitP { }
+priority:
+  True |- evalCondTP { } < varInitP { }
+priority:
+  True |- evalCondFP { } < varInitP { }
+
+-- among transfer functions, order by label
+priority:
+    l > l' |-
+      assignStepI { l = l } < assignStepI { l = l' }
+priority:
+    l > l' |-
+      evalCondTI { l = l } < assignStepI { l = l' }
+priority:
+    l > l' |-
+      evalCondFI { l = l } < assignStepI { l = l' }
+priority:
+    l > l' |-
+      assignStepI { l = l } < evalCondTI { l = l' }
+priority:
+    l > l' |-
+      evalCondTI { l = l } < evalCondTI { l = l' }
+priority:
+    l > l' |-
+      evalCondFI { l = l } < evalCondTI { l = l' }
+priority:
+    l > l' |-
+      assignStepI { l = l } < evalCondFI { l = l' }
+priority:
+    l > l' |-
+      evalCondTI { l = l } < evalCondFI { l = l' }
+priority:
+    l > l' |-
+      evalCondFI { l = l } < evalCondFI { l = l' }
+priority:
+    l > l' |-
+      assignStepP { l = l } < assignStepP { l = l' }
+priority:
+    l > l' |-
+      evalCondTP { l = l } < assignStepP { l = l' }
+priority:
+    l > l' |-
+      evalCondFP { l = l } < assignStepP { l = l' }
+priority:
+    l > l' |-
+      assignStepP { l = l } < evalCondTP { l = l' }
+priority:
+    l > l' |-
+      evalCondTP { l = l } < evalCondTP { l = l' }
+priority:
+    l > l' |-
+      evalCondFP { l = l } < evalCondTP { l = l' }
+priority:
+    l > l' |-
+      assignStepP { l = l } < evalCondFP { l = l' }
+priority:
+    l > l' |-
+      evalCondTP { l = l } < evalCondFP { l = l' }
+priority:
+    l > l' |-
+      evalCondFP { l = l } < evalCondFP { l = l' }
+
+phases: [
+    * -- everything else
+    , {reducedExchangeP, reducedExchangeI }
+  ]

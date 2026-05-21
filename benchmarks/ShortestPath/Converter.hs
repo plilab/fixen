@@ -33,22 +33,18 @@ module ShortestPath.Converter (
   Weight (..),
   Graph,
   loadGraph,
-  convertToKleen,
-  convertToNoPriorityKleen,
-  convertToFixedKleen,
-  convertToHandwritten,
+  convertToHand,
+  convertToFixenWithPriorities,
+  convertToFixenNoPriorities,
 ) where
 
 import Data.Aeson
-import qualified Data.ByteString.Lazy as B
-import qualified Data.Map as M
+import Data.ByteString.Lazy qualified as B
+import Data.HashMap.Strict qualified as H
+import Data.Map.Strict qualified as M
 import Numeric.Natural
-
-import qualified ShortestPath.Dist as D
-import qualified ShortestPath.HandwrittenCommon as HC
-import qualified ShortestPath.ShortestPath as SP
-import qualified ShortestPath.ShortestPathFixed as FSP
-import qualified ShortestPath.ShortestPathNoPriority as SPNP
+import ShortestPath.FixenNoPriorities qualified as NoPriorities
+import ShortestPath.FixenWithPriorities qualified as WithPriorities
 
 newtype Weight = Weight {weight :: Natural} deriving (Show)
 
@@ -65,36 +61,27 @@ loadGraph fp = do
   bs <- B.readFile fp
   return $ eitherDecode bs
 
-convertToKleen :: Graph -> [SP.Fact]
-convertToKleen g =
-  let edgeFacts =
-        [ SP.EdgeFact (SP.Edge u v (D.DistNat w))
-        | (u, nbrs) <- M.toList g
-        , (v, Weight w) <- M.toList nbrs
-        ]
-   in SP.StartFact (SP.Start "0") : edgeFacts
-
-convertToFixedKleen :: Graph -> [FSP.Fact]
-convertToFixedKleen g =
-  let edgeFacts =
-        [ FSP.Edge u v w
-        | (u, nbrs) <- M.toList g
-        , (v, Weight w) <- M.toList nbrs
-        ]
-   in FSP.DistTo "0" 0 : edgeFacts
-
-convertToNoPriorityKleen :: Graph -> [SPNP.Fact]
-convertToNoPriorityKleen g =
-  let edgeFacts =
-        [ SPNP.EdgeFact (SPNP.Edge u v (D.DistNat w))
-        | (u, nbrs) <- M.toList g
-        , (v, Weight w) <- M.toList nbrs
-        ]
-   in SPNP.StartFact (SPNP.Start "0") : edgeFacts
-
-convertToHandwritten :: Graph -> M.Map HC.Vertex [(HC.Vertex, HC.Dist)]
-convertToHandwritten =
-  M.map (map toAdj . M.toList)
+convertToHand :: Graph -> H.HashMap String [(String, Natural)]
+convertToHand =
+  H.fromList . M.toList . M.map (map toAdj . M.toList)
   where
-    toAdj :: (String, Weight) -> (HC.Vertex, HC.Dist)
-    toAdj (v, Weight w) = (v, HC.Dist (fromIntegral w))
+    toAdj :: (String, Weight) -> (String, Natural)
+    toAdj (v, Weight w) = (v, fromIntegral w)
+
+convertToFixenWithPriorities :: Graph -> WithPriorities.Database
+convertToFixenWithPriorities g =
+  let edgeFacts =
+        [ WithPriorities.Edge u v w
+        | (u, nbrs) <- M.toList g
+        , (v, Weight w) <- M.toList nbrs
+        ]
+   in WithPriorities.solve edgeFacts
+
+convertToFixenNoPriorities :: Graph -> NoPriorities.Database
+convertToFixenNoPriorities g =
+  let edgeFacts =
+        [ NoPriorities.Edge u v w
+        | (u, nbrs) <- M.toList g
+        , (v, Weight w) <- M.toList nbrs
+        ]
+   in NoPriorities.solve edgeFacts

@@ -1,0 +1,12 @@
+-- Put this in benchmarks/Pareto/FixenWithPriorities.hs
+module Pareto.FixenWithPriorities where
+
+include "NoPriorities"
+
+-- Priorities for MOSP
+priority:
+  ((d1 + d1') > (d2 + d2'))
+    || (((d1 + d1') == (d2 + d2')) 
+          && ((c1 + c1') > (c2 + c2')))
+    |- addDist { d = d1, d' = d1', c = c1, c' = c1' } 
+        < addDist { d = d2, d' = d2', c = c2, c' = c2' }

@@ -199,6 +199,7 @@ benchmark shortest-path
       OverloadedStrings
   build-depends:      base
                     , aeson
+                    , bytestring
                     , containers 
                     , criterion
                     , deepseq
@@ -215,11 +216,49 @@ benchmark pareto
   main-is: Main.hs
   other-modules:
       Pareto.Hand
+    , Pareto.Converter
+    , Pareto.FixenNoPriorities
+    , Pareto.FixenWithPriorities
   hs-source-dirs:
       benchmarks
   default-extensions:
       OverloadedStrings
-  build-depends:      base 
-                    , containers
+  build-depends:      base
+                    , aeson
+                    , bytestring
+                    , containers 
+                    , criterion
+                    , deepseq
+                    , directory
+                    , filepath
                     , pqueue 
+                    , unordered-containers
+  default-language: GHC2021
+
+benchmark reduced-product
+  import: warnings
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmarks/ReducedProduct
+  main-is: Main.hs
+  other-modules:
+      ReducedProduct.Hand
+    , ReducedProduct.FixenNoPriorities
+    , ReducedProduct.FixenWithPriorities
+    , ReducedProduct.CEval
+  hs-source-dirs:
+      benchmarks
+  default-extensions:
+      OverloadedStrings
+  build-depends:      base
+                    , aeson
+                    , bytestring
+                    , containers 
+                    , criterion
+                    , deepseq
+                    , directory
+                    , filepath
+                    , hashable
+                    , lattices
+                    , pqueue 
+                    , unordered-containers
   default-language: GHC2021

@@ -1,45 +1,45 @@
 module Pareto.Hand where
 
-import Data.Map (Map)
-import Data.Map qualified (empty, findWithDefault, insert, lookup)
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as Map
 import Data.PQueue.Min (MinQueue (..))
 import Data.PQueue.Min qualified
+import Data.Set (Set)
+import Data.Set qualified as Set
+import Numeric.Natural
 
 type Vertex = String
-type Dist = Int
-type Cost = Int
+type Dist = Natural
+type Cost = Natural
 
-data MultiWeight = MultiWeight {distance :: Int, cost :: Int}
-  deriving (Show)
+data Cont = Cont Natural Natural Vertex
 
-toPair :: MultiWeight -> (Dist, Cost)
-toPair MultiWeight {distance = d, cost = c} = (d, c)
+instance Eq Cont where
+  c == c'
+    | c < c' = False
+    | c' < c = False
+    | otherwise = True
 
-fromPair :: (Dist, Cost) -> MultiWeight
-fromPair (d, c) = MultiWeight {distance = d, cost = c}
+instance Ord Cont where
+  Cont a b _ < Cont a' b' _ = a < a' || (a == a' && b < b')
+  x <= y = not (y < x)
 
-instance Eq MultiWeight where
-  a == b = compare a b == EQ
+dominates :: (Dist, Cost) -> (Dist, Cost) -> Bool
+dominates (d, c) (d', c') = d <= d' && c <= c'
 
-instance Ord MultiWeight where
-  compare (MultiWeight x y) (MultiWeight x' y')
-    | x < x' && y <= y' = LT
-    | x <= x' && y < y' = LT
-    | x >= x' && y > y' = GT
-    | x > x' && y >= y' = GT
-    | otherwise = EQ
-
-pareto :: Vertex -> Map Vertex [(Vertex, Dist, Cost)] -> Map Vertex (Dist, Cost)
-pareto start edges = go Data.Map.empty (Data.PQueue.Min.fromList [(fromPair (0, 0), start)])
+pareto :: Vertex -> HashMap Vertex [(Vertex, Dist, Cost)] -> HashMap Vertex (Set (Dist, Cost))
+pareto start edges = go Map.empty (Data.PQueue.Min.fromList [Cont 0 0 start])
   where
-    go :: Map Vertex (Dist, Cost) -> MinQueue (MultiWeight, Vertex) -> Map Vertex (Dist, Cost)
+    go :: HashMap Vertex (Set (Dist, Cost)) -> MinQueue Cont -> HashMap Vertex (Set (Dist, Cost))
     go dists Empty = dists
-    go dists ((MultiWeight d c, v) :< work)
-      | Just (d', c') <- Data.Map.lookup v dists
-      , d' <= d && c' <= c =
+    go dists ((Cont d c v) :< work)
+      | Just ls <- Map.lookup v dists
+      , any (`dominates` (d, c)) ls =
           go dists work
       | otherwise =
-          let dists' = Data.Map.insert v (d, c) dists
-              newWork = fmap (\(v', d', c') -> (fromPair (d + d', c + c'), v')) (Data.Map.findWithDefault [] v edges)
+          let curr_dists = Map.findWithDefault Set.empty v dists
+              new_dists_of_v = Set.insert (d, c) $ Set.filter (not . ((d, c) `dominates`)) curr_dists
+              dists' = Map.insert v new_dists_of_v dists
+              newWork = fmap (\(v', d', c') -> Cont (d + d') (c + c') v') (Map.findWithDefault [] v edges)
               work' = Data.PQueue.Min.union work (Data.PQueue.Min.fromList newWork)
-          in  go dists' work'
+           in go dists' work'

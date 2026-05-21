@@ -18,10 +18,14 @@ import Control.DeepSeq
 type Vertex = String
 
 distMlbs :: Natural -> Natural -> [Natural]
-distMlbs x y = [(max x y)]
+distMlbs x y = [max x y]
 
 instance NFData Database where
   rnf (Database x y) = rnf (x, y)
+
+instance NFData Fact where
+  rnf (DistTo x y) = rnf (x, y)
+  rnf (Edge a b c) = rnf (a, b, c)
 ----- USER CODE END -----
 
 ----- FACTS -----

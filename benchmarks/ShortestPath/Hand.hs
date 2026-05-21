@@ -1,24 +1,54 @@
 module ShortestPath.Hand where
 
-import Data.Map (Map)
-import Data.Map qualified (empty, findWithDefault, insert, lookup)
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.PQueue.Min (MinQueue (..))
 import Data.PQueue.Min qualified
+import Numeric.Natural
 
 type Vertex = String
-type Dist = Int
+type Dist = Natural
 
-dijkstra :: Vertex -> Map Vertex [(Vertex, Dist)] -> Map Vertex Dist
-dijkstra start edges = go Data.Map.empty (Data.PQueue.Min.fromList [(0, start)])
+dijkstra :: Vertex -> HashMap Vertex [(Vertex, Dist)] -> HashMap Vertex Dist
+dijkstra start edges = go HashMap.empty (Data.PQueue.Min.fromList [(0, start)])
   where
-    go :: Map Vertex Dist -> MinQueue (Dist, Vertex) -> Map Vertex Dist
+    go :: HashMap Vertex Dist -> MinQueue (Dist, Vertex) -> HashMap Vertex Dist
     go dists Empty = dists
     go dists ((d, v) :< work)
-      | Just d' <- Data.Map.lookup v dists
+      | Just d' <- HashMap.lookup v dists
       , d' <= d =
           go dists work
       | otherwise =
-          let dists' = Data.Map.insert v d dists
-              newWork = fmap (\(v', d') -> (d + d', v')) (Data.Map.findWithDefault [] v edges)
-              work' = Data.PQueue.Min.union work (Data.PQueue.Min.fromList newWork)
-          in  go dists' work'
+          let dists' = HashMap.insert v d dists
+              newWork = fmap (\(v', d') -> (d + d', v')) (HashMap.findWithDefault [] v edges)
+              work' = Data.PQueue.Min.union (Data.PQueue.Min.fromList newWork) work
+           in go dists' work'
+
+data Cont = Cont Dist Vertex
+
+instance Eq Cont where
+  c == c'
+    | c < c' = False
+    | c' < c = False
+    | otherwise = True
+
+instance Ord Cont where
+  x <= y = not (y < x)
+  Cont d _ < Cont d' _ = d < d'
+
+dijkstraQueueOpt :: Vertex -> HashMap Vertex [(Vertex, Dist)] -> HashMap Vertex Dist
+dijkstraQueueOpt start edges = go HashMap.empty (Data.PQueue.Min.fromList [Cont 0 start])
+  where
+    go :: HashMap Vertex Dist -> MinQueue Cont -> HashMap Vertex Dist
+    go dists Empty = dists
+    go dists (Cont d v :< work)
+      | Just d' <- HashMap.lookup v dists
+      , d' <= d =
+          go dists work
+      | otherwise =
+          let dists' = HashMap.insert v d dists
+              newWork = fmap (\(v', d') -> Cont (d + d') v') (HashMap.findWithDefault [] v edges)
+              work' = Data.PQueue.Min.union (Data.PQueue.Min.fromList newWork) work
+           in go dists' work'
