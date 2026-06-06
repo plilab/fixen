@@ -203,11 +203,11 @@ codeGenReplaceDb n =
 codeGenInsertToInterpretation :: Text
 codeGenInsertToInterpretation =
   """
-  insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation
+  insertToInterpretation :: Interpretation -> Fact -> Phase -> Interpretation
   insertToInterpretation i f p = do
     let db = selectDb i p
-    db' <- insertToDb db f
-    return $ replaceDb i db' p
+        db' = insertToDb db f
+     in replaceDb i db' p
   """
 
 -- ** Phased Rule-Instance Evaluation

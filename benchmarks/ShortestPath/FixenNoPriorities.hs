@@ -17,9 +17,6 @@ import Control.DeepSeq
 ----- USER CODE START -----
 type Vertex = String
 
-distMlbs :: Natural -> Natural -> [Natural]
-distMlbs x y = [max x y]
-
 instance NFData Database where
   rnf (Database x y) = rnf (x, y)
 
@@ -32,6 +29,19 @@ instance NFData Fact where
 data Fact = DistTo Vertex Natural
           | Edge Vertex Vertex Natural
   deriving (Show, Eq)
+
+factLeq :: Fact -> Fact -> Bool
+factLeq (DistTo v0 v1) (DistTo v'0 v'1) = (v0 == v'0) && (v1 >= v'1)
+factLeq (Edge v0 v1 v2) (Edge v'0 v'1 v'2) = (v0 == v'0) && (v1 == v'1) && (v2 >= v'2)
+factLeq _ _ = False
+
+maximalContour :: [Fact] -> [Fact]
+maximalContour [] = []
+maximalContour [x] = [x]
+maximalContour (x : xs) =
+  if any (factLeq x) xs 
+  then maximalContour xs
+  else x : maximalContour (filter (\x' -> not (factLeq x' x)) xs)
 
 ----- FACT DATABASE -----
 data Database = Database
@@ -60,26 +70,39 @@ db |= (Edge _v0 _v1 _v2) =
         _t0 <- step1 HashMap.!? _v1
         return $ (>=) _v2 _t0
 
-insertToDb :: Database -> Fact -> Maybe Database
-insertToDb db fact
-  | db |= fact = Nothing
+insertToDb :: Database -> Fact -> Database
 insertToDb db (DistTo _v0 _v1) =
   let mp = _factsDistTo db
       new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              (min)
+              (const)
               new_fact
               mp
-   in Just db { _factsDistTo = mp' }
+   in db { _factsDistTo = mp' }
 insertToDb db (Edge _v0 _v1 _v2) =
   let mp = _factsEdge db
       new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (_v2))
       mp' = HashMap.unionWith
               (HashMap.unionWith
-                (min))
+                (const))
               new_fact
               mp
-   in Just db { _factsEdge = mp' }
+   in db { _factsEdge = mp' }
+
+mergeContour :: Fact -> Database -> [Fact]
+mergeContour f@(DistTo v0 v1) db =
+  let db' = _factsDistTo db
+   in f : do
+        t0 <- maybeToList (db' HashMap.!? v0)
+        let v'1 = min t0 v1
+        return (DistTo v0 v'1)
+mergeContour f@(Edge v0 v1 v2) db =
+  let db' = _factsEdge db
+   in f : do
+        step0 <- maybeToList (db' HashMap.!? v0)
+        t0 <- maybeToList (step0 HashMap.!? v1)
+        let v'2 = min t0 v2
+        return (Edge v0 v1 v'2)
 
 ----- RULE INSTANCES -----
 data RuleInstance
@@ -125,6 +148,9 @@ step db fact q = case fact of
         let _v3_0 = step0
         return $ RuleAddDist _v0_0 _v1_0 _v3_0 _v2_0
 
+stepAll :: Database -> [Fact] -> Queue -> Queue
+stepAll db xs q = foldl' (\q' f -> step db f q') q xs
+
 
 ----- SOLVER -----
 
@@ -132,9 +158,12 @@ loop :: Queue -> Database -> Database
 loop q db
   | Just (p, q') <- Q.maxView q =
     let f = evaluate p
-     in case insertToDb db f of
-          Nothing -> loop q' db
-          Just db' -> loop (step db' f q') db'
+     in if db |= f
+        then loop q' db
+        else let c = mergeContour f db
+                 new_facts = filter (not . (db |=)) (maximalContour c)
+                 new_db = foldl' insertToDb db new_facts
+              in loop (stepAll new_db new_facts q') new_db
   | otherwise = db
 
 solve :: [Fact] -> Database

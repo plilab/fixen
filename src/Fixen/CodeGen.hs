@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultilineStrings #-}
 
 module Fixen.CodeGen where
 
@@ -34,6 +35,7 @@ codeGen forest relation_rep prog = do
   db_code <- codeGenDb relation_rep
   cont_code <- codeGenRuleInstance
   step_code <- codeGenStep forest relation_rep
+  step_all_code <- codeGenStepAll
   loop_and_solve_code <- codeGenLoopAndSolve
   re_solve_code <- codeGenReSolve forest
   q_code <- mapM (codeGenQuery relation_rep) (prog ^. queries)
@@ -49,6 +51,7 @@ codeGen forest relation_rep prog = do
       , cont_code
       , "\n----- STEP FUNCTION -----"
       , step_code
+      , step_all_code
       , "\n----- SOLVER -----"
       , loop_and_solve_code
       , re_solve_code
@@ -200,7 +203,10 @@ codeGenReSolve f =
       l_c <- mapM (codeGenFactLeaves Nothing) leaves'
       return $
         Text.concat
-          [ "\nreSolve :: Database -> [Fact] -> Database\nreSolve db f =\n  let q = Q.fromList $ concat [\n            Init <$> f"
+          [ "\nreSolve :: Database -> [Fact] -> Database\n"
+          , "reSolve db f =\n"
+          , "  let q = Q.fromList $ concat [\n"
+          , "            Init <$> f"
           , Text.concat (Text.cons ',' <$> l_c)
           , "\n          ]\n   in loop q db"
           ]
@@ -259,8 +265,42 @@ codeGenLoopAndSolve :: FixenPass CodeGenState Text
 codeGenLoopAndSolve = do
   p <- fixenGetPhases
   if length p == 1
-    then return "loop :: Queue -> Database -> Database\nloop q db\n  | Just (p, q') <- Q.maxView q =\n    let f = evaluate p\n     in case insertToDb db f of\n          Nothing -> loop q' db\n          Just db' -> loop (step db' f q') db'\n  | otherwise = db\n\nsolve :: [Fact] -> Database\nsolve = reSolve emptyDb"
-    else return "loop :: Queue -> Interpretation -> Interpretation\nloop q i\n  | Just (p, q') <- Q.maxView q =\n    let (f, phase) = evaluatePhased p\n     in case insertToInterpretation i f phase of\n          Nothing -> loop q' i\n          Just i' -> loop (step i' f phase q') i'\n  | otherwise = i\n\nsolve :: [Fact] -> Interpretation\nsolve = reSolve emptyInterpretation"
+    then return
+          """
+          loop :: Queue -> Database -> Database
+          loop q db
+            | Just (p, q') <- Q.maxView q =
+              let f = evaluate p
+               in if db |= f
+                  then loop q' db
+                  else let c = mergeContour f db
+                           new_facts = filter (not . (db |=)) (maximalContour c)
+                           new_db = foldl' insertToDb db new_facts
+                        in loop (stepAll new_db new_facts q') new_db
+            | otherwise = db
+
+          solve :: [Fact] -> Database
+          solve = reSolve emptyDb
+          """
+    else return 
+          """
+          loop :: Queue -> Interpretation -> Interpretation
+          loop q i
+            | Just (p, q') <- Q.maxView q =
+              let (f, phase) = evaluatePhased p
+                  db = selectDb i phase
+               in if db |= f
+                  then loop q' i
+                  else let c = mergeContour f db
+                           new_facts = filter (not . (db |=)) (maximalContour c)
+                           new_db = foldl' insertToDb db new_facts
+                           new_int = replaceDb i new_db phase
+                        in loop (stepAll new_int new_facts phase q') new_int
+            | otherwise = i
+
+          solve :: [Fact] -> Interpretation
+          solve = reSolve emptyInterpretation
+          """
 
 codeGenStep :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStep f r = do
@@ -271,6 +311,21 @@ codeGenStep f r = do
     _ -> do
       c <- codeGenStepMultiPhase f r
       return $ Text.concat ["step :: Interpretation -> Fact -> Phase -> Queue -> Queue\nstep i f p q = let db = selectDb i p in case p of", c]
+
+codeGenStepAll :: FixenPass CodeGenState Text
+codeGenStepAll = do
+  p <- fixenGetPhases
+  if length p == 1
+    then return
+          """
+          stepAll :: Database -> [Fact] -> Queue -> Queue
+          stepAll db xs q = foldl' (\\q' f -> step db f q') q xs
+          """
+    else return 
+          """
+          stepAll :: Interpretation -> [Fact] -> Phase -> Queue -> Queue
+          stepAll i xs p q = foldl' (\\q' f -> step i f p q') q xs
+          """
 
 codeGenStepMultiPhase :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStepMultiPhase xs r = do

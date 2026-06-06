@@ -33,6 +33,19 @@ data Fact = DistTo Vertex Natural Natural
           | Edge Vertex Vertex Natural Natural
   deriving (Show, Eq)
 
+factLeq :: Fact -> Fact -> Bool
+factLeq (DistTo v0 v1 v2) (DistTo v'0 v'1 v'2) = (v0 == v'0) && (v1 >= v'1) && (v2 >= v'2)
+factLeq (Edge v0 v1 v2 v3) (Edge v'0 v'1 v'2 v'3) = (v0 == v'0) && (v1 == v'1) && (v2 >= v'2) && (v3 >= v'3)
+factLeq _ _ = False
+
+maximalContour :: [Fact] -> [Fact]
+maximalContour [] = []
+maximalContour [x] = [x]
+maximalContour (x : xs) =
+  if any (factLeq x) xs 
+  then maximalContour xs
+  else x : maximalContour (filter (\x' -> not (factLeq x' x)) xs)
+
 ----- FACT DATABASE -----
 data Database = Database
   { _factsDistTo :: HashMap Vertex (HashSet (Natural, Natural))
@@ -60,9 +73,7 @@ db |= (Edge _v0 _v1 _v2 _v3) =
         step2 <- step1 HashMap.!? _v1
         return $ any (\(_t0, _t1) -> ((>=) _v2 _t0) && ((>=) _v3 _t1)) step2
 
-insertToDb :: Database -> Fact -> Maybe Database
-insertToDb db fact
-  | db |= fact = Nothing
+insertToDb :: Database -> Fact -> Database
 insertToDb db (DistTo _v0 _v1 _v2) =
   let mp = _factsDistTo db
       new_fact = HashMap.singleton _v0 (HashSet.singleton (_v1, _v2))
@@ -75,7 +86,7 @@ insertToDb db (DistTo _v0 _v1 _v2) =
                       s2)))
               new_fact
               mp
-   in Just db { _factsDistTo = mp' }
+   in db { _factsDistTo = mp' }
 insertToDb db (Edge _v0 _v1 _v2 _v3) =
   let mp = _factsEdge db
       new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton (_v2, _v3)))
@@ -89,7 +100,11 @@ insertToDb db (Edge _v0 _v1 _v2 _v3) =
                         s2))))
               new_fact
               mp
-   in Just db { _factsEdge = mp' }
+   in db { _factsEdge = mp' }
+
+mergeContour :: Fact -> Database -> [Fact]
+mergeContour f@(DistTo _ _ _) _ = [f]
+mergeContour f@(Edge _ _ _ _) _ = [f]
 
 ----- RULE INSTANCES -----
 data RuleInstance
@@ -141,6 +156,9 @@ step db fact q = case fact of
         (_v4_0, _v5_0) <- HashSet.toList step0
         return $ RuleAddDist _v0_0 _v1_0 _v5_0 _v3_0 _v4_0 _v2_0
 
+stepAll :: Database -> [Fact] -> Queue -> Queue
+stepAll db xs q = foldl' (\q' f -> step db f q') q xs
+
 
 ----- SOLVER -----
 
@@ -148,9 +166,12 @@ loop :: Queue -> Database -> Database
 loop q db
   | Just (p, q') <- Q.maxView q =
     let f = evaluate p
-     in case insertToDb db f of
-          Nothing -> loop q' db
-          Just db' -> loop (step db' f q') db'
+     in if db |= f
+        then loop q' db
+        else let c = mergeContour f db
+                 new_facts = filter (not . (db |=)) (maximalContour c)
+                 new_db = foldl' insertToDb db new_facts
+              in loop (stepAll new_db new_facts q') new_db
   | otherwise = db
 
 solve :: [Fact] -> Database

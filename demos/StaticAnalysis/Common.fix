@@ -25,14 +25,30 @@ type Label = Natural
 
 instance PartialOrd Expr where
   leq = (==)
+
+
+mainTest :: [Fact]
+mainTest = [
+  -- V = 1
+  Var 0 "V", Seq 0 1,
+  Assign 2 "V" (Num 1), Seq 2 4,
+  -- while V <= 10
+  Branch 4 (Leq (Id "V") (Num 9)) 5 6,
+  Assign 5 "V" (Plus (Id "V") (Num 2)), Seq 5 4,
+  -- if V == 11 then:
+  Branch 6 (Eq (Id "V") (Num 11)) 7 101,
+  Assign 7 "V" (Num 0), Seq 7 101,
+  -- end
+  Var 101 "END"
+  ]
 ```
 
 rel Var: Label, String
 rel Assign: Label, String, Expr
-rel Cond: Label, Expr, Label, Label
+rel Branch: Label, Expr, Label, Label
 rel Seq: Label, Label
 
 query vars: Var + -
 query assigns: Assign + - -
-query conds: Cond - + - -
+query branches: Branch - + - -
 query seqs: Seq + -

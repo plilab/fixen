@@ -7,25 +7,25 @@ include "ReducedProduct"
 priority:
   True |- assignInitP { } < reducedExchangeP { }
 priority:
-  True |- condInitP { } < reducedExchangeP { }
+  True |- branchInitP { } < reducedExchangeP { }
 priority:
   True |- varInitP { } < reducedExchangeP { }
 priority:
   True |- assignInitI { } < reducedExchangeP { }
 priority:
-  True |- condInitI { } < reducedExchangeP { }
+  True |- branchInitI { } < reducedExchangeP { }
 priority:
   True |- varInitI { } < reducedExchangeP { }
 priority:
   True |- assignInitP { } < reducedExchangeI { }
 priority:
-  True |- condInitP { } < reducedExchangeI { }
+  True |- branchInitP { } < reducedExchangeI { }
 priority:
   True |- varInitP { } < reducedExchangeI { }
 priority:
   True |- assignInitI { } < reducedExchangeI { }
 priority:
-  True |- condInitI { } < reducedExchangeI { }
+  True |- branchInitI { } < reducedExchangeI { }
 priority:
   True |- varInitI { } < reducedExchangeI { }
 
@@ -33,95 +33,95 @@ priority:
 priority:
   True |- assignStepI { } < assignInitI { }
 priority:
-  True |- evalCondTI { } < assignInitI { }
+  True |- branchTrueI { } < assignInitI { }
 priority:
-  True |- evalCondFI { } < assignInitI { }
+  True |- branchFalseI { } < assignInitI { }
 priority:
-  True |- assignStepI { } < condInitI { }
+  True |- assignStepI { } < branchInitI { }
 priority:
-  True |- evalCondTI { } < condInitI { }
+  True |- branchTrueI { } < branchInitI { }
 priority:
-  True |- evalCondFI { } < condInitI { }
+  True |- branchFalseI { } < branchInitI { }
 priority:
   True |- assignStepI { } < varInitI { }
 priority:
-  True |- evalCondTI { } < varInitI { }
+  True |- branchTrueI { } < varInitI { }
 priority:
-  True |- evalCondFI { } < varInitI { }
+  True |- branchFalseI { } < varInitI { }
 priority:
   True |- assignStepP { } < assignInitP { }
 priority:
-  True |- evalCondTP { } < assignInitP { }
+  True |- branchTrueP { } < assignInitP { }
 priority:
-  True |- evalCondFP { } < assignInitP { }
+  True |- branchFalseP { } < assignInitP { }
 priority:
-  True |- assignStepP { } < condInitP { }
+  True |- assignStepP { } < branchInitP { }
 priority:
-  True |- evalCondTP { } < condInitP { }
+  True |- branchTrueP { } < branchInitP { }
 priority:
-  True |- evalCondFP { } < condInitP { }
+  True |- branchFalseP { } < branchInitP { }
 priority:
   True |- assignStepP { } < varInitP { }
 priority:
-  True |- evalCondTP { } < varInitP { }
+  True |- branchTrueP { } < varInitP { }
 priority:
-  True |- evalCondFP { } < varInitP { }
+  True |- branchFalseP { } < varInitP { }
 
 -- among transfer functions, order by label
 priority:
-    l > l' |-
-      assignStepI { l = l } < assignStepI { l = l' }
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTI { l = l } < assignStepI { l = l' }
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFI { l = l } < assignStepI { l = l' }
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
 priority:
-    l > l' |-
-      assignStepI { l = l } < evalCondTI { l = l' }
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTI { l = l } < evalCondTI { l = l' }
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFI { l = l } < evalCondTI { l = l' }
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
-    l > l' |-
-      assignStepI { l = l } < evalCondFI { l = l' }
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTI { l = l } < evalCondFI { l = l' }
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFI { l = l } < evalCondFI { l = l' }
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
 priority:
-    l > l' |-
-      assignStepP { l = l } < assignStepP { l = l' }
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTP { l = l } < assignStepP { l = l' }
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFP { l = l } < assignStepP { l = l' }
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
 priority:
-    l > l' |-
-      assignStepP { l = l } < evalCondTP { l = l' }
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTP { l = l } < evalCondTP { l = l' }
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFP { l = l } < evalCondTP { l = l' }
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
-    l > l' |-
-      assignStepP { l = l } < evalCondFP { l = l' }
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondTP { l = l } < evalCondFP { l = l' }
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 priority:
-    l > l' |-
-      evalCondFP { l = l } < evalCondFP { l = l' }
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 
 phases: [
     * -- everything else

@@ -176,6 +176,22 @@ type Label = Natural
 instance PartialOrd Expr where
   leq = (==)
 
+
+mainTest :: [Fact]
+mainTest = [
+  -- V = 1
+  Var 0 "V", Seq 0 1,
+  Assign 2 "V" (Num 1), Seq 2 4,
+  -- while V <= 10
+  Branch 4 (Leq (Id "V") (Num 9)) 5 6,
+  Assign 5 "V" (Plus (Id "V") (Num 2)), Seq 5 4,
+  -- if V == 11 then:
+  Branch 6 (Eq (Id "V") (Num 11)) 7 101,
+  Assign 7 "V" (Num 0), Seq 7 101,
+  -- end
+  Var 101 "END"
+  ]
+
 data Parity = IsEven | IsOdd | ParityTop | ParityBot
   deriving (Eq, Show, Generic)
 
@@ -276,7 +292,7 @@ instance NFData Database where
 
 instance NFData Fact where
   rnf (Assign a b c) = rnf (a, b, c)
-  rnf (Cond a b c d) = rnf (a, b, c, d)
+  rnf (Branch a b c d) = rnf (a, b, c, d)
   rnf (Seq a b) = rnf (a, b)
   rnf (StateBeforeI l m) = rnf (l, m)
   rnf (StateBeforeP l m) = rnf (l, m)
@@ -285,17 +301,34 @@ instance NFData Fact where
 
 ----- FACTS -----
 data Fact = Assign Label String Expr
-          | Cond Label Expr Label Label
+          | Branch Label Expr Label Label
           | Seq Label Label
           | StateBeforeI Label (HashMap String Interval)
           | StateBeforeP Label (HashMap String Parity)
           | Var Label String
   deriving (Show, Eq)
 
+factLeq :: Fact -> Fact -> Bool
+factLeq (Assign v0 v1 v2) (Assign v'0 v'1 v'2) = (v0 == v'0) && (v1 == v'1) && (v2 == v'2)
+factLeq (Branch v0 v1 v2 v3) (Branch v'0 v'1 v'2 v'3) = (v0 == v'0) && (v1 == v'1) && (v2 == v'2) && (v3 == v'3)
+factLeq (Seq v0 v1) (Seq v'0 v'1) = (v0 == v'0) && (v1 == v'1)
+factLeq (StateBeforeI v0 v1) (StateBeforeI v'0 v'1) = (v0 == v'0) && (stateILeq v1 v'1)
+factLeq (StateBeforeP v0 v1) (StateBeforeP v'0 v'1) = (v0 == v'0) && (statePLeq v1 v'1)
+factLeq (Var v0 v1) (Var v'0 v'1) = (v0 == v'0) && (v1 == v'1)
+factLeq _ _ = False
+
+maximalContour :: [Fact] -> [Fact]
+maximalContour [] = []
+maximalContour [x] = [x]
+maximalContour (x : xs) =
+  if any (factLeq x) xs 
+  then maximalContour xs
+  else x : maximalContour (filter (\x' -> not (factLeq x' x)) xs)
+
 ----- FACT DATABASE -----
 data Database = Database
   { _factsAssign :: HashMap Label (HashMap String (HashSet Expr))
-  , _factsCond :: HashMap Label (HashMap Expr (HashMap Label (HashSet Label)))
+  , _factsBranch :: HashMap Label (HashMap Expr (HashMap Label (HashSet Label)))
   , _factsSeq :: HashMap Label (HashSet Label)
   , _factsStateBeforeI :: HashMap Label (HashMap String Interval)
   , _factsStateBeforeP :: HashMap Label (HashMap String Parity)
@@ -305,7 +338,7 @@ data Database = Database
 emptyDb :: Database
 emptyDb = Database
   { _factsAssign = HashMap.empty
-  , _factsCond = HashMap.empty
+  , _factsBranch = HashMap.empty
   , _factsSeq = HashMap.empty
   , _factsStateBeforeI = HashMap.empty
   , _factsStateBeforeP = HashMap.empty
@@ -321,8 +354,8 @@ db |= (Assign _v0 _v1 _v2) =
         step1 <- db' HashMap.!? _v0
         step2 <- step1 HashMap.!? _v1
         return $ _v2 `HashSet.member` step2
-db |= (Cond _v0 _v1 _v2 _v3) =
-  let db' = _factsCond db
+db |= (Branch _v0 _v1 _v2 _v3) =
+  let db' = _factsBranch db
    in fromMaybe False $ do
         step1 <- db' HashMap.!? _v0
         step2 <- step1 HashMap.!? _v1
@@ -349,9 +382,7 @@ db |= (Var _v0 _v1) =
         step1 <- db' HashMap.!? _v0
         return $ _v1 `HashSet.member` step1
 
-insertToDb :: Database -> Fact -> Maybe Database
-insertToDb db fact
-  | db |= fact = Nothing
+insertToDb :: Database -> Fact -> Database
 insertToDb db (Assign _v0 _v1 _v2) =
   let mp = _factsAssign db
       new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashSet.singleton _v2))
@@ -360,9 +391,9 @@ insertToDb db (Assign _v0 _v1 _v2) =
                 (HashSet.union))
               new_fact
               mp
-   in Just db { _factsAssign = mp' }
-insertToDb db (Cond _v0 _v1 _v2 _v3) =
-  let mp = _factsCond db
+   in db { _factsAssign = mp' }
+insertToDb db (Branch _v0 _v1 _v2 _v3) =
+  let mp = _factsBranch db
       new_fact = HashMap.singleton _v0 (HashMap.singleton _v1 (HashMap.singleton _v2 (HashSet.singleton _v3)))
       mp' = HashMap.unionWith
               (HashMap.unionWith
@@ -370,7 +401,7 @@ insertToDb db (Cond _v0 _v1 _v2 _v3) =
                   (HashSet.union)))
               new_fact
               mp
-   in Just db { _factsCond = mp' }
+   in db { _factsBranch = mp' }
 insertToDb db (Seq _v0 _v1) =
   let mp = _factsSeq db
       new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
@@ -378,23 +409,23 @@ insertToDb db (Seq _v0 _v1) =
               (HashSet.union)
               new_fact
               mp
-   in Just db { _factsSeq = mp' }
+   in db { _factsSeq = mp' }
 insertToDb db (StateBeforeI _v0 _v1) =
   let mp = _factsStateBeforeI db
       new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              (joinI)
+              (const)
               new_fact
               mp
-   in Just db { _factsStateBeforeI = mp' }
+   in db { _factsStateBeforeI = mp' }
 insertToDb db (StateBeforeP _v0 _v1) =
   let mp = _factsStateBeforeP db
       new_fact = HashMap.singleton _v0 (_v1)
       mp' = HashMap.unionWith
-              (joinP)
+              (const)
               new_fact
               mp
-   in Just db { _factsStateBeforeP = mp' }
+   in db { _factsStateBeforeP = mp' }
 insertToDb db (Var _v0 _v1) =
   let mp = _factsVar db
       new_fact = HashMap.singleton _v0 (HashSet.singleton _v1)
@@ -402,7 +433,25 @@ insertToDb db (Var _v0 _v1) =
               (HashSet.union)
               new_fact
               mp
-   in Just db { _factsVar = mp' }
+   in db { _factsVar = mp' }
+
+mergeContour :: Fact -> Database -> [Fact]
+mergeContour f@(Assign _ _ _) _ = [f]
+mergeContour f@(Branch _ _ _ _) _ = [f]
+mergeContour f@(Seq _ _) _ = [f]
+mergeContour f@(StateBeforeI v0 v1) db =
+  let db' = _factsStateBeforeI db
+   in f : do
+        t0 <- maybeToList (db' HashMap.!? v0)
+        let v'1 = joinI t0 v1
+        return (StateBeforeI v0 v'1)
+mergeContour f@(StateBeforeP v0 v1) db =
+  let db' = _factsStateBeforeP db
+   in f : do
+        t0 <- maybeToList (db' HashMap.!? v0)
+        let v'1 = joinP t0 v1
+        return (StateBeforeP v0 v'1)
+mergeContour f@(Var _ _) _ = [f]
 
 ----- RULE INSTANCES -----
 data RuleInstance
@@ -410,35 +459,35 @@ data RuleInstance
        | RuleReducedExchangeP Label (HashMap String Parity)
        | RuleReducedExchangeI Label (HashMap String Parity) (HashMap String Interval)
        | RuleAssignInitP Label
-       | RuleCondInitP Label
+       | RuleBranchInitP Label
        | RuleVarInitP Label
        | RuleAssignStepP Expr Label Label (HashMap String Parity) String
-       | RuleEvalCondTP Expr Label (HashMap String Parity) Label
-       | RuleEvalCondFP Expr Label Label (HashMap String Parity)
+       | RuleBranchTrueP Expr Label (HashMap String Parity) Label
+       | RuleBranchFalseP Expr Label Label (HashMap String Parity)
        | RuleAssignInitI Label
-       | RuleCondInitI Label
+       | RuleBranchInitI Label
        | RuleVarInitI Label
        | RuleAssignStepI Expr Label Label (HashMap String Interval) String
-       | RuleEvalCondTI Expr Label (HashMap String Interval) Label
-       | RuleEvalCondFI Expr Label Label (HashMap String Interval)
+       | RuleBranchTrueI Expr Label (HashMap String Interval) Label
+       | RuleBranchFalseI Expr Label Label (HashMap String Interval)
   deriving Show
 
 evaluate :: RuleInstance -> Fact
 evaluate (Init f) = f
-evaluate (RuleReducedExchangeP l st) = StateBeforeP l st
-evaluate (RuleReducedExchangeI l st st') = StateBeforeI l (reduceInterval st st')
-evaluate (RuleAssignInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleCondInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleVarInitP l) = StateBeforeP l HashMap.empty
-evaluate (RuleAssignStepP e l l' st x) = StateBeforeP l' (HashMap.insert x (evalP e st) st)
-evaluate (RuleEvalCondTP e l st t) = StateBeforeP t (refineTP e st)
-evaluate (RuleEvalCondFP e f l st) = StateBeforeP f (refineFP e st)
-evaluate (RuleAssignInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleCondInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleVarInitI l) = StateBeforeI l HashMap.empty
-evaluate (RuleAssignStepI e l l' st x) = StateBeforeI l' (HashMap.insert x (evalI e st) st)
-evaluate (RuleEvalCondTI e l st t) = StateBeforeI t (refineTI e st)
-evaluate (RuleEvalCondFI e f l st) = StateBeforeI f (refineFI e st)
+evaluate (RuleReducedExchangeP __l__ __st__) = StateBeforeP __l__ __st__
+evaluate (RuleReducedExchangeI __l__ __st__ __st__') = StateBeforeI __l__ (reduceInterval __st__ __st__')
+evaluate (RuleAssignInitP __l__) = StateBeforeP __l__ HashMap.empty
+evaluate (RuleBranchInitP __l__) = StateBeforeP __l__ HashMap.empty
+evaluate (RuleVarInitP __l__) = StateBeforeP __l__ HashMap.empty
+evaluate (RuleAssignStepP __e__ __l__ __l__' __st__ __x__) = StateBeforeP __l__' (HashMap.insert __x__ (evalP __e__ __st__) __st__)
+evaluate (RuleBranchTrueP __e__ __l__ __st__ __t__) = StateBeforeP __t__ (refineTP __e__ __st__)
+evaluate (RuleBranchFalseP __e__ __f__ __l__ __st__) = StateBeforeP __f__ (refineFP __e__ __st__)
+evaluate (RuleAssignInitI __l__) = StateBeforeI __l__ HashMap.empty
+evaluate (RuleBranchInitI __l__) = StateBeforeI __l__ HashMap.empty
+evaluate (RuleVarInitI __l__) = StateBeforeI __l__ HashMap.empty
+evaluate (RuleAssignStepI __e__ __l__ __l__' __st__ __x__) = StateBeforeI __l__' (HashMap.insert __x__ (evalI __e__ __st__) __st__)
+evaluate (RuleBranchTrueI __e__ __l__ __st__ __t__) = StateBeforeI __t__ (refineTI __e__ __st__)
+evaluate (RuleBranchFalseI __e__ __f__ __l__ __st__) = StateBeforeI __f__ (refineFI __e__ __st__)
 
 instance Eq RuleInstance where
   f == f'
@@ -452,53 +501,53 @@ instance Ord RuleInstance where
   Init _ < Init _ = False
   _ < Init _ = True
   (RuleAssignInitP _) < (RuleReducedExchangeP _ _) = True
-  (RuleCondInitP _) < (RuleReducedExchangeP _ _) = True
+  (RuleBranchInitP _) < (RuleReducedExchangeP _ _) = True
   (RuleVarInitP _) < (RuleReducedExchangeP _ _) = True
   (RuleAssignInitI _) < (RuleReducedExchangeP _ _) = True
-  (RuleCondInitI _) < (RuleReducedExchangeP _ _) = True
+  (RuleBranchInitI _) < (RuleReducedExchangeP _ _) = True
   (RuleVarInitI _) < (RuleReducedExchangeP _ _) = True
   (RuleAssignInitP _) < (RuleReducedExchangeI _ _ _) = True
-  (RuleCondInitP _) < (RuleReducedExchangeI _ _ _) = True
+  (RuleBranchInitP _) < (RuleReducedExchangeI _ _ _) = True
   (RuleVarInitP _) < (RuleReducedExchangeI _ _ _) = True
   (RuleAssignInitI _) < (RuleReducedExchangeI _ _ _) = True
-  (RuleCondInitI _) < (RuleReducedExchangeI _ _ _) = True
+  (RuleBranchInitI _) < (RuleReducedExchangeI _ _ _) = True
   (RuleVarInitI _) < (RuleReducedExchangeI _ _ _) = True
   (RuleAssignStepI _ _ _ _ _) < (RuleAssignInitI _) = True
-  (RuleEvalCondTI _ _ _ _) < (RuleAssignInitI _) = True
-  (RuleEvalCondFI _ _ _ _) < (RuleAssignInitI _) = True
-  (RuleAssignStepI _ _ _ _ _) < (RuleCondInitI _) = True
-  (RuleEvalCondTI _ _ _ _) < (RuleCondInitI _) = True
-  (RuleEvalCondFI _ _ _ _) < (RuleCondInitI _) = True
+  (RuleBranchTrueI _ _ _ _) < (RuleAssignInitI _) = True
+  (RuleBranchFalseI _ _ _ _) < (RuleAssignInitI _) = True
+  (RuleAssignStepI _ _ _ _ _) < (RuleBranchInitI _) = True
+  (RuleBranchTrueI _ _ _ _) < (RuleBranchInitI _) = True
+  (RuleBranchFalseI _ _ _ _) < (RuleBranchInitI _) = True
   (RuleAssignStepI _ _ _ _ _) < (RuleVarInitI _) = True
-  (RuleEvalCondTI _ _ _ _) < (RuleVarInitI _) = True
-  (RuleEvalCondFI _ _ _ _) < (RuleVarInitI _) = True
+  (RuleBranchTrueI _ _ _ _) < (RuleVarInitI _) = True
+  (RuleBranchFalseI _ _ _ _) < (RuleVarInitI _) = True
   (RuleAssignStepP _ _ _ _ _) < (RuleAssignInitP _) = True
-  (RuleEvalCondTP _ _ _ _) < (RuleAssignInitP _) = True
-  (RuleEvalCondFP _ _ _ _) < (RuleAssignInitP _) = True
-  (RuleAssignStepP _ _ _ _ _) < (RuleCondInitP _) = True
-  (RuleEvalCondTP _ _ _ _) < (RuleCondInitP _) = True
-  (RuleEvalCondFP _ _ _ _) < (RuleCondInitP _) = True
+  (RuleBranchTrueP _ _ _ _) < (RuleAssignInitP _) = True
+  (RuleBranchFalseP _ _ _ _) < (RuleAssignInitP _) = True
+  (RuleAssignStepP _ _ _ _ _) < (RuleBranchInitP _) = True
+  (RuleBranchTrueP _ _ _ _) < (RuleBranchInitP _) = True
+  (RuleBranchFalseP _ _ _ _) < (RuleBranchInitP _) = True
   (RuleAssignStepP _ _ _ _ _) < (RuleVarInitP _) = True
-  (RuleEvalCondTP _ _ _ _) < (RuleVarInitP _) = True
-  (RuleEvalCondFP _ _ _ _) < (RuleVarInitP _) = True
-  (RuleAssignStepI _ l _ _ _) < (RuleAssignStepI _ l' _ _ _) = l > l'
-  (RuleEvalCondTI _ l _ _) < (RuleAssignStepI _ l' _ _ _) = l > l'
-  (RuleEvalCondFI _ _ l _) < (RuleAssignStepI _ l' _ _ _) = l > l'
-  (RuleAssignStepI _ l _ _ _) < (RuleEvalCondTI _ l' _ _) = l > l'
-  (RuleEvalCondTI _ l _ _) < (RuleEvalCondTI _ l' _ _) = l > l'
-  (RuleEvalCondFI _ _ l _) < (RuleEvalCondTI _ l' _ _) = l > l'
-  (RuleAssignStepI _ l _ _ _) < (RuleEvalCondFI _ _ l' _) = l > l'
-  (RuleEvalCondTI _ l _ _) < (RuleEvalCondFI _ _ l' _) = l > l'
-  (RuleEvalCondFI _ _ l _) < (RuleEvalCondFI _ _ l' _) = l > l'
-  (RuleAssignStepP _ l _ _ _) < (RuleAssignStepP _ l' _ _ _) = l > l'
-  (RuleEvalCondTP _ l _ _) < (RuleAssignStepP _ l' _ _ _) = l > l'
-  (RuleEvalCondFP _ _ l _) < (RuleAssignStepP _ l' _ _ _) = l > l'
-  (RuleAssignStepP _ l _ _ _) < (RuleEvalCondTP _ l' _ _) = l > l'
-  (RuleEvalCondTP _ l _ _) < (RuleEvalCondTP _ l' _ _) = l > l'
-  (RuleEvalCondFP _ _ l _) < (RuleEvalCondTP _ l' _ _) = l > l'
-  (RuleAssignStepP _ l _ _ _) < (RuleEvalCondFP _ _ l' _) = l > l'
-  (RuleEvalCondTP _ l _ _) < (RuleEvalCondFP _ _ l' _) = l > l'
-  (RuleEvalCondFP _ _ l _) < (RuleEvalCondFP _ _ l' _) = l > l'
+  (RuleBranchTrueP _ _ _ _) < (RuleVarInitP _) = True
+  (RuleBranchFalseP _ _ _ _) < (RuleVarInitP _) = True
+  (RuleAssignStepI _ __l__ _ _ _) < (RuleAssignStepI _ __l__' _ _ _) = __l__ > __l__'
+  (RuleBranchTrueI _ __l__ _ _) < (RuleAssignStepI _ __l__' _ _ _) = __l__ > __l__'
+  (RuleBranchFalseI _ _ __l__ _) < (RuleAssignStepI _ __l__' _ _ _) = __l__ > __l__'
+  (RuleAssignStepI _ __l__ _ _ _) < (RuleBranchTrueI _ __l__' _ _) = __l__ > __l__'
+  (RuleBranchTrueI _ __l__ _ _) < (RuleBranchTrueI _ __l__' _ _) = __l__ > __l__'
+  (RuleBranchFalseI _ _ __l__ _) < (RuleBranchTrueI _ __l__' _ _) = __l__ > __l__'
+  (RuleAssignStepI _ __l__ _ _ _) < (RuleBranchFalseI _ _ __l__' _) = __l__ > __l__'
+  (RuleBranchTrueI _ __l__ _ _) < (RuleBranchFalseI _ _ __l__' _) = __l__ > __l__'
+  (RuleBranchFalseI _ _ __l__ _) < (RuleBranchFalseI _ _ __l__' _) = __l__ > __l__'
+  (RuleAssignStepP _ __l__ _ _ _) < (RuleAssignStepP _ __l__' _ _ _) = __l__ > __l__'
+  (RuleBranchTrueP _ __l__ _ _) < (RuleAssignStepP _ __l__' _ _ _) = __l__ > __l__'
+  (RuleBranchFalseP _ _ __l__ _) < (RuleAssignStepP _ __l__' _ _ _) = __l__ > __l__'
+  (RuleAssignStepP _ __l__ _ _ _) < (RuleBranchTrueP _ __l__' _ _) = __l__ > __l__'
+  (RuleBranchTrueP _ __l__ _ _) < (RuleBranchTrueP _ __l__' _ _) = __l__ > __l__'
+  (RuleBranchFalseP _ _ __l__ _) < (RuleBranchTrueP _ __l__' _ _) = __l__ > __l__'
+  (RuleAssignStepP _ __l__ _ _ _) < (RuleBranchFalseP _ _ __l__' _) = __l__ > __l__'
+  (RuleBranchTrueP _ __l__ _ _) < (RuleBranchFalseP _ _ __l__' _) = __l__ > __l__'
+  (RuleBranchFalseP _ _ __l__ _) < (RuleBranchFalseP _ _ __l__' _) = __l__ > __l__'
   _ < _ = False
 
 type Queue = Q.MaxQueue (RuleInstance, Phase)
@@ -533,7 +582,7 @@ step i f p q = let db = selectDb i p in case p of
           do
             return (RuleAssignInitI _v0_0, Phase1)
           ]
-    Cond _t0 _t1 _t2 _t3 -> Q.union q $ Q.fromList $ 
+    Branch _t0 _t1 _t2 _t3 -> Q.union q $ Q.fromList $ 
       do
         let _v0_0 = _t0
         let _v1_0 = _t1
@@ -546,24 +595,24 @@ step i f p q = let db = selectDb i p in case p of
             concat [
               do
                 guard (((leq BTrue) ((evalCondI _v1_0) _v4_0)))
-                return (RuleEvalCondTI _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
+                return (RuleBranchTrueI _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
               do
                 guard (((leq BFalse) ((evalCondI _v1_0) _v4_0)))
-                return (RuleEvalCondFI _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
+                return (RuleBranchFalseI _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
               ],
           do
             step0 <- maybeToList (_factsStateBeforeP db HashMap.!? _v0_0)
             let _v4_0 = step0
             concat [
               do
-                return (RuleEvalCondTP _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
+                return (RuleBranchTrueP _v1_0 _v0_0 _v4_0 _v2_0, Phase1),
               do
-                return (RuleEvalCondFP _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
+                return (RuleBranchFalseP _v1_0 _v3_0 _v0_0 _v4_0, Phase1)
               ],
           do
-            return (RuleCondInitP _v0_0, Phase1),
+            return (RuleBranchInitP _v0_0, Phase1),
           do
-            return (RuleCondInitI _v0_0, Phase1)
+            return (RuleBranchInitI _v0_0, Phase1)
           ]
     Seq _t0 _t1 -> Q.union q $ Q.fromList $ 
       do
@@ -595,17 +644,17 @@ step i f p q = let db = selectDb i p in case p of
             _v4_0 <- HashSet.toList step2
             return (RuleAssignStepI _v3_0 _v0_0 _v4_0 _v1_0 _v2_0, Phase1),
           do
-            step0 <- maybeToList (_factsCond db HashMap.!? _v0_0)
+            step0 <- maybeToList (_factsBranch db HashMap.!? _v0_0)
             (_v2_0, step1) <- HashMap.toList step0
             (_v3_0, step2) <- HashMap.toList step1
             _v4_0 <- HashSet.toList step2
             concat [
               do
                 guard (((leq BTrue) ((evalCondI _v2_0) _v1_0)))
-                return (RuleEvalCondTI _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
+                return (RuleBranchTrueI _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
               do
                 guard (((leq BFalse) ((evalCondI _v2_0) _v1_0)))
-                return (RuleEvalCondFI _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
+                return (RuleBranchFalseI _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
               ]
           ]
     StateBeforeP _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -621,15 +670,15 @@ step i f p q = let db = selectDb i p in case p of
             _v4_0 <- HashSet.toList step2
             return (RuleAssignStepP _v3_0 _v0_0 _v4_0 _v1_0 _v2_0, Phase1),
           do
-            step0 <- maybeToList (_factsCond db HashMap.!? _v0_0)
+            step0 <- maybeToList (_factsBranch db HashMap.!? _v0_0)
             (_v2_0, step1) <- HashMap.toList step0
             (_v3_0, step2) <- HashMap.toList step1
             _v4_0 <- HashSet.toList step2
             concat [
               do
-                return (RuleEvalCondTP _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
+                return (RuleBranchTrueP _v2_0 _v0_0 _v1_0 _v3_0, Phase1),
               do
-                return (RuleEvalCondFP _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
+                return (RuleBranchFalseP _v2_0 _v4_0 _v0_0 _v1_0, Phase1)
               ]
           ]
     Var _t0 _t1 -> Q.union q $ Q.fromList $ 
@@ -664,6 +713,9 @@ step i f p q = let db = selectDb i p in case p of
           ]
     _ -> q
 
+stepAll :: Interpretation -> [Fact] -> Phase -> Queue -> Queue
+stepAll i xs p q = foldl' (\q' f -> step i f p q') q xs
+
 
 ----- SOLVER -----
 
@@ -671,9 +723,14 @@ loop :: Queue -> Interpretation -> Interpretation
 loop q i
   | Just (p, q') <- Q.maxView q =
     let (f, phase) = evaluatePhased p
-     in case insertToInterpretation i f phase of
-          Nothing -> loop q' i
-          Just i' -> loop (step i' f phase q') i'
+        db = selectDb i phase
+     in if db |= f
+        then loop q' i
+        else let c = mergeContour f db
+                 new_facts = filter (not . (db |=)) (maximalContour c)
+                 new_db = foldl' insertToDb db new_facts
+                 new_int = replaceDb i new_db phase
+              in loop (stepAll new_int new_facts phase q') new_int
   | otherwise = i
 
 solve :: [Fact] -> Interpretation
@@ -719,14 +776,14 @@ assigns _v0_0 i p = do
   _v2_0 <- HashSet.toList (step1)
   return $ Assign _v0_0 _v1_0 _v2_0
 
-conds :: Expr -> Interpretation -> Phase -> [Fact]
-conds _v1_0 i p = do
+branches :: Expr -> Interpretation -> Phase -> [Fact]
+branches _v1_0 i p = do
   let db = selectDb i p
-  (_v0_0, step0) <- HashMap.toList (_factsCond db)
+  (_v0_0, step0) <- HashMap.toList (_factsBranch db)
   step1 <- maybeToList (step0 HashMap.!? _v1_0)
   (_v2_0, step2) <- HashMap.toList (step1)
   _v3_0 <- HashSet.toList (step2)
-  return $ Cond _v0_0 _v1_0 _v2_0 _v3_0
+  return $ Branch _v0_0 _v1_0 _v2_0 _v3_0
 
 seqs :: Label -> Interpretation -> Phase -> [Fact]
 seqs _v0_0 i p = do
@@ -769,11 +826,11 @@ replaceDb :: Interpretation -> Database -> Phase -> Interpretation
 replaceDb (_, db2) db' Phase1 = (db', db2)
 replaceDb (db1, _) db' Phase2 = (db1, db')
 
-insertToInterpretation :: Interpretation -> Fact -> Phase -> Maybe Interpretation
+insertToInterpretation :: Interpretation -> Fact -> Phase -> Interpretation
 insertToInterpretation i f p = do
   let db = selectDb i p
-  db' <- insertToDb db f
-  return $ replaceDb i db' p
+      db' = insertToDb db f
+   in replaceDb i db' p
 
 evaluatePhased :: (RuleInstance, Phase) -> (Fact, Phase)
 evaluatePhased (r, p) = (evaluate r, nextPhase p)

@@ -12,25 +12,25 @@ lat StateI where
 
 rel StateBeforeI: Label, StateI
 
-rule assignInitI : Assign l _ _   |- StateBeforeI l HashMap.empty
-rule condInitI   : Cond l _ _ _ |- StateBeforeI l HashMap.empty
-rule varInitI    : Var l _        |- StateBeforeI l HashMap.empty
+rule assignInitI : Assign __l__ _ _   |- StateBeforeI __l__ HashMap.empty
+rule branchInitI : Branch __l__ _ _ _ |- StateBeforeI __l__ HashMap.empty
+rule varInitI    : Var __l__ _        |- StateBeforeI __l__ HashMap.empty
 
 -- actual transfer functions
 rule assignStepI :
-  Assign l x e, Seq l l', StateBeforeI l st
-  --------------------------------------------------------------
-  |- StateBeforeI l' (HashMap.insert x (evalI e st) st)
+  Assign __l__ __x__ __e__, Seq __l__ __l__', StateBeforeI __l__ __st__
+  ---------------------------------------------------------------------
+  |- StateBeforeI __l__' (HashMap.insert __x__ (evalI __e__ __st__) __st__)
 
-rule evalCondTI :
-  Cond l e t _, StateBeforeI l st, if BTrue `leq` (evalCondI e st)
+rule branchTrueI:
+  Branch __l__ __e__ __t__ _, StateBeforeI __l__ __st__, if BTrue `leq` (evalCondI __e__ __st__)
   ----------------------------------------------------------------------------------------------
-  |- StateBeforeI t (refineTI e st)
+  |- StateBeforeI __t__ (refineTI __e__ __st__)
 
-rule evalCondFI :
-  Cond l e _ f, StateBeforeI l st, if BFalse `leq` (evalCondI e st)
+rule branchFalseI :
+  Branch __l__ __e__ _ __f__, StateBeforeI __l__ __st__, if BFalse `leq` (evalCondI __e__ __st__)
   -----------------------------------------------------------------------------------------------
-  |- StateBeforeI f (refineFI e st)
+  |- StateBeforeI __f__ (refineFI __e__ __st__)
 
 query stateI: StateBeforeI + -
 query stateIs: StateBeforeI - -

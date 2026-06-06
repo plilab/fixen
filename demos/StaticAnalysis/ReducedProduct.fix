@@ -5,12 +5,12 @@ include "Parity"
 include "Interval"
 
 -- For the time being, we focus only on intervals
-rule reducedExchangeP : StateBeforeP l st
-                     |- StateBeforeP l st
+rule reducedExchangeP : StateBeforeP __l__ __st__
+                     |- StateBeforeP __l__ __st__
 
 -- returns refined interval information from parities
-rule reducedExchangeI : StateBeforeP l st, StateBeforeI l st' 
-                     |- StateBeforeI l (reduceInterval st st') 
+rule reducedExchangeI : StateBeforeP __l__ __st__, StateBeforeI __l__ __st__' 
+                     |- StateBeforeI __l__ (reduceInterval __st__ __st__') 
 
 -- The important bit
 phases: [
@@ -35,7 +35,7 @@ instance NFData Database where
 
 instance NFData Fact where
   rnf (Assign a b c) = rnf (a, b, c)
-  rnf (Cond a b c d) = rnf (a, b, c, d)
+  rnf (Branch a b c d) = rnf (a, b, c, d)
   rnf (Seq a b) = rnf (a, b)
   rnf (StateBeforeI l m) = rnf (l, m)
   rnf (StateBeforeP l m) = rnf (l, m)

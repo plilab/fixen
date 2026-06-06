@@ -2,17 +2,15 @@ module ShortestPath.Hand where
 
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HashMap
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
 import Data.PQueue.Min (MinQueue (..))
-import Data.PQueue.Min qualified
+import Data.PQueue.Min qualified as MinQueue
 import Numeric.Natural
 
 type Vertex = String
 type Dist = Natural
 
 dijkstra :: Vertex -> HashMap Vertex [(Vertex, Dist)] -> HashMap Vertex Dist
-dijkstra start edges = go HashMap.empty (Data.PQueue.Min.fromList [(0, start)])
+dijkstra start edges = go HashMap.empty (MinQueue.fromList [(0, start)])
   where
     go :: HashMap Vertex Dist -> MinQueue (Dist, Vertex) -> HashMap Vertex Dist
     go dists Empty = dists
@@ -23,7 +21,7 @@ dijkstra start edges = go HashMap.empty (Data.PQueue.Min.fromList [(0, start)])
       | otherwise =
           let dists' = HashMap.insert v d dists
               newWork = fmap (\(v', d') -> (d + d', v')) (HashMap.findWithDefault [] v edges)
-              work' = Data.PQueue.Min.union (Data.PQueue.Min.fromList newWork) work
+              work' = MinQueue.union (MinQueue.fromList newWork) work
            in go dists' work'
 
 data Cont = Cont Dist Vertex
@@ -39,7 +37,7 @@ instance Ord Cont where
   Cont d _ < Cont d' _ = d < d'
 
 dijkstraQueueOpt :: Vertex -> HashMap Vertex [(Vertex, Dist)] -> HashMap Vertex Dist
-dijkstraQueueOpt start edges = go HashMap.empty (Data.PQueue.Min.fromList [Cont 0 start])
+dijkstraQueueOpt start edges = go HashMap.empty (MinQueue.fromList [Cont 0 start])
   where
     go :: HashMap Vertex Dist -> MinQueue Cont -> HashMap Vertex Dist
     go dists Empty = dists
@@ -50,5 +48,5 @@ dijkstraQueueOpt start edges = go HashMap.empty (Data.PQueue.Min.fromList [Cont 
       | otherwise =
           let dists' = HashMap.insert v d dists
               newWork = fmap (\(v', d') -> Cont (d + d') v') (HashMap.findWithDefault [] v edges)
-              work' = Data.PQueue.Min.union (Data.PQueue.Min.fromList newWork) work
+              work' = MinQueue.union (MinQueue.fromList newWork) work
            in go dists' work'

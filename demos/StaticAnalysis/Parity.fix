@@ -98,24 +98,24 @@ lat StateP where
   meet = meetP
   bot = HashMap.empty
 
-rule assignInitP : Assign l _ _   |- StateBeforeP l HashMap.empty
-rule condInitP   : Cond l _ _ _ |- StateBeforeP l HashMap.empty
-rule varInitP    : Var l _        |- StateBeforeP l HashMap.empty
+rule assignInitP : Assign __l__ _ _   |- StateBeforeP __l__ HashMap.empty
+rule branchInitP   : Branch __l__ _ _ _ |- StateBeforeP __l__ HashMap.empty
+rule varInitP    : Var __l__ _        |- StateBeforeP __l__ HashMap.empty
 
 -- actual transfer functions
 rule assignStepP :
-  Assign l x e, Seq l l', StateBeforeP l st
+  Assign __l__ __x__ __e__, Seq __l__ __l__', StateBeforeP __l__ __st__
   -----------------------------------------------------------
-  |- StateBeforeP l' (HashMap.insert x (evalP e st) st)
+  |- StateBeforeP __l__' (HashMap.insert __x__ (evalP __e__ __st__) __st__)
 
-rule evalCondTP :
-  Cond l e t _, StateBeforeP l st
+rule branchTrueP :
+  Branch __l__ __e__ __t__ _, StateBeforeP __l__ __st__
   ---------------------------------------------------
-  |- StateBeforeP t (refineTP e st)
+  |- StateBeforeP __t__ (refineTP __e__ __st__)
 
-rule evalCondFP :
-  Cond l e _ f, StateBeforeP l st
+rule branchFalseP :
+  Branch __l__ __e__ _ __f__, StateBeforeP __l__ __st__
   ---------------------------------------------------
-  |- StateBeforeP f (refineFP e st)
+  |- StateBeforeP __f__ (refineFP __e__ __st__)
 
 query stateP: StateBeforeP + -
