@@ -123,7 +123,7 @@ You're all set!
 - [x] Generate rule forests IR
 - [x] DB layout inference
 - [x] Generate Haskell source
-- [ ] Benchmarks
+- [x] Benchmarks
 - [ ] Unit tests
 
 See the [open issues](https://github.com/plilab/fixed-point/issues) for a full list of proposed features (and known issues).

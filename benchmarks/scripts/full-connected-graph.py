@@ -1,3 +1,6 @@
+#!/bin/python
+# This program generates a fully connected digraph.
+
 from random import randint
 import json
 

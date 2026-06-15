@@ -68,7 +68,7 @@ type Seqs = IM.IntMap IS.IntSet
 
 data Stmt
   = Assign !String !Expr
-  | Cond !Expr !ProgramPoint !ProgramPoint
+  | Branch !Expr !ProgramPoint !ProgramPoint
   | VarDecl !String
   deriving (Show, Eq)
 
@@ -265,8 +265,8 @@ mkVar a b = P (a, VarDecl b)
 mkAssign :: ProgramPoint -> String -> Expr -> PS
 mkAssign a b c = P (a, Assign b c)
 
-mkCond :: ProgramPoint -> Expr -> ProgramPoint -> ProgramPoint -> PS
-mkCond a b c d = P (a, Cond b c d)
+mkBranch :: ProgramPoint -> Expr -> ProgramPoint -> ProgramPoint -> PS
+mkBranch a b c d = P (a, Branch b c d)
 
 mkSeq :: ProgramPoint -> ProgramPoint -> PS
 mkSeq a b = S (a, b)
@@ -309,7 +309,7 @@ loop pgm seqs q = go q IM.empty 0
               afters = IM.findWithDefault IS.empty p seqs
               (new_work, new_map) = IS.foldl (fold_new_states (eval_p_result, exchanged_i)) (IS.empty, mp) afters
            in go (MinQueue.union (MinQueue.fromList $ IS.toList new_work) ps) new_map (n + IS.size new_work)
-      | Just (Cond e t f) <- pgm IM.!? p =
+      | Just (Branch e t f) <- pgm IM.!? p =
           let -- get the current state at the condition
               (p_st_bef_cond, i_st_bef_cond) = IM.findWithDefault (HashMap.empty, M.empty) p mp
               reduced_i_st_bef_cond = reduceInterval p_st_bef_cond i_st_bef_cond
@@ -387,11 +387,11 @@ testHand =
   , mkAssign 2 "V" (Num 1)
   , mkSeq 2 4
   , -- while V <= 10
-    mkCond 4 (Leq (Id "V") (Num 9)) 5 6
+    mkBranch 4 (Leq (Id "V") (Num 9)) 5 6
   , mkAssign 5 "V" (Plus (Id "V") (Num 2))
   , mkSeq 5 4
   , -- if V == 11 then:
-    mkCond 6 (Eq (Id "V") (Num 11)) 7 101
+    mkBranch 6 (Eq (Id "V") (Num 11)) 7 101
   , mkAssign 7 "V" (Num 0)
   , mkSeq 7 101
   , -- end

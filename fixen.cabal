@@ -245,7 +245,11 @@ benchmark reduced-product
       ReducedProduct.Hand
     , ReducedProduct.FixenNoPriorities
     , ReducedProduct.FixenWithPriorities
-    , ReducedProduct.CEval
+    , ReducedProduct.CEval1K
+    , ReducedProduct.CEval2K
+    , ReducedProduct.CEval4K
+    , ReducedProduct.CEval8K
+    , ReducedProduct.CEval12K
   hs-source-dirs:
       benchmarks
   default-extensions:
