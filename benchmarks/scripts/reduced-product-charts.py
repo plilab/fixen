@@ -76,10 +76,10 @@ lin_libertine.set_math_fontfamily("cm")
 ################################################################################
 
 # (5, 3) is the size of the plot.
-fig, ax = plt.subplots(figsize=(6, 2))
+fig, ax = plt.subplots(figsize=(5, 3))
 # use log scale for both axes
-# ax.set_xscale("log")
-# ax.set_yscale("log")
+ax.set_xscale("log")
+ax.set_yscale("log")
 # axes labels
 ax.set_xlabel("SLoC", font=lin_biolinum)
 ax.set_ylabel("Time (s)", font=lin_biolinum)
@@ -111,21 +111,21 @@ ax.plot(
 )
 
 # reference curves
-# x1 = np.linspace(1, 2_000_000, 10000)
-#
-# y1 = x1 / 8_000_000  # linear
-# y2 = x1**2 / 800_000_000  # quadratic
+x1 = np.linspace(1, 20_000, 100)
+
+y1 = (x1 / 480_000) ** 1.21  # linear
+y2 = (x1 / 124_000) ** 1.13  # quadratic
 # y3 = x1**1.53 / 50_000_000  # x^1.53
 # y4 = x1**1.26 / 45_000_000  # x^1.26
-# ax.plot(x1, y1, "-", label="$O(|E|)$", color="#aa8888", linewidth=1)
-# ax.plot(
-#     x1,
-#     y2,
-#     "--",
-#     label=r"$O(|E|^2)$",
-#     color="#8888aa",
-#     linewidth=1,
-# )
+ax.plot(x1, y1, "-.", label="$O(|E|^{1.21})$", color="#8839ef", linewidth=1)
+ax.plot(
+    x1,
+    y2,
+    ":",
+    label=r"$O(|E|^{1.13})$",
+    color="#179299",
+    linewidth=1,
+)
 # ax.plot(
 #     x1,
 #     y3,
@@ -146,8 +146,8 @@ ax.plot(
 plt.grid()
 
 # Axis limits
-plt.xlim(0, 12_000)
-plt.ylim((0.000, 0.07))
+plt.xlim(500, 16_000)
+plt.ylim((0.0003, 0.5))
 
 # Set axis tick fonts
 for label in ax.get_xticklabels():

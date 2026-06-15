@@ -79,7 +79,7 @@ lin_libertine.set_math_fontfamily("cm")
 os.chdir(cwd)
 
 # reference curves
-# x1 = np.linspace(1, 100_000, 10000)
+x1 = np.linspace(1, 100_000, 10000)
 # references = {}
 # for g in plots:
 #     references[g] = {}
@@ -94,7 +94,8 @@ os.chdir(cwd)
 #     (x1 / 250_500) ** 1.3 + ((x1 / 70_500) ** 2.5),
 #     r"$O(|E|^{2.5})$",
 # )
-
+fig_size = (2.8, 1.2)
+generate_legend = True
 for g in plots:
     # print(g)
     # if g != "W":
@@ -104,7 +105,7 @@ for g in plots:
     no_priorities = d["Fixen (No Priorities)"]
     with_priorities = d["Fixen (With Priorities)"]
     # (5, 3) is the size of the plot.
-    fig, ax = plt.subplots(figsize=(4.2, 1.8))
+    fig, ax = plt.subplots(figsize=fig_size)
     # use log scale for both axes
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -113,7 +114,7 @@ for g in plots:
     ax.set_ylabel("Time (s)", font=lin_biolinum)
 
     # Plot the points
-    ax.plot(
+    (hand_line,) = ax.plot(
         [i[0] for i in hand],
         [i[1] for i in hand],
         "-o",
@@ -121,7 +122,7 @@ for g in plots:
         color="#8839ef",
         markersize=3,
     )
-    ax.plot(
+    (fnp_line,) = ax.plot(
         [i[0] for i in no_priorities],
         [i[1] for i in no_priorities],
         "-s",
@@ -129,7 +130,7 @@ for g in plots:
         color="#a13c3c",
         markersize=3,
     )
-    ax.plot(
+    (fwp_line,) = ax.plot(
         [i[0] for i in with_priorities],
         [i[1] for i in with_priorities],
         "-x",
@@ -138,39 +139,12 @@ for g in plots:
         markersize=4,
     )
 
-    # y1, label1 = references[g][1]
-    # y2, label2 = references[g][2]
-
-    # y1 = x1 / 8_000_000 + x1 / 10_000  # linear
-    # y1 = (x1 / 40_000) ** 3.5 + (x1 / 50_000) ** 2  # quadratic
-    # y3 = x1**1.53 / 50_000_000  # x^1.53
-    # y4 = x1**1.26 / 45_000_000  # x^1.26
-    # ax.plot(x1, y1, "-", label=label1, color="#aa8888", linewidth=1)
-    # ax.plot(x1, y2, "--", label=label2, color="#8888aa", linewidth=1)
-    # ax.plot(
-    #     x1,
-    #     y2,
-    #     "--",
-    #     label=r"$O(|E|^2)$",
-    #     color="#8888aa",
-    #     linewidth=1,
-    # )
-    # ax.plot(
-    #     x1,
-    #     y3,
-    #     ":",
-    #     label=r"$O(|E|^{1.53})$",
-    #     color="#a13c3c",
-    #     linewidth=1,
-    # )
-    # ax.plot(
-    #     x1,
-    #     y4,
-    #     "-.",
-    #     label=r"$O(|E|^{1.26})$",
-    #     color="#8839ef",
-    #     linewidth=1,
-    # )
+    y1 = x1 / 4_000_000  # linear
+    y2 = (x1 / 7_000) ** 3  # quadratic
+    (refline1,) = ax.plot(x1, y1, "-.", label=r"$O(|E|)$", color="#8839ef", linewidth=1)
+    (refline2,) = ax.plot(
+        x1, y2, ":", label=r"$O(|E|^3)$", color="#a13c3c", linewidth=1
+    )
 
     plt.grid()
 
@@ -184,8 +158,7 @@ for g in plots:
     for label in ax.get_yticklabels():
         label.set_fontproperties(lin_libertine)
 
-    # Legend
-    plt.legend(loc="upper left", prop=lin_libertine)
+    # plt.legend(loc="upper left", prop=lin_libertine)
     # plt.show()
     # exit(0)
     # if g != "CTR":
@@ -193,7 +166,22 @@ for g in plots:
 
     # Write the chart
     plt.savefig(f"benchmarks/charts/pareto-{g}.svg", bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+    # Legend
+    if generate_legend:
+        fig_legend = plt.figure(figsize=fig_size)
+        legend = fig_legend.legend(
+            handles=[hand_line, fnp_line, fwp_line, refline1, refline2],
+            loc="center",
+            frameon=True,
+            prop=lin_libertine,
+        )
+        fig_legend.savefig(
+            f"benchmarks/charts/pareto-legend.svg", bbox_inches="tight", pad_inches=0
+        )
+        generate_legend = False
 
+# Legend-only figure
 
 ################################################################################
 # table
