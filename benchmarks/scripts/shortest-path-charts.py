@@ -127,7 +127,7 @@ ax.plot(
     y3,
     ":",
     label=r"$O(|E|^{1.53})$",
-    color="#a13c3c",
+    color="#40a02b",
     linewidth=1,
 )
 ax.plot(
@@ -135,7 +135,7 @@ ax.plot(
     y4,
     "-.",
     label=r"$O(|E|^{1.26})$",
-    color="#8839ef",
+    color="#d20f39",
     linewidth=1,
 )
 

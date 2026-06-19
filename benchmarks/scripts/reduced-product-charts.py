@@ -117,31 +117,15 @@ y1 = (x1 / 480_000) ** 1.21  # linear
 y2 = (x1 / 124_000) ** 1.13  # quadratic
 # y3 = x1**1.53 / 50_000_000  # x^1.53
 # y4 = x1**1.26 / 45_000_000  # x^1.26
-ax.plot(x1, y1, "-.", label="$O(|E|^{1.21})$", color="#8839ef", linewidth=1)
+ax.plot(x1, y1, "-.", label="$O(|E|^{1.21})$", color="#d20f39", linewidth=1)
 ax.plot(
     x1,
     y2,
     ":",
     label=r"$O(|E|^{1.13})$",
-    color="#179299",
+    color="#40a02b",
     linewidth=1,
 )
-# ax.plot(
-#     x1,
-#     y3,
-#     ":",
-#     label=r"$O(|E|^{1.53})$",
-#     color="#a13c3c",
-#     linewidth=1,
-# )
-# ax.plot(
-#     x1,
-#     y4,
-#     "-.",
-#     label=r"$O(|E|^{1.26})$",
-#     color="#8839ef",
-#     linewidth=1,
-# )
 
 plt.grid()
 

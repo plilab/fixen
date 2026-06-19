@@ -141,9 +141,13 @@ for g in plots:
 
     y1 = x1 / 4_000_000  # linear
     y2 = (x1 / 7_000) ** 3  # quadratic
-    (refline1,) = ax.plot(x1, y1, "-.", label=r"$O(|E|)$", color="#8839ef", linewidth=1)
+    y3 = (x1 / 35_000) ** 2
+    (refline1,) = ax.plot(x1, y1, "-.", label=r"$O(|E|)$", color="#d20f39", linewidth=1)
     (refline2,) = ax.plot(
-        x1, y2, ":", label=r"$O(|E|^3)$", color="#a13c3c", linewidth=1
+        x1, y2, ":", label=r"$O(|E|^3)$", color="#40a02b", linewidth=1
+    )
+    (refline3,) = ax.plot(
+        x1, y3, "--", label=r"$O(|E|^2)$", color="#7b7a00", linewidth=1
     )
 
     plt.grid()
@@ -171,7 +175,7 @@ for g in plots:
     if generate_legend:
         fig_legend = plt.figure(figsize=fig_size)
         legend = fig_legend.legend(
-            handles=[hand_line, fnp_line, fwp_line, refline1, refline2],
+            handles=[hand_line, fnp_line, fwp_line, refline1, refline3, refline2],
             loc="center",
             frameon=True,
             prop=lin_libertine,
