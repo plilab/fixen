@@ -966,13 +966,34 @@ parseImport = parsePositioned $ do
   -- Parse the 'import' keyword (must not be indented)
   -- Need 'try' since import is among many top-level alternatives
   _ <- P.try $ l $ L.nonIndented sc $ keyword "import"
+  -- Verify proper indentation before the qualified keyword
+  _ <- indented
+
+  -- Parse the 'qualified' keyword if it exists
+  qualifiedImport <-
+      either (const False) (const True)
+        <$> P.observing (P.try (l $ keyword "qualified"))
+
   -- Verify proper indentation before the module name
   _ <- indented
+
   -- Parse the Haskell module name (e.g. Data.List, MyCompany.MyModule)
   mod_name <- parseModuleName
+
+  -- Parse the import alias if it exists
+  alias <-
+      either (const Nothing) Just
+        <$> P.observing
+          ( P.try $ do
+              _ <- indented
+              _ <- l $ keyword "as"
+              _ <- indented
+              parseModuleName
+          )
+
   -- Allocate a fresh node ID and construct the HsImport AST node
   i <- getNewNodeId
-  return $ HsImport i mod_name
+  return $ HsImport i mod_name qualifiedImport alias
 
 -- ** Phases-Declaration Parsers
 
