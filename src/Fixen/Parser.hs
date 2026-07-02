@@ -35,7 +35,7 @@ import Data.List.NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
-import Data.Text (Text, unpack)
+import Data.Text (Text, pack, unpack)
 import Error.Diagnose.Compat.Megaparsec (errorDiagnosticFromBundle)
 import Fixen.Fields
 import Fixen.IR.AST
@@ -945,6 +945,31 @@ parseInclude = parsePositioned $ do
   i <- getNewNodeId
   return $ Include i include_path
 
+-- ** Explicit Import Specifications Parser
+--
+-- | Parses the specifications in an explicit import
+--
+-- @
+-- import Data.Map (Map)
+-- @
+parseImportSpecs :: Parser σ Text
+parseImportSpecs = pack <$> parens
+-- Convert String returned from parens back into Text
+  where
+    parens = do
+      -- Parse the opening parens
+      _ <- C.char '('
+      -- Parse chunks until the closing parens is hit
+      chunks <- P.manyTill chunk (C.char ')')
+      -- Return the resulting string enclosed by parens
+      return $ "(" <> concat chunks <> ")"
+
+    chunk =
+      -- Try to parse a nested parens group
+      P.try parens
+        -- Otherwise, parse a character that is not ')', and convert it to a single element list
+        <|> ((: []) <$> P.satisfy (/= ')'))
+
 -- ** Import-Statement Parser
 
 -- | Parses an import statement:
@@ -991,9 +1016,18 @@ parseImport = parsePositioned $ do
               parseModuleName
           )
 
+  -- Parse explicit import specifications if it exists
+  importSpecs <-
+    either (const Nothing) Just
+      <$> P.observing
+        ( P.try $ do
+            _ <- indented
+            parseImportSpecs
+        )
+
   -- Allocate a fresh node ID and construct the HsImport AST node
   i <- getNewNodeId
-  return $ HsImport i mod_name qualifiedImport alias
+  return $ HsImport i mod_name qualifiedImport alias importSpecs
 
 -- ** Phases-Declaration Parsers
 

@@ -251,9 +251,11 @@ combineProgram in_prog new_prog =
       new_rels = new_prog ^. relationDeclarations
       new_partial_ords = new_prog ^. partialOrdDeclarations
       new_lattices = new_prog ^. latticeDeclarations
-      import_key x = ( fullIdentifier (x ^. moduleName)
+      import_key x = 
+        ( fullIdentifier (x ^. moduleName)
         , hsImportQualified x
         , fullIdentifier <$> hsImportAlias x
+        , hsImportSpecs x
         )
       old_import_set =
         -- Build a set of already-imported module identifiers for deduplication.
