@@ -1,5 +1,5 @@
 -- put this in benchmarks/ReducedProduct/Interval.hs
-module ReducedProduct.FixenNoPriorities where
+module Main where
 
 include "Common"
 
@@ -112,9 +112,11 @@ evalI e st = case e of
     Plus e1 e2 -> case (evalI e1 st, evalI e2 st) of
         (Pair (a, b), Pair (c, d)) -> Pair (a + c, b + d)
         (_, _) -> IBot
-    -- Times e1 e2 -> case (evalI e1 st, evalI e2 st) of
-    --   (Pair (a, b), Pair (c, d)) -> Pair (min ( a c) (a * d) (b * c) (b * d),  max(a * c) (a * d) (b * c) (b * d))
-    --   (_, _) -> IBot
+    Times e1 e2 -> case (evalI e1 st, evalI e2 st) of
+        (Pair (a, b), Pair (c, d)) -> 
+            let products = [a * c, a * d, b * c, b * d] in
+            Pair (minimum products, maximum products)
+        (_, _) -> IBot
     Leq _ _ -> error "Encounted leq" -- this should never happen, and be always handled by evaluateConditional
     Gte _ _ -> error "Encounted gte" -- this should never happen, and be always handled by evaluateConditional
     Eq _ _ -> error "Encountered eq" -- this should never happen, ...
@@ -172,9 +174,14 @@ refineFI e st = case e of
             Pair (a, b) -> HashMap.union (HashMap.fromList [(id, Pair (min (c - 1) a, c - 1))]) st
             _ -> HashMap.union (HashMap.fromList [(id, IBot)]) st
         (_, _) -> st -- error "Unexpected conditional"
-    Eq e1 e2 -> case (e1, evalI e2 st) of
-        (Id id, Pair (c, d)) -> HashMap.union (HashMap.fromList [(id, Pair (c, d))]) st
-        (_, _) -> st -- error "Unexpected conditional"
+    Eq e1 e2 -> case (e1, evalI e1 st, evalI e2 st) of
+        -- Only handle the trivial case, we asume e2 is just a num, and that it lies on the boundary of e1, since our intervals cannot support disjoint intervals.
+        (Id id, Pair (a, b), Pair (c, d))
+          | c /= d -> st
+          | a == c && b == c  -> HashMap.union (HashMap.fromList [(id, IBot)]) st
+          | a == c  -> HashMap.union (HashMap.fromList [(id, Pair (a+1, b))]) st
+          | b == c  -> HashMap.union (HashMap.fromList [(id, Pair (a, b-1))]) st
+          | otherwise -> st
+        (_, _, _) -> st -- error "Unexpected conditional"
     _ -> error "Unexpected case"
 ```
-
