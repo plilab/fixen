@@ -56,7 +56,12 @@ codeGenImports prog =
 codeGenImportStmt :: HsImport -> Text
 codeGenImportStmt i =
   let n = i ^. moduleName
-   in Text.concat ["import ", fullIdentifier n]
+   in Text.concat [ "import "
+                  , if hsImportQualified i then "qualified " else ""
+                  , fullIdentifier n
+                  , maybe "" (\a -> Text.concat [" as ", fullIdentifier a]) (hsImportAlias i)
+                  , maybe "" (Text.cons ' ') (hsImportSpecs i)
+                  ]
 
 -- | The import statements that are always produced by the Fixen compiler.
 --

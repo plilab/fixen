@@ -251,13 +251,19 @@ combineProgram in_prog new_prog =
       new_rels = new_prog ^. relationDeclarations
       new_partial_ords = new_prog ^. partialOrdDeclarations
       new_lattices = new_prog ^. latticeDeclarations
+      import_key x = 
+        ( fullIdentifier (x ^. moduleName)
+        , hsImportQualified x
+        , fullIdentifier <$> hsImportAlias x
+        , hsImportSpecs x
+        )
       old_import_set =
         -- Build a set of already-imported module identifiers for deduplication.
-        Set.fromList (in_prog ^. imports ^.. each . moduleName <&> fullIdentifier)
+        Set.fromList (import_key <$> (in_prog ^. imports))
       -- Filter new imports to exclude any that already exist in the old program.
       new_imports =
         filter
-          (\x -> fullIdentifier (x ^. moduleName) `Set.notMember` old_import_set)
+          (\x -> import_key x `Set.notMember` old_import_set)
           (new_prog ^. imports)
       new_hs_blocks = new_prog ^. hsBlocks
       new_queries = new_prog ^. queries

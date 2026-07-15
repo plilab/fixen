@@ -991,6 +991,18 @@ data HsImport = HsImport
   -- ^ The imported module name (e.g. @Data.List@).
   --
   -- @since 0.0.1
+  , hsImportQualified :: Bool
+  -- ^ Whether this is a qualified import
+  --
+  -- @since 0.0.1
+  , hsImportAlias :: Maybe ModuleName
+  -- ^ The alias for the import, if it exists
+  --
+  -- @since 0.0.1
+  , hsImportSpecs :: Maybe Text
+  -- ^ The explicit import specifications, if it exists.
+  --
+  -- @since 0.0.1
   }
   deriving (Show, Eq)
 
@@ -1920,13 +1932,27 @@ prettyProgram
 
 -- | Pretty-print a 'HsImport' node.
 --
---   Renders the imported module name followed by its 'NodeId' in
---   parentheses.
+--   Renders the imported module name, optional import modifiers, optional
+--   explicit import specifications, and the import's 'NodeId' in parentheses.
 --
---   Output format: @Data.List (42)@
+--   Output format: @qualified Data.Map as Map (Map) (42)@
 prettyHsImport :: HsImport -> Doc ann
-prettyHsImport HsImport {hsImportNodeId = p, hsImportModuleName = module_name} =
-  pretty (fullIdentifier module_name) <+> (lparen <> pretty p <> rparen)
+prettyHsImport HsImport {hsImportNodeId = p, hsImportQualified = q, hsImportModuleName = module_name, hsImportAlias = alias, hsImportSpecs = specs} =
+    let qualified_doc =
+          if q then pretty ("qualified " :: Text) else mempty
+        alias_doc =
+          case alias of
+            Nothing -> mempty
+            Just a -> pretty (" as " :: Text) <> pretty (fullIdentifier a)
+        specs_doc =
+          case specs of
+            Nothing -> mempty
+            Just s -> pretty (" " :: Text) <> pretty s
+     in qualified_doc
+          <> pretty (fullIdentifier module_name)
+          <> alias_doc
+          <> specs_doc
+          <+> (lparen <> pretty p <> rparen)
 
 -- | Pretty-print a 'HsBlock' node.
 --
