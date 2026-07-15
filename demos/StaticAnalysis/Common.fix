@@ -5,15 +5,17 @@ import Algebra.PartialOrd
 import GHC.Generics
 import Control.DeepSeq
 import Data.Hashable
+import Data.List
 
 ```hs
-data Expr = Id String | InputE | Num Int | Plus Expr Expr | Leq Expr Expr | Gte Expr Expr | Eq Expr Expr
+data Expr = Id String | InputE | Num Int | Plus Expr Expr | Times Expr Expr | Leq Expr Expr | Gte Expr Expr | Eq Expr Expr
     deriving (Eq, Show, Generic)
 
 instance NFData Expr where
     rnf (Id x) = rnf x
     rnf (Num x) = rnf x
     rnf (Plus e e') = rnf (e, e')
+    rnf (Times e e') = rnf (e, e')
     rnf (Leq e e') = rnf (e, e')
     rnf (Gte e e') = rnf (e, e')
     rnf (Eq e e') = rnf (e, e')
@@ -30,7 +32,7 @@ instance PartialOrd Expr where
 mainTest :: [Fact]
 mainTest = [
   -- V = 1
-  Var 0 "V", Seq 0 1,
+  Var 0 "V", Seq 0 2,
   Assign 2 "V" (Num 1), Seq 2 4,
   -- while V <= 10
   Branch 4 (Leq (Id "V") (Num 9)) 5 6,
@@ -40,6 +42,19 @@ mainTest = [
   Assign 7 "V" (Num 0), Seq 7 101,
   -- end
   Var 101 "END"
+  ]
+
+factorialTest :: [Fact]
+factorialTest = [
+  Var 0 "Y", Seq 0 1,
+  Var 1 "Z", Seq 1 2,
+  Assign 2 "Y" (Id "X"), Seq 2 3,
+  Assign 3 "Z" (Num 1), Seq 3 4,
+  Branch 4 (Gte (Id "Y") (Num 1)) 5 7,
+  Assign 5 "Z" (Times (Id "Z") (Id "Y")), Seq 5 6,
+  Assign 6 "Y" (Plus (Id "Y") (Num (-1))), Seq 6 4,
+  Assign 7 "Y" (Num 0), Seq 7 100,
+  Var 100 "END"
   ]
 ```
 

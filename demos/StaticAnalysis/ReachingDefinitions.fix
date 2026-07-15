@@ -1,0 +1,61 @@
+module Main where
+
+include "Common"
+
+lat RD where
+  type = RD
+  leq = rdLeq
+  join = joinRD
+  meet = meetRD
+  bot = rdBot
+
+rel RDBefore: Label, RD
+
+rule assignInit : Assign l _ _   |- RDBefore l rdBot
+rule branchInit : Branch l _ _ _ |- RDBefore l rdBot
+rule varInit    : Var l _        |- RDBefore l rdBot
+
+-- actual transfer functions
+rule assignStep :
+  Assign l x _, Seq l l', RDBefore l rd
+  |- RDBefore l' (newDefinition rd (x, l))
+
+rule branchTrue :
+  Branch l _ t _, RDBefore l rd
+  |- RDBefore t rd
+
+rule branchFalse :
+  Branch l _ _ f, RDBefore l rd
+  |- RDBefore f rd
+
+rule varStep :
+  Var l _, Seq l l', RDBefore l rd
+  |- RDBefore l' rd
+
+query stateIs: RDBefore - -
+
+```hs
+data RD = RD [(String, Label)]
+  deriving (Eq, Show, Generic)
+
+rdBot :: RD
+rdBot = RD []
+
+instance PartialOrd RD where
+  leq (RD xs) (RD ys) =
+      all (`elem` ys) xs
+
+rdLeq :: RD -> RD -> Bool
+rdLeq = leq
+
+joinRD :: RD -> RD -> RD
+joinRD (RD xs) (RD ys) =
+  RD (union xs ys)
+
+meetRD :: RD -> RD -> RD
+meetRD (RD xs) (RD ys) =
+  RD (intersect xs ys)
+
+newDefinition :: RD -> (String, Label) -> RD
+newDefinition (RD rd) (x, l) = RD ((x, l) : (filter (\(v, _) -> v /= x) rd))
+```
