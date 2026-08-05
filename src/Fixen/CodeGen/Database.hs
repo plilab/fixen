@@ -19,6 +19,8 @@
 -- 2. The @emptyDb@ definition ('codeGenEmptyDb')
 -- 3. The @|=@ (entailment) definition ('codeGenEntailment')
 -- 4. The @insertToDb@ function for fact insertion ('codeGenFactInsertions')
+-- 5. The @mergeContour@ function for obtaining new facts generated from
+--    map-entry merging ('codeGenMergeContour')
 --
 -- @since 0.0.1
 module Fixen.CodeGen.Database where
@@ -472,34 +474,15 @@ codeGenInsertCase
 codeGenInsertCase (rel_name, rep_info)
   | null db_ty = return header
   | only_lattices =
-      let -- lhs_tup = 
-          --   if length db_ty == 1
-          --     then t 0
-          --     else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length db_ty - 1]
-          -- idxed_db_ty = zip [0 .. length db_ty - 1] db_ty
-          -- inserted_fact = 
-          --   case idxed_db_ty of
-          --     [(_, (LatticeMeet _ j _ _, _, _))] ->
-          --       Text.intercalate " " [codeGenIdentifier j, t 0, v 0]
-          --     _ -> parenthesize $ Text.intercalate ", " $
-          --             fmap
-          --               (\(i, (x, _, _)) ->
-          --                   case x of
-          --                     LatticeMeet _ j _ _ -> 
-          --                       Text.intercalate " " [codeGenIdentifier j, t i, v i]
-          --                     _ -> error "non-lattice argument found after lattice argument!"
-          --               )
-          --               idxed_db_ty
-          fact_tup = if length db_ty == 1 then v 0 else parenthesize $ Text.intercalate ", " $ v <$> [0 .. length db_ty - 1]
+      let fact_tup = 
+            if length db_ty == 1 
+              then v 0 
+              else parenthesize $ 
+                    Text.intercalate ", " $ 
+                      v <$> [0 .. length db_ty - 1]
        in return $ Text.concat [
             "insertToDb db ", case_pattern, " = db { ", dbFactSelector rel_name, " = ", fact_tup, " }"
           ]
-       -- in return $ Text.concat [
-       --      "insertToDb db ", case_pattern, " =\n",
-       --      "  let ", lhs_tup, " = ", dbFactSelector rel_name, " db\n",
-       --      "      new_fact = ", inserted_fact, "\n",
-       --      "   in Just db { ", dbFactSelector rel_name, " = new_fact }"
-       --    ]
   | otherwise = return $ Text.concat [header, singleton_fact_code, new_mp_code]
   where
     db_ty = rep_info ^. database . types
@@ -656,29 +639,6 @@ codeGenInsertCase (rel_name, rep_info)
       -- there is no need to do a join here. We can directly replace the
       -- entry with the inserted fact.
       "const"
-      -- let n = length ls
-      --  in if n == 1
-      --       then codeGenIdentifier j 
-      --       else
-      --         -- tuple. do an N-wise join.
-      --         let fst_tup = parenthesize $ Text.intercalate ", " $ t <$> [0 .. n - 1]
-      --             snd_tup = parenthesize $ Text.intercalate ", " $ t' <$> [0 .. n - 1]
-      --             remaining_vars_join =
-      --               fmap
-      --                 ( \(_, l', _) -> case l' of
-      --                     Match -> error "discrete variable appearing after lattice argument"
-      --                     Meet _ _ -> error "partial ord appearing after lattice argument"
-      --                     LatticeMeet _ j' _ _ -> j'
-      --                 )
-      --                 ls
-      --             idxd_remaining_vars = zip [0 .. n - 1] remaining_vars_join
-      --             body =
-      --               parenthesize $ Text.intercalate ", " $ fmap
-      --                 (\(i, j') -> Text.intercalate " " [codeGenIdentifier j', t i, t' i])
-      --                 idxd_remaining_vars
-      --          in Text.concat
-      --                 [ "\\", fst_tup, " ", snd_tup, " -> ", body]
-
     -- Rightmost discrete argument. Just union.
     insertionFn _ [(_, Match, _)] = "HashSet.union"
     -- HashMap key. Just use HashMap.unionWith
@@ -699,17 +659,24 @@ codeGenInsertCase (rel_name, rep_info)
     t :: Int -> Text
     t = Text.append "_t" ∘ Text.show
 
-    -- Generates _t'0, _t'1, etc, for any i.
-    -- t' :: Int -> Text
-    -- t' = Text.append "_t'" ∘ Text.show
-
+-- | This function generates the @mergeContour@ function, which is used to
+-- obtain all new facts created from lattice joins.
+--
+-- @since 0.0.1
 codeGenMergeContour :: RelationRepresentation -> Text
 codeGenMergeContour r =
   let header = "mergeContour :: Fact -> Database -> [Fact]"
       facts = Map.toList r
    in Text.intercalate "\n" $ header : (codeGenMergeContourCase <$> facts)
 
-codeGenMergeContourCase :: (Text, RelationRepresentationInfo) -> Text
+-- | Generates a single case for @mergeContour@.
+--
+-- @since 0.0.1
+codeGenMergeContourCase 
+  :: (Text, RelationRepresentationInfo) 
+  -- ^ The 'Text' is the name of the relation, the 'RelationRepresentationInfo' 
+  -- is its information.
+  -> Text
 codeGenMergeContourCase (t, r)
   | no_lattice = Text.concat ["mergeContour f@", fact_pattern, " _ = [f]"]
   where fact_ty = r ^. fact . types <&> fst

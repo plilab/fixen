@@ -141,10 +141,7 @@ codeGenEqInstance :: Text
 codeGenEqInstance =
   """
   instance Eq RuleInstance where
-    f == f'
-      | f < f' = False
-      | f' < f = False
-      | otherwise = True
+    f == f' = not (f < f' || f' < f)
   """
 
 -- *** @Ord@
