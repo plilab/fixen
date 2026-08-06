@@ -1,0 +1,27 @@
+{
+  "name": "test",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.7",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "astro": "^7.2.0",
+    "micromark": "^4.0.2",
+    "micromark-extension-math": "^3.1.0",
+    "rehype-components": "^0.3.0",
+    "rehype-mathjax": "^7.1.0",
+    "remark-directive": "^4.0.0",
+    "remark-directive-rehype": "^0.4.2",
+    "remark-math": "^6.0.0",
+    "remark-rehype": "^11.1.1",
+    "sharp": "^0.35.3"
+  }
+}
