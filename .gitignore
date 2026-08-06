@@ -1,1 +1,3 @@
 dist-newstyle/
+doc/.astro
+doc/node_modules
