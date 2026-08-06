@@ -17,9 +17,9 @@
     Fixed-Point Computation for Haskell
     <br />
     <br />
-    <a href="https://github.com/plilab/fixed-point/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/plilab/fixen/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
-    <a href="https://github.com/plilab/fixed-point/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/plilab/fixen/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 </div>
 
@@ -96,7 +96,7 @@ To get a local copy up and running follow these simple example steps.
 ### Installing and Building
 * Clone this repository
   ```sh
-  git clone https://github.com/plilab/fixed-point.git
+  git clone https://github.com/plilab/fixen.git
   cd fixen/
   ```
 * Building
@@ -126,7 +126,7 @@ You're all set!
 - [x] Benchmarks
 - [ ] Unit tests
 
-See the [open issues](https://github.com/plilab/fixed-point/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/plilab/fixen/issues) for a full list of proposed features (and known issues).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -148,8 +148,8 @@ Don't forget to give the project a star! Thanks again!
 
 ### Top contributors:
 
-<a href="https://github.com/plilab/fixed-point/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=plilab/fixed-point" alt="contrib.rocks image" />
+<a href="https://github.com/plilab/fixen/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=plilab/fixen" alt="contrib.rocks image" />
 </a>
 
 
@@ -169,7 +169,7 @@ Michael D. Adams - https://michaeldadams.org
 
 Foo Yong Qi - https://yongqi.foo/
 
-Project Link: [https://github.com/plilab/fixed-point](https://github.com/plilab/fixed-point)
+Project Link: [https://github.com/plilab/fixen](https://github.com/plilab/fixen)
 
 The Programming Languages Innovation Lab @ NUS: [https://github.com/plilab](https://github.com/plilab)
 
@@ -177,15 +177,15 @@ The Programming Languages Innovation Lab @ NUS: [https://github.com/plilab](http
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[contributors-shield]: https://img.shields.io/github/contributors/plilab/fixed-point.svg?style=for-the-badge
-[contributors-url]: https://github.com/plilab/fixed-point/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/plilab/fixed-point.svg?style=for-the-badge
-[forks-url]: https://github.com/plilab/fixed-point/network/members
-[stars-shield]: https://img.shields.io/github/stars/plilab/fixed-point.svg?style=for-the-badge
-[stars-url]: https://github.com/plilab/fixed-point/stargazers
-[issues-shield]: https://img.shields.io/github/issues/plilab/fixed-point.svg?style=for-the-badge
-[issues-url]: https://github.com/plilab/fixed-point/issues
-[license-shield]: https://img.shields.io/github/license/plilab/fixed-point.svg?style=for-the-badge
-[license-url]: https://github.com/plilab/fixed-point/blob/master/LICENSE.txt
+[contributors-shield]: https://img.shields.io/github/contributors/plilab/fixen.svg?style=for-the-badge
+[contributors-url]: https://github.com/plilab/fixen/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/plilab/fixen.svg?style=for-the-badge
+[forks-url]: https://github.com/plilab/fixen/network/members
+[stars-shield]: https://img.shields.io/github/stars/plilab/fixen.svg?style=for-the-badge
+[stars-url]: https://github.com/plilab/fixen/stargazers
+[issues-shield]: https://img.shields.io/github/issues/plilab/fixen.svg?style=for-the-badge
+[issues-url]: https://github.com/plilab/fixen/issues
+[license-shield]: https://img.shields.io/github/license/plilab/fixen.svg?style=for-the-badge
+[license-url]: https://github.com/plilab/fixen/blob/master/LICENSE.txt
 [haskell-shield]: https://img.shields.io/badge/Haskell-5D4F85?style=for-the-badge&logo=haskell&logoColor=white
 [haskell-badge-url]: https://www.haskell.org
