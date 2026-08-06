@@ -946,7 +946,9 @@ parseInclude = parsePositioned $ do
   return $ Include i include_path
 
 -- ** Explicit Import Specifications Parser
+
 --
+
 -- | Parses the specifications in an explicit import
 --
 -- @
@@ -954,8 +956,9 @@ parseInclude = parsePositioned $ do
 -- @
 parseImportSpecs :: Parser σ Text
 parseImportSpecs = pack <$> parens
--- Convert String returned from parens back into Text
   where
+    -- Convert String returned from parens back into Text
+
     parens = do
       -- Parse the opening parens
       _ <- C.char '('
@@ -996,8 +999,8 @@ parseImport = parsePositioned $ do
 
   -- Parse the 'qualified' keyword if it exists
   qualifiedImport <-
-      either (const False) (const True)
-        <$> P.observing (P.try (l $ keyword "qualified"))
+    either (const False) (const True)
+      <$> P.observing (P.try (l $ keyword "qualified"))
 
   -- Verify proper indentation before the module name
   _ <- indented
@@ -1007,14 +1010,14 @@ parseImport = parsePositioned $ do
 
   -- Parse the import alias if it exists
   alias <-
-      either (const Nothing) Just
-        <$> P.observing
-          ( P.try $ do
-              _ <- indented
-              _ <- l $ keyword "as"
-              _ <- indented
-              parseModuleName
-          )
+    either (const Nothing) Just
+      <$> P.observing
+        ( P.try $ do
+            _ <- indented
+            _ <- l $ keyword "as"
+            _ <- indented
+            parseModuleName
+        )
 
   -- Parse explicit import specifications if it exists
   importSpecs <-
