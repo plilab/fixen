@@ -1,0 +1,113 @@
+---
+title: Getting Started
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+
+This site is an extension of [Starlight](https://starlight.astro.build/), which in turn, is built on top of the [Astro](https://astro.build/) framework. This site includes configurations for the following:
+
+1. Inline math and block math expressions with MathJax, e.g. $x = x + 1$ and
+   ```math
+   \sum_{i = 0}^{\infty}{\frac{1}{2^i}}
+   ```
+2. Markdown directives for numbered definitions, examples, theorems, etc., automatic references and other simple [Starlight](https://starlight.astro.build) components.
+3. Extended frontmatter support for subtitles, authors and abstracts.
+4. Better sidebars (taken from [Astro docs](https://docs.astro.build/)).
+
+New features to include:
+1. BibTeX citations
+
+## Quick Start
+
+:::steps
+1. Install required dependencies
+   <Tabs syncKey="manager">
+     <TabItem label="npm">
+       ```bash
+       npm install
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm install
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn install
+       ```
+     </TabItem>
+   </Tabs>
+2. Run the development server to render the site as you make edits.
+   <Tabs syncKey="manager">
+     <TabItem label="npm">
+       ```bash
+       npm run dev
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm dev
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn dev
+       ```
+     </TabItem>
+   </Tabs>
+   The site should be rendered on [https://localhost\:4321/](https://localhost:4321/). Changes made to the site's contents will be reloaded on save.
+:::
+
+## Adding Content
+Now you are ready to add new content or put your existing notes into the site!
+
+Add new pages to this site by creating Markdown/MDX files in the `src/content/docs/` directory.
+
+## Updating the Site
+:::tip
+This site is based on Starlight, which is beta software. As such, there will be frequent updates and improvements. Be sure to update this site regularly!
+:::
+
+:::steps
+1. More than likely, someone has made changes to this site: 
+   ```bash
+   git pull origin master
+   ```
+2. Install any new dependencies introduced by the changes:
+   <Tabs syncKey="manager">
+     <TabItem label="npm">
+       ```bash
+       npm install
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm install
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn install
+       ```
+     </TabItem>
+   </Tabs>
+3. Upgrade dependencies to the latest versions:
+   <Tabs syncKey="manager">
+     <TabItem label="npm">
+       ```bash
+       npx @astrojs/upgrade
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```bash
+       pnpm dlx @astrojs/upgrade
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```bash
+       yarn dlx @astrojs/upgrade
+       ```
+     </TabItem>
+   </Tabs>
+:::

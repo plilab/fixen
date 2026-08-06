@@ -1,0 +1,65 @@
+.MathJax svg {
+  display: inline !important;
+}
+
+div.thm-header {
+  color: var(--sl-color-white);
+  font-size: var(--sl-text-xl);
+}
+
+div.thm {
+  border: 1px solid var(--sl-color-gray-5);
+  padding: 1rem;
+}
+
+div.proof {
+  position: relative;
+  top: 0px;
+  left: 0px;
+  border: 1px solid var(--sl-color-gray-5);
+  padding: 1rem;
+}
+div.qed {
+  width: 10px;
+  height: 10px;
+  background: var(--sl-color-accent);
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+}
+
+h1 {
+  font-weight: light;
+}
+
+/* Dark mode colors. */
+:root {
+  --sl-font: "Geist Variable";
+  font-weight: 200;
+  --sl-color-accent-low: #460a09;
+  --sl-color-accent: #c70017;
+  --sl-color-accent-high: #f76067;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #edeeed;
+  --sl-color-gray-2: #c7c9c8;
+  --sl-color-gray-3: #a2a4a3;
+  --sl-color-gray-4: #575857;
+  --sl-color-gray-5: #272927;
+  --sl-color-gray-6: #161716;
+  --sl-color-black: #000000;
+}
+/* Light mode colors. */
+:root[data-theme="light"] {
+  --sl-color-accent-low: #ffc7c0;
+  --sl-color-accent: #a80011;
+  --sl-color-accent-high: #640006;
+  --sl-color-white: #181818;
+  --sl-color-gray-1: #262726;
+  --sl-color-gray-2: #373937;
+  --sl-color-gray-3: #575857;
+  --sl-color-gray-4: #8a8c8b;
+  --sl-color-gray-5: #c1c2c1;
+  --sl-color-gray-6: #edeeed;
+  --sl-color-gray-7: #f6f6f6;
+  --sl-color-black: #ffffff;
+}
