@@ -9,7 +9,7 @@ Fixen generates Haskell source code, which means it lives in the Haskell ecosyst
 
 Wrap Haskell code in triple backticks with the `hs` language annotation:
 
-```fixen
+````fixen
 ```hs
 type Vertex = String
 
@@ -24,7 +24,7 @@ distMlbs (D a) (D b) = [D (min a b)]
 
 rel DistTo: Vertex, Dist
 rel Edge: Vertex, Vertex, Dist
-```
+````
 
 The contents of Haskell blocks are included verbatim in the generated Haskell module. They are processed in order, so later blocks can reference definitions from earlier ones.
 
@@ -113,7 +113,7 @@ Included files are processed recursively. Note that priorities, queries, and pha
 
 Here is a minimal complete Fixen program:
 
-```fixen
+````fixen
 module Demos.Reachability where
 
 import Data.HashMap.Strict qualified as HashMap
@@ -131,7 +131,7 @@ rule pathStep: Edge u v, Path v w |- Path u w
 query pathsFrom: Path + -
 
 query allPaths: Path - -
-```
+````
 
 This generates a Haskell module `Demos.Reachability` with:
 - `data Fact = Edge Vertex Vertex | Path Vertex Vertex`
