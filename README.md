@@ -17,6 +17,8 @@
     Fixed-Point Computation for Haskell
     <br />
     <br />
+    <a href="https://fixen-lang.org">Documentation</a>
+    .
     <a href="https://github.com/plilab/fixen/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     ·
     <a href="https://github.com/plilab/fixen/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
