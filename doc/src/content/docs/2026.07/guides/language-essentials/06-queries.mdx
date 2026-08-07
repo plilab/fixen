@@ -1,0 +1,101 @@
+---
+title: Queries
+description: Define interfaces for application code to interact with the solved
+  fact database.
+slug: 2026.07/guides/language-essentials/06-queries
+---
+
+After the Fixen solver computes the fixed point, application code needs a way to inspect the results. **Queries** declare the interface between the generated Fixen module and the surrounding Haskell code, specifying which relations can be queried and which arguments serve as inputs versus outputs.
+
+## Query Declarations
+
+Queries are declared with the `query` keyword:
+
+```fixen
+query distTo: DistTo - +
+```
+
+This declares a query named `distTo` on the `DistTo` relation. The modes (`-` and `+`) specify that the first argument is an **output** and the second is an **input**.
+
+## Query Modes
+
+Each argument of a queried relation has a mode:
+
+| Mode | Symbol | Meaning |
+|------|--------|---------|
+| Input | `+` | The argument is instantiated by the caller (a ground value to match against) |
+| Output | `-` | The argument is produced by the query (a value to be computed) |
+
+The mode determines the type signature of the generated Haskell function. Modes correspond to the argument positions in the relation declaration. For `query distanceTo: DistTo + -` where `DistTo: Vertex, Dist`:
+
+* First argument (`Vertex`): `+` = input (caller provides the vertex)
+* Second argument (`Dist`): `-` = output (solver returns distances)
+
+The generated Haskell function would have the signature:
+
+```haskell
+distanceTo :: Vertex -> Database -> [Fact]
+```
+
+## Example: Reachability Queries
+
+```fixen
+query pathsFrom: Path + -
+query pathsTo: Path - +
+query allPaths: Path - -
+```
+
+These generate three Haskell functions:
+
+```haskell
+-- Find all paths starting from a given vertex
+pathsFrom :: Vertex -> Database -> [Fact]
+
+-- Find all paths ending at a given vertex
+pathsTo :: Vertex -> Database -> [Fact]
+
+-- Retrieve all paths in the database
+allPaths :: Database -> [Fact]
+```
+
+## Multiple Queries Per Relation
+
+A single relation can have multiple query declarations, each with different mode combinations:
+
+```fixen
+query distTo: DistTo + -
+query reachableIn: DistTo - +
+query distances: DistTo - -
+```
+
+Each query generates a separate Haskell function with a signature tailored to its mode pattern.
+
+## Using Queries in Application Code
+
+After compiling a Fixen program, the generated module exports the query functions. Application code uses them to interact with the solved database:
+
+```haskell
+import Simple
+
+main :: IO ()
+main = do
+  let solvedDb = solve [Edge "A" "B", Edge "B" "C", Edge "A" "C"]
+  print (pathsFrom "A" solvedDb)
+  print (allPaths solvedDb)
+```
+
+## Queries and Initial Facts
+
+Queries operate on the **solved** fact database — the result of running `solve` (or `reSolve`) with initial facts. Initial facts are the input to the solver; query results are the output. Together, they form the complete interface:
+
+```
+Initial Facts → solve [] → Database → query funcs → Results
+```
+
+## Summary
+
+* **Queries** declare how application code can inspect the solved fact database.
+* Each query has a name and a list of modes (`+` for input, `-` for output).
+* Modes determine the Haskell function signature: input arguments become function parameters, output arguments appear in the return type.
+* Multiple queries can be declared for the same relation with different mode patterns.
+* Queries operate on the database returned by `solve` or `reSolve`.

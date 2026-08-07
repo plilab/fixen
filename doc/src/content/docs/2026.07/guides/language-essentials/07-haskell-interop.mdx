@@ -1,0 +1,155 @@
+---
+title: Haskell Interop
+description: Embed Haskell code, define types, and understand the generated
+  module interface.
+slug: 2026.07/guides/language-essentials/07-haskell-interop
+---
+
+Fixen generates Haskell source code, which means it lives in the Haskell ecosystem. You can define types, type classes, and functions in Haskell and use them directly in your Fixen programs. This chapter covers how to embed Haskell in Fixen, how the generated module works, and how to integrate Fixen-generated code into your projects.
+
+## Haskell Source Blocks
+
+Wrap Haskell code in triple backticks with the `hs` language annotation:
+
+````fixen
+```hs
+type Vertex = String
+
+data Dist = D Natural deriving (Show, Eq, Ord)
+
+distLeq :: Dist -> Dist -> Bool
+distLeq (D a) (D b) = a >= b
+
+distMlbs :: Dist -> Dist -> [Dist]
+distMlbs (D a) (D b) = [D (min a b)]
+````
+
+rel DistTo: Vertex, Dist
+rel Edge: Vertex, Vertex, Dist
+
+````
+
+The contents of Haskell blocks are included verbatim in the generated Haskell module. They are processed in order, so later blocks can reference definitions from earlier ones.
+
+## Haskell Imports
+
+You can import Haskell modules using the `import` keyword:
+
+```fixen
+import Data.HashMap.Strict
+import Data.HashMap.Strict qualified as HashMap
+import Data.PQueue.Min
+````
+
+These imports are included at the top of the generated Haskell module, making the imported symbols available in your Fixen program.
+
+## Type Resolution
+
+Sort names in relation declarations resolve to Haskell types through a combination of:
+
+1. **Inline Haskell blocks** — type aliases and data types defined in ` ```hs ` blocks.
+2. **Lattice/partial order declarations** — the `type` field binds a sort to a Haskell type.
+3. **Imports** — types from imported Haskell modules.
+
+When the compiler generates the `Fact` type, it replaces each sort name with its underlying Haskell type. For example, `rel DistTo: Vertex, Dist` with `lat Dist where type = Natural` generates:
+
+```haskell
+data Fact = DistTo Vertex Natural | ...
+```
+
+## The Generated Module
+
+The Fixen compiler generates a self-contained Haskell module. Understanding its structure helps you integrate Fixen into your projects.
+
+### Data Types
+
+The compiler generates two primary data types:
+
+* **`Fact`** — a sum type with one constructor per relation. Each constructor's arguments use the underlying Haskell types of the relation's sorts.
+* **`Database`** — a record type with one field per relation. Fields are nested `HashMap`s optimized for the relation's usage patterns (discrete matched arguments serve as primary keys).
+
+### Core Functions
+
+| Function | Signature | Purpose |
+|----------|-----------|---------|
+| `solve` | `[Fact] -> Database` | Compute the fixed point from initial facts |
+| `reSolve` | `Database -> [Fact] -> Database` | Resume computation with additional facts |
+
+`solve` takes a list of initial facts (treated as body-less rules) and returns the solved database. `reSolve` resumes fixed-point computation from an already-solved database with new facts, enabling incremental updates.
+
+### Query Functions
+
+For each `query` declaration, the compiler generates a Haskell function. The function's parameters correspond to the input-mode arguments of the query, and the return type contains the output-mode facts.
+
+### Helper Functions
+
+The compiler also generates internal helpers:
+
+* `emptyDb` — constructs an empty database
+* `insertToDb` — inserts a fact into the database
+* `step` / `stepAll` — trigger rule evaluation for new facts
+* `mergeContour` — enforce merge-completeness for lattice-valued facts
+
+These are internal implementation details and are typically not used directly by application code.
+
+## Module Declarations
+
+Every Fixen program starts with a Haskell module declaration:
+
+```fixen
+module MyProject.ShortestPath where
+```
+
+This determines the name of the generated Haskell module. The module name must be a valid Haskell module path (dot-separated identifiers).
+
+## Including Other Fixen Files
+
+The `include` statement imports another Fixen program, bringing in all its relations, rules, Haskell blocks, and imports:
+
+```fixen
+include "Common"
+include "../Analysis/Interval"
+```
+
+Included files are processed recursively. Note that priorities, queries, and phases are **not** inherited from included files — each program defines its own. This is because priorities and phase assignments are specific to the local analysis context.
+
+## Complete Example
+
+Here is a minimal complete Fixen program:
+
+````fixen
+module Demos.Reachability where
+
+import Data.HashMap.Strict qualified as HashMap
+
+```hs
+type Vertex = String
+````
+
+rel Edge: Vertex, Vertex
+rel Path: Vertex, Vertex
+
+rule edgeToPath: Edge u v |- Path u v
+rule pathStep: Edge u v, Path v w |- Path u w
+
+query pathsFrom: Path + -
+
+query allPaths: Path - -
+
+````
+
+This generates a Haskell module `Demos.Reachability` with:
+- `data Fact = Edge Vertex Vertex | Path Vertex Vertex`
+- `solve :: [Fact] -> Database`
+- `pathsFrom :: Vertex -> Database -> [Fact]`
+- `allPaths :: Database -> [Fact]`
+
+## Summary
+
+- **Haskell blocks** (` ```hs `) embed arbitrary Haskell code in Fixen programs.
+- **Imports** make external Haskell modules available to the generated code.
+- **Type resolution** combines Haskell blocks, lattice/partial order declarations, and imports.
+- The **generated module** exports `solve`, `reSolve`, and query functions.
+- **Include** statements compose Fixen programs from multiple files.
+- The generated code is a self-contained Haskell module that integrates seamlessly into larger projects.
+````
