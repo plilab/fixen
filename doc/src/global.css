@@ -28,12 +28,19 @@ div.qed {
   right: 1rem;
 }
 
+.site-title img,
+.site-logo {
+  max-height: 2rem;
+  width: auto;
+}
+
 h1 {
   font-weight: light;
 }
 
 /* Dark mode colors. */
 :root {
+  --sl-font-mono: "Geist Mono Variable";
   --sl-font: "Geist Variable";
   font-weight: 200;
   --sl-color-accent-low: #460a09;

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.7",
+    "@expressive-code/plugin-line-numbers": "^0.44.1",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
     "astro": "^7.2.0",
@@ -22,6 +23,7 @@
     "remark-directive-rehype": "^0.4.2",
     "remark-math": "^6.0.0",
     "remark-rehype": "^11.1.1",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "starlight-versions": "^0.9.1"
   }
 }

@@ -5,6 +5,7 @@ const { title, authors, abstract, subtitle } = Astro.locals.starlightRoute.entry
 import { Icon } from '@astrojs/starlight/components';
 import {micromark} from 'micromark';
 import {math, mathHtml} from 'micromark-extension-math';
+import VersionNotice from 'starlight-versions/components/VersionNotice.astro';
 function parseAbstract(abstract) {
 let x = micromark(abstract, { extensions: [math()], htmlExtensions: [mathHtml()]})
   return x.replaceAll('<p>', '<p style="margin-top: 0.5rem;">')
@@ -15,7 +16,7 @@ const parsedAbstract = abstract ? parseAbstract(abstract) : undefined
 <!-- Get the latest one from: https://katex.org/docs/browser -->
 <link href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" rel="stylesheet">
 <h1 id="_top">{Astro.locals.starlightRoute.entry.data.title}</h1>
-
+<VersionNotice />
 {
 subtitle && (
 <h2 class="subtitle">{subtitle}</h2>
