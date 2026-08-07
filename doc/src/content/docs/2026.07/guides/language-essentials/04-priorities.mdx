@@ -1,0 +1,106 @@
+---
+title: Priorities
+description: Control rule evaluation order with rule-instance priorities for
+  algorithm-level optimizations.
+slug: 2026.07/guides/language-essentials/04-priorities
+---
+
+By default, Fixen applies rules in an unspecified order until a fixed point is reached. For many problems, this is fine — the final set of derived facts is the same regardless of order. But for some algorithms, the **order** in which rules fire directly impacts performance. Processing facts in the wrong order can cause redundant derivations, turning an efficient algorithm into a much slower one.
+
+Rule-instance priorities give you control over evaluation order, enabling algorithm-level optimizations without changing the rules themselves.
+
+## Priority Declarations
+
+Priorities are declared with the `priority` keyword:
+
+```fixen
+priority:
+  (d1 + d1') > (d2 + d2')
+    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
+```
+
+This declares that `addDist` rule instances with shorter total distances have **higher** priority (are processed first). The `>` on the left of `|-` is a condition that must hold for the priority to apply. The `<` on the right specifies that the left instance has lower priority than the right instance.
+
+## How Priorities Work
+
+During execution, the Fixen solver replaces the standard work-list with a **priority queue of rule instances**. A rule instance is a rule whose variables have been fully instantiated with ground terms. The solver continuously dequeues the highest-priority rule instance, evaluates its conclusion, and inserts it into the fact database. If the conclusion is a newly discovered fact, the solver derives all subsequent rule instances that can be instantiated from it, schedules them into the priority queue, and repeats.
+
+The custom priorities you declare are used by the priority queue to determine which rule instance to process next. This maps directly to scheduling optimizations: for example, Dijkstra's algorithm achieves its optimal complexity by greedily processing vertices closest to the source, and this is expressed by prioritizing `addDist` instances with shorter distances.
+
+## Priority Syntax
+
+A priority declaration has the form:
+
+```fixen
+priority: condition |- instance1 < instance2
+```
+
+* The **condition** (left of `|-`) is a Haskell expression of type `Bool` that must hold for the priority to apply. If omitted (i.e., the condition is empty), the priority always applies.
+* The **instances** (right of `|-`) are rule instantiations of the form `ruleName { var = value, ... }`. The `<` symbol indicates that the left instance has strictly lower priority than the right instance.
+
+Multiple priority declarations are allowed, and priorities can compare instances of any two rules. The solver combines all priority declarations to form a strict weak order over rule instances.
+
+## Example: Dijkstra's Algorithm
+
+Without priorities, a naive FPOP graph-distance algorithm repeatedly revisits vertices with suboptimal path lengths, degrading to Bellman-Ford performance. With priorities, we get Dijkstra's optimal behavior:
+
+```fixen
+rel DistTo: Vertex, Dist
+rel Edge: Vertex, Vertex, Dist
+
+lat Dist where
+  type = Natural
+  leq = (>=)
+  join = min
+  meet = max
+
+rule edgeToPath: Edge u v |- Path u v
+rule addDist: DistTo u d, Edge u v d' |- DistTo v (d + d')
+
+priority:
+  (d1 + d1') > (d2 + d2')
+    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
+```
+
+The priority ensures that `addDist` instances producing shorter distances are processed first, mirroring Dijkstra's greedy vertex selection.
+
+## Example: Multi-Objective Shortest Paths
+
+For bi-objective shortest paths (distance and time), priorities can impose a lexicographical order:
+
+```fixen
+priority:
+  ((d1 + d1') > (d2 + d2'))
+    || (((d1 + d1') == (d2 + d2'))
+          && ((c1 + c1') > (c2 + c2')))
+    |- addDist { d = d1, d' = d1', c = c1, c' = c1' }
+        < addDist { d = d2, d' = d2', c = c2, c' = c2' }
+```
+
+This prioritizes instances with smaller total distance, breaking ties by preferring smaller total time.
+
+## Comparing Arbitrary Instances
+
+Priorities are not limited to comparing instances of the same rule. You can compare instances of different rules:
+
+```fixen
+priority:
+  |- addDist { } < assignI { }
+```
+
+This always gives `assignI` higher priority than `addDist`, regardless of the instantiated values. Such cross-rule priorities can be used to control the relative ordering of different rule families during execution.
+
+## Performance Implications
+
+Choosing the right priorities is crucial for performance. The paper reports that rule-instance priorities can improve performance by up to 30× (7× on average) on benchmarks. However, writing the wrong priorities can make algorithms slower, as the solver may process facts in an order that generates more redundant work.
+
+Priorities require domain-specific knowledge of the algorithm. They are an optimization lever, not a correctness mechanism — the final set of derived facts is the same regardless of priority ordering (provided the rules are monotone).
+
+## Summary
+
+* **Priorities** control the order in which rule instances are processed.
+* They are declared with `priority:` followed by a condition and an ordering between rule instances.
+* The solver uses a priority queue of rule instances, dequeuing the highest-priority instance at each step.
+* Correct priorities enable algorithm-level optimizations (e.g., Dijkstra's greedy selection).
+* Priorities affect performance, not correctness — the final result is the same regardless of ordering.
+* Multiple priorities can compare instances of the same or different rules.

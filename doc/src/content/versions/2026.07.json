@@ -4,9 +4,24 @@
       "label": "Guides",
       "items": [
         {
-          "autogenerate": {
-            "directory": "guides"
-          }
+          "label": "Getting Started",
+          "items": [
+            {
+              "autogenerate": {
+                "directory": "guides/getting-started"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Fixen Essentials",
+          "items": [
+            {
+              "autogenerate": {
+                "directory": "guides/language-essentials"
+              }
+            }
+          ]
         }
       ]
     },

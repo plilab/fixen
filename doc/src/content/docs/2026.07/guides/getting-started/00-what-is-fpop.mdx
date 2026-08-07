@@ -1,5 +1,6 @@
 ---
 title: What is FPOP?
+slug: 2026.07/guides/getting-started/00-what-is-fpop
 ---
 
 Fixed-Point-Oriented Programming (FPOP) is a programming paradigm designed to streamline the implementation of problems involving cycles, self-reference, and iterative computation. It provides a high-level, declarative abstraction that enables concise and expressive problem formulations while the underlying solver handles the mechanics of fixed-point computation.
@@ -8,12 +9,12 @@ Fixed-Point-Oriented Programming (FPOP) is a programming paradigm designed to st
 
 Problems involving cycles or self-reference are pervasive in computer science. Examples include:
 
-- **Graph algorithms** — shortest paths, strongly connected components, dominators
-- **Static analysis** — data-flow analysis, type inference, abstract interpretation
-- **Parsing** — context-free grammars, Earley parsers, CYK, LR parser generation
-- **Automata** — minimization, reachability, equivalence checking
-- **Distributed systems** — conflict-free replicated data types (CRDTs), distributed fixed-point computations
-- **Type systems** — type inference, constraint solving, effect systems
+* **Graph algorithms** — shortest paths, strongly connected components, dominators
+* **Static analysis** — data-flow analysis, type inference, abstract interpretation
+* **Parsing** — context-free grammars, Earley parsers, CYK, LR parser generation
+* **Automata** — minimization, reachability, equivalence checking
+* **Distributed systems** — conflict-free replicated data types (CRDTs), distributed fixed-point computations
+* **Type systems** — type inference, constraint solving, effect systems
 
 These problems are fundamentally about computing the **least fixed point** of a monotone function. The standard solution is a **work-queue** (or work-list) algorithm: iteratively apply inference rules until no new facts can be derived.
 
@@ -59,8 +60,8 @@ All of this code express only two key ideas: the distance to the source is 0, an
 
 FPOP shifts the programmer's focus from **how** to iterate to **what** facts follow from existing facts. In FPOP, you express computation through two constructs:
 
-- **Relations** — declare what facts look like (e.g., `Edge v1 v2 d`, `DistTo v d`)
-- **Rules** — declare how new facts derive from existing ones (e.g., "if there is a path to `v1` with distance `d1`, and an edge from `v1` to `v2` with distance `d2`, then there is a path to `v2` with distance `d1 + d2`")
+* **Relations** — declare what facts look like (e.g., `Edge v1 v2 d`, `DistTo v d`)
+* **Rules** — declare how new facts derive from existing ones (e.g., "if there is a path to `v1` with distance `d1`, and an edge from `v1` to `v2` with distance `d2`, then there is a path to `v2` with distance `d1 + d2`")
 
 A solver applies the rules iteratively, computing the set of all inferable facts until a fixed point is reached. The programmer specifies **what** is true; the solver determines **how** to compute it.
 
@@ -106,6 +107,7 @@ FPOP offers three key advantages over traditional implementations:
 Fixen is a fixed-point-oriented domain-specific language (DSL). Presently, Fixen is a **research language** and is currently under active research and development.
 
 Fixen brings FPOP to Haskell and is a vehicle for introducing novel FPOP language features; we discuss the novel features that Fixen implements in this site. Haskell developers can use Fixen as part of any project to:
+
 1. Define fixed-point computation in Fixen program(s)
 2. Use the Fixen compiler to generate Haskell source code (to be incorporated with part of a larger project) that implements the specified fixed-point computation.
 
@@ -113,6 +115,6 @@ Fixen is suitable for research and exploration into FPOP theory, implementation 
 
 ## Next Steps
 
-- See [Your First Program](./your-first-program/) for a complete walkthrough of writing and running a Fixen program.
-- See [Language Essentials](./language-essentials/) for a detailed reference to Fixen's syntax and constructs.
-- See [Advanced Topics](../advanced-topics/) for formal semantics and theoretical foundations.
+* See [Installation](./01-installation/) to install Fixen on your system.
+* See [Your First Program](./02-your-first-program/) for a complete walkthrough of writing and running a Fixen program.
+* See [Language Essentials](../language-essentials/) for a detailed reference to Fixen's syntax and constructs.

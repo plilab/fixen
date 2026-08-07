@@ -10,36 +10,39 @@ import { h } from "hastscript";
 import { directives } from "./src/directives.ts";
 import rehypeNumbered from "./src/rehype-numbered.js";
 import starlightVersions from "starlight-versions";
+import { unified } from "@astrojs/markdown-remark";
 
 // https://astro.build/config
 export default defineConfig({
   site: "https://fixen-lang.org",
   markdown: {
-    remarkPlugins: [remarkMath, remarkDirective, remarkDirectiveRehype],
-    rehypePlugins: [
-      [
-        rehypeNumbered,
-        {
-          refName: {
-            eg: "Example",
-            def: "Definition",
-            thm: "Theorem",
-            prop: "Proposition",
-            conj: "Conjecture",
-            lem: "Lemma",
-            cor: "Corollary",
-            noneg: "Nonexample",
+    processor: unified({
+      remarkPlugins: [remarkMath, remarkDirective, remarkDirectiveRehype],
+      rehypePlugins: [
+        [
+          rehypeNumbered,
+          {
+            refName: {
+              eg: "Example",
+              def: "Definition",
+              thm: "Theorem",
+              prop: "Proposition",
+              conj: "Conjecture",
+              lem: "Lemma",
+              cor: "Corollary",
+              noneg: "Nonexample",
+            },
           },
-        },
+        ],
+        rehypeMathjax,
+        [
+          rehypeComponents,
+          {
+            components: directives,
+          },
+        ],
       ],
-      rehypeMathjax,
-      [
-        rehypeComponents,
-        {
-          components: directives,
-        },
-      ],
-    ],
+    }),
   },
   integrations: [
     starlight({
@@ -56,7 +59,7 @@ export default defineConfig({
       },
       plugins: [
         starlightVersions({
-          versions: [{ slug: "0.0.0.1" }],
+          versions: [{ slug: "2026.07" }],
         }),
       ],
       social: [
@@ -80,45 +83,10 @@ export default defineConfig({
                 { autogenerate: { directory: "guides/getting-started" } },
               ],
             },
-            "guides/what-is-fpop",
             {
-              label: "Your First Program",
-              items: [
-                { autogenerate: { directory: "guides/your-first-program" } },
-              ],
-            },
-            {
-              label: "Language Essentials",
+              label: "Fixen Essentials",
               items: [
                 { autogenerate: { directory: "guides/language-essentials" } },
-              ],
-            },
-            {
-              label: "Graph Algorithms",
-              items: [
-                { autogenerate: { directory: "guides/graph-algorithms" } },
-              ],
-            },
-            {
-              label: "Static Analysis",
-              items: [
-                { autogenerate: { directory: "guides/static-analysis" } },
-              ],
-            },
-            {
-              label: "Haskell Interop",
-              items: [
-                { autogenerate: { directory: "guides/haskell-interop" } },
-              ],
-            },
-            {
-              label: "Understanding Generated Code",
-              items: [
-                {
-                  autogenerate: {
-                    directory: "guides/understanding-generated-code",
-                  },
-                },
               ],
             },
           ],
