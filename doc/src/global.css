@@ -34,8 +34,9 @@ div.qed {
   width: auto;
 }
 
-h1 {
-  font-weight: light;
+strong {
+  font-weight: 500;
+  color: var(--sl-color-white);
 }
 
 /* Dark mode colors. */

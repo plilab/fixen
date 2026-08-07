@@ -13,9 +13,11 @@ The `fixen` compiler takes a Fixen source file (`.fix`) and generates a Haskell 
 ### Usage
 The basic invocation is:
 
-```bash
-fixen --output <output.hs> <input.fix>
+
+```ansi
+[35m~ $[0m [31m[1m[4mfixen --output [32m<output.hs>[31m [32m<input.fix>[0m
 ```
+
 
 | Argument | Description |
 |----------|-------------|
@@ -88,13 +90,13 @@ We are going to write a simple Fixen program in `fix/Simple.fix`, then make use 
 in `app/Main.hs`. Populate these files with the following content:
 <Tabs>
   <TabItem label="fix/Simple.fix">
-    ```txt title="Simple.fix"
-    module Simple where
+    ```ansi title="Simple.fix"
+    [31mmodule[0m [35mSimple[0m [31mwhere[0m
 
-    rel SimpleRel: String, Int
-    rule: |- SimpleRel "start" 0
+    [31mrel[0m [32mSimpleRel[0m: [33mString[0m, [33mInt[0m
+    [31mrule[0m: [31m|-[0m [32mSimpleRel[0m [36m"start"[0m [34m0[0m
 
-    query facts: SimpleRel - -
+    [31mquery[0m [35mfacts[0m: [32mSimpleRel[0m [31m- -[0m
     ```
     This Fixen program defines a single relation `SimpleRel` consisting of a `String` and an `Int`. The only inference rule in this program concludes `SimpleRel "start" 0`. Finally, the `facts` query obtains all facts of `SimpleRel` from the solved fact database.
   </TabItem>
@@ -117,31 +119,27 @@ in `app/Main.hs`. Populate these files with the following content:
   </TabItem>
 </Tabs>
 
+:::note
+Syntax highlighting for Fixen is currently under development.
+:::
+
 ### Building and Running
 
-Before we run `cabal build` or `cabal run` to build/run the Cabal project, we must first get the Fixen compiler to generate the Haskell source that implements the work-queue algorithm that we have specified in `fix/Simple.fix`. To do so, run the following:
+Before we run `cabal build` or `cabal run` to build/run the Cabal project, we must first get the Fixen compiler to generate the Haskell source that implements the work-queue algorithm that we have specified in `fix/Simple.fix`. To do so, run the following from the root of the project directory:
 
-```bash
-$ fixen -o app/Simple.hs fix/Simple.fix
+```ansi title="Compiling the Fixen program"
+[35m~/my-project $[0m [31m[1m[4mfixen -o app/Simple.hs fix/Simple.fix[0m
 ```
 
 This generates a valid Haskell module `app/Simple.hs` using the definitions in `fix/Simple.fix`. You can inspect it to see how Fixen translates your relational declarations into Haskell code — including the database layout, the fact type, and the inference rules.
 
-Once this file has been generated, we can proceed to run the project:
+Once this file has been generated, we can proceed to build and run the project:
 
-```ansi
-[35m~ $[0m [31m[1m[4mcabal run[0m
+```ansi title="Building and Running the Project"
+[35m~/my-project $[0m [31m[1m[4mcabal run[0m
 [SimpleRel "start" 0]
 ```
 
-
-This defines a single relation `DistTo` that maps a `Vertex` to a `Dist`, and a single rule `init` that produces one fact: `DistTo "source" 0`.
-
-Compile it:
-
-```bash
-fixen --output Simple.hs simple.fix
-```
 
 ## Next Steps
 
