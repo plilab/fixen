@@ -59,8 +59,8 @@ Install Fixen as a standalone command-line tool. After installation, you can com
 
 3. Verify the installation
 
-    ```bash
-    fixen --help
+    ```ansi
+    [35m~ $[0m [31m[1m[4mfixen --help[0m
     ```
 
     You should see the help output describing the available options.
@@ -68,8 +68,8 @@ Install Fixen as a standalone command-line tool. After installation, you can com
 
 Once installed, you can compile Fixen programs with:
 
-```bash
-fixen --output output.hs input.fix
+```ansi
+[35m~ $[0m [31m[1m[4mfixen --output [32mOutput.hs[31m [32mInput.fix[0m
 ```
 
 ## Approach 2: Project Dependency
@@ -97,10 +97,9 @@ Use Fixen as a dependency in your Haskell project. This approach is useful when 
 
 2. Build your project
 
-    ```bash
-    cabal build
+    ```ansi
+    [35m~ $[0m [31m[1m[4mcabal build[0m
     ```
-
     Cabal will fetch and build Fixen alongside your project.
 
 3. Use the Fixen compiler in your build pipeline
@@ -111,8 +110,8 @@ Use Fixen as a dependency in your Haskell project. This approach is useful when 
 :::tip
 If you are developing Fixen itself and want to use the local source, you can run:
 
-```bash
-cabal run fixen -- --output output.hs input.fix
+```ansi
+[35m~ $[0m [31m[1m[4mcabal run fixen -- --output [32mOutput.hs[31m [32mInput.fix[0m
 ```
 
 This builds and runs the Fixen compiler from source without installing it globally.
