@@ -52,8 +52,8 @@ strong {
   --sl-color-gray-2: #c7c9c8;
   --sl-color-gray-3: #a2a4a3;
   --sl-color-gray-4: #575857;
-  --sl-color-gray-5: #272927;
-  --sl-color-gray-6: #161716;
+  --sl-color-gray-5: #393737;
+  --sl-color-gray-6: #0e0d0d;
   --sl-color-black: #000000;
 }
 /* Light mode colors. */
@@ -61,7 +61,7 @@ strong {
   --sl-color-accent-low: #ffc7c0;
   --sl-color-accent: #a80011;
   --sl-color-accent-high: #640006;
-  --sl-color-white: #181818;
+  --sl-color-white: #100808;
   --sl-color-gray-1: #262726;
   --sl-color-gray-2: #373937;
   --sl-color-gray-3: #575857;
