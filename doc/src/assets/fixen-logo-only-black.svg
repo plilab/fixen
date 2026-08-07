@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="48.441883mm"
-   height="14.040832mm"
-   viewBox="0 0 48.441883 14.040832"
+   width="48.268494mm"
+   height="14.453617mm"
+   viewBox="0 0 48.268494 14.453617"
    version="1.1"
    id="svg1"
    inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
@@ -24,10 +24,10 @@
      inkscape:deskcolor="#cecece"
      inkscape:document-units="cm"
      showguides="true"
-     inkscape:zoom="1.45"
-     inkscape:cx="58.275861"
-     inkscape:cy="33.448275"
-     inkscape:window-width="1369"
+     inkscape:zoom="1.5597292"
+     inkscape:cx="76.295295"
+     inkscape:cy="35.5831"
+     inkscape:window-width="1960"
      inkscape:window-height="1280"
      inkscape:window-x="0"
      inkscape:window-y="0"
@@ -59,7 +59,7 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-16.479778,-30.440095)">
+     transform="translate(-16.653167,-30.02731)">
     <g
        id="g35"
        transform="translate(-76.132306,-61.826578)">
@@ -227,18 +227,11 @@
        cx="35.860893"
        cy="43.480022"
        r="0.99140143" />
-    <text
-       xml:space="preserve"
-       style="font-size:20.6375px;writing-mode:lr-tb;direction:ltr;fill:#000000;stroke-width:0.222672"
-       x="13.693649"
-       y="46.696388"
+    <path
+       style="font-size:20.6375px;font-family:'Aporetic Sans';-inkscape-font-specification:'Aporetic Sans, Normal';stroke-width:0.222672"
+       d="M 15.860587,46.696388 V 31.527825 h 7.223125 v 1.465263 h -5.592763 v 5.076825 h 4.395788 v 1.465262 h -4.395788 v 7.161213 z"
        id="text4-9"
-       transform="scale(1.0499717,0.95240663)"><tspan
-         sodipodi:role="line"
-         id="tspan4-0"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20.6375px;font-family:'Aporetic Sans';-inkscape-font-specification:'Aporetic Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;stroke-width:0.222672"
-         x="13.693649"
-         y="46.696388"
-         dx="-1.8035662e-10">F</tspan></text>
+       transform="scale(1.0499717,0.95240663)"
+       aria-label="F" />
   </g>
 </svg>

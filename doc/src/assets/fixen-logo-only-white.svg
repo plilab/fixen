@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="48.441883mm"
-   height="14.040832mm"
-   viewBox="0 0 48.441883 14.040832"
+   width="48.268494mm"
+   height="14.453617mm"
+   viewBox="0 0 48.268494 14.453617"
    version="1.1"
    id="svg1"
    inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
@@ -24,10 +24,10 @@
      inkscape:deskcolor="#cecece"
      inkscape:document-units="cm"
      showguides="true"
-     inkscape:zoom="2.0506097"
-     inkscape:cx="74.855786"
-     inkscape:cy="-28.040441"
-     inkscape:window-width="1369"
+     inkscape:zoom="1.6943949"
+     inkscape:cx="56.657394"
+     inkscape:cy="-29.80415"
+     inkscape:window-width="1960"
      inkscape:window-height="1280"
      inkscape:window-x="0"
      inkscape:window-y="0"
@@ -59,7 +59,7 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(-16.479778,-30.440095)">
+     transform="translate(-16.653167,-30.02731)">
     <g
        id="g35"
        transform="translate(-76.132306,-61.826578)">
@@ -80,59 +80,6 @@
          style="stroke-width:0.264583"
          x="-40.785328"
          y="3.5546846" /></text>
-    <g
-       id="g36"
-       style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-       transform="translate(46.859435,5.0145737)">
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -80,54.999998 -65.000001,39.999999"
-         id="path23" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -80,4.9999997 -65.000001,19.999999"
-         id="path24" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -80,54.999998 V 39.999999"
-         id="path25" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -80,54.999998 -95.000002,39.999999"
-         id="path26" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="m -95.000002,39.999999 v -20"
-         id="path27" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -80,4.9999997 -95.000002,19.999999"
-         id="path28" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="m -80,4.9999997 0.09192,15.0919233"
-         id="path29" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="m -65.000001,19.999999 v 20"
-         id="path30" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="m -95.000002,19.999999 15.000002,20"
-         id="path32" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -79.908079,20.091923 -95.000002,39.999999"
-         id="path33" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="M -65.000001,19.999999 -80,39.999999"
-         id="path34" />
-      <path
-         style="fill:#666666;fill-opacity:0.537988;stroke:#505050;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:0.814815"
-         d="m -80,19.999999 14.999999,20"
-         id="path35" />
-    </g>
     <g
        id="g1">
       <rect
@@ -283,18 +230,11 @@
          cy="43.985027"
          r="0.99140143" />
     </g>
-    <text
-       xml:space="preserve"
-       style="font-size:20.6375px;writing-mode:lr-tb;direction:ltr;fill:#ffffff;stroke-width:0.222672"
-       x="13.693649"
-       y="46.696388"
+    <path
+       style="font-size:20.6375px;font-family:'Aporetic Sans';-inkscape-font-specification:'Aporetic Sans, Normal';fill:#ffffff;stroke-width:0.222672"
+       d="M 15.860587,46.696388 V 31.527825 h 7.223125 v 1.465263 h -5.592763 v 5.076825 h 4.395788 v 1.465262 h -4.395788 v 7.161213 z"
        id="text4-9"
-       transform="scale(1.0499717,0.95240663)"><tspan
-         sodipodi:role="line"
-         id="tspan4-0"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20.6375px;font-family:'Aporetic Sans';-inkscape-font-specification:'Aporetic Sans, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#ffffff;stroke-width:0.222672"
-         x="13.693649"
-         y="46.696388"
-         dx="-1.8035662e-10">F</tspan></text>
+       transform="scale(1.0499717,0.95240663)"
+       aria-label="F" />
   </g>
 </svg>

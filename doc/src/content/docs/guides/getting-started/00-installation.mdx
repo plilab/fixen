@@ -14,16 +14,16 @@ Before installing Fixen, ensure you have the following installed. We recommend u
   <TabItem label="GHC">
     Fixen requires **GHC 9.12.2** (base 4.21.0.0).
 
-    ```bash
-    > ghc --version
+    ```ansi
+    [35m~ $[0m [31m[1m[4mghc --version[0m
     The Glorious Glasgow Haskell Compilation System, version 9.12.2
     ```
   </TabItem>
   <TabItem label="Cabal">
     Fixen requires **Cabal 3.16+**.
 
-    ```bash
-    > cabal --version
+    ```ansi
+    [35m~ $[0m [31m[1m[4mcabal --version[0m
     cabal-install version 3.16.1.0 
     compiled using version 3.16.1.0 of the Cabal library (in-tree)
     ```
@@ -31,8 +31,8 @@ Before installing Fixen, ensure you have the following installed. We recommend u
   <TabItem label="Git">
     Fixen is distributed via [GitHub](https://github.com/plilab/fixen). Git is needed to clone the repository.
 
-    ```bash
-    git --version
+    ```ansi
+    [35m~ $[0m [31m[1m[4mgit --version[0m
     ```
   </TabItem>
 </Tabs>
@@ -44,15 +44,15 @@ Install Fixen as a standalone command-line tool. After installation, you can com
 :::steps
 1. Clone the Fixen repository
 
-    ```bash
-    git clone https://github.com/plilab/fixen.git
-    cd fixen
+    ```ansi
+    [35m~ $[0m [31m[1m[4mgit clone https://github.com/plilab/fixen.git[0m
+    [35m~ $[0m [31m[1m[4mcd fixen[0m
     ```
 
 2. Build and install the `fixen` executable
 
-    ```bash
-    cabal install fixen
+    ```ansi
+    [35m~ $[0m [31m[1m[4mcabal install fixen[0m
     ```
 
     This installs the `fixen` binary to your Cabal user binary directory (typically `~/.cabal/bin`). Make sure this directory is in your `PATH`.
