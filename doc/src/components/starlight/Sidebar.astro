@@ -33,8 +33,14 @@ function assertGroups(sidebar: SidebarEntry[]): asserts sidebar is Group[] {
 const makeId = (label: string) => '__tab-' + label.toLowerCase().replaceAll(/\s+/g, '-');
 
 /** Get the icon for a group. Update the icon names in the array to change the icons associated with a group. */
-const getIcon = (index: number) =>
-	(['open-book', 'pencil', 'seti:haskell', 'rocket'] as const)[index];
+const getIcon = (label: string) => { 
+  return {
+    'Guides': 'open-book', 
+    'Language Reference': 'seti:html', 
+    'Advanced Topics': 'information', 
+    'Publications': 'document', 
+    'Community': 'rocket' }[label];
+}
 
 /** Determine if an array of sidebar items contains the current page.  */
 const isCurrent = (sidebar: SidebarEntry[]): boolean =>
@@ -49,7 +55,7 @@ const isCurrent = (sidebar: SidebarEntry[]): boolean =>
 			{
 				sidebar.map(({ label, entries }, index) => (
 					<TabListItem id={makeId(label)} initial={isCurrent(entries)} class="tab-item">
-						<Icon class="icon" name={getIcon(index)} /> {label}
+						<Icon class="icon" name={getIcon(label)} /> {label}
 					</TabListItem>
 				))
 			}
