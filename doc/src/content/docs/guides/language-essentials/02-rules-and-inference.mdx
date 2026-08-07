@@ -14,14 +14,14 @@ rule name: premise1, premise2, ..., if condition |- conclusion
 ```
 
 - The `rule` keyword introduces the declaration.
-- An optional **name** after `rule` identifies the rule (used by priorities, see [Priorities](./priorities/)).
+- An optional **name** after `rule` identifies the rule (used by priorities, see [Priorities](../04-priorities/)).
 - **Premises** are relations applied to terms, separated by commas. They specify what must be true for the rule to fire.
 - Zero or more `if` guards restrict firing to cases where Haskell expressions evaluate to `True`.
 - The turnstile `|-` separates premises from the **conclusion** — the fact to derive.
 
 ## Example: Reachability Rules
 
-Continuing from the reachability example in [Relations and Facts](./relations-and-facts/), we need two rules:
+Continuing from the reachability example in [Relations and Facts](../01-relations-and-facts/), we need two rules:
 
 ```fixen
 rule edgeToPath: Edge a b |- Path a b
@@ -71,7 +71,7 @@ Conclusions can include Haskell expressions, which the solver evaluates when the
 rule combine: Path a b, Path b c |- Path a (b ++ "-" ++ c)
 ```
 
-The expression `b ++ "-" ++ c` is evaluated as Haskell code using the instantiated variable values. See [Haskell Interop](./haskell-interop/) for details on embedding Haskell in your programs.
+The expression `b ++ "-" ++ c` is evaluated as Haskell code using the instantiated variable values. See [Haskell Interop](../07-haskell-interop/) for details on embedding Haskell in your programs.
 
 :::note
 Haskell expressions in rules are currently limited to variables, function application, integer and string literals, tuples, lists, and the unit value. Function application includes infix notation: `x + y`, `` x `op` y ``, and any valid Haskell operator are supported.
@@ -85,4 +85,4 @@ However, Fixen has no knowledge of Haskell's operator precedence or fixity decla
 - **Variables** (lowercase identifiers) connect premises through matching.
 - Rules fire **forward-chaining** until a fixed point is reached.
 - **Haskell expressions** in conclusions enable computation within rules.
-- The name of a rule is optional but becomes important when using [Priorities](./priorities/).
+- The name of a rule is optional but becomes important when using [Priorities](../04-priorities/).
