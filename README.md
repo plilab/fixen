@@ -3,7 +3,7 @@
 <div align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./doc/src/assets/fixen-logo-only-white.svg" width="60%">
-  <source media="(prefers-color-scheme: light)" srcset="./doc/src/assets/fixen-logo-only-white.svg" width="60%">
+  <source media="(prefers-color-scheme: light)" srcset="./doc/src/assets/fixen-logo-only-black.svg" width="60%">
   <img alt="Fixen Logo" src="./doc/src/assets/fixen-logo-only-white.svg">
 </picture>
 </div>
