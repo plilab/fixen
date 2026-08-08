@@ -85,7 +85,8 @@ getRelationRepresentation = do
 -- @since 0.0.1
 getRepresentation :: RelationRepresentationState σ => RelationInfo -> FixenPass σ RelationRepresentationInfo
 getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relationArgMatchInfo = rel_arg_match_info} = do
-  let rel_args = rel_declaration ^. args
+  let rel_params = rel_declaration ^. args
+      rel_args = relationParameterType <$> rel_params
   rel_underlying_types <- mapM getUnderlyingType rel_args
   rel_kinds <- mapM fixenGetRelationParamKind rel_args
   rel_query_types <- mapM getMeetMechanism rel_args

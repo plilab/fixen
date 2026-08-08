@@ -725,20 +725,58 @@ instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
       ∧ relationLikeArgs r ≅ relationLikeArgs r'
 {- FOURMOLU_ENABLE -}
 
+-- | A parameter in a relation declaration.
+--
+-- A parameter always has a 'Type' and may additionally have a name. The name
+-- does not change the positional representation of facts or rule applications.
+-- For example, only the second parameter below has a name, but both parameters
+-- remain positional:
+--
+-- @
+-- rel Counter: String, (num: Int)
+-- @
+--
+-- @since 0.0.1
+data RelationParameter = RelationParameter
+  { relationParameterNodeId :: NodeId
+  -- ^ The 'NodeId'.
+  , relationParameterName :: Maybe SimpleIdentifier
+  -- ^ The optional parameter name.
+  , relationParameterType :: Type
+  -- ^ The parameter type.
+  }
+  deriving (Show, Eq)
+
+instance HasNodeId RelationParameter NodeId where
+  nodeId = lens relationParameterNodeId (\s i -> s {relationParameterNodeId = i})
+
+instance HasType RelationParameter Type where
+  ty = lens relationParameterType (\s i -> s {relationParameterType = i})
+
+instance HasName RelationParameter (Maybe SimpleIdentifier) where
+  name = lens relationParameterName (\s n -> s {relationParameterName = n})
+
+instance EqModuloNodeId RelationParameter where
+  RelationParameter _ n t === RelationParameter _ n' t' = n ≅ n' ∧ t ≅ t'
+
 -- | A relation declaration in the program.
 --
 -- Relations represent facts or predicates that can be assumed or concluded
 -- in rules. They have a name (typically capitalized, as they are
--- constructor-like) and a list of parameter types.
---
--- Example:
+-- constructor-like) and a list of parameters. Parameter names are optional;
+-- unnamed, named, and mixed declarations are accepted:
 --
 -- @
 -- rel Dist: Integer, Integer
+-- rel Counter: (label: String), (num: Int)
+-- rel Mixed: String, (num: Int)
 -- @
 --
+-- Relation occurrences in rules remain positional regardless of whether the
+-- declaration supplies names.
+--
 -- @since 0.0.1
-type RelationDeclaration = RelationLike Type
+type RelationDeclaration = RelationLike RelationParameter
 
 -- | Constructor and destructor for 'RelationDeclaration's.
 --
@@ -754,8 +792,8 @@ pattern RelationDeclaration
   -- ^ The name of the relation being declared.
   --
   -- @since 0.0.1
-  -> [Type]
-  -- ^ The types of the arguments to the relation.
+  -> [RelationParameter]
+  -- ^ The parameters of the relation.
   --
   -- @since 0.0.1
   -> RelationDeclaration
@@ -2028,7 +2066,20 @@ prettyRelation :: RelationDeclaration -> Doc AnsiStyle
 prettyRelation (RelationDeclaration _ n a) =
   annotate (color Red <> bold) (pretty (fullIdentifier n))
     <> line
-    <> indent 2 (annotate (color Yellow) "types:" <> line <> indent 2 (prettyList' (prettyType <$> a)))
+    <> indent 2 (annotate (color Yellow) "types:" <> line <> indent 2 (prettyList' (prettyRelationParameter <$> a)))
+
+-- | Render an unnamed parameter as its type and a named parameter as
+-- @(name: Type)@.
+--
+-- @since 0.0.1
+prettyRelationParameter :: RelationParameter -> Doc AnsiStyle
+prettyRelationParameter (RelationParameter _ Nothing typ) = prettyType typ
+prettyRelationParameter (RelationParameter _ (Just parameterName) typ) =
+  lparen
+    <> annotate (color Yellow) (pretty (fullIdentifier parameterName))
+    <> colon
+    <+> prettyType typ
+    <> rparen
 
 -- | Pretty-print a 'PartialOrdDeclaration' with syntax highlighting.
 --

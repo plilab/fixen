@@ -97,6 +97,34 @@ validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 
 -- ** Relations
 
+-- | Reject duplicate named parameters within one relation declaration.
+-- Unnamed parameters are ignored. The relation name is accepted to match the
+-- shape expected by 'validateNamed', but the check itself only inspects the
+-- parameters.
+--
+-- @since 0.0.1
+validateUniqueParamNames
+  :: SymbolState σ
+  => String
+  -> Name
+  -> SymbolRule σ RelationDeclaration
+validateUniqueParamNames whereMsg _relationName rel _env = do
+  let parameterNames = rel ^.. args . each . name . _Just
+      duplicates = filter (\n -> length (filter (≅ n) parameterNames) > 1) parameterNames
+  case duplicates of
+    [] -> return []
+    _ -> do
+      positions <- mapM getPosition duplicates
+      return
+        [ Err
+            Nothing
+            "duplicate parameter names"
+            ((, This whereMsg) <$> positions)
+            [ Note "relation parameter names must be unique"
+            , Hint "rename one of these parameters"
+            ]
+        ]
+
 -- | Validates a symbol against a relation. This rule prevents the symbol from
 -- sharing the same name as a relation symbol in the 'SymbolEnv'.
 --
