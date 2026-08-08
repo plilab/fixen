@@ -182,7 +182,7 @@ data SimpleIdentifier = SimpleIdentifier
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | 'SimpleIdentifier's are equal modulo 'NodeId's whenever their
 -- texts are equal
@@ -231,7 +231,7 @@ data ModuleName = ModuleName
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId ModuleName NodeId where
   nodeId = lens moduleNodeId (\s i -> s {moduleNodeId = i})
@@ -282,7 +282,7 @@ data FullyQualifiedName = FullyQualifiedName
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId FullyQualifiedName NodeId where
   nodeId = lens fqnNodeId (\s i -> s {fqnNodeId = i})
@@ -331,7 +331,7 @@ data Identifier
       --
       -- @since 26.7
       }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | Pattern synonym for constructing a simple identifier.
 --
@@ -507,7 +507,7 @@ data Expr
       -- ^ The 'NodeId'.
       --
       -- @since 26.7
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Expr NodeId where
   nodeId = lens __exprnodeId __exprsetNodeId
@@ -641,7 +641,7 @@ data Type
       -- ^ The symbol/string value.
       --
       -- @since 26.7
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Type NodeId where
   nodeId = lens __typegetnodeId __typesetNodeId
@@ -704,7 +704,7 @@ data RelationLike π = RelationLike
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId (RelationLike π) NodeId where
   nodeId = lens relationLikeNodeId (\s i -> s {relationLikeNodeId = i})
@@ -725,20 +725,58 @@ instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
       ∧ relationLikeArgs r ≅ relationLikeArgs r'
 {- FOURMOLU_ENABLE -}
 
+-- | A parameter in a relation declaration.
+--
+-- A parameter always has a 'Type' and may additionally have a name. The name
+-- does not change the positional representation of facts or rule applications.
+-- For example, only the second parameter below has a name, but both parameters
+-- remain positional:
+--
+-- @
+-- rel Counter: String, (num: Int)
+-- @
+--
+-- @since 0.0.1
+data RelationParameter = RelationParameter
+  { relationParameterNodeId :: NodeId
+  -- ^ The 'NodeId'.
+  , relationParameterName :: Maybe SimpleIdentifier
+  -- ^ The optional parameter name.
+  , relationParameterType :: Type
+  -- ^ The parameter type.
+  }
+  deriving (Eq, Show)
+
+instance HasNodeId RelationParameter NodeId where
+  nodeId = lens relationParameterNodeId (\s i -> s {relationParameterNodeId = i})
+
+instance HasType RelationParameter Type where
+  ty = lens relationParameterType (\s i -> s {relationParameterType = i})
+
+instance HasName RelationParameter (Maybe SimpleIdentifier) where
+  name = lens relationParameterName (\s n -> s {relationParameterName = n})
+
+instance EqModuloNodeId RelationParameter where
+  RelationParameter _ n t === RelationParameter _ n' t' = n ≅ n' ∧ t ≅ t'
+
 -- | A relation declaration in the program.
 --
 -- Relations represent facts or predicates that can be assumed or concluded
 -- in rules. They have a name (typically capitalized, as they are
--- constructor-like) and a list of parameter types.
---
--- Example:
+-- constructor-like) and a list of parameters. Parameter names are optional;
+-- unnamed, named, and mixed declarations are accepted:
 --
 -- @
 -- rel Dist: Integer, Integer
+-- rel Counter: (label: String), (num: Int)
+-- rel Mixed: String, (num: Int)
 -- @
 --
--- @since 26.7
-type RelationDeclaration = RelationLike Type
+-- Relation occurrences in rules remain positional regardless of whether the
+-- declaration supplies names.
+--
+-- @since 0.0.1
+type RelationDeclaration = RelationLike RelationParameter
 
 -- | Constructor and destructor for 'RelationDeclaration's.
 --
@@ -753,9 +791,9 @@ pattern RelationDeclaration
   -> SimpleIdentifier
   -- ^ The name of the relation being declared.
   --
-  -- @since 26.7
-  -> [Type]
-  -- ^ The types of the arguments to the relation.
+  -- @since 0.0.1
+  -> [RelationParameter]
+  -- ^ The parameters of the relation.
   --
   -- @since 26.7
   -> RelationDeclaration
@@ -858,7 +896,7 @@ data Rule = Rule
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 {- FOURMOLU_DISABLE -}
 -- | 'Rule's are equal modulo 'NodeId's whenever their components are.
@@ -909,7 +947,7 @@ data Condition = Condition
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Condition NodeId where
   nodeId = lens conditionNodeId (\s i -> s {conditionNodeId = i})
@@ -953,7 +991,7 @@ data HsBlock = HsBlock
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId HsBlock NodeId where
   nodeId = lens hsBlockNodeId (\s i -> s {hsBlockNodeId = i})
@@ -1004,7 +1042,7 @@ data HsImport = HsImport
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId HsImport NodeId where
   nodeId = lens hsImportNodeId (\s i -> s {hsImportNodeId = i})
@@ -1040,7 +1078,7 @@ data Include = Include
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Include NodeId where
   nodeId = lens includeNodeId (\s i -> s {includeNodeId = i})
@@ -1080,7 +1118,7 @@ data Priority = Priority
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Priority NodeId where
   nodeId = lens priorityNodeId (\s i -> s {priorityNodeId = i})
@@ -1114,7 +1152,7 @@ data PriorityConclusion = PriorityConclusion
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId PriorityConclusion NodeId where
   nodeId = lens priorityConclusionNodeId (\s i -> s {priorityConclusionNodeId = i})
@@ -1149,7 +1187,7 @@ data RuleInstance = RuleInstance
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId RuleInstance NodeId where
   nodeId = lens ruleInstanceNodeId (\s i -> s {ruleInstanceNodeId = i})
@@ -1221,7 +1259,7 @@ data Query = Query
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasName Query SimpleIdentifier where
   name = lens queryName (\s i -> s {queryName = i})
@@ -1242,7 +1280,7 @@ instance HasRelation Query QueriedRelation where
 --
 -- @since 26.7
 data QueryMode = Input NodeId | Output NodeId
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId QueryMode NodeId where
   nodeId = lens __querymodenodeId __querymodesetNodeId
@@ -1276,7 +1314,7 @@ data ModuleDeclaration = ModuleDeclaration
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId ModuleDeclaration NodeId where
   nodeId = lens moduleDeclarationNodeId (\s i -> s {moduleDeclarationNodeId = i})
@@ -1296,7 +1334,7 @@ instance HasModuleName ModuleDeclaration ModuleName where
 --
 -- @since 26.7
 newtype EverythingElseRuleset = EverythingElseRuleset NodeId
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId EverythingElseRuleset NodeId where
   nodeId = lens __everythingElseRulesetGetNodeId __everythingElseRulesetSetNodeId
@@ -1321,7 +1359,7 @@ data Ruleset = Ruleset
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId Ruleset NodeId where
   nodeId = lens ruleSetNodeId (\s i -> s {ruleSetNodeId = i})
@@ -1355,7 +1393,7 @@ data PhasesDeclaration = PhasesDeclaration
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId PhasesDeclaration NodeId where
   nodeId = lens phasesNodeId (\s i -> s {phasesNodeId = i})
@@ -1406,7 +1444,7 @@ data PartialOrdDeclaration = PartialOrdDeclaration
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId PartialOrdDeclaration NodeId where
   nodeId = lens partialOrdDeclarationNodeId (\s i -> s {partialOrdDeclarationNodeId = i})
@@ -1472,7 +1510,7 @@ data LatticeDeclaration = LatticeDeclaration
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasNodeId LatticeDeclaration NodeId where
   nodeId = lens latticeDeclarationNodeId (\s i -> s {latticeDeclarationNodeId = i})
@@ -1550,7 +1588,7 @@ data Program = Program
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasModuleName Program ModuleDeclaration where
   moduleName = lens programModuleName (\s i -> s {programModuleName = i})
@@ -2021,7 +2059,20 @@ prettyRelation :: RelationDeclaration -> Doc AnsiStyle
 prettyRelation (RelationDeclaration _ n a) =
   annotate (color Red <> bold) (pretty (fullIdentifier n))
     <> line
-    <> indent 2 (annotate (color Yellow) "types:" <> line <> indent 2 (prettyList' (prettyType <$> a)))
+    <> indent 2 (annotate (color Yellow) "types:" <> line <> indent 2 (prettyList' (prettyRelationParameter <$> a)))
+
+-- | Render an unnamed parameter as its type and a named parameter as
+-- @(name: Type)@.
+--
+-- @since 0.0.1
+prettyRelationParameter :: RelationParameter -> Doc AnsiStyle
+prettyRelationParameter (RelationParameter _ Nothing typ) = prettyType typ
+prettyRelationParameter (RelationParameter _ (Just parameterName) typ) =
+  lparen
+    <> annotate (color Yellow) (pretty (fullIdentifier parameterName))
+    <> colon
+    <+> prettyType typ
+    <> rparen
 
 -- | Pretty-print a 'PartialOrdDeclaration' with syntax highlighting.
 --

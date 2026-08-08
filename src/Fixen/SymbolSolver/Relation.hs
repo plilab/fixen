@@ -46,6 +46,7 @@ initEnvWithRelation env r = do
   where
     rel_name = simpleIdentifier $ r ^. name
     rel_params = r ^. args
+    rel_param_types = relationParameterType <$> rel_params
 
     insertRelation e =
       let new_rel_info =
@@ -58,7 +59,7 @@ initEnvWithRelation env r = do
             Nothing -> e & relationInfos . at rel_name ?~ new_rel_info
 
     insertRelationParamTypesAsDiscrete e =
-      let info = calculateRepresentativeFromType <$> rel_params
+      let info = calculateRepresentativeFromType <$> rel_param_types
        in Prelude.foldl' softInsertTypeAsDiscrete e info
 
     softInsertTypeAsDiscrete :: SymbolEnv -> Name -> SymbolEnv
@@ -74,7 +75,7 @@ initEnvWithRelation env r = do
       let -- filter out all the args that are partial ords, since their DB representation
           -- will not have partial ords (only the underlying type). If the underlying type is
           -- the same name (or references it), they are already in the extern list.
-          non_p_ord_args = filter notAPartialOrd rel_params
+          non_p_ord_args = filter notAPartialOrd rel_param_types
        in getAllTypeNamesList non_p_ord_args
 
     notAPartialOrd (TypeName _ (IdentifierSimpleIdentifier (SimpleIdentifier _ s))) =
@@ -91,6 +92,8 @@ initEnvWithRelation env r = do
 
 -- | Validates a 'RelationDeclaration'. The rules are:
 --
+-- * __Unique Parameter Names__: Named parameters within one relation must have
+--   unique names. Unnamed parameters do not participate in this check.
 -- * __Against Other Relations__: The relation being declared must not have
 --   the same name as another relation declaration.
 -- * __Against Partial Ord Declarations__: The relation being declared must not
@@ -108,13 +111,17 @@ validateRelation :: SymbolState σ => SymbolValidator σ RelationDeclaration
 validateRelation = validate r
   where
     r =
-      [ againstOtherRelations
+      [ uniqueParamNames
+      , againstOtherRelations
       , againstPartialOrd
       , againstLattice
       , againstExtern
       , againstPrelude
       , againstFixenCapitalized
       ]
+    uniqueParamNames =
+      validateNamed
+        (validateUniqueParamNames "relation parameter")
     againstOtherRelations =
       validateNamed
         (validateAgainstRelation "another rel with the same name")

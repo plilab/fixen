@@ -117,6 +117,8 @@ initEnvWithRule env r = do
 --   but for now, we will treat it as an error until there is some reason not
 --   to do so.
 -- * __Against Other Rules__: There cannot be duplicate rule names.
+-- * __Against Relation Parameters__: A rule name cannot be the same as a
+--   named relation parameter.
 --
 -- @since 26.7
 validateRelationsInRule :: SymbolState σ => SymbolValidator σ Rule
@@ -125,6 +127,7 @@ validateRelationsInRule =
     [ matchRelationsArity
     , checkForRelationsWithAllHoles
     , noDuplicateRuleNames
+    , noRuleNameMatchingRelationParameter
     ]
   where
     matchRelationsArity r env = do
@@ -192,6 +195,31 @@ validateRelationsInRule =
                     [(pos, This "rule"), (pos', Where "another rule with the same name")]
                     [ Note "rules cannot have the same name"
                     , Hint "change the name of one of these rules"
+                    ]
+                ]
+
+    noRuleNameMatchingRelationParameter r env =
+      case ruleName r of
+        Nothing -> return []
+        Just ruleName' -> do
+          let conflictingNames =
+                values (env ^. relationInfos)
+                  ^.. each . declaration . args . each . name . _Just
+                  & filter (≅ ruleName')
+          case conflictingNames of
+            [] -> return []
+            parameterName : _ -> do
+              rulePos <- getPosition ruleName'
+              parameterPos <- getPosition parameterName
+              return
+                [ Err
+                    Nothing
+                    "duplicate names"
+                    [ (rulePos, This "rule name")
+                    , (parameterPos, Where "relation parameter with the same name")
+                    ]
+                    [ Note "rule names cannot match relation parameter names"
+                    , Hint "rename either the rule or the relation parameter"
                     ]
                 ]
 
@@ -474,6 +502,7 @@ mapIndicesToType env r (Left (i, j)) =
         & (Map.! rel_name)
         & (^. declaration . args)
         & (!! j)
+        & (^. ty)
         & (Left (i, j),)
 mapIndicesToType env r (Right i) =
   let rel_name = r ^. conclusion . name & simpleIdentifier
@@ -481,6 +510,7 @@ mapIndicesToType env r (Right i) =
         & (Map.! rel_name)
         & (^. declaration . args)
         & (!! i)
+        & (^. ty)
         & (Right i,)
 
 -- | Performs type checking on a variable.

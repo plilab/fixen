@@ -348,15 +348,60 @@ parseModuleDeclaration = parsePositioned $ do
 
 -- ** Relation-Declaration Parser
 
+-- | Parse a named relation parameter of the form @(name: Type)@.
+--
+-- @since 0.0.1
+parseNamedRelationParameter
+  :: ParserState σ
+  => Parser σ RelationParameter
+parseNamedRelationParameter = parsePositioned $ do
+  _ <- indented
+  (parameterName, parameterType) <-
+    betweenParentheses indented $ do
+      parameterName <- parseLowerFirstSimpleIdentifier
+      _ <- indented *> keywordOp ":"
+      _ <- indented
+      parameterType <- parseType indented
+      return (parameterName, parameterType)
+  parameterId <- getNewNodeId
+  return $ RelationParameter parameterId (Just parameterName) parameterType
+
+-- | Parse an unnamed relation parameter consisting only of a type.
+--
+-- @since 0.0.1
+parseUnnamedRelationParameter
+  :: ParserState σ
+  => Parser σ RelationParameter
+parseUnnamedRelationParameter = parsePositioned $ do
+  parameterType <- parseType indented
+  parameterId <- getNewNodeId
+  return $ RelationParameter parameterId Nothing parameterType
+
+-- | Parse either a named or unnamed relation parameter.
+--
+-- The named form is tried first because it and an ordinary parenthesized type
+-- both begin with @(@. Backtracking preserves existing positional syntax such
+-- as @(Maybe Int)@.
+--
+-- @since 0.0.1
+parseRelationParameter
+  :: ParserState σ
+  => Parser σ RelationParameter
+parseRelationParameter =
+  P.try parseNamedRelationParameter
+    <|> parseUnnamedRelationParameter
+
 -- | Parses a relation declaration:
 --
 -- @
--- rel RelationName: Type1, Type2
+-- rel RelationName: Type1, (parameterName: Type2)
 -- @
 --
 -- The @rel@ keyword must not be indented. The relation name must be
 -- capitalized (since relations are constructor-like). Arguments are
--- optional — if present, they follow a colon and are comma-separated types.
+-- optional — if present, they follow a colon and are comma-separated. Each
+-- parameter may independently have a name, so named and unnamed parameters
+-- may be mixed.
 --
 -- Example without arguments:
 --
@@ -368,6 +413,8 @@ parseModuleDeclaration = parsePositioned $ do
 --
 -- @
 -- rel Dist: Integer, Integer
+-- rel Counter: (label: String), (num: Int)
+-- rel Mixed: String, (num: Int)
 -- @
 --
 -- @since 26.7
@@ -389,7 +436,7 @@ parseRelation = parsePositioned $ do
       -- Verify proper indentation before the first argument
       _ <- indented
       -- Parse one or more comma-separated types with indentation checking
-      params <- commaSepBy1' (parseType indented)
+      params <- commaSepBy1' parseRelationParameter
       return $ toList params -- convert NonEmpty list to regular list
       -- Allocate a fresh node ID and construct the Relation AST node
   i <- getNewNodeId
