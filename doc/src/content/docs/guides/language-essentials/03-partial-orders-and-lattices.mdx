@@ -4,7 +4,7 @@ description: Control fact subsumption and merging with partial orders and lattic
 ---
 
 import { FileTree } from '@astrojs/starlight/components';
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
 By default, Fixen treats all sorts as **discrete**—two facts match only if their values are exactly equal. For some problems, this is sufficient. But for other problems like shortest paths or abstract interpretation, you need the solver to understand that some facts are "better" than others and can subsume weaker ones. This is where partial orders and lattices come in. 
 
@@ -136,7 +136,7 @@ If the database contains `R 5 2` and `R 4 7`, a naive solver would fail to fire 
 
 The following is a complete, self-contained program implementing a shortest-path algorithm. It demonstrates how relations, rules, and a lattice declaration work together.
 
-:::steps
+<Steps>
 1.  First, set up a cabal project with the following structure:
 
     <FileTree>
@@ -221,13 +221,13 @@ The following is a complete, self-contained program implementing a shortest-path
     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
     [DistTo "A" 0,DistTo "D" 4,DistTo "C" 3,DistTo "B" 1]
     ```
-:::
+</Steps>
 
 ## Complete Example: Bi-Objective Shortest Paths
 
 Now consider a variant where each edge has both a distance and a cost. We want to find all Pareto-optimal (distance, cost) pairs for each vertex — paths that are not dominated by any other path on both metrics.
 
-:::steps
+<Steps>
 1.  First, set up a cabal project with the following structure:
 
     <FileTree>
@@ -316,7 +316,7 @@ Now consider a variant where each edge has both a distance and a cost. We want t
     , DistTo "C" 4 6, DistTo "C" 8 2, DistTo "B" 1 5
     , DistTo "B" 5 1 ]
     ```
-:::
+</Steps>
 
 
 ## Choosing Between Lattices and Partial Orders
