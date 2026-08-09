@@ -2,6 +2,8 @@
 title: What is FPOP?
 ---
 
+import { Steps } from '@astrojs/starlight/components';
+
 Fixed-Point-Oriented Programming (FPOP) is a programming paradigm designed to streamline the implementation of problems involving cycles, self-reference, and iterative computation. It provides a high-level, declarative abstraction that enables concise and expressive problem formulations while the underlying solver handles the mechanics of fixed-point computation.
 
 ## The Problem
@@ -77,7 +79,7 @@ With just these two lines, the full shortest-path algorithm is defined. To achie
 
 FPOP computations are grounded in order theory. The key concepts are:
 
-:::steps
+<Steps>
 1. **Partial orders** — a relation $\sqsubseteq$ that is reflexive, transitive, and antisymmetric. Not every pair of elements needs to be comparable.
 
 2. **Lattices** — a partial order where every pair of elements has a least upper bound (join, $\sqcup$) and a greatest lower bound (meet, $\sqcap$). Lattices provide the structure needed to combine facts.
@@ -87,7 +89,7 @@ FPOP computations are grounded in order theory. The key concepts are:
 4. **Fixed points** — a value $x$ such that $f(x) = x$. The least fixed point represents the complete set of facts inferable from the initial data and rules.
 
 5. **Kleene's fixed-point theorem** — for a monotone function over a suitable lattice, the least fixed point can be computed by iterating $f$ starting from the bottom element ($\bot$) until convergence.
-:::
+</Steps>
 
 In FPOP, the domain represents the lattice (equipped with the partial order) over which relations operate and the rules compute the consequences of inference. Combined with optimizations to apply only rules affected by newly learned facts, this yields the classic work-queue algorithm, but expressed declaratively.
 

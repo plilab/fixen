@@ -2,7 +2,7 @@
 title: Installation
 description: Install Fixen on your system or add it as a dependency to your Haskell project.
 ---
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
 Fixen is a Haskell library and executable. You can use it in two ways: as a standalone compiler tool installed on your system, or as a dependency in your Haskell project. Both approaches are covered below.
 
@@ -41,7 +41,7 @@ Before installing Fixen, ensure you have the following installed. We recommend u
 
 Install Fixen as a standalone command-line tool. After installation, you can compile `.fix` files from anywhere on your system.
 
-:::steps
+<Steps>
 1. Clone the Fixen repository
 
     ```ansi
@@ -64,7 +64,7 @@ Install Fixen as a standalone command-line tool. After installation, you can com
     ```
 
     You should see the help output describing the available options.
-:::
+</Steps>
 
 Once installed, you can compile Fixen programs with:
 
@@ -76,7 +76,7 @@ Once installed, you can compile Fixen programs with:
 
 Use Fixen as a dependency in your Haskell project. This approach is useful when you want to integrate Fixen-generated code directly into a larger Haskell project.
 
-:::steps
+<Steps>
 1. Add `fixen` to your project's `.cabal` file
 
     In the `build-depends` section of your library or executable, add:
@@ -105,7 +105,7 @@ Use Fixen as a dependency in your Haskell project. This approach is useful when 
 3. Use the Fixen compiler in your build pipeline
 
     You can invoke the Fixen compiler as part of your project's build process (e.g., in a `build-tool-depends` section or a custom build script) to generate Haskell source from `.fix` files before compiling the rest of your project.
-:::
+</Steps>
 
 :::tip
 If you are developing Fixen itself and want to use the local source, you can run:
