@@ -64,13 +64,10 @@ Configure the project to have the following dependencies that are used by Fixen-
 
 For example, we can let `my-project.cabal` be the following:
 
-```txt title="my-project.cabal" showLineNumbers=true 
+```txt title="my-project.cabal"
 cabal-version:      3.0
 name:               my-project
 version:            0.1.0.0
-author:             Fix En
-maintainer:         fix.en@email.dom
-category:           Language
 build-type:         Simple
 common warnings
     ghc-options: -Wall
@@ -90,7 +87,7 @@ We are going to write a simple Fixen program in `fix/Simple.fix`, then make use 
 in `app/Main.hs`. Populate these files with the following content:
 <Tabs>
   <TabItem label="fix/Simple.fix">
-    ```ansi title="Simple.fix"
+    ```ansi title="Simple.fix" frame='code'
     [35mmodule[0m Simple [35mwhere[0m
 
     [31mrel[0m [32mSimpleRel[0m: [33mString[0m, [33mInt[0m

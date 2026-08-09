@@ -1,0 +1,124 @@
+---
+title: Relations and Facts
+description: Declare data shapes with relations and understand how facts
+  populate the database.
+slug: 26.07/guides/language-essentials/01-relations-and-facts
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
+
+export const egCode = "```hs\n[35mtype Vertex [36m= [35mString[0m\n```\n\n[31mrel[0m [32mEdge[0m: [33mVertex[0m, [33mVertex[0m\n[31mrel[0m [32mPath[0m: [33mVertex[0m, [33mVertex[0m"
+
+Relations are the building blocks of every Fixen program. They declare what facts look like — the shape and types of the data your program reasons about.
+
+## Declaring Relations
+
+Relations are declared with the `rel` keyword, followed by the relation name, a colon, and a comma-separated list of **sorts**, which for the moment are Haskell types:
+
+```ansi frame='code'
+[31mrel[0m [32mPath[0m: [33mString[0m, [33mString[0m
+```
+
+This declares a single binary relation `Path` that relates two strings. Each entry or instantiation of the relation is a **fact**—a concrete pair of values. For example:
+
+```ansi frame='code'
+[32mPath[0m [36m"A"[0m [36m"B"[0m
+[32mPath[0m [36m"B"[0m [36m"C"[0m
+```
+
+### Example: Graph Reachability
+
+Consider a simple reachability problem: given a set of directed edges of a graph, determine which nodes can reach which other nodes. We need two relations:
+
+```ansi frame='code'
+[31mrel[0m [32mEdge[0m: [33mString[0m, [33mString[0m
+[31mrel[0m [32mPath[0m: [33mString[0m, [33mString[0m
+```
+
+`Edge` stores the graph's edges. `Path` will be populated by the solver to state that there is a path from one node to another.
+
+## Type Definitions
+
+Fixen relations refer to sort names like `String`, but for more interesting programs you'll want custom types. There are two ways to use richer types in Fixen programs. First, since Fixen programs compile to Haskell source, all Haskell types in Haskell's Prelude can be invoked directly. Furthermore, you may **import** other Haskell modules by issuing an import statement in your Fixen program:
+
+<Tabs>
+  <TabItem label="A Separate Haskell Module">
+    ```haskell title="Graph.hs"
+    module Graphs where
+
+    type Vertex = String
+    ```
+  </TabItem>
+
+  <TabItem label="Importing the Module Into Fixen Program">
+    ```ansi title="Reachability.fix" frame="code"
+    [35mmodule[0m GraphReachability [35mwhere[0m
+    [35mimport[0m Graphs
+
+    [31mrel[0m [32mEdge[0m: [33mVertex[0m, [33mVertex[0m
+    [31mrel[0m [32mPath[0m: [33mVertex[0m, [33mVertex[0m
+    ```
+
+    Everything exported by the `Graphs` module is now accessible to your Fixen program.
+  </TabItem>
+</Tabs>
+
+Alternatively, you may insert Haskell code directly into the Fixen-generated Haskell module by writing **inline Haskell code blocks** in your `.fix` file, written within markdown-style code fences:
+
+<Code code={egCode} lang="ansi" frame="code" />
+
+The `type Vertex = String` declaration lives in a Haskell code block and is included in the generated module. The sort `Vertex` in the relation declarations resolves to this Haskell type.
+
+For more complex programs, you can define full data types, type classes, and helper functions in these blocks — see [Haskell Interop](../07-haskell-interop/) for details.
+
+## What Happens at Compile Time
+
+When the Fixen compiler processes your relations, it generates Haskell code that represents them. For the reachability example above, the generated Haskell includes:
+
+```haskell
+data Fact
+  = Edge String String
+  | Path String String
+  deriving (Show, Eq)
+
+data Database = Database
+  { _factsEdge  :: HashMap String (HashSet String)
+  , _factsPath  :: HashMap String (HashSet String)
+  }
+  deriving Eq
+```
+
+The compiler maps each relation to:
+
+* A **data constructor** of the `Fact` type, with argument sorts resolved to their underlying Haskell types.
+* A **field** in the `Database` type, laid out as nested `HashMap`s where the first discrete argument serves as the primary key.
+
+The compiler optimizes field layout based on how variables are matched in your rules: discrete variables used as lookup keys come first, followed by other sorts. This is internal — you don't need to worry about it.
+
+### The Fact Database
+
+All facts derived by your program are stored in a single `Database`. The database is organized as a collection of tables, one per relation. Each table is indexed by the discrete (non-ordered) arguments of the relation, enabling efficient lookup when rules fire.
+
+In the reachability example, both `Edge` and `Path` use `String` for both arguments. Since `String` is discrete (no partial order is declared), facts are stored as `HashMap String (HashSet String)` — a map from the first vertex to a set of vertices it can reach. This allows efficient lookup: given a vertex, find all vertices it has edges to, or all vertices it can reach.
+
+## Multiple Relations
+
+A Fixen program can declare as many relations as needed. Each relation operates independently in the fact database, but rules can reference multiple relations simultaneously to express how facts in one relation depend on facts in another:
+
+```ansi frame="code"
+[31mrel[0m [32mVar[0m: [33mLabel[0m, [33mString[0m
+[31mrel[0m [32mAssign[0m: [33mLabel[0m, [33mString[0m, [33mExpr[0m
+[31mrel[0m [32mBranch[0m: [33mLabel[0m, [33mExpr[0m, [33mLabel[0m, [33mLabel[0m
+[31mrel[0m [32mSeq[0m: [33mLabel[0m, [33mLabel[0m
+```
+
+This is the foundation for a static analysis program (covered in the [Case Study](../case-study-llvm/)), where each relation captures a different kind of program construct.
+
+## Summary
+
+* **Relations** declare the shape of facts your program reasons about.
+* **Facts** are concrete instances of relations with specific values.
+* Each `rel` declaration maps to a Haskell data constructor and database field.
+* Sorts refer to Haskell types defined via inline code blocks.
+* Discrete sorts (no ordering declared) are the default — facts match only on exact equality.

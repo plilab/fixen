@@ -1,7 +1,7 @@
 ---
 title: Phases
 description: Stratify program state and compose rule sets using phases of execution.
-slug: 2026.07/guides/language-essentials/05-phases
+slug: 26.07/guides/language-essentials/05-phases
 ---
 
 Fixen programs enjoy **compositionality**: given two disjoint programs (sharing no relations), their union is a valid program whose evaluation is the union of the individual results. But what if you want to compose programs that **share** relations? For example, you might want to combine an interval analysis and a parity analysis, allowing them to exchange information during computation. A naive union of their rules fails because over-approximated facts subsume refined ones.
@@ -19,10 +19,10 @@ rel Branch: Label, Expr, Label, Label
 rel Seq: Label, Label
 ```
 
-- `Var l v` states that program point `l` declares variable `v`.
-- `Assign l x e` states that program point `l` assigns expression `e` to variable `x`.
-- `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false).
-- `Seq l l'` states that program point `l` is followed by `l'`.
+* `Var l v` states that program point `l` declares variable `v`.
+* `Assign l x e` states that program point `l` assigns expression `e` to variable `x`.
+* `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false).
+* `Seq l l'` states that program point `l` is followed by `l'`.
 
 ### Interval Analysis
 
@@ -129,85 +129,10 @@ phases: [
 ```
 
 This declares a 2-phase program:
-- **Phase 0** (`*`): all rules not explicitly listed — the transfer functions from the interval and parity analyses.
-- **Phase 1**: the exchange rules that refine intervals using parity.
+
+* **Phase 0** (`*`): all rules not explicitly listed — the transfer functions from the interval and parity analyses.
+* **Phase 1**: the exchange rules that refine intervals using parity.
 
 ### How Phases Work
 
-A phase declaration with `N` phases stratifies the execution state into `N` distinct fact databases, $S_0, S_1, \ldots, S_{N-1}$. Execution cycles modulo `N`:
-
-- Rules in **phase i** draw their premises from database $S_i$.
-- Their conclusions are inserted into database $S_{(i+1) \bmod N}$.
-
-For our 2-phase program:
-
-```
-Phase 0 Rules (analyses)  ->  S1  ->  Phase 1 Rules (exchange)  ->  S0  ->  (repeat)
-```
-
-Phase 0 rules (the interval and parity transfer functions) draw from $S_0$ and stream their unrefined conclusions into $S_1$. Phase 1 rules (the exchange rules) consume these unrefined states from $S_1$, apply cross-domain refinements, and route the tighter facts back into $S_0$. Wider unrefined facts and narrower refined facts never coexist within the same database.
-
-The complete program looks like this:
-
-```txt
-include "Parity"
-include "Interval"
-
-rule reducedExchangeP:
-  StateBeforeP l st
-  -------------------------
-  |- StateBeforeP l st
-
-rule reducedExchangeI:
-  StateBeforeP l st, StateBeforeI l st'
-  -----------------------------------------------------
-  |- StateBeforeI l (reduceInterval st st')
-
-phases: [
-  *,
-  { reducedExchangeP, reducedExchangeI }
-]
-```
-
-The identity rule `reducedExchangeP` forwards parity facts intact from $S_1$ back to $S_0$, since parity state remains invariant across phase 1. The exchange rule `reducedExchangeI` consumes both parity and interval states from $S_1$, refines the interval using parity information, and writes the tightened interval back to $S_0$.
-
-In subsequent iterations, phase 0 rules now use the refined intervals, producing tighter results that flow into $S_1$ again, where phase 1 rules can further refine. This cycle continues until a fixed point is reached.
-
-### The Wildcard
-
-The `*` wildcard in a phase declaration captures all rules not explicitly assigned to earlier phases. It is typically used for the "main" rules of a program (e.g., analysis transfer functions), while explicitly listed rules handle composition, refinement, or exchange logic.
-
-```txt
-phases: [
-  *,                          -- transfer functions (inherited from includes)
-  { exchangeRule }            -- exchange/refinement rules
-]
-```
-
-### More Than Two Phases
-
-Phases are not limited to two. You can declare any number of phases:
-
-```txt
-phases: [
-  { initRules },              -- phase 0: initialization
-  { transferRules },           -- phase 1: analysis transfers
-  { widenRules }               -- phase 2: widening for convergence
-]
-```
-
-With three phases, the cycle is: phase 0 -> $S_1$ -> phase 1 -> $S_2$ -> phase 2 -> $S_0$ -> (repeat). This allows more complex compositions, such as applying widening after the reduced exchange to guarantee convergence in infinite-height domains.
-
-## Key Properties
-
-- **Monotonicity is preserved**: the overall fixed-point computation remains monotone despite the multi-phase architecture.
-- **State stratification**: facts in different databases are independent, preventing subsumption between refined and unrefined facts.
-- **Modular composition**: individual analyses or rule sets can be developed independently and composed via phases.
-
-## Summary
-
-- **Phases** stratify the fact database into `N` independent databases, cycling through them during execution.
-- Rules in phase `i` read from $S_i$ and write to $S_{(i+1) \bmod N}$.
-- The `*` wildcard captures all unassigned rules.
-- Phases enable **post-composition** of rule sets, supporting the modular composition of non-disjoint programs.
-- This is essential for patterns like the **reduced product** of abstract interpretations, where cross-domain refinement must bypass subsumption.
+A phase declaration with `N` phases stratifies the execution state into `N` distinct fact databases, $S\_0, S\_1, \ldots, S\_{N-1}$. Execution cycles modulo `N`:
