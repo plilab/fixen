@@ -2,7 +2,7 @@
 title: Priorities
 description: Control rule evaluation order with rule-instance priorities for
   algorithm-level optimizations.
-slug: 2026.07/guides/language-essentials/04-priorities
+slug: 26.07/guides/language-essentials/04-priorities
 ---
 
 By default, Fixen applies rules in an unspecified order until a fixed point is reached. For many problems, this is fine — the final set of derived facts is the same regardless of order. But for some algorithms, the **order** in which rules fire directly impacts performance. Processing facts in the wrong order can cause redundant derivations, turning an efficient algorithm into a much slower one.

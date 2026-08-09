@@ -59,7 +59,7 @@ export default defineConfig({
       },
       plugins: [
         starlightVersions({
-          versions: [{ slug: "2026.07" }],
+          versions: [{ slug: "26.07" }],
         }),
       ],
       social: [

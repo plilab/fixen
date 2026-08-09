@@ -1,7 +1,7 @@
 ---
 title: Rules and Inference
 description: Define inference rules that derive new facts from existing ones.
-slug: 2026.07/guides/language-essentials/02-rules-and-inference
+slug: 26.07/guides/language-essentials/02-rules-and-inference
 ---
 
 Rules express how new facts follow from existing ones. Together with relations, they form the core of a Fixen program: relations declare what facts look like, and rules declare how they propagate.
@@ -10,19 +10,20 @@ Rules express how new facts follow from existing ones. Together with relations, 
 
 A rule has the form:
 
-```fixen
-rule name: premise1, premise2, ..., if condition |- conclusion
+```ansi frame='code'
+[31mrule[0m [33mname[0m arg1 ... argm: p1, ..., pn, [31mif[0m c1, ..., [31mif[0m ck [31m|-[0m conclusion
 ```
 
 * The `rule` keyword introduces the declaration.
-* An optional **name** after `rule` identifies the rule (used by priorities, see [Priorities](./priorities/)).
-* **Premises** are relations applied to terms, separated by commas. They specify what must be true for the rule to fire.
-* Zero or more `if` guards restrict firing to cases where Haskell expressions evaluate to `True`.
-* The turnstile `|-` separates premises from the **conclusion** — the fact to derive.
+* An optional **name** after `rule` identifies the rule (used by priorities, see [Priorities](../04-priorities/)).
+* An optional **parameter list** `arg1` to `argm` after the rule name specifies the parameters to the rule to be instantiated by premises of the rule. If no parameter list is specified, it will be inferred by the premises of the rule. Explicitly specifying rule parameters allows the compiler check for typos in the rule premises, e.g., using the wrong variable name.
+* **Premises** `p1` to `pn` are relations applied to variables, separated by commas. They specify what relations must be satisfied by the program for the rule to fire.
+* Zero or more `if` guards specify boolean conditions `c1` to `ck`. These restrict firing to cases where Haskell expressions evaluate to `True`.
+* The turnstile `|-` separates premises and boolean conditions from the **conclusion** — the fact to derive.
 
-## Example: Reachability Rules
+### Example: Reachability Rules
 
-Continuing from the reachability example in [Relations and Facts](./relations-and-facts/), we need two rules:
+Continuing from the reachability example in [Relations and Facts](../01-relations-and-facts/), we need two rules:
 
 ```fixen
 rule edgeToPath: Edge a b |- Path a b
@@ -72,7 +73,7 @@ Conclusions can include Haskell expressions, which the solver evaluates when the
 rule combine: Path a b, Path b c |- Path a (b ++ "-" ++ c)
 ```
 
-The expression `b ++ "-" ++ c` is evaluated as Haskell code using the instantiated variable values. See [Haskell Interop](./haskell-interop/) for details on embedding Haskell in your programs.
+The expression `b ++ "-" ++ c` is evaluated as Haskell code using the instantiated variable values. See [Haskell Interop](../07-haskell-interop/) for details on embedding Haskell in your programs.
 
 :::note
 Haskell expressions in rules are currently limited to variables, function application, integer and string literals, tuples, lists, and the unit value. Function application includes infix notation: `x + y`, ``x `op` y``, and any valid Haskell operator are supported.
@@ -86,4 +87,4 @@ However, Fixen has no knowledge of Haskell's operator precedence or fixity decla
 * **Variables** (lowercase identifiers) connect premises through matching.
 * Rules fire **forward-chaining** until a fixed point is reached.
 * **Haskell expressions** in conclusions enable computation within rules.
-* The name of a rule is optional but becomes important when using [Priorities](./priorities/).
+* The name of a rule is optional but becomes important when using [Priorities](../04-priorities/).
