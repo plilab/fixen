@@ -97,7 +97,7 @@ codeGenDbField
 codeGenDbField (t, r) =
   let db_ty_code =
         r ^. database . types
-          & buildDbFieldType
+          & buildDbFieldType True
           & codeGenType
    in Text.concat [dbFactSelector t, " :: ", db_ty_code]
 
@@ -105,32 +105,39 @@ codeGenDbField (t, r) =
 --
 -- @since 26.7
 buildDbFieldType
-  :: [(QueryType, StoreType, Type)]
+  :: Bool
+  -- ^ Whether this is the first component of the field.
+  -> [(QueryType, StoreType, Type)]
   -- ^ The relation representation's types.
   -> Type
 -- If the relation has no arguments, just use a bool.
-buildDbFieldType [] = buildSimpleType "Bool"
-buildDbFieldType [(LatticeMeet {}, _, x)] = x
-buildDbFieldType ((LatticeMeet {}, _, t) : x : xs) =
+buildDbFieldType _ [] = buildSimpleType "Bool"
+buildDbFieldType True [(LatticeMeet {}, _, x)] = TypeApp (-1) (buildSimpleType "Maybe") x
+buildDbFieldType False [(LatticeMeet {}, _, x)] = x
+buildDbFieldType False ((LatticeMeet {}, _, t) : x : xs) =
   -- build a tuple of those stuff.
   let remaining_types = thrd <$> (x :| xs)
    in TypeTuple (-1) t remaining_types
+buildDbFieldType True ((LatticeMeet {}, _, t) : x : xs) =
+  -- build a tuple of those stuff.
+  let remaining_types = thrd <$> (x :| xs)
+   in TypeApp (-1) (buildSimpleType "Maybe") (TypeTuple (-1) t remaining_types)
 -- The last thing should be a hashset of the argument's type
-buildDbFieldType [(_, _, x)] = TypeApp (-1) (buildSimpleType "HashSet") x
+buildDbFieldType _ [(_, _, x)] = TypeApp (-1) (buildSimpleType "HashSet") x
 -- At any point, the moment we see a partially ordered type, just use a HashSet
 -- and store everything remaining in a tuple
-buildDbFieldType ((Meet _ _, _, t) : x : xs) =
+buildDbFieldType _ ((Meet _ _, _, t) : x : xs) =
   let remaining_types = thrd <$> (x :| xs)
    in TypeApp 
         (-1) 
         (buildSimpleType "HashSet") 
         (TypeTuple (-1) t remaining_types)
 -- Otherwise, just use a HashMap.
-buildDbFieldType ((Match, _, t) : xs) = 
+buildDbFieldType _ ((Match, _, t) : xs) = 
   TypeApp 
     (-1) 
     (TypeApp (-1) (buildSimpleType "HashMap") t) 
-    (buildDbFieldType xs)
+    (buildDbFieldType False xs)
 
 -- ** Empty Database
 
@@ -166,14 +173,7 @@ codeGenEmptyDbFields (t, r) =
    in Text.append field_name $ 
         case r ^. database . types of
           [] -> " = False"
-          [(LatticeMeet _ _ _ b, _, _)] -> Text.append " = " $ codeGenIdentifier b
-          ls@((LatticeMeet {}, _, _) : _) ->
-            let remaining_bots = (\case
-                  (LatticeMeet _ _ _ b, _,_) -> codeGenIdentifier b
-                  _ -> error "non lattice argument comes after lattice argument!") 
-                    <$> ls
-                tup = parenthesize $ Text.intercalate ", " remaining_bots
-             in Text.append " = " tup
+          ((LatticeMeet {}, _, _) : _) -> " = Nothing"
           [_] -> " = HashSet.empty"
           ((Meet _ _, _, _) : _) -> " = HashSet.empty"
           _ -> " = HashMap.empty"
@@ -229,8 +229,9 @@ codeGenEntailmentCase (rel_name, rep_info)
     -- if MyRel has no arguments (i.e., just a Bool), otherwise,
     -- if MyRel only has lattice arguments
     --   db |= (MyRel _v0 ...) = 
-    --     let (_t0, ...) = _factsMyRel db
-    --      in leq0 _v0 _t0 && leq1 _v1 _t1 && ...
+    --     fromMaybe False do
+    --       (_t0, ...) <- _factsMyRel db
+    --       return $ leq0 _v0 _t0 && leq1 _v1 _t1 && ...
     -- otherwise:
     --   db |= (MyRel _v0 _v1 ...) =
     --     let db' = _factsMyRel db
@@ -258,8 +259,9 @@ codeGenEntailmentCase (rel_name, rep_info)
                   else parenthesize (Text.intercalate ", " $ t <$> [0 .. length db_ty - 1])
            in Text.concat [
                   "db |= ", case_pattern, " =\n",
-                  "  let ", lhs_tup, " = ", dbFactSelector rel_name, " db\n",
-                  "   in ", Text.intercalate " && " conds
+                  "  fromMaybe False $ do\n",
+                  "    ", lhs_tup, " <- ", dbFactSelector rel_name, " db\n",
+                  "    return $ ", Text.intercalate " && " conds
                 ]
       | otherwise 
         = Text.concat
@@ -481,7 +483,7 @@ codeGenInsertCase (rel_name, rep_info)
                     Text.intercalate ", " $ 
                       v <$> [0 .. length db_ty - 1]
        in return $ Text.concat [
-            "insertToDb db ", case_pattern, " = db { ", dbFactSelector rel_name, " = ", fact_tup, " }"
+            "insertToDb db ", case_pattern, " = db { ", dbFactSelector rel_name, " = Just ", fact_tup, " }"
           ]
   | otherwise = return $ Text.concat [header, singleton_fact_code, new_mp_code]
   where
@@ -705,10 +707,22 @@ codeGenMergeContourCase (rel_name, r) =
         steps :: IntMap Int -> [(Int, QueryType, Type)] -> Text
         steps _ [] = ""
         steps name_supply ls@((_, LatticeMeet {}, _) : _) =
-          let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
-              rhs_bind = get_db name_supply
-              extractor = Text.concat ["\n        let ", lhs_tup, " = ", rhs_bind]
-           in Text.append extractor $ step_set name_supply 0 ls
+          -- check if this relation has only lattices by seeing if we have
+          -- ever descended the lattice before.
+          case name_supply IntMap.!? (-1) of
+            Nothing ->
+              -- We have never descended this relation before.
+              let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
+                  rhs_bind = get_db name_supply
+                  extractor = Text.concat ["\n        ", lhs_tup, " <- maybeToList ", rhs_bind]
+               in Text.append extractor $ step_set name_supply 0 ls
+            Just _ ->
+              -- We have already descended this relation at some point.
+              -- The lattice values are within a tuple.
+              let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
+                  rhs_bind = get_db name_supply
+                  extractor = Text.concat ["\n        let ", lhs_tup, " = ", rhs_bind]
+               in Text.append extractor $ step_set name_supply 0 ls
         steps name_supply ls@((_, Meet _ _, _) : _) =
           -- hashset. draw out everything.
           let tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
