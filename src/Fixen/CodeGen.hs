@@ -666,13 +666,13 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
               let fake_curr_pos = [curr_pos .. length tree_args - 1]
                   real_curr_poses = (i_map IntMap.!) <$> fake_curr_pos
                   list_curr_v = (tree_args !!) <$> real_curr_poses
-                  folder :: Int -> [Int] -> [Either Int (Int, Int)]
-                  folder _ [] = []
-                  folder ctr (c_v : xs) =
-                    if c_v `IntMap.notMember` name_supply
-                      then Left c_v : folder ctr xs
-                      else Right (c_v, ctr) : folder (ctr + 1) xs
-                  lhs' = folder (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
+                  folder :: IntMap Int -> Int -> [Int] -> [Either Int (Int, Int)]
+                  folder _ _ [] = []
+                  folder ns ctr (c_v : xs) =
+                    if c_v `IntMap.notMember` ns
+                      then Left c_v : folder (IntMap.insert c_v 0 ns) ctr xs
+                      else Right (c_v, ctr) : folder ns (ctr + 1) xs
+                  lhs' = folder name_supply (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
                   lhs_tup_comp =
                     ( \t -> case t of
                         Right (_, i) -> Text.append "step" (Text.show i)
@@ -745,13 +745,13 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
               let fake_curr_pos = [curr_pos .. length tree_args - 1]
                   real_curr_poses = (i_map IntMap.!) <$> fake_curr_pos
                   list_curr_v = (tree_args !!) <$> real_curr_poses
-                  folder :: Int -> [Int] -> [Either Int (Int, Int)]
-                  folder _ [] = []
-                  folder ctr (c_v : xs) =
-                    if c_v `IntMap.notMember` name_supply
-                      then Left c_v : folder ctr xs
-                      else Right (c_v, ctr) : folder (ctr + 1) xs
-                  lhs' = folder (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
+                  folder :: IntMap Int -> Int -> [Int] -> [Either Int (Int, Int)]
+                  folder _ _ [] = []
+                  folder ns ctr (c_v : xs) =
+                    if c_v `IntMap.notMember` ns
+                      then Left c_v : folder (IntMap.insert c_v 0 ns) ctr xs
+                      else Right (c_v, ctr) : folder ns (ctr + 1) xs
+                  lhs' = folder name_supply (fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1) list_curr_v
                   lhs_tup_comp =
                     ( \t -> case t of
                         Right (_, i) -> Text.append "step" (Text.show i)
