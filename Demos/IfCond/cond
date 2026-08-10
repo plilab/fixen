@@ -1,8 +1,0 @@
-module IfCond.Cond where
-
-import IfCond.IfCond
-
-rel r: Ordering
-
-{- NOTE: this is _non-monotonic_ -}
-rule rul: r x, if eq x LT |- r GT
