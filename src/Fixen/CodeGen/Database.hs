@@ -247,7 +247,7 @@ codeGenEntailmentCase (rel_name, rep_info)
                                       -- terms
                       Meet x _ -> codeGenIdentifier x -- technically impossible
                                         -- since we are in lattice-only land
-                      LatticeMeet x _ _ _ -> codeGenIdentifier x
+                      LatticeMeet x _ _ -> codeGenIdentifier x
                   )
                   db_ty
               idxed_leqs = zip [0 .. length leqs - 1] leqs
@@ -337,7 +337,7 @@ codeGenEntailmentCase (rel_name, rep_info)
                                           -- are in a set of partially ordered
                                           -- terms
                           Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ -> codeGenIdentifier x
                       )
                       ls
                   -- now we build the \(t0, t1, ... ) -> function header
@@ -363,7 +363,7 @@ codeGenEntailmentCase (rel_name, rep_info)
     -- Just check if any of the elements in the HashSet subsume the corresponding
     -- variables. It looks like
     --   any (\(t0, t1, ...) -> leq4 v4 t0 && leq0 v0 t1 && ...) step{step_no}
-    steps step_no ls@((idx, LatticeMeet leq_function _ _ _, _) : _) =
+    steps step_no ls@((idx, LatticeMeet leq_function _ _, _) : _) =
       let n = length ls -- how big is this tuple? is it standalone?
           curr_db = getCurrDb step_no
        in if n == 1
@@ -387,7 +387,7 @@ codeGenEntailmentCase (rel_name, rep_info)
                                           -- are in a set of partially ordered
                                           -- terms
                           Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ -> codeGenIdentifier x
                       )
                       ls
                   -- now we build the \(t0, t1, ... ) -> function header
@@ -427,7 +427,7 @@ codeGenEntailmentCase (rel_name, rep_info)
                 case x of
                   Match -> (i, "==")
                   Meet l _ -> (i, codeGenIdentifier l)
-                  LatticeMeet l _ _ _ -> (i, codeGenIdentifier l)
+                  LatticeMeet l _ _ -> (i, codeGenIdentifier l)
               )
               xs
           conds =
@@ -617,7 +617,7 @@ codeGenInsertCase (rel_name, rep_info)
                       ( \(_, l', _) -> case l' of
                           Match -> "(==)"
                           Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ _ -> codeGenIdentifier x
+                          LatticeMeet x _ _ -> codeGenIdentifier x
                       )
                       ls
                   filter_fn_body_components = 
@@ -727,7 +727,7 @@ codeGenMergeContourCase (rel_name, r) =
           -- hashset. draw out everything.
           let tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
               res = Text.concat ["\n        ", tup, " <- HashSet.toList ", get_db name_supply]
-           in Text.concat $ [res, step_set name_supply 0 ls]
+           in Text.concat [res, step_set name_supply 0 ls]
         steps name_supply ((idx, Match, _) : ls@((_, LatticeMeet {}, _) : _)) =
           -- draw out the tuple
           let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
@@ -762,7 +762,7 @@ codeGenMergeContourCase (rel_name, r) =
               rhs_bind = Text.intercalate " " [codeGenIdentifier m, t n, v idx]
               extractor = Text.concat ["\n        ", lhs_var, " <- ", rhs_bind]
            in Text.append extractor $ step_set (IntMap.insert idx 0 name_supply) (n + 1) ls
-        step_set name_supply n ((idx, LatticeMeet _ j _ _, _) : ls) = 
+        step_set name_supply n ((idx, LatticeMeet _ j _, _) : ls) = 
           let lhs_var = v' idx
               rhs_bind = Text.intercalate " " [codeGenIdentifier j, t n, v idx]
               extractor = Text.concat ["\n        let ", lhs_var, " = ", rhs_bind]

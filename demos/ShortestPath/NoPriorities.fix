@@ -12,7 +12,6 @@ lat Dist where
   leq  = (>=)
   join = min
   meet = max
-  bot  = undefined
 
 -- The main rule.
 rule addDist: DistTo a d, Edge a b d'

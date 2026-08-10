@@ -43,7 +43,7 @@ codeGen forest relation_rep prog = do
   return
     $ Text.intercalate
       "\n\n"
-    $ [ mod_head_code
+      [ mod_head_code
       , import_code
       , hs_blocks_code
       , fact_code
@@ -197,7 +197,7 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
     get_leq ty' i =
       case ty' !! i of
         (Meet l _, _, _) -> l
-        (LatticeMeet l _ _ _, _, _) -> l
+        (LatticeMeet l _ _, _, _) -> l
         _ -> error "panic: discrete term found after partially ordered terms!"
 
 codeGenReSolve :: NonEmpty RuleForest -> FixenPass CodeGenState Text
@@ -448,7 +448,7 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                       , Text.show curr_pos
                       , remainin
                       ]
-                LatticeMeet _ _ m _ ->
+                LatticeMeet _ _ m ->
                   return $
                     Text.concat
                       [ "\n        let _v"
@@ -710,7 +710,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                               , "_"
                               , Text.show (n_s IntMap.! c_v)
                               ]
-                          LatticeMeet _ _ l _ ->
+                          LatticeMeet _ _ l ->
                             Text.concat
                               [ stepIndent indent
                               , "let _v"
@@ -740,7 +740,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                   , Text.concat r_s
                   , remaining
                   ]
-            (LatticeMeet _ _ _ _, _, _) -> do
+            (LatticeMeet {}, _, _) -> do
               -- get the list of supposed var names.
               -- fake curr_pos
               let prev_step =
@@ -774,7 +774,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                         (q_ty, _, _) = db_ty !! (length db_ty - length xs - 1)
                         hd = case q_ty of
                           Meet _ _ -> error "panic! partial ord argument coming after lattice argument"
-                          LatticeMeet _ _ l _ ->
+                          LatticeMeet _ _ l ->
                             Text.concat
                               [ stepIndent indent
                               , "let _v"

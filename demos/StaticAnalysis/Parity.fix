@@ -96,7 +96,6 @@ lat StateP where
   leq  = statePLeq
   join = joinP
   meet = meetP
-  bot = HashMap.empty
 
 rule assignInitP : Assign __l__ _ _   |- StateBeforeP __l__ HashMap.empty
 rule branchInitP   : Branch __l__ _ _ _ |- StateBeforeP __l__ HashMap.empty

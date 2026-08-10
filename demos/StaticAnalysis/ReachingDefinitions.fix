@@ -7,7 +7,6 @@ lat RD where
   leq = rdLeq
   join = joinRD
   meet = meetRD
-  bot = rdBot
 
 rel RDBefore: Label, RD
 

@@ -90,7 +90,7 @@ codeGenFactLeqCase (t, r) =
         ( \case
             Match -> MkIdentifierSimple (-1) "=="
             Meet l _ -> l
-            LatticeMeet l _ _ _ -> l
+            LatticeMeet l _ _ -> l
         )
           <$> fact_ty
       pattern_lhs = parenthesize $ Text.intercalate " " $ t : (v <$> [0 .. length fact_ty - 1])
