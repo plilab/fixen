@@ -115,7 +115,7 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
   let fact_rep = _factRepresentation rel_rep
   let imap' = _insertionMap fact_rep
   if length ty' == 0
-    then return $ Text.concat ["  guard (_fact", rel_name, " db)\n  return ", rel_name]
+    then return $ Text.concat ["  guard (_facts", rel_name, " db)\n  return ", rel_name]
     else do
       if n == length ty'
         then -- finished, return the fact
