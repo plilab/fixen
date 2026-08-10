@@ -107,7 +107,7 @@ codeGenFactLeqCase (t, r) =
               (ExprVar (-1) (MkIdentifierSimple (-1) (v' i)))
         )
           <$> [0 .. length fact_ty - 1]
-      body = Text.intercalate " && " $ asAtomic <$> body_atoms
+      body = if null body_atoms then "True" else Text.intercalate " && " $ asAtomic <$> body_atoms
    in Text.intercalate " " ["factLeq", pattern_lhs, pattern_rhs, "=", body]
   where
     v i = Text.concat ["v", Text.show i]
