@@ -782,6 +782,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                               , Text.show str
                               , " _v"
                               , Text.show c_v
+                              , "_"
                               , Text.show (n_s IntMap.! c_v)
                               ]
                           _ -> error "panic! Discrete variable coming after partially ordered variable"
