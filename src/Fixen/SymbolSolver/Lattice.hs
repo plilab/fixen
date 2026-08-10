@@ -39,12 +39,11 @@ initEnvWithLattice env p = do
     & foldMWith initEnvWithExternSymbol extern_symbols
   where
     repr = simpleIdentifier $ p ^. name
-    extern_symbols = (⋃) [type_symb, leq_symb, join_symb, meet_symb, bot_symb]
+    extern_symbols = (⋃) [type_symb, leq_symb, join_symb, meet_symb]
     type_symb = getAllTypeNames $ latticeDeclarationType p
     leq_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationLeq p
     join_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationJoin p
     meet_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationMeet p
-    bot_symb = getSimpleIdentifierFromIdentifier $ p ^. bot
     insertLatticeInfo e =
       -- do not insert if already exists
       case e ^. latticeInfos . at repr of

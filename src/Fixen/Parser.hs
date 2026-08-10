@@ -757,10 +757,9 @@ parseLattice = parsePositioned $ do
   leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
   join_func <- parsePartialOrdField "join" (parseNonInfixTermIdentifier indented)
   meet_func <- parsePartialOrdField "meet" (parseNonInfixTermIdentifier indented)
-  bottom <- parsePartialOrdField "bot" (parseNonInfixTermIdentifier indented)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
   i <- getNewNodeId
-  return $ LatticeDeclaration i pord_name type_expr leq_func join_func meet_func bottom
+  return $ LatticeDeclaration i pord_name type_expr leq_func join_func meet_func
 
 -- ** Priority-Declaration Parsers
 

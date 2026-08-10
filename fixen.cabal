@@ -1,10 +1,10 @@
 cabal-version:      3.4
 name:               fixen
--- PVP summary:     +-+------- breaking API changes
---                  | | +----- non-breaking API additions
---                  | | | +--- code changes with no API change
---                  | | | | +- dev version
-version:            0.0.0.1
+-- PVP summary:     +--------- year
+--                  |  +------ month
+--                  |  |    +- minor version
+--                  |  |    |
+version:            26.7
 -- synopsis:
 -- description:
 license:            MIT

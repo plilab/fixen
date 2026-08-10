@@ -148,6 +148,6 @@ getMeetMechanism t = do
   case p_ord ^. at n of
     Nothing -> case l_info ^. at n of
       Nothing -> return Match
-      Just l_dec -> return $ LatticeMeet (l_dec ^. leq) (l_dec ^. join) (l_dec ^. meet) (l_dec ^. bot)
+      Just l_dec -> return $ LatticeMeet (l_dec ^. leq) (l_dec ^. join) (l_dec ^. meet)
     -- return Match
     Just p_ord_decl -> return $ Meet (p_ord_decl ^. leq) (p_ord_decl ^. mlbs)

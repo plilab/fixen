@@ -179,6 +179,4 @@ data QueryType
       -- ^ The join function
       Identifier
       -- ^ The meet function
-      Identifier
-      -- ^ The bot function
   deriving (Show, Eq)

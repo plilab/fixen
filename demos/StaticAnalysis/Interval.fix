@@ -8,7 +8,6 @@ lat StateI where
   leq = stateILeq
   join = joinI
   meet = meetI
-  bot = HashMap.empty
 
 rel StateBeforeI: Label, StateI
 

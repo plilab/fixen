@@ -10,9 +10,6 @@ class HasArgs σ φ | σ -> φ where
 class HasAssumptions σ φ | σ -> φ where
   assumptions :: Lens' σ φ
 
-class HasBot σ φ | σ -> φ where
-  bot :: Lens' σ φ
-
 class HasConclusion σ φ | σ -> φ where
   conclusion :: Lens' σ φ
 

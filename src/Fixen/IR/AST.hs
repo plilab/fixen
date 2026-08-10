@@ -1509,10 +1509,6 @@ data LatticeDeclaration = LatticeDeclaration
   -- ^ The meet function.
   --
   -- @since 26.7
-  , latticeDeclarationBot :: Identifier
-  -- ^ The meet function.
-  --
-  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -1533,9 +1529,6 @@ instance HasJoin LatticeDeclaration Identifier where
 
 instance HasMeet LatticeDeclaration Identifier where
   meet = lens latticeDeclarationMeet (\s i -> s {latticeDeclarationMeet = i})
-
-instance HasBot LatticeDeclaration Identifier where
-  bot = lens latticeDeclarationBot (\s i -> s {latticeDeclarationBot = i})
 
 -------------------------------------------------------------------------------
 
