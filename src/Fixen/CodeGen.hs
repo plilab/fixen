@@ -182,7 +182,12 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
                   )
                     <$> [n .. length ty' - 1]
                 lhs_tup = if length lhs' == 1 then lhs' !! 0 else Text.concat ["(", Text.intercalate ", " lhs', ")"]
-                fst_i = Text.concat ["  let ", lhs_tup, " = ", prev_step, "\n"]
+                fst_i = 
+                  case name_supply IntMap.!? (-1) of
+                    Nothing -> 
+                      Text.concat ["  ", lhs_tup, " <- maybeToList ", parenthesize prev_step, "\n"]
+                    Just _ -> 
+                      Text.concat ["  let ", lhs_tup, " = ", prev_step, "\n"]
                 need_to_leq = filter (`IntMap.member` name_supply) [n .. length ty' - 1]
                 guards = (\i -> Text.concat ["  guard (", codeGenIdentifier $ get_leq ty' i, " _v", Text.show i, "_0 _v", Text.show i, "_1)\n"]) <$> need_to_leq
             remaining <- codeGenQueryStep (length ty') rel_rep (IntMap.unionsWith max [name_supply, IntMap.fromList [(i, 0) | i <- [n .. length ty' - 1]], IntMap.fromList [(i, 1) | i <- need_to_leq]]) rel_name
@@ -791,16 +796,27 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                   (name_supply', r_s) = remaining_steps name_supply lhs'
               remaining <- codeGenSinglePhaseForest rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
               -- is a hashset. walk down set and mlbs
-              return $
-                Text.concat
-                  [ stepIndent indent
-                  , "let "
-                  , lhs_tup
-                  , " = "
-                  , prev_step
-                  , Text.concat r_s
-                  , remaining
+              if curr_pos == 0
+                then return $
+                  Text.concat [
+                    stepIndent indent
+                    , lhs_tup
+                    , " <- maybeToList "
+                    , prev_step
+                    , Text.concat r_s
+                    , remaining
                   ]
+                else
+                  return $
+                    Text.concat
+                      [ stepIndent indent
+                      , "let "
+                      , lhs_tup
+                      , " = "
+                      , prev_step
+                      , Text.concat r_s
+                      , remaining
+                      ]
             (Match, StoredAsSingleton, _) -> error "unreachable"
         else -- proceed with the next calls.
           codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
