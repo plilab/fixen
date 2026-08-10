@@ -8,7 +8,7 @@
 --
 -- This module provides facilities for solving relation declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Relation where
 
 import Control.Lens
@@ -35,7 +35,7 @@ import Fixen.Utils
 -- /Precondition/: The 'SymbolEnv' must have been initialized with
 -- 'PartialOrdDeclaration's.
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithRelation :: SymbolState σ => SymbolEnv -> RelationDeclaration -> FixenPass σ SymbolEnv
 initEnvWithRelation env r = do
   _ <- validateRelation r env
@@ -103,7 +103,7 @@ initEnvWithRelation env r = do
 -- * __Against Prelude Symbols__: A warning is generated whenever the relation
 --   has the same name as a type or term in Prelude.
 --
--- @since 0.0.1
+-- @since 26.7
 validateRelation :: SymbolState σ => SymbolValidator σ RelationDeclaration
 validateRelation = validate r
   where

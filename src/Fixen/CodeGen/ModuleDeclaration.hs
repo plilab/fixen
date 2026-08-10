@@ -10,7 +10,7 @@
 --
 -- This module provides code-generation facilities for 'ModuleDeclaration's.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.ModuleDeclaration where
 
 import Data.Text (Text)
@@ -20,7 +20,7 @@ import Fixen.IR.AST
 
 -- | Generates the code for the Haskell module declaration
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenModuleDeclaration :: Program -> Text
 codeGenModuleDeclaration program =
   let n = program ^. moduleName . name

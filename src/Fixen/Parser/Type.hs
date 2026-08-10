@@ -44,7 +44,7 @@
 -- * 'parseParenType' — atomic types including parenthesized sub-types
 -- * 'parseAnyType' — any type at the atom level
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Parser.Type where
 
 import Control.Applicative.Combinators (
@@ -84,7 +84,7 @@ import Text.Megaparsec.Pos qualified as MPos
 --   before each token. It is threaded through both branches to enforce that
 --   every syntactic element is properly indented relative to its context.
 --
--- @since 0.0.1
+-- @since 26.7
 parseType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseType indentCheck = P.try (parseInfixType indentCheck) <|> parseTypeApp indentCheck
 
@@ -136,7 +136,7 @@ parseType indentCheck = P.try (parseInfixType indentCheck) <|> parseTypeApp inde
 --   The 'parsePositioned' wrapper ensures the position spans the entire
 --   @(...)@, including the parentheses.
 --
--- @since 0.0.1
+-- @since 26.7
 parseParenType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseParenType indent_check =
   P.try f
@@ -227,7 +227,7 @@ parseParenType indent_check =
 --   parentheses are required: @((T1 -> T2) -> T3)@ parses as two separate
 --   infix types, and @T1 -> (T2 -> T3)@ similarly.
 --
--- @since 0.0.1
+-- @since 26.7
 parseInfixType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseInfixType indentCheck =
   parsePositioned $ do
@@ -296,7 +296,7 @@ parseInfixType indentCheck =
 --   Indentation is enforced: the type variable must appear at the correct
 --   indentation level relative to its context.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTypeVar :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeVar indentCheck = parsePositioned $ do
   -- Verify correct indentation before parsing the type variable.
@@ -347,7 +347,7 @@ parseTypeVar indentCheck = parsePositioned $ do
 --   position is set via 'setPosition'. The outermost position is also
 --   captured by 'parsePositioned' (the wrapper around the entire do-block).
 --
--- @since 0.0.1
+-- @since 26.7
 parseTypeApp :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeApp indent_check = parsePositioned $ do
   -- Parse a non-empty left-associative chain of atom types.
@@ -394,7 +394,7 @@ parseTypeApp indent_check = parsePositioned $ do
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the start to the end of the number digits.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTypeNatLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeNatLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the natural number.
@@ -418,7 +418,7 @@ parseTypeNatLit indent_check = parsePositioned $ do
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening quote to the closing quote.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTypeSymbolLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeSymbolLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the string.
@@ -441,7 +441,7 @@ parseTypeSymbolLit indent_check = parsePositioned $ do
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening parenthesis to the closing parenthesis.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTypeUnit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTypeUnit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the unit type.
@@ -478,7 +478,7 @@ parseTypeUnit indent_check = parsePositioned $ do
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening parenthesis to the closing parenthesis.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTupleType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseTupleType indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the tuple type.
@@ -510,7 +510,7 @@ parseTupleType indent_check = parsePositioned $ do
 --   The position is captured automatically by 'parsePositioned', spanning
 --   from the opening bracket to the closing bracket.
 --
--- @since 0.0.1
+-- @since 26.7
 parseListType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseListType indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the list type.
@@ -538,7 +538,7 @@ parseListType indent_check = parsePositioned $ do
 --   This function does NOT handle atomic types directly — those are parsed
 --   by 'parseParenType', which wraps this function.
 --
--- @since 0.0.1
+-- @since 26.7
 parseAnyType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseAnyType indent_check =
   P.try (parseNestedInfixType indent_check)
@@ -568,7 +568,7 @@ parseAnyType indent_check =
 --   See 'parseInfixType' for details on the representation and position
 --   computation.
 --
--- @since 0.0.1
+-- @since 26.7
 parseNestedInfixType :: ParserState σ => Parser σ MPos.Pos -> Parser σ Type
 parseNestedInfixType indent_check =
   parsePositioned $ do

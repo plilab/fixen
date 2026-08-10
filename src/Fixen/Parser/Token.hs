@@ -32,7 +32,7 @@
 --     which wrap results in 'AST.SimpleIdentifier', 'AST.FullyQualifiedName',
 --     and 'AST.Identifier' types while recording source positions.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Parser.Token (
   -- * Raw string parsers
   -- $raw
@@ -126,7 +126,7 @@ import Text.Megaparsec.Pos qualified as MPos
 --           @Int@ (rejected—starts with uppercase), @if@ (rejected — reserved),
 --           @_@ (rejected—hole)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawLowerHsIdentifierString :: Parser σ Text
 parseRawLowerHsIdentifierString = do
   -- Capture the current byte offset so we can report errors at the
@@ -166,7 +166,7 @@ parseRawLowerHsIdentifierString = do
 -- | Same as 'parseRawLowerHsIdentifierString', except that it also accepts
 -- the hole @_@.
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawLowerHsIdentifierStringOrHole :: Parser σ Text
 parseRawLowerHsIdentifierStringOrHole = do
   -- Capture the current byte offset so we can report errors at the
@@ -201,7 +201,7 @@ parseRawLowerHsIdentifierStringOrHole = do
 --
 -- Examples: @Int@ (accepted), @A'@ (accepted), @int@ (rejected — starts lowercase)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawCapitalizedHsIdentifierString :: Parser σ Text
 parseRawCapitalizedHsIdentifierString =
   -- Parse the capitalized identifier string and convert [Char] to Text
@@ -220,7 +220,7 @@ parseRawCapitalizedHsIdentifierString =
 -- Examples: @hello@ (accepted), @Hello@ (accepted), @_123@ (accepted),
 --           @if@ (rejected—reserved), @_@ (rejected—hole).
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawAnyCaseHsIdentifierString :: Parser σ Text
 parseRawAnyCaseHsIdentifierString = do
   -- Capture the current byte offset for error reporting
@@ -258,7 +258,7 @@ parseRawAnyCaseHsIdentifierString = do
 -- | Same as 'parseRawAnyCaseHsIdentifierString' except that the hole
 -- @_@ is rejected.
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawAnyCaseHsIdentifierStringNotHole :: Parser σ Text
 parseRawAnyCaseHsIdentifierStringNotHole = do
   -- Capture the current byte offset for error reporting
@@ -297,7 +297,7 @@ parseRawAnyCaseHsIdentifierStringNotHole = do
 -- characters defined in 'opChars'. Each character in 'opChars' is wrapped
 -- in 'P.single' and combined with 'choice' to try each in turn.
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawOpChar :: Parser σ Char
 parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
 
@@ -307,7 +307,7 @@ parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
 --
 -- Examples: @++@ (accepted), @<=@ (accepted), @=@ (rejected — reserved)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawOpIdentifierString :: Parser σ Text
 parseRawOpIdentifierString = do
   -- Capture the current byte offset for error reporting
@@ -348,7 +348,7 @@ parseRawOpIdentifierString = do
 -- The result is wrapped in 'AST.ModuleName' with a fresh node ID and
 -- source position recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseModuleName :: ParserState σ => Parser σ AST.ModuleName
 parseModuleName = parsePositioned $ do
   -- Parse one or more capitalized identifiers separated by dots,
@@ -365,7 +365,7 @@ parseModuleName = parsePositioned $ do
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseLowerFirstSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseLowerFirstSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
@@ -378,7 +378,7 @@ parseLowerFirstSimpleIdentifier = parsePositioned $ do
 -- | Same as 'parseLowerFirstSimpleIdentifier', except that it accepts
 -- the hole @_@.
 --
--- @since 0.0.1
+-- @since 26.7
 parseLowerFirstSimpleIdentifierOrHole :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
@@ -395,7 +395,7 @@ parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
 -- a dot and a lowercase-starting simple identifier. The result is wrapped in
 -- 'AST.FullyQualifiedName' with source position recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseLowerFirstFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseLowerFirstFQN = parsePositioned $ do
   -- Parse the module prefix: one or more capitalized identifiers separated by dots
@@ -435,7 +435,7 @@ parseLowerFirstFQN = parsePositioned $ do
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseCapitalizedSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseCapitalizedSimpleIdentifier = parsePositioned $ do
   -- Parse the raw capitalized identifier string
@@ -457,7 +457,7 @@ parseCapitalizedSimpleIdentifier = parsePositioned $ do
 -- (e.g. @Just@) is rejected here and should be parsed by
 -- 'parseCapitalizedSimpleIdentifier' instead.
 --
--- @since 0.0.1
+-- @since 26.7
 parseCapitalizedFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseCapitalizedFQN = do
   -- Capture the current byte offset for error reporting
@@ -522,7 +522,7 @@ parseCapitalizedFQN = do
 -- Uses 'P.try' on 'parseCapitalizedFQN' to backtrack if the FQN parse
 -- fails, falling through to 'parseCapitalizedSimpleIdentifier'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseCapitalizedIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseCapitalizedIdentifier =
   -- Attempt to parse a capitalized fully qualified name first
@@ -536,7 +536,7 @@ parseCapitalizedIdentifier =
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseAnyCasedLetterSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseAnyCasedLetterSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (any case, not reserved)
@@ -552,7 +552,7 @@ parseAnyCasedLetterSimpleIdentifier = parsePositioned $ do
 --
 -- Uses 'P.try' on the lower-first variant to backtrack on failure.
 --
--- @since 0.0.1
+-- @since 26.7
 parseAnyCasedLetterFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 
@@ -563,7 +563,7 @@ parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 --
 -- These represent normal terms or constructors that are __not__ used in infix.
 --
--- @since 0.0.1
+-- @since 26.7
 parseAnyCasedLetterIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseAnyCasedLetterIdentifier =
   -- Attempt to parse a fully qualified name first (with backtracking)
@@ -577,7 +577,7 @@ parseAnyCasedLetterIdentifier =
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseOpSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
 parseOpSimpleIdentifier = parsePositioned $ do
   -- Parse the raw operator identifier string (non-empty, not reserved)
@@ -592,7 +592,7 @@ parseOpSimpleIdentifier = parsePositioned $ do
 -- operator identifier. The result is wrapped in 'AST.FullyQualifiedName'
 -- with source position recorded via 'parsePositioned'.
 --
--- @since 0.0.1
+-- @since 26.7
 parseOpFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
 parseOpFQN = parsePositioned $ do
   -- Parse the module prefix: one or more capitalized identifiers separated by dots
@@ -632,7 +632,7 @@ parseOpFQN = parsePositioned $ do
 --
 -- Uses 'P.try' on 'parseOpFQN' to backtrack if the FQN parse fails.
 --
--- @since 0.0.1
+-- @since 26.7
 parseOpIdentifier :: ParserState σ => Parser σ AST.Identifier
 parseOpIdentifier =
   -- Attempt to parse a fully qualified operator name first
@@ -648,7 +648,7 @@ parseOpIdentifier =
 -- The 'indent_check' argument is used by 'parseInfixLetterIdentifier' to
 -- verify proper indentation around the backticks.
 --
--- @since 0.0.1
+-- @since 26.7
 parseInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseInfixTermIdentifier indent_check =
   -- Attempt to parse a backtick-wrapped letter identifier (with backtracking)
@@ -664,7 +664,7 @@ parseInfixTermIdentifier indent_check =
 -- The 'indentCheck' argument verifies that both the opening and closing
 -- backticks are at proper indentation levels.
 --
--- @since 0.0.1
+-- @since 26.7
 parseInfixLetterIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseInfixLetterIdentifier indentCheck = do
   -- Consume the opening backtick
@@ -690,7 +690,7 @@ parseInfixLetterIdentifier indentCheck = do
 -- The 'indent_check' argument is passed to 'parseNonInfixOpIdentifier' to
 -- verify proper indentation of the parentheses.
 --
--- @since 0.0.1
+-- @since 26.7
 parseNonInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseNonInfixTermIdentifier indent_check =
   -- Attempt to parse any cased letter identifier first (FQN or simple)
@@ -705,7 +705,7 @@ parseNonInfixTermIdentifier indent_check =
 -- The 'indent_check' argument verifies proper indentation of both the
 -- opening and closing parentheses.
 --
--- @since 0.0.1
+-- @since 26.7
 parseNonInfixOpIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
 parseNonInfixOpIdentifier indent_check =
   -- Parse the operator between parentheses, checking indentation after the
@@ -726,7 +726,7 @@ parseNonInfixOpIdentifier indent_check =
 -- Examples: @\"hello\"@ (accepted, yields @\"hello\"@),
 --           @\"line1\\nline2\"@ (accepted, yields @\"line1\\nline2\"@)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawString :: Parser σ Text
 parseRawString =
   -- Consume the opening double quote, then parse character literals until
@@ -742,7 +742,7 @@ parseRawString =
 --
 -- Examples: @42@ (accepted), @-7@ (accepted), @+3@ (accepted)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawInteger :: Parser σ Integer
 parseRawInteger = L.signed sc L.decimal -- optional sign followed by decimal digits
 
@@ -753,7 +753,7 @@ parseRawInteger = L.signed sc L.decimal -- optional sign followed by decimal dig
 --
 -- Examples: @0@ (accepted), @123@ (accepted), @-5@ (rejected — no sign allowed)
 --
--- @since 0.0.1
+-- @since 26.7
 parseRawNatural :: Parser σ Natural
 parseRawNatural = L.decimal -- decimal digits only, no sign
 
@@ -777,7 +777,7 @@ parseRawNatural = L.decimal -- decimal digits only, no sign
 --
 --   Used by 'parseRawOpChar' and 'keywordOp' to recognize operator tokens.
 --
--- @since 0.0.1
+-- @since 26.7
 opChars :: [Char]
 opChars = ":!#$%&*+./<=>?@\\^|-~"
 
@@ -789,7 +789,7 @@ opChars = ":!#$%&*+./<=>?@\\^|-~"
 --
 --   Currently contains all Haskell keywords
 --
--- @since 0.0.1
+-- @since 26.7
 reserved :: [Text]
 reserved =
   [ "if"
@@ -828,7 +828,7 @@ reserved =
 --
 --   Currently contains: @\"=\"@
 --
--- @since 0.0.1
+-- @since 26.7
 reservedOps :: [Text]
 reservedOps = ["="]
 
@@ -839,7 +839,7 @@ reservedOps = ["="]
 -- keyword @if@ will reject input like @ifdef@ because the 'd' after @if@
 -- is a valid identifier continuation character.
 --
--- @since 0.0.1
+-- @since 26.7
 keyword :: Text -> Parser σ Text
 keyword s = do
   -- Consume the keyword string
@@ -856,7 +856,7 @@ keyword s = do
 -- operator @<=@ will reject input like @<=<@ because the trailing '<'
 -- is a valid operator character.
 --
--- @since 0.0.1
+-- @since 26.7
 keywordOp :: Text -> Parser σ Text
 keywordOp s = do
   -- Consume the operator string
@@ -872,7 +872,7 @@ keywordOp s = do
 -- Uses 'P.try' on the Unicode variant to backtrack if it fails, then
 -- falls through to the ASCII variant.
 --
--- @since 0.0.1
+-- @since 26.7
 turnstile :: Parser σ Text
 turnstile =
   -- Attempt the Unicode turnstile first (with backtracking)
@@ -887,7 +887,7 @@ turnstile =
 -- Uses 'P.try' on the ASCII variant to backtrack if it fails, then
 -- falls through to the Unicode variant.
 --
--- @since 0.0.1
+-- @since 26.7
 ltOrSqSubsetEq :: Parser σ Text
 ltOrSqSubsetEq =
   -- Attempt the ASCII less-than first (with backtracking)

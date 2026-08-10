@@ -19,7 +19,7 @@
 --     its corresponding source position. Later passes can use this map to
 --     retrieve source positions for error reporting and diagnostic messages.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Env.Position where
 
 import Control.Monad.State.Strict
@@ -46,7 +46,7 @@ import Fixen.Utils
 --   constructed. Later passes look up positions using 'fixenGetPosition'
 --   to produce error messages with accurate line/column information.
 --
--- @since 0.0.1
+-- @since 26.7
 type PositionEnv = IntMap Position
 
 -- | Constraint alias indicating that a state type @σ@ contains a 'PositionEnv'.
@@ -62,7 +62,7 @@ type PositionEnv = IntMap Position
 -- PositionEnv :*: NodeId :*: FixenErrors
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 type WithPositionEnv a = a :>: PositionEnv
 
 --------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ type WithPositionEnv a = a :>: PositionEnv
 
 -- | Obtains the 'PositionEnv'. Probably rarely used.
 --
--- @since 0.0.1
+-- @since 26.7
 getPositionEnv :: (WithPositionEnv σ, MonadState σ μ) => μ PositionEnv
 getPositionEnv = do
   st <- get
@@ -81,13 +81,13 @@ getPositionEnv = do
 
 -- | Replaces the 'PositionEnv' with a new environment. Probably rarely used.
 --
--- @since 0.0.1
+-- @since 26.7
 setPositionEnv
   :: (WithPositionEnv σ, MonadState σ μ)
   => PositionEnv
   -- ^ The new 'PositionEnv'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 setPositionEnv new_env = do
   st <- get
@@ -97,13 +97,13 @@ setPositionEnv new_env = do
 -- | Gets the 'Position' of a node in the 'Program'. Terminates exceptionally
 -- if the provided node does not have a position.
 --
--- @since 0.0.1
+-- @since 26.7
 getPosition
   :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
   => π
   -- ^ The node in the 'Program'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ Position
 getPosition x = do
   let node = x ^. nodeId
@@ -111,13 +111,13 @@ getPosition x = do
 
 -- | Unexceptional equivalent of 'getPosition'.
 --
--- @since 0.0.1
+-- @since 26.7
 getPosition_maybe
   :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
   => π
   -- ^ The node in the 'Program'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ (Maybe Position)
 getPosition_maybe x = do
   let node = x ^. nodeId
@@ -125,17 +125,17 @@ getPosition_maybe x = do
 
 -- | Sets the position of a node in the 'Program'.
 --
--- @since 0.0.1
+-- @since 26.7
 setPosition
   :: (HasNodeId π NodeId, WithPositionEnv σ, MonadState σ μ)
   => π
   -- ^ The node in the 'Program'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Position
   -- ^ The 'Position' of the node.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 setPosition x p = do
   let i = x ^. nodeId
@@ -144,7 +144,7 @@ setPosition x p = do
 -- | Same as 'getPosition', except that it obtains the position directly from
 -- 'NodeId's.
 --
--- @since 0.0.1
+-- @since 26.7
 getPositionFromNodeId :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> μ Position
 getPositionFromNodeId x = do
   pos_env <- getPositionEnv
@@ -153,7 +153,7 @@ getPositionFromNodeId x = do
 -- | Same as 'getPosition_maybe', except that it obtains the position directly from
 -- 'NodeId's.
 --
--- @since 0.0.1
+-- @since 26.7
 getPositionFromNodeId_maybe :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> μ (Maybe Position)
 getPositionFromNodeId_maybe x = do
   pos_env <- getPositionEnv
@@ -161,7 +161,7 @@ getPositionFromNodeId_maybe x = do
 
 -- | Same as 'setPosition', except that it directly sets the position of 'NodeId's.
 --
--- @since 0.0.1
+-- @since 26.7
 setPositionOfNodeId :: (WithPositionEnv σ, MonadState σ μ) => NodeId -> Position -> μ ()
 setPositionOfNodeId x p = do
   pos_env <- getPositionEnv

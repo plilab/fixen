@@ -12,7 +12,7 @@
 -- This module provides facilities for solving and type checking rule
 -- declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Rule where
 
 import Control.Lens
@@ -44,7 +44,7 @@ import Fixen.Utils
 -- /Precondition/: The 'SymbolEnv' must have been initialized with
 -- 'PartialOrdDeclaration's and 'RelationDeclaration's.
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithRule :: SymbolState σ => SymbolEnv -> Rule -> FixenPass σ SymbolEnv
 initEnvWithRule env r = do
   rels_not_well_formed <- validateRelationsInRule r env
@@ -118,7 +118,7 @@ initEnvWithRule env r = do
 --   to do so.
 -- * __Against Other Rules__: There cannot be duplicate rule names.
 --
--- @since 0.0.1
+-- @since 26.7
 validateRelationsInRule :: SymbolState σ => SymbolValidator σ Rule
 validateRelationsInRule =
   validate
@@ -200,7 +200,7 @@ validateRelationsInRule =
 -- parameters will cause errors. Parameters whose name shadows external
 -- symbols (including prelude terms) will throw warnings
 --
--- @since 0.0.1
+-- @since 26.7
 getRuleParameters :: SymbolState σ => Rule -> FixenPass σ [SimpleIdentifier]
 getRuleParameters r = do
   -- get the parameters.
@@ -253,7 +253,7 @@ getRuleParameters r = do
 
 -- | Obtains the usage information of a variable within a 'Rule'.
 --
--- @since 0.0.1
+-- @since 26.7
 getParamUsageInfo
   :: Rule
   -- ^ The 'Rule'
@@ -318,7 +318,7 @@ getParamUsageInfo r v =
 -- assumption in the rule. This happens particularly when users explicitly list
 -- the rule's parameters.
 --
--- @since 0.0.1
+-- @since 26.7
 checkUnboundVariable
   :: SymbolState σ
   => NameMap (SimpleIdentifier, [UsageInfo])
@@ -345,17 +345,17 @@ checkUnboundVariable mp = do
 
 -- | Checks if there are any free variables in the assumptions of a rule.
 --
--- @since 0.0.1
+-- @since 26.7
 checkFreeVarsInAssumptions
   :: SymbolState σ
   => Rule
   -- ^ The 'Rule'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NameMap (SimpleIdentifier, [UsageInfo])
   -- ^ The variable mappiung
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ Bool
 checkFreeVarsInAssumptions r mp = do
   let fvs =
@@ -377,7 +377,7 @@ checkFreeVarsInAssumptions r mp = do
 
 -- | Obtains the free variables of a rule given its parameters.
 --
--- @since 0.0.1
+-- @since 26.7
 getFreeVars
   :: Rule
   -- ^ The 'Rule'
@@ -402,17 +402,17 @@ getFreeVars r mp =
 
 -- | Performs type checking on a rule.
 --
--- @since 0.0.1
+-- @since 26.7
 typeCheck
   :: SymbolState σ
   => SymbolEnv
   -- ^ The 'SymbolEnv' used for looking up the type of relation arguments
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> RuleInfo
   -- ^ The initial information about the rule (with no type information)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ RuleInfo
 typeCheck env RuleInfo {_ruleDeclaration = the_rule, _ruleBoundVars = param_info} = do
   -- Get everything in the assumptions that need to be type-checked
@@ -446,16 +446,16 @@ typeCheck env RuleInfo {_ruleDeclaration = the_rule, _ruleBoundVars = param_info
 -- | Maps variable indices to its type with respect to the relevant
 -- 'RelationDeclaration'.
 --
--- @since 0.0.1
+-- @since 26.7
 mapIndicesToType
   :: SymbolEnv
   -- ^ The 'SymbolEnv'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Rule
   -- ^ The 'Rule'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Either (Int, Int) Int
   -- ^ The index.
   -- @Left (i, j)@ represents the occurrence of a variable in the
@@ -463,7 +463,7 @@ mapIndicesToType
   -- @Right j@ represents the occurrence of a variable in the
   -- \(j^\text{th}\) argument to the conclusion.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> (Either (Int, Int) Int, Type)
 mapIndicesToType env r (Left (i, j)) =
   let rel_name =
@@ -485,21 +485,21 @@ mapIndicesToType env r (Right i) =
 
 -- | Performs type checking on a variable.
 --
--- @since 0.0.1
+-- @since 26.7
 typeCheckVar
   :: SymbolState σ
   => Rule
   -- ^ The rule being type-checked
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NameMap RuleParameterInfo
   -- ^ Information about the parameters of the rule, including typing information
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Name
   -- ^ The name of the variable
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> (Either (Int, Int) Int, Type)
   -- ^ @(Left (i, j), t)@ represents the occurrence of a variable in the
   -- \(i^\text{th}\) assumption and \(j^\text{th}\) argument;
@@ -507,7 +507,7 @@ typeCheckVar
   -- \(j^\text{th}\) argument to the conclusion. In both cases, @t@ is its
   -- supposed type.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ (NameMap RuleParameterInfo)
 typeCheckVar the_rule param_info var_name (occ, the_type) = do
   -- Get whatever typing information we have about this variable.
@@ -577,20 +577,20 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
 
 -- | Use the 'UsageInfo' to populate match information in relations.
 --
--- @since 0.0.1
+-- @since 26.7
 insertMatchInfo
   :: Rule
   -- ^ The 'Rule'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NameMap (SimpleIdentifier, [UsageInfo])
   -- ^ The parameter information
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> SymbolEnv
   -- ^ The 'SymbolEnv' to insert the information into
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> SymbolEnv
 insertMatchInfo r mp e = foldl' mkMatched e all_usages
   where

@@ -17,7 +17,7 @@
 -- out in the database so that Fixen-generated programs have better runtime
 -- performance.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.RelationRepresentation where
 
 import Control.Lens
@@ -37,12 +37,12 @@ import Fixen.Utils
 
 -- | The state used for obtaining 'RelationRepresentation's.
 --
--- @since 0.0.1
+-- @since 26.7
 type RelationRepresentationState σ = WithSymbolEnv σ
 
 -- | Obtains the representations for 'RelationDeclaration's in the 'Program'.
 --
--- @since 0.0.1
+-- @since 26.7
 getRelationRepresentation :: RelationRepresentationState σ => FixenPass σ RelationRepresentation
 getRelationRepresentation = do
   rel_map <- fixenGetRelationInfo
@@ -82,7 +82,7 @@ getRelationRepresentation = do
 --
 -- @HashMap Discrete2 (HashMap Discrete1 (HashSet (PartiallyOrdered1, PartiallyOrdered2)))@
 --
--- @since 0.0.1
+-- @since 26.7
 getRepresentation :: RelationRepresentationState σ => RelationInfo -> FixenPass σ RelationRepresentationInfo
 getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relationArgMatchInfo = rel_arg_match_info} = do
   let rel_args = rel_declaration ^. args
@@ -138,7 +138,7 @@ getRepresentation RelationInfo {_relationDeclaration = rel_declaration, _relatio
 
 -- | Determines how a 'Type' is queried in the database.
 --
--- @since 0.0.1
+-- @since 26.7
 getMeetMechanism :: RelationRepresentationState σ => Type -> FixenPass σ QueryType
 getMeetMechanism t = do
   let n = calculateRepresentativeFromType t

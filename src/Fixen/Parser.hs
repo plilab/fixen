@@ -22,7 +22,7 @@
 -- 2. Calls 'partitionTopLevels' to distribute those declarations into the
 --    appropriate fields of 'Program', producing the final result
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Parser where
 
 import Control.Applicative.Combinators (
@@ -72,7 +72,7 @@ import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 --   If any parse errors occur, they are accumulated and reported via the
 --   'FixenPass' monad.
 --
--- @since 0.0.1
+-- @since 26.7
 parse
   :: ParserState σ
   => FilePath
@@ -108,21 +108,21 @@ parse file_path file_contents = do
 -- This is the bridge between the Megaparsec parser layer and the
 -- 'FixenPass' compiler pass layer.
 --
--- @since 0.0.1
+-- @since 26.7
 fixenParse
   :: ParserState σ
   => Parser σ a
   -- ^ The 'Parser' to run
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FilePath
   -- ^ The file path of the program (used as the Megaparsec source name)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Text
   -- ^ The contents of the file to parse
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ a
 fixenParse parser file_path file_contents = do
   -- Capture the current parser state (position env, node ID counter, errors)
@@ -161,7 +161,7 @@ fixenParse parser file_path file_contents = do
 -- The 'eof' parser ensures that the entire file is consumed; any trailing
 -- content after the last declaration will cause a parse error.
 --
--- @since 0.0.1
+-- @since 26.7
 parseProgram :: ParserState σ => Parser σ (ModuleDeclaration, [TopLevel])
 parseProgram = do
   -- Parse the module declaration (e.g. "module Foo where") and consume trailing whitespace
@@ -188,7 +188,7 @@ parseProgram = do
 -- Each item is parsed independently with whitespace consumed after it.
 -- At least one top-level declaration is required.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTopLevels :: ParserState σ => Parser σ [TopLevel]
 parseTopLevels =
   -- Parse one or more top-level declarations, consuming whitespace after each
@@ -212,47 +212,47 @@ parseTopLevels =
 --   is used during the initial parsing phase before declarations are
 --   partitioned into the structured 'Program' type.
 --
--- @since 0.0.1
+-- @since 26.7
 data TopLevel
   = -- | A @rel@ declaration defining a relation (fact type)
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLRelation RelationDeclaration
   | -- | A @rule@ declaration defining inference rules
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLRule Rule
   | -- | A @partial ord@ declaration defining a partial order on a type
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLPartialOrd PartialOrdDeclaration
   | -- | A @lattice@ declaration defining a lattice on a type
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLLattice LatticeDeclaration
   | -- | A Haskell code block (```hs … ```)
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLHsBlock HsBlock
   | -- | A @priority@ declaration defining ordering between rule instances
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLPriority Priority
   | -- | A @query@ declaration specifying a query mode for a relation
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLQuery Query
   | -- | An @include@ statement importing another Fixen file
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLInclude Include
   | -- | An @import@ statement importing a Haskell module
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLImport HsImport
   | -- | A @phases@ declaration defining multi-phase rule execution
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TLPhases PhasesDeclaration
 
 -- | Distributes a flat list of 'TopLevel' declarations into the structured
@@ -267,7 +267,7 @@ data TopLevel
 --   The result is an 'Program' with all fields populated from the
 --   parsed top-level declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 partitionTopLevels :: ParserState σ => ModuleDeclaration -> [TopLevel] -> FixenPass σ Program
 partitionTopLevels mod_decl [] =
   -- Base case: no more top-level declarations — return Program with
@@ -332,7 +332,7 @@ partitionTopLevels mod_decl (x : xs) = do
 --
 -- This declaration is compulsory in every Fixen program.
 --
--- @since 0.0.1
+-- @since 26.7
 parseModuleDeclaration :: ParserState σ => Parser σ ModuleDeclaration
 parseModuleDeclaration = parsePositioned $ do
   -- Parse the 'module' keyword (must not be indented)
@@ -370,7 +370,7 @@ parseModuleDeclaration = parsePositioned $ do
 -- rel Dist: Integer, Integer
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 parseRelation :: ParserState σ => Parser σ RelationDeclaration
 parseRelation = parsePositioned $ do
   -- Parse the 'rel' keyword (must not be indented)
@@ -420,7 +420,7 @@ parseRelation = parsePositioned $ do
 -- so it can be used in expressions only when parenthesized.
 -- For example: @if (a |- b) |- Fact a (b |- a)@
 --
--- @since 0.0.1
+-- @since 26.7
 parseRule :: ParserState σ => Parser σ Rule
 parseRule = parsePositioned $ do
   -- Parse the 'rule' keyword (must not be indented)
@@ -462,14 +462,14 @@ parseRule = parsePositioned $ do
 -- The 'partitionPremises' function separates a flat list of 'RulePremise'
 -- values into two groups: assumptions first, then conditions.
 --
--- @since 0.0.1
+-- @since 26.7
 data RulePremise
   = RPAssumption Assumption
   | RPCondition Condition
 
 -- | Separates a list of 'RulePremise' values into assumptions and conditions.
 --
--- @since 0.0.1
+-- @since 26.7
 partitionPremises
   :: [RulePremise]
   -> ([Assumption], [Condition])
@@ -493,7 +493,7 @@ partitionPremises (x : xs) =
 -- conditions start with the 'if' keyword. Once one matches, we commit
 -- to it.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePremise :: ParserState σ => Parser σ RulePremise
 parsePremise =
   -- Try assumption first (starts with capitalized identifier)
@@ -512,7 +512,7 @@ parsePremise =
 -- The conclusion must start with a capitalized identifier (since facts
 -- are constructor-like), followed by expression arguments.
 --
--- @since 0.0.1
+-- @since 26.7
 parseConclusion :: ParserState σ => Parser σ Conclusion
 parseConclusion = parsePositioned $ do
   -- Verify proper indentation before the conclusion
@@ -542,7 +542,7 @@ parseConclusion = parsePositioned $ do
 -- A 'try' is used here so that if the premise is actually a condition
 -- (starting with 'if'), we can backtrack and try 'parseCondition' instead.
 --
--- @since 0.0.1
+-- @since 26.7
 parseAssumption :: ParserState σ => Parser σ Assumption
 parseAssumption = parsePositioned $ do
   -- Verify proper indentation before the assumption
@@ -570,7 +570,7 @@ parseAssumption = parsePositioned $ do
 -- continuation characters (guaranteed by 'keyword'). The expression
 -- is parsed with indentation checking.
 --
--- @since 0.0.1
+-- @since 26.7
 parseCondition :: ParserState σ => Parser σ Condition
 parseCondition = parsePositioned $ do
   -- Parse the 'if' keyword with indentation checks on both sides
@@ -606,7 +606,7 @@ parseCondition = parsePositioned $ do
 -- The @partial@ keyword must not be indented. The @where@
 -- block contains exactly the three fields above, in that order.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePartialOrd :: ParserState σ => Parser σ PartialOrdDeclaration
 parsePartialOrd = parsePositioned $ do
   -- Parse the 'partial' keyword (must not be indented)
@@ -649,17 +649,17 @@ parsePartialOrd = parsePositioned $ do
 -- keyword "type"  ->  keywordOp "="  ->  parseType indented
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 parsePartialOrdField
   :: ParserState σ
   => Text
   -- ^ Field name (@type@, @leq@, or @mlbs@)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ a
   -- ^ Parser for the field value
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ a
 parsePartialOrdField fieldName valueParser = do
   -- Parse: fieldName = value, with indentation checks between all components
@@ -688,7 +688,7 @@ parsePartialOrdField fieldName valueParser = do
 -- The @lat@ keyword must not be indented. The @where@
 -- block contains exactly the three fields above, in that order.
 --
--- @since 0.0.1
+-- @since 26.7
 parseLattice :: ParserState σ => Parser σ LatticeDeclaration
 parseLattice = parsePositioned $ do
   -- Parse the 'partial' keyword (must not be indented)
@@ -736,7 +736,7 @@ parseLattice = parsePositioned $ do
 -- multiple rules, create multiple priority declarations. This avoids
 -- indentation ambiguity.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePriority :: ParserState σ => Parser σ Priority
 parsePriority = parsePositioned $ do
   -- Parse the 'priority' keyword (must not be indented)
@@ -764,7 +764,7 @@ parsePriority = parsePositioned $ do
 -- Each rule instance consists of a rule name (lowercase identifier)
 -- followed by optional variable substitutions in curly braces.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePriorityConclusion :: ParserState σ => Parser σ PriorityConclusion
 parsePriorityConclusion = parsePositioned $ do
   -- Parse the left-hand side rule instance
@@ -789,7 +789,7 @@ parsePriorityConclusion = parsePositioned $ do
 -- The rule name is a lowercase-starting simple identifier. Substitutions
 -- are comma-separated pairs of identifiers separated by @=@.
 --
--- @since 0.0.1
+-- @since 26.7
 parseRuleInstance :: ParserState σ => Parser σ RuleInstance
 parseRuleInstance = parsePositioned $ do
   -- record the offset so as to throw errors
@@ -828,7 +828,7 @@ parseRuleInstance = parsePositioned $ do
 -- Used within rule instance declarations to specify how variables
 -- are mapped.
 --
--- @since 0.0.1
+-- @since 26.7
 parseSubstitution :: ParserState σ => Parser σ (SimpleIdentifier, SimpleIdentifier)
 parseSubstitution = do
   -- Parse the left-hand side identifier
@@ -858,7 +858,7 @@ parseSubstitution = do
 -- Modes indicate whether each argument of the relation is an input or
 -- output variable for the query.
 --
--- @since 0.0.1
+-- @since 26.7
 parseQuery :: ParserState σ => Parser σ Query
 parseQuery = parsePositioned $ do
   -- Parse the 'query' keyword (must not be indented)
@@ -886,7 +886,7 @@ parseQuery = parsePositioned $ do
 -- The relation name must be capitalized (since relations are
 -- constructor-like), and the arguments must be query modes.
 --
--- @since 0.0.1
+-- @since 26.7
 parseQueriedRelation :: ParserState σ => Parser σ QueriedRelation
 parseQueriedRelation = parsePositioned $ do
   -- Verify proper indentation before the assumption
@@ -908,7 +908,7 @@ parseQueriedRelation = parsePositioned $ do
 -- * @+@ → 'Input' — the argument is an input
 -- * @-@ → 'Output' — the argument is an output
 --
--- @since 0.0.1
+-- @since 26.7
 parseQueryMode :: ParserState σ => Parser σ QueryMode
 parseQueryMode = parsePositioned $ do
   -- Parse the mode symbol with indentation check, consuming trailing whitespace
@@ -931,7 +931,7 @@ parseQueryMode = parsePositioned $ do
 -- Include statements allow one Fixen program to import and reuse
 -- declarations from another Fixen file.
 --
--- @since 0.0.1
+-- @since 26.7
 parseInclude :: ParserState σ => Parser σ Include
 parseInclude = parsePositioned $ do
   -- Parse the 'include' keyword (must not be indented)
@@ -988,7 +988,7 @@ parseImportSpecs = pack <$> parens
 -- Import statements allow a Fixen program to reference Haskell symbols
 -- defined in external modules.
 --
--- @since 0.0.1
+-- @since 26.7
 parseImport :: ParserState σ => Parser σ HsImport
 parseImport = parsePositioned $ do
   -- Parse the 'import' keyword (must not be indented)
@@ -1056,7 +1056,7 @@ parseImport = parsePositioned $ do
 --
 -- Only one @phases@ declaration is allowed per program.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePhases :: ParserState σ => Parser σ PhasesDeclaration
 parsePhases = parsePositioned $ do
   -- Parse the 'phases' keyword (must not be indented)
@@ -1078,7 +1078,7 @@ parsePhases = parsePositioned $ do
 -- *                    -- wildcard (all remaining rules)
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 parsePhaseRuleset :: ParserState σ => Parser σ RulesetOrEverythingElse
 parsePhaseRuleset =
   -- Try explicit ruleset first (starts with '{'), fall back to wildcard
@@ -1093,7 +1093,7 @@ parsePhaseRuleset =
 --
 -- Rule names are separated by commas with indentation checking.
 --
--- @since 0.0.1
+-- @since 26.7
 parseExplicitRuleset :: ParserState σ => Parser σ Ruleset
 parseExplicitRuleset = parsePositioned $ do
   -- Parse the rule names in curly braces with indentation checking
@@ -1108,7 +1108,7 @@ parseExplicitRuleset = parsePositioned $ do
 -- The wildcard must appear at most once and typically comes last in
 -- the phases list, capturing any rules not assigned to explicit rulesets.
 --
--- @since 0.0.1
+-- @since 26.7
 parseEverythingElseRuleset :: ParserState σ => Parser σ EverythingElseRuleset
 parseEverythingElseRuleset = parsePositioned $ do
   -- Parse the wildcard operator
@@ -1136,7 +1136,7 @@ parseEverythingElseRuleset = parsePositioned $ do
 -- programs, typically for defining external symbols referenced by
 -- @extern@ declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 parseHaskellCodeBlock :: ParserState σ => Parser σ HsBlock
 parseHaskellCodeBlock = parsePositioned $ do
   -- Parse the opening fence (```hs) — must not be indented

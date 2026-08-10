@@ -25,7 +25,7 @@
 -- the @type = ...@ of a @partial ord@ declaration. Of course, if the argument
 -- is discrete, the type is written as-is.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.IR.RelationRepresentation where
 
 import Data.IntMap.Strict
@@ -43,22 +43,22 @@ import Fixen.IR.AST
 -- | A 'RelationRepresentation' is just a map from relation names to
 -- 'RelationRepresentationInfo's.
 --
--- @since 0.0.1
+-- @since 26.7
 type RelationRepresentation = Map Text RelationRepresentationInfo
 
 -- | A 'RelationRepresentationInfo' captures information about how
 -- facts ('Fact') are represented in the database ('Database').
 --
--- @since 0.0.1
+-- @since 26.7
 data RelationRepresentationInfo = RelationRepresentationInfo
   { _databaseRepresentation :: Database
   -- ^ The database layout
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _factRepresentation :: Fact
   -- ^ The fact layout
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -87,13 +87,13 @@ instance HasFact RelationRepresentationInfo Fact where
 --   'StoredAsHashSet'.
 -- * The length of the list is equal to the arity of the relation.
 --
--- @since 0.0.1
+-- @since 26.7
 data Database = Database
   { _databaseTypes :: [(QueryType, StoreType, Type)]
   -- ^ The database types. Note that the 'Type' in each
   -- tuple is the __underlying__ type.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _extractionMap :: IntMap Int
   -- ^ A map from fact argument positions to database positions.
   -- For instance, if the \(i^\text{th}\) fact argument corresponds to the
@@ -101,7 +101,7 @@ data Database = Database
   --
   -- This is the inverse of '_insertionMap'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -120,13 +120,13 @@ instance HasMap Database (IntMap Int) where
 --   as 'Meet'.
 -- * The length of the list is equal to the arity of the relation.
 --
--- @since 0.0.1
+-- @since 26.7
 data Fact = Fact
   { _factTypes :: [(QueryType, Type)]
   -- ^ The fact types. Note that the 'Type' in each tuple is the __underlying__
   -- type.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _insertionMap :: IntMap Int
   -- ^ A map from database positions to fact positions.
   -- For instance, if the \(i^\text{th}\) fact argument corresponds to the
@@ -134,7 +134,7 @@ data Fact = Fact
   --
   -- This is the inverse of '_extractionMap'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -146,23 +146,23 @@ instance HasMap Fact (IntMap Int) where
 
 -- | Describes how a type is stored in the database.
 --
--- @since 0.0.1
+-- @since 26.7
 data StoreType = StoredAsHashMap | StoredAsHashSet | StoredAsSingleton
   deriving (Show, Eq)
 
 -- | Describes how you would match against an argument.
 --
--- @since 0.0.1
+-- @since 26.7
 data QueryType
   = -- | Discrete; therefore just a simple match, i.e., HashMap lookup or
     -- equality comparisons
     --
-    -- @since 0.0.1
+    -- @since 26.7
     Match
   | -- | Partially ordered, i.e., set lookup guarded by leq, or
     -- matched via mlbs function
     --
-    -- @since 0.0.1
+    -- @since 26.7
     Meet
       Identifier
       -- ^ The leq function
@@ -171,7 +171,7 @@ data QueryType
   | -- | Partially ordered in a lattice, i.e., set lookup guarded by leq, or
     -- matched via meet function
     --
-    -- @since 0.0.1
+    -- @since 26.7
     LatticeMeet
       Identifier
       -- ^ The leq function

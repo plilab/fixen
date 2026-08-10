@@ -11,7 +11,7 @@
 -- This module provides facilities for tracking and obtaining information of
 -- symbols within a Fixen program.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Env.Symbol where
 
 import Control.Applicative
@@ -39,66 +39,66 @@ import Prelude hiding (concat, show)
 
 -- | The name of stuff.
 --
--- @since 0.0.1
+-- @since 26.7
 type Name = Text
 
 -- | 'NameMap's map names of stuff ('Name') onto other stuff.
 --
--- @since 0.0.1
+-- @since 26.7
 type NameMap = Map Name
 
 -- | 'NodeMap's map node IDs ('NodeId') onto stuff.
 --
--- @since 0.0.1
+-- @since 26.7
 type NodeMap = IntMap
 
 -- | 'NodeSet's are sets of node IDs ('NodeId').
 --
--- @since 0.0.1
+-- @since 26.7
 type NodeSet = IntSet
 
 -- | The symbol environment.
 --
--- @since 0.0.1
+-- @since 26.7
 data SymbolEnv = SymbolEnv
   { _relationMap :: NameMap RelationInfo
   -- ^ Information about relation symbols
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _relationParamKindMap :: NameMap Kind
   -- ^ Kind information about the "types" (more accurately, relation parameters)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _partialOrdMap :: NameMap PartialOrdDeclaration
   -- ^ Information about partial ord symbols
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _latticeMap :: NameMap LatticeDeclaration
   -- ^ Information about partial ord symbols
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleMap :: NodeMap RuleInfo
   -- ^ Information about rules. Importantly, rules may not be named,
   -- so we use their node IDs to keep track of them.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _queryMap :: NameMap Query
   -- ^ Information about query symbols
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _externMap :: NameMap NodeId
   -- ^ Information about extern symbols. Each name is mapped to the node ID of
   -- its first occurrence.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _phaseInfo :: NonEmpty NodeSet
   -- ^ Information about phases of the program.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _priorityMap :: NodeMap PriorityInfo
   -- ^ Information about the priority declarations of the program.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -131,18 +131,18 @@ instance HasPriorityInfos SymbolEnv (NodeMap PriorityInfo) where
 
 -- | Information about relations in the program.
 --
--- @since 0.0.1
+-- @since 26.7
 data RelationInfo = RelationInfo
   { _relationDeclaration :: RelationDeclaration
   -- ^ The 'RelationDeclaration'
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _relationArgMatchInfo :: [RelationArgMatchInfo]
   -- ^ Information about whether relation arguments are ever matched in rules.
   -- The \(i^\text{th}\) element corresponds to the matching information for
   -- the \(i^\text{th}\) argument to the relation.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -154,29 +154,29 @@ instance HasMatchInfos RelationInfo [RelationArgMatchInfo] where
 
 -- | Information about whether a relation argument is matched in rules.
 --
--- @since 0.0.1
+-- @since 26.7
 data RelationArgMatchInfo = Unmatched | Matched
   deriving
     (Show, Eq)
 
 -- | Kind information about relation argument types.
 --
--- @since 0.0.1
+-- @since 26.7
 data Kind = Discrete | PartiallyOrdered | Lattice
   deriving (Show, Eq)
 
 -- | Information about rules.
 --
--- @since 0.0.1
+-- @since 26.7
 data RuleInfo = RuleInfo
   { _ruleDeclaration :: Rule
   -- ^ The 'Rule' declaration
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleBoundVars :: NameMap RuleParameterInfo
   -- ^ Information about the rule's parameters
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -188,19 +188,19 @@ instance HasArgs RuleInfo (NameMap RuleParameterInfo) where
 
 -- | Information about rule parameters
 --
--- @since 0.0.1
+-- @since 26.7
 data RuleParameterInfo = RuleParameterInfo
   { _ruleParamType :: TypeLattice
   , _ruleParamUsage :: [UsageInfo]
   -- ^ Where it is declared (rule/priority representative).
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleParamVar :: SimpleIdentifier
   -- ^ Where the variable appears. It could be one of the arguments in an
   -- assumption (if no explicit local vars were provided), or one of the
   -- variables explicitly specified as a rule local variable
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -215,23 +215,23 @@ instance HasVar RuleParameterInfo SimpleIdentifier where
 
 -- | Information about priority declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 data PriorityInfo = PriorityInfo
   { _priorityDeclaration :: Priority
   -- ^ The 'Priority' declaration
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _priorityLocalVars :: NameMap (NodeId, SimpleIdentifier)
   -- ^ The keys are the local variables themselves, the values are the rule
   -- parameters it is attached to and the var itself.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _priorityRules :: (NodeId, NodeId)
   -- ^ The 'NodeId's of the rule instances in this priority declaration. The
   -- first projection is the priority's LHS, and the second projection is the
   -- rule's RHS.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Show, Eq)
 
@@ -258,88 +258,88 @@ instance HasRHS PriorityInfo NodeId where
 
 -- | Information about types during type checking.
 --
--- @since 0.0.1
+-- @since 26.7
 data TypeLattice
   = -- | Not sure what the type is, particularly due to Haskell expressions
     --
-    -- @since 0.0.1
+    -- @since 26.7
     Dynamic
   | -- | A type known by Fixen
     --
-    -- @since 0.0.1
+    -- @since 26.7
     ActualType
       Type
       -- ^ The actual 'Type'
       --
-      -- @since 0.0.1
+      -- @since 26.7
       TypeEvidence
       -- ^ First discovered usage that gives us information about why the type
       -- is as such
       --
-      -- @since 0.0.1
+      -- @since 26.7
   | -- | Ill-typed.
     --
-    -- @since 0.0.1
+    -- @since 26.7
     Bottom
   deriving (Show, Eq)
 
 -- | Evidence of a term having a type.
 --
--- @since 0.0.1
+-- @since 26.7
 data TypeEvidence
   = -- | Type was ascribed because it was used in an assumption
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TypedViaAssumption
       Int
       -- ^ The ith assumption of the rule
       --
-      -- @since 0.0.1
+      -- @since 26.7
       Int
       -- ^ The jth argument to the assumption
       --
-      -- @since 0.0.1
+      -- @since 26.7
   | -- | Type was ascribed because it was used in the conclusion
     --
-    -- @since 0.0.1
+    -- @since 26.7
     TypedViaConclusion
       Int
       -- ^ The ith argument to the conclusion
       --
-      -- @since 0.0.1
+      -- @since 26.7
   deriving (Show, Eq)
 
 -- | Information about the usage of a rule parameter
 --
--- @since 0.0.1
+-- @since 26.7
 data UsageInfo
   = -- | The rule parameter is used in an assumtion
     --
-    -- @since 0.0.1
+    -- @since 26.7
     UsedInAssumption
       Int
       -- ^ The ith assumption of the rule
       --
-      -- @since 0.0.1
+      -- @since 26.7
       Int
       -- ^ The jth argument to the assumption
       --
-      -- @since 0.0.1
+      -- @since 26.7
   | -- | Used in one of the rule's conditions. At the moment, it is not
     -- necessary track which condition a variable is used in
     --
-    -- @since 0.0.1
+    -- @since 26.7
     UsedInCondition
   | -- | Used somewhere in the rule's conclusion. At the moment, it is not
     -- necessary to track where in the conclusion is the variable used
     --
-    -- @since 0.0.1
+    -- @since 26.7
     UsedInConclusion
   deriving (Show, Eq)
 
 -- | The types of states that contain a 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 type WithSymbolEnv σ = σ :>: SymbolEnv
 
 isUsedInAssumption :: UsageInfo -> Bool

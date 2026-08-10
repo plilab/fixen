@@ -22,7 +22,7 @@
 -- 5. The @mergeContour@ function for obtaining new facts generated from
 --    map-entry merging ('codeGenMergeContour')
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.Database where
 
 import Data.List.NonEmpty (NonEmpty (..))
@@ -47,7 +47,7 @@ import Prelude hiding (map)
 
 -- | Generates the Haskell source code for dealing with fact databases.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenDb :: RelationRepresentation -> FixenPass CodeGenState Text
 codeGenDb r = do
   let db_def = codeGenDbDef r
@@ -70,7 +70,7 @@ codeGenDb r = do
 
 -- | Generates the @Database@ type.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenDbDef :: RelationRepresentation -> Text
 codeGenDbDef r =
   let facts = Map.toList r
@@ -86,13 +86,13 @@ codeGenDbDef r =
 
 -- | Generates an individual field in the @Database@ type.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenDbField 
   :: (Text, RelationRepresentationInfo)  
   -- ^ The 'Text' is the relation name, the 'RelationRepresentationInfo' is its
   -- representation information.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Text
 codeGenDbField (t, r) =
   let db_ty_code =
@@ -103,7 +103,7 @@ codeGenDbField (t, r) =
 
 -- | Builds the 'Type' of the database representation.
 --
--- @since 0.0.1
+-- @since 26.7
 buildDbFieldType
   :: [(QueryType, StoreType, Type)]
   -- ^ The relation representation's types.
@@ -136,7 +136,7 @@ buildDbFieldType ((Match, _, t) : xs) =
 
 -- | Generates the definition of @emptyDb@.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEmptyDb :: RelationRepresentation -> Text
 codeGenEmptyDb r =
   let header =
@@ -153,13 +153,13 @@ codeGenEmptyDb r =
 
 -- | Generates the field of an @emptyDb@.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEmptyDbFields 
   :: (Text, RelationRepresentationInfo)
   -- ^ The 'Text' is the relation name, and the 'RelationRepresentationInfo'
   -- is its information.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Text
 codeGenEmptyDbFields (t, r) =
   let field_name = dbFactSelector t
@@ -182,7 +182,7 @@ codeGenEmptyDbFields (t, r) =
 
 -- | Generates the @|=@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEntailment :: RelationRepresentation -> FixenPass CodeGenState Text
 codeGenEntailment rep = do
   let ty_decl = 
@@ -197,7 +197,7 @@ codeGenEntailment rep = do
 
 -- | Generates a case for @|=@.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEntailmentCase 
   :: (Text, RelationRepresentationInfo)
   -- ^ The 'Text' is the name of the relation, and the 'RelationRepresentationInfo'
@@ -453,7 +453,7 @@ codeGenEntailmentCase (rel_name, rep_info)
 -- facts into the database. It does not perform joins at all. The inserted 
 -- facts must be maximal, and never be subsumed by anything in the database.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenInsert :: RelationRepresentation -> FixenPass CodeGenState Text
 codeGenInsert rep = do
   let ty_decl = 
@@ -466,7 +466,7 @@ codeGenInsert rep = do
 
 -- Generates a case for the @insertToDb@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenInsertCase
   :: (Text, RelationRepresentationInfo)
   -- ^ The 'Text' is the relation's name
@@ -662,7 +662,7 @@ codeGenInsertCase (rel_name, rep_info)
 -- | This function generates the @mergeContour@ function, which is used to
 -- obtain all new facts created from lattice joins.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenMergeContour :: RelationRepresentation -> Text
 codeGenMergeContour r =
   let header = "mergeContour :: Fact -> Database -> [Fact]"
@@ -671,7 +671,7 @@ codeGenMergeContour r =
 
 -- | Generates a single case for @mergeContour@.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenMergeContourCase 
   :: (Text, RelationRepresentationInfo) 
   -- ^ The 'Text' is the name of the relation, the 'RelationRepresentationInfo' 

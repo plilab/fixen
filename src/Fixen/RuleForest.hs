@@ -10,7 +10,7 @@
 --
 -- This module defines how 'RuleForest's are generated from 'Program's.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.RuleForest where
 
 import Data.Bifunctor
@@ -37,12 +37,12 @@ import Fixen.Utils
 --
 -- It must consist of a 'SymbolEnv' for obtaining information about the program.
 --
--- @since 0.0.1
+-- @since 26.7
 type RuleForestState σ = (WithSymbolEnv σ)
 
 -- | Obtains the rule forests of a program.
 --
--- @since 0.0.1
+-- @since 26.7
 getRuleForest :: RuleForestState σ => Program -> FixenPass σ (NonEmpty RuleForest)
 getRuleForest prog = do
   -- get all phases in the program. we are getting them from the SymbolEnv
@@ -102,7 +102,7 @@ getRuleForest prog = do
 -- and continuing down the assumptions of the rule (in the order as written)
 -- until we arrive at the same conclusion.
 --
--- @since 0.0.1
+-- @since 26.7
 getBranch :: Rule -> NonEmpty RuleForest
 getBranch r =
   -- Note that this function does not perform any recursion; recursing down
@@ -227,7 +227,7 @@ getBranch r =
 -- | Merges all the rule forests in a phase. The result is a single
 -- 'RuleForest'.
 --
--- @since 0.0.1
+-- @since 26.7
 mergePhaseForests
   :: NonEmpty RuleForest
   -- ^ The 'RuleForest's of this phase
@@ -238,7 +238,7 @@ mergePhaseForests (x :| xs) = foldl' mergeForests x xs
 -- (merging TREES may not succeed, but remember that a 'RuleForest' is sort of
 -- a LIST of trees!)
 --
--- @since 0.0.1
+-- @since 26.7
 mergeForests :: RuleForest -> RuleForest -> RuleForest
 mergeForests
   RuleForest {_ruleForestTrees = t1, _ruleForestLeaves = l1}
@@ -252,7 +252,7 @@ mergeForests
 -- /Invariant/: In each list, the 'RuleTreeChoppedHead's are mutually
 -- un-mergeable.
 --
--- @since 0.0.1
+-- @since 26.7
 mergeRuleTreeChoppedHeads
   :: NonEmpty RuleTreeChoppedHead
   -> NonEmpty RuleTreeChoppedHead
@@ -280,17 +280,17 @@ mergeRuleTreeChoppedHeads l (y :| ys) =
 --
 -- /Invariant/: The list of 'RuleTreeChoppedHead's are mutually un-mergeable.
 --
--- @since 0.0.1
+-- @since 26.7
 tryMergeRuleTreeChoppedHeadIntoList
   :: NonEmpty RuleTreeChoppedHead
   -- ^ The list of 'RuleTreeChoppedHead's that are mutually un-mergeable
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> RuleTreeChoppedHead
   -- ^ The 'RuleTreeChoppedHead' to try merging into any one of the
   -- 'RuleTreeChoppedHead's in the list
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Maybe (NonEmpty RuleTreeChoppedHead)
 tryMergeRuleTreeChoppedHeadIntoList (x :| xs) t =
   -- first try merging x with t
@@ -310,7 +310,7 @@ tryMergeRuleTreeChoppedHeadIntoList (x :| xs) t =
 -- | Attempts to merge two 'RuleTreeChoppedHead's. It is not guaranteed to
 -- succeed. It fails primarily whenever the two argument lists are different.
 --
--- @since 0.0.1
+-- @since 26.7
 tryMergeRuleTreeChoppedHeads :: RuleTreeChoppedHead -> RuleTreeChoppedHead -> Maybe RuleTreeChoppedHead
 tryMergeRuleTreeChoppedHeads
   RuleTreeChoppedHead {_ruleTreeChoppedHeadArgs = a1, _ruleTreeChoppedHeadBranches = b1}

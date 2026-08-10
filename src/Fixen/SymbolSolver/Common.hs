@@ -8,7 +8,7 @@
 --
 -- This module provides miscellaneous definitions used by the symbol solver.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Common where
 
 import Data.List.NonEmpty
@@ -30,7 +30,7 @@ import Fixen.Utils
 --   * 'PositionEnv' — maps 'NodeId' values to source positions
 --   * 'FixenErrors' — accumulated error diagnostics
 --
--- @since 0.0.1
+-- @since 26.7
 type SymbolState σ = (WithPositionEnv σ, WithErrors σ) -- PositionEnv :*: NodeId :*: FixenErrors
 
 --------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ type SymbolState σ = (WithPositionEnv σ, WithErrors σ) -- PositionEnv :*: Nod
 -- | Obtains all simple identifiers within a type. This excludes any
 -- fully qualified names.
 --
--- @since 0.0.1
+-- @since 26.7
 getAllTypeNames :: Type -> Set.Set SimpleIdentifier
 getAllTypeNames (TypeName _ (IdentifierSimpleIdentifier n)) = Set.singleton n
 getAllTypeNames (TypeApp _ lhs rhs) = getAllTypeNames lhs ∪ getAllTypeNames rhs
@@ -53,14 +53,14 @@ getAllTypeNames _ = Set.empty
 -- | Obtains all simple identifiers within a list of types. This excludes any
 -- fully qualified names.
 --
--- @since 0.0.1
+-- @since 26.7
 getAllTypeNamesList :: [Type] -> Set.Set SimpleIdentifier
 getAllTypeNamesList = Set.unions . fmap getAllTypeNames
 
 -- | Obtains all simple identifiers within an expression. This excludes any
 -- fully qualified names.
 --
--- @since 0.0.1
+-- @since 26.7
 getAllExprNames :: Expr -> Set.Set SimpleIdentifier
 getAllExprNames (ExprVar _ (IdentifierSimpleIdentifier n)) = Set.singleton n
 getAllExprNames (ExprApp _ lhs rhs) = getAllExprNames lhs ∪ getAllExprNames rhs
@@ -71,14 +71,14 @@ getAllExprNames _ = Set.empty
 -- | Obtains all simple identifiers within a list of expressions. This excludes
 -- any fully qualified names.
 --
--- @since 0.0.1
+-- @since 26.7
 getAllExprNamesList :: [Expr] -> Set.Set SimpleIdentifier
 getAllExprNamesList = (⋃) . fmap getAllExprNames
 
 -- | Obtains only simple identifiers from an identifier. Fully qualified names
 -- are excluded.
 --
--- @since 0.0.1
+-- @since 26.7
 getSimpleIdentifierFromIdentifier :: Identifier -> Set.Set SimpleIdentifier
 getSimpleIdentifierFromIdentifier (IdentifierSimpleIdentifier i) = Set.singleton i
 getSimpleIdentifierFromIdentifier _ = Set.empty

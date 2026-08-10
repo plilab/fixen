@@ -20,7 +20,7 @@
 -- 4. The @Ord RuleInstance@ instance and priorities ('codeGenPriorities')
 -- 5. The @Queue@ type ('codeGenQueueDef')
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.RuleInstance where
 
 import Data.IntMap.Strict qualified as IntMap
@@ -43,7 +43,7 @@ import Prelude hiding (map)
 
 -- | Generates the Haskell source code for dealing with rule instances.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenRuleInstance :: FixenPass CodeGenState Text
 codeGenRuleInstance = do
   let eq_instance = codeGenEqInstance
@@ -69,7 +69,7 @@ codeGenRuleInstance = do
 
 -- | Generates the @RuleInstance@ datatype.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenRuleInstanceDef :: FixenPass CodeGenState Text
 codeGenRuleInstanceDef = do
   rule_map <- fixenGetRuleInfo
@@ -90,7 +90,7 @@ codeGenRuleInstanceDef = do
 
 -- | Generates a constructor for the @RuleInstance@ type.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenRuleInstanceConstructor
   :: RuleInfo
   -> FixenPass CodeGenState (Maybe Text)
@@ -122,7 +122,7 @@ codeGenRuleInstanceConstructor r = do
 
 -- | Generates the name (constructor) of a rule instance.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenRuleInstanceName :: Rule -> Text
 codeGenRuleInstanceName the_rule
   | Nothing <- the_rule ^. name =
@@ -136,7 +136,7 @@ codeGenRuleInstanceName the_rule
 
 -- | Generates the @Eq RuleInstance@ instance.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEqInstance :: Text
 codeGenEqInstance =
   """
@@ -149,7 +149,7 @@ codeGenEqInstance =
 -- | Generates the @Ord RuleInstance@ instance, which uses the Fixen program's
 -- @priority@ declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenPriorities :: FixenPass CodeGenState Text
 codeGenPriorities = do
   priority_info <- values <$> fixenGetPriorities
@@ -178,7 +178,7 @@ codeGenPriorities = do
 
 -- | Generates a @<@ case using a @priority@ declaration.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenPriority :: PriorityInfo -> FixenPass CodeGenState Text
 codeGenPriority p_info = do
   rule_info_map <- fixenGetRuleInfo
@@ -217,7 +217,7 @@ codeGenPriority p_info = do
 
 -- | Generates the @Queue@ type.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenQueueDef :: FixenPass CodeGenState Text
 codeGenQueueDef = do
   let header = "type Queue = Q.MaxQueue "
@@ -232,7 +232,7 @@ codeGenQueueDef = do
 
 -- | Generates the @evaluate@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEvaluate :: FixenPass CodeGenState Text
 codeGenEvaluate = do
   rule_info_map <- fixenGetRuleInfo
@@ -243,7 +243,7 @@ codeGenEvaluate = do
 
 -- | Generates a case for the @evaluate@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEvaluateCase :: RuleInfo -> Text
 codeGenEvaluateCase rule_info =
   let rule_declaration = rule_info ^. declaration

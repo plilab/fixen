@@ -25,7 +25,7 @@
 --    ('codeGenInsertToInterpretation')
 -- 9. The @evaluatePhased@ function definition ('codeGenEvaluatePhased')
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.MultiPhase where
 
 import Data.List.NonEmpty qualified as NonEmpty
@@ -44,7 +44,7 @@ import Fixen.Utils
 -- | Generates the Haskell source code for dealing with multi-phase Fixen
 -- programs.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenMultiPhase :: FixenPass CodeGenState Text
 codeGenMultiPhase = do
   num_phases <- NonEmpty.length <$> fixenGetPhases
@@ -73,7 +73,7 @@ codeGenMultiPhase = do
 
 -- | Generates the @Interpretation@ type alias.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenInterpretationDef :: Int -> Text
 codeGenInterpretationDef n =
   Text.concat
@@ -86,7 +86,7 @@ codeGenInterpretationDef n =
 
 -- | Generates the @emptyInterpretation@ definition.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEmptyInterpretation :: Int -> Text
 codeGenEmptyInterpretation n =
   Text.concat
@@ -99,7 +99,7 @@ codeGenEmptyInterpretation n =
 
 -- | Generates the @Phases@ type.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenPhasesDef :: Int -> Text
 codeGenPhasesDef n =
   Text.concat
@@ -111,7 +111,7 @@ codeGenPhasesDef n =
 
 -- | Generates the @nextPhase@ function
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenNextPhaseDef :: Int -> Text
 codeGenNextPhaseDef n =
   Text.append "nextPhase :: Phase -> Phase\n" $
@@ -130,7 +130,7 @@ codeGenNextPhaseDef n =
 
 -- | Generates the @selectDb@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenSelectDbDef :: Int -> Text
 codeGenSelectDbDef n =
   Text.append "selectDb :: Interpretation -> Phase -> Database\n" $
@@ -151,7 +151,7 @@ codeGenSelectDbDef n =
 
 -- | Generates the @||=@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenInterpretationEntailment :: Text
 codeGenInterpretationEntailment =
   """
@@ -165,7 +165,7 @@ codeGenInterpretationEntailment =
 
 -- | Generates the @replaceDb@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenReplaceDb :: Int -> Text
 codeGenReplaceDb n =
   Text.append "replaceDb :: Interpretation -> Database -> Phase -> Interpretation\n" $
@@ -199,7 +199,7 @@ codeGenReplaceDb n =
 
 -- | Generates the @insertToInterpretation@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenInsertToInterpretation :: Text
 codeGenInsertToInterpretation =
   """
@@ -214,7 +214,7 @@ codeGenInsertToInterpretation =
 
 -- | Generates the @evaluatePhased@ function.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenEvaluatePhased :: Text
 codeGenEvaluatePhased =
   """

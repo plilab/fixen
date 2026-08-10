@@ -9,7 +9,7 @@
 --     This module provides facilities for solving partial ord declaration
 --     symbols.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.PartialOrdDeclaration where
 
 import Control.Lens
@@ -35,7 +35,7 @@ import Fixen.Utils
 -- and mlbs symbols are added as extern symbols to the environment (see
 -- "Fixen.SymbolSolver.Extern").
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithPartialOrd
   :: SymbolState σ
   => SymbolEnv
@@ -82,7 +82,7 @@ initEnvWithPartialOrd env p = do
 -- its types, leq and mlbs symbols, are validated as they are being inserted
 -- by 'initEnvWithExternSymbol'.
 --
--- @since 0.0.1
+-- @since 26.7
 validatePartialOrd :: SymbolState σ => SymbolValidator σ PartialOrdDeclaration
 validatePartialOrd = validate r
   where

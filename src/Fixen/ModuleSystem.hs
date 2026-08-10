@@ -25,7 +25,7 @@
 --     * 'combineProgram' — merges two programs (rules, relations, etc.)
 --     * 'safeReadFile' — reads a file with graceful error handling
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.ModuleSystem where
 
 import Control.Exception qualified as Exception
@@ -57,7 +57,7 @@ import System.IO (readFile')
 --   * 'NodeId' — the current node ID counter (incremented on each new node)
 --   * 'FixenErrors' — accumulated error diagnostics
 --
--- @since 0.0.1
+-- @since 26.7
 type ModuleSystemState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 
 -- | Process all @include@ statements in a parsed Fixen program.
@@ -85,7 +85,7 @@ type ModuleSystemState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --   happen in normal operation since the parser always records exactly one
 --   file per parse result).
 --
--- @since 0.0.1
+-- @since 26.7
 getIncludes :: ModuleSystemState σ => Program -> FixenPass σ Program
 getIncludes in_program = do
   -- Step 1: Extract the canonical file path of the source file from the
@@ -138,7 +138,7 @@ getIncludes in_program = do
 -- include path is @lib/utils@, the resolved path will be
 -- @/home/user/project/lib/utils.fix@.
 --
--- @since 0.0.1
+-- @since 26.7
 resolveIncludeToPath
   :: MonadIO μ
   => FilePath
@@ -171,7 +171,7 @@ resolveIncludeToPath file_path incl = do
 --   * /New file/ — read the file, parse it, combine it into the program,
 --     resolve its own includes, and add them to the front of the queue.
 --
--- @since 0.0.1
+-- @since 26.7
 loop
   :: ModuleSystemState σ
   => Program
@@ -241,7 +241,7 @@ loop in_prog v ((p, i) : ps)
 -- All other fields (module name, includes, etc.) are preserved from
 -- @in_prog@.
 --
--- @since 0.0.1
+-- @since 26.7
 combineProgram 
   :: Program -- ^ The current program
   -> Program -- ^ The program to combine with the current program
@@ -299,7 +299,7 @@ combineProgram in_prog new_prog =
 --   This gives the user enough information to diagnose missing files,
 --   permission errors, or other I/O problems.
 --
--- @since 0.0.1
+-- @since 26.7
 safeReadFile
   :: ModuleSystemState σ
   => FilePath
@@ -342,7 +342,7 @@ safeReadFile file_path include = do
 -- 1. At least one relation
 -- 2. At least one rule
 --
--- @since 0.0.1
+-- @since 26.7
 highLevelStructuralChecks :: ModuleSystemState σ => Program -> FixenPass σ Program
 highLevelStructuralChecks prog = do
   when (null (prog ^. relationDeclarations)) $

@@ -16,7 +16,7 @@
 --     * 'Fixen.Monad.Env.Position' — source position tracking
 --     * 'Fixen.Monad.Env.Symbol' — Symbol information
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Env (
   module Fixen.Monad.Env.Errors,
   module Fixen.Monad.Env.NodeId,

@@ -20,7 +20,7 @@
 --     at the start of parsing and incremented throughout the parsing and
 --     processing pipeline.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Env.NodeId where
 
 import Control.Monad.State.Strict (
@@ -43,7 +43,7 @@ import Fixen.Utils
 --   PositionEnv :*: NodeId :*: FixenErrors
 --   @
 --
--- @since 0.0.1
+-- @since 26.7
 type NodeIded σ = σ :>: NodeId
 
 -- | Allocate a new unique 'NodeId' and increment the counter in the state.
@@ -69,7 +69,7 @@ type NodeIded σ = σ :>: NodeId
 --   -- newId :: NodeId  — a unique, never-before-seen identifier
 --   @
 --
--- @since 0.0.1
+-- @since 26.7
 getNewNodeId :: (NodeIded σ, MonadState σ μ) => μ NodeId
 getNewNodeId = do
   st <- get

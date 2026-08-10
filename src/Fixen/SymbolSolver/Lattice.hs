@@ -23,7 +23,7 @@ import Fixen.Utils
 -- and meet symbols are added as extern symbols to the environment (see
 -- "Fixen.SymbolSolver.Extern").
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithLattice
   :: SymbolState σ
   => SymbolEnv
@@ -72,7 +72,7 @@ initEnvWithLattice env p = do
 -- its types, leq and mlbs symbols, are validated as they are being inserted
 -- by 'initEnvWithExternSymbol'.
 --
--- @since 0.0.1
+-- @since 26.7
 validateLattice :: SymbolState σ => SymbolValidator σ LatticeDeclaration
 validateLattice = validate r
   where

@@ -39,7 +39,7 @@
 --       diagnostics before terminating. 'runFixenPass' checks
 --       for accumulated errors and fails if any are present.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Env.Errors (
   -- * Errors
   FixenFileMap,
@@ -103,7 +103,7 @@ import Prettyprinter (Pretty)
 --   so the list may contain duplicates if the same file is inserted multiple
 --   times.
 --
--- @since 0.0.1
+-- @since 26.7
 type FixenFileMap = [(FilePath, String)]
 
 -- | The error accumulator carried in the pass state.
@@ -116,18 +116,18 @@ type FixenFileMap = [(FilePath, String)]
 --   * 'fixenErrorsDiagnostic' — the actual diagnostics ('FixenErrorResult'),
 --     which is a 'Diagnostic' of 'String' values
 --
--- @since 0.0.1
+-- @since 26.7
 data FixenErrors = FixenErrors
   { fixenErrorsFileMap :: FixenFileMap
   -- ^ The file map providing source context for diagnostic messages.
   --   Files are stored as (path, contents) pairs.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , fixenErrorsDiagnostic :: FixenErrorResult
   -- ^ The accumulated diagnostic messages. This includes both errors
   --   and warnings; use 'fixenHasErrors' to distinguish between them.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
 
 instance HasFileMap FixenErrors FixenFileMap where
@@ -145,7 +145,7 @@ instance Monoid FixenErrors where
 
 -- | Constraint alias indicating that a state type @σ@ contains 'FixenErrors'.
 --
--- @since 0.0.1
+-- @since 26.7
 type WithErrors σ = σ :>: FixenErrors
 
 -------------------------------------------------------------------------------
@@ -156,7 +156,7 @@ type WithErrors σ = σ :>: FixenErrors
 
 -- | Gets the 'FixenErrors' from the state.
 --
--- @since 0.0.1
+-- @since 26.7
 getFixenErrors :: (WithErrors σ, MonadState σ μ) => μ FixenErrors
 getFixenErrors = do
   st <- get
@@ -164,7 +164,7 @@ getFixenErrors = do
 
 -- | Sets a new 'FixenErrors' to the state.
 --
--- @since 0.0.1
+-- @since 26.7
 setFixenErrors :: (WithErrors σ, MonadState σ μ) => FixenErrors -> μ ()
 setFixenErrors e = do
   st <- get
@@ -174,17 +174,17 @@ setFixenErrors e = do
 {- FOURMOLU_DISABLE -}
 -- | Insert a file into the error accumulator's file map.
 --
--- @since 0.0.1
+-- @since 26.7
 insertFileMap
   :: (WithErrors σ, MonadState σ μ)
   => FilePath
   -- ^ The file's path
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The file's contents
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 insertFileMap fp s = do
   errs <- getFixenErrors
@@ -197,21 +197,21 @@ insertFileMap fp s = do
 
 -- | The canonical runner for a compiler pass.
 --
--- @since 0.0.1
+-- @since 26.7
 runFixenPass
   :: WithErrors σ
   => (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
   -- ^ Function for printing diagnostics (e.g., to the console)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> σ
   -- ^ The state to run with
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ α
   -- ^ The compiler pass
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenM (α, σ)
 runFixenPass print_errs st monad = do
   (res, state') <- ExceptT $ Right <$> runStateT (runMaybeT monad) st
@@ -238,7 +238,7 @@ runFixenPass print_errs st monad = do
 --   attempt parsing an included file — if parsing fails, the file is
 --   simply skipped rather than aborting the entire pass.
 --
--- @since 0.0.1
+-- @since 26.7
 fixenTry :: FixenPass s a -> FixenPass s (Maybe a)
 fixenTry fp = MaybeT $ Just <$> runMaybeT fp
 
@@ -248,7 +248,7 @@ fixenTry fp = MaybeT $ Just <$> runMaybeT fp
 --   violations or internal errors where you don't have structured
 --   diagnostic information.
 --
--- @since 0.0.1
+-- @since 26.7
 failS
   :: (WithErrors σ, MonadState σ μ, MonadPlus μ)
   => String
@@ -259,7 +259,7 @@ failS msg =
 
 -- | Fail the pass with a 'Report'.
 --
--- @since 0.0.1
+-- @since 26.7
 failR
   :: (WithErrors σ, MonadState σ μ, MonadPlus μ)
   => Report String
@@ -269,38 +269,38 @@ failR rep = accumR rep >> mzero
 
 -- | Fail the pass with an error message. Internally, this calls 'failR'.
 --
--- @since 0.0.1
+-- @since 26.7
 failErr
   :: (WithErrors σ, MonadState σ μ, MonadPlus μ)
   => Maybe String
   -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The error message, shown at the very top
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [(Position, Marker String)]
   -- ^ A list associating positions with markers
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ A potentially empty list of notes/hints added to the end of the report
   -- ^ The error report
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ a
 failErr err_code err_msg markers notes = failR $ Err err_code err_msg markers notes
 
 -- | Fail the pass with a 'Diagnostic'.
 --
--- @since 0.0.1
+-- @since 26.7
 failD
   :: (WithErrors σ, MonadState σ μ, MonadPlus μ)
   => Diagnostic String
   -- ^ The diagnostic
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ a
 failD rep = accumD rep >> mzero
 
@@ -310,7 +310,7 @@ failD rep = accumD rep >> mzero
 --   pass: you can accumulate errors freely in the first section, then
 --   call 'failIfErrored' before proceeding to the second section.
 --
--- @since 0.0.1
+-- @since 26.7
 failIfErrored
   :: (WithErrors σ, MonadState σ μ, MonadPlus μ)
   => μ ()
@@ -332,18 +332,18 @@ failIfErrored = do
 --   'accumR' calls can be made, and the errors are combined via the 'Semigroup'
 --   instance.
 --
--- @since 0.0.1
+-- @since 26.7
 accumR
   :: (MonadState σ μ, WithErrors σ)
   => Report String
   -- ^ The report to add
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 accumR rep = do
   -- Get the current state
   --
-  -- @since 0.0.1
+  -- @since 26.7
   fixen_state <- get
   -- Extract the FixenErrors from the state
   let errs :: FixenErrors = (↓) fixen_state
@@ -364,52 +364,52 @@ accumR rep = do
 --   current state, extracts the 'FixenErrors', adds the report to the
 --   diagnostic, and writes the updated state back. Internally, it uses 'accumR'.
 --
--- @since 0.0.1
+-- @since 26.7
 accumErr
   :: (WithErrors σ, MonadState σ μ)
   => Maybe String
   -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The error message, shown at the very top
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [(Position, Marker String)]
   -- ^ A list associating positions with markers
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ A potentially empty list of notes/hints added to the end of the report
   -- ^ The error report
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 accumErr err_code err_msg markers notes = accumR $ Err err_code err_msg markers notes
 
 -- | Add a warning to the error accumulator __without failing__. Internally,
 -- it uses 'accumR'.
 --
--- @since 0.0.1
+-- @since 26.7
 accumWarn
   :: (WithErrors σ, MonadState σ μ)
   => Maybe String
   -- ^ Optional error code to be shown right next to \"error\" or \"warning\"
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The warning message, shown at the very top
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [(Position, Marker String)]
   -- ^ A list associating positions with markers
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ A potentially empty list of notes/hints added to the end of the report
   -- ^ The error report
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 accumWarn err_code err_msg markers notes = accumR $ Warn err_code err_msg markers notes
 
@@ -422,13 +422,13 @@ accumWarn err_code err_msg markers notes = accumR $ Warn err_code err_msg marker
 --   This is used when you have a pre-built 'Diagnostic' object, such as
 --   one produced by the parser's error reporting.
 --
--- @since 0.0.1
+-- @since 26.7
 accumD
   :: (MonadState σ μ, WithErrors σ)
   => Diagnostic String
   -- ^ The diagnostic to add
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> μ ()
 accumD d = do
   -- Get the current state
@@ -450,13 +450,13 @@ accumD d = do
 
 -- | Reset all diagnostics in a 'FixenErrors' while preserving the file map.
 --
--- @since 0.0.1
+-- @since 26.7
 resetErrors :: FixenErrors -> FixenErrors
 resetErrors FixenErrors {fixenErrorsFileMap = ls} = emptyErrors ls
 
 -- | Create a fresh 'FixenErrors' from a file map, with all diagnostics cleared.
 --
--- @since 0.0.1
+-- @since 26.7
 emptyErrors :: FixenFileMap -> FixenErrors
 emptyErrors ls =
   let d = foldl' (\r (fp, s) -> addFile r fp s) mempty ls
@@ -464,7 +464,7 @@ emptyErrors ls =
 
 -- | Determines if a 'FixenErrors' contains any error reports (warnings are ignored).
 --
--- @since 0.0.1
+-- @since 26.7
 fixenHasErrors :: FixenErrors -> Bool
 fixenHasErrors FixenErrors {fixenErrorsDiagnostic = b} =
   let rep = reportsOf b

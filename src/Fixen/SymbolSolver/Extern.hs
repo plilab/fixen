@@ -10,7 +10,7 @@
 --
 --     Symbols are treated as external whenever they are not declared with Fixen.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Extern where
 
 import Control.Lens
@@ -33,7 +33,7 @@ import Fixen.SymbolSolver.Validation
 -- | Inserts an external symbol into a 'SymbolEnv'. If the symbol already
 -- exists in the 'SymbolEnv', it is not inserted.
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithExternSymbol
   :: SymbolState σ
   => SymbolEnv
@@ -71,7 +71,7 @@ initEnvWithExternSymbol env i = do
 --   emitted when the rule parameter being captured is actually used by the
 --   rule.
 --
--- @since 0.0.1
+-- @since 26.7
 validateExternSymbol
   :: SymbolState σ
   => SymbolValidator σ SimpleIdentifier

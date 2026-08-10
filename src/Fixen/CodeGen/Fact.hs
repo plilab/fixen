@@ -12,7 +12,7 @@
 --
 -- This module provides code-generation facilities for facts.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.Fact where
 
 import Data.Map.Strict qualified as Map
@@ -36,7 +36,7 @@ import Fixen.IR.RelationRepresentation
 --   deriving (Show, Eq)
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenFacts :: RelationRepresentation -> Text
 codeGenFacts r =
   let header :: Text = "----- FACTS -----\ndata Fact = "
@@ -59,13 +59,13 @@ codeGenFacts r =
 -- | Generates a single alternative in the @Fact@ type. These are individual
 -- relations in the Fixen program.
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenFact
   :: (Text, RelationRepresentationInfo)
   -- ^ The lhs is the name of the relation, the rhs is the information about the
   -- relation
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Text
 codeGenFact (t, r) =
   let fact_rep = r ^. fact
