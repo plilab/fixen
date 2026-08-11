@@ -775,7 +775,7 @@ instance EqModuloNodeId RelationParameter where
 -- Relation occurrences in rules remain positional regardless of whether the
 -- declaration supplies names.
 --
--- @since 0.0.1
+-- @since 26.7
 type RelationDeclaration = RelationLike RelationParameter
 
 -- | Constructor and destructor for 'RelationDeclaration's.
@@ -791,7 +791,7 @@ pattern RelationDeclaration
   -> SimpleIdentifier
   -- ^ The name of the relation being declared.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [RelationParameter]
   -- ^ The parameters of the relation.
   --

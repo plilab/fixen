@@ -88,11 +88,11 @@ codeGenDbDef r =
 --
 -- @since 26.7
 codeGenDbField
-  -- | The 'Text' is the relation name, the 'RelationRepresentationInfo' is its
+  :: (Text, RelationRepresentationInfo)
+  -- ^ The 'Text' is the relation name, the 'RelationRepresentationInfo' is its
   -- representation information.
   --
   -- @since 26.7
-  :: (Text, RelationRepresentationInfo)
   -> Text
 codeGenDbField (t, r) =
   let db_ty_code =
@@ -107,10 +107,10 @@ codeGenDbField (t, r) =
 --
 -- @since 26.7
 buildDbFieldType
-  -- | Whether this is the first component of the field.
   :: Bool
-  -- | The relation representation's types.
+  -- ^ Whether this is the first component of the field.
   -> [(QueryType, StoreType, Type)]
+  -- ^ The relation representation's types.
   -> Type
 -- If the relation has no arguments, just use a bool.
 buildDbFieldType _ [] = buildSimpleType "Bool"
@@ -164,11 +164,11 @@ codeGenEmptyDb r =
 --
 -- @since 26.7
 codeGenEmptyDbFields
-  -- | The 'Text' is the relation name, and the 'RelationRepresentationInfo'
+  :: (Text, RelationRepresentationInfo)
+  -- ^ The 'Text' is the relation name, and the 'RelationRepresentationInfo'
   -- is its information.
   --
   -- @since 26.7
-  :: (Text, RelationRepresentationInfo)
   -> Text
 codeGenEmptyDbFields (t, r) =
   let field_name = dbFactSelector t
@@ -201,9 +201,9 @@ codeGenEntailment rep = do
 --
 -- @since 26.7
 codeGenEntailmentCase
-  -- | The 'Text' is the name of the relation, and the 'RelationRepresentationInfo'
-  -- is its information.
   :: (Text, RelationRepresentationInfo)
+  -- ^ The 'Text' is the name of the relation, and the 'RelationRepresentationInfo'
+  -- is its information.
   -> FixenPass CodeGenState Text
 codeGenEntailmentCase (rel_name, rep_info)
   | null db_ty = return header
@@ -489,8 +489,8 @@ codeGenInsert rep = do
 --
 -- @since 26.7
 codeGenInsertCase
-  -- | The 'Text' is the relation's name
   :: (Text, RelationRepresentationInfo)
+  -- ^ The 'Text' is the relation's name
   -> FixenPass CodeGenState Text
 codeGenInsertCase (rel_name, rep_info)
   | null db_ty = return header
@@ -733,9 +733,9 @@ codeGenMergeContour r =
 --
 -- @since 26.7
 codeGenMergeContourCase
-  -- | The 'Text' is the name of the relation, the 'RelationRepresentationInfo'
-  -- is its information.
   :: (Text, RelationRepresentationInfo)
+  -- ^ The 'Text' is the name of the relation, the 'RelationRepresentationInfo'
+  -- is its information.
   -> Text
 codeGenMergeContourCase (t, r)
   | no_lattice = Text.concat ["mergeContour f@", fact_pattern, " _ = [f]"]

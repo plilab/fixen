@@ -61,11 +61,11 @@ codeGenFacts r =
 --
 -- @since 26.7
 codeGenFact
-  -- | The lhs is the name of the relation, the rhs is the information about the
+  :: (Text, RelationRepresentationInfo)
+  -- ^ The lhs is the name of the relation, the rhs is the information about the
   -- relation
   --
   -- @since 26.7
-  :: (Text, RelationRepresentationInfo)
   -> Text
 codeGenFact (t, r) =
   let fact_rep = r ^. fact
