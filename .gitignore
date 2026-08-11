@@ -1,2 +1,4 @@
 dist-newstyle/
 .DS_Store
+doc/.astro
+doc/node_modules
