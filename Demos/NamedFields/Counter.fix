@@ -1,0 +1,8 @@
+module NameFields.Counter where
+
+rel Counter : (label: String), (num: Int)
+
+rule seed :
+  |- Counter "main" 0
+
+query counters : Counter - -

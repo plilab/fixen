@@ -1,0 +1,6 @@
+module NameFields.Duplicate where
+
+rel A : (label: String), (label: Int)
+
+rule seed:
+  |- A "value" 0

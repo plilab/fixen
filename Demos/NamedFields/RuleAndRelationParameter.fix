@@ -1,0 +1,6 @@
+module NameFields.RuleAndRelationParameter where
+
+rel A : (label: String)
+
+rule label:
+  |- A "value"
