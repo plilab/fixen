@@ -11,10 +11,9 @@ Rule-instance priorities give you control over evaluation order, enabling algori
 
 Priorities are declared with the `priority` keyword:
 
-```fixen
-priority:
-  (d1 + d1') > (d2 + d2')
-    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
+```ansi frame="code"
+[31mpriority[0m: (d1 [35m+[0m d1') [35m>[0m (d2 [35m+[0m d2')
+          [31m|-[0m [33maddDist[0m { d = d1, d' = d1' } [31m<[0m [33maddDist[0m { d = d2, d' = d2' }
 ```
 
 This declares that `addDist` rule instances with shorter total distances have **higher** priority (are processed first). The `>` on the left of `|-` is a condition that must hold for the priority to apply. The `<` on the right specifies that the left instance has lower priority than the right instance.
@@ -29,8 +28,8 @@ The custom priorities you declare are used by the priority queue to determine wh
 
 A priority declaration has the form:
 
-```fixen
-priority: condition |- instance1 < instance2
+```ansi frame="code"
+[31mpriority[0m: condition [31m|-[0m instance1 [31m<[0m instance2
 ```
 
 - The **condition** (left of `|-`) is a Haskell expression of type `Bool` that must hold for the priority to apply. If omitted (i.e., the condition is empty), the priority always applies.
@@ -42,23 +41,31 @@ Multiple priority declarations are allowed, and priorities can compare instances
 
 Without priorities, a naive FPOP graph-distance algorithm repeatedly revisits vertices with suboptimal path lengths, degrading to Bellman-Ford performance. With priorities, we get Dijkstra's optimal behavior:
 
-```fixen
-rel DistTo: Vertex, Dist
-rel Edge: Vertex, Vertex, Dist
+````diff lang="ansi" frame="code" title="fix/ShortestPath.fix"
+  [35mmodule[0m ShortestPath [35mwhere[0m
 
-lat Dist where
-  type = Natural
-  leq = (>=)
-  join = min
-  meet = max
+  [35mimport[0m Numeric.Natural
 
-rule edgeToPath: Edge u v |- Path u v
-rule addDist: DistTo u d, Edge u v d' |- DistTo v (d + d')
+  ```hs
+  [35mtype Vertex [36m= [35mString[0m
+  ```
 
-priority:
-  (d1 + d1') > (d2 + d2')
-    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }
-```
+  [31mlat[0m [33mDist[0m [31mwhere[0m
+    [31mtype[0m = [33mNatural[0m
+    [31mleq[0m = ([35m>=[0m)
+    [31mjoin[0m = [35mmin[0m
+    [31mmeet[0m = [35mmax[0m
+
+  [31mrel[0m [32mEdge[0m: [33mVertex[0m, [33mVertex[0m, [33mDist[0m
+  [31mrel[0m [32mDistTo[0m: [33mVertex[0m, [33mDist[0m
+
+  [31mrule[0m [33maddDist[0m: [32mDistTo[0m a d, [32mEdge[0m a b d' [31m|-[0m [32mDistTo[0m b (d [35m+[0m d')
+
++ [31mpriority[0m: (d1 [35m+[0m d1') [35m>[0m (d2 [35m+[0m d2')
++           [31m|-[0m [33maddDist[0m { d = d1, d' = d1' } [31m<[0m [33maddDist[0m { d = d2, d' = d2' }
+
+  [31mquery[0m [35mdistances[0m: [32mDistTo[0m [31m- -[0m
+````
 
 The priority ensures that `addDist` instances producing shorter distances are processed first, mirroring Dijkstra's greedy vertex selection.
 
