@@ -91,22 +91,22 @@ export default defineConfig({
             },
           ],
         },
-        {
-          label: "Language Reference",
-          items: [{ autogenerate: { directory: "reference" } }],
-        },
-        {
-          label: "Advanced Topics",
-          items: [{ autogenerate: { directory: "advanced" } }],
-        },
-        {
-          label: "Publications",
-          items: [{ autogenerate: { directory: "publications" } }],
-        },
-        {
-          label: "Community",
-          items: [{ autogenerate: { directory: "community" } }],
-        },
+        // {
+        //   label: "Language Reference",
+        //   items: [{ autogenerate: { directory: "reference" } }],
+        // },
+        // {
+        //   label: "Advanced Topics",
+        //   items: [{ autogenerate: { directory: "advanced" } }],
+        // },
+        // {
+        //   label: "Publications",
+        //   items: [{ autogenerate: { directory: "publications" } }],
+        // },
+        // {
+        //   label: "Community",
+        //   items: [{ autogenerate: { directory: "community" } }],
+        // },
       ],
     }),
   ],

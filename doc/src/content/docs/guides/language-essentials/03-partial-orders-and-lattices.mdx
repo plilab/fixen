@@ -109,6 +109,24 @@ Essentially, each sort contributes its own partial order to the product order. S
 
 In the graph distance example, `Dist` is ordered by `>=` (smaller is better). Therefore, `DistTo "Paris" 5` $\sqsubseteq$ `DistTo "Paris" 3` because `3 >= 5` is true under the declared order. The solver retains only `DistTo "Paris" 3` and discards the subsumed fact.
 
+:::danger[Monotonicity of Rules]
+In Fixen, rules must be **monotone**, i.e., larger premises must derive larger conclusions. For example, the following rule is not monotone:
+```ansi frame='code'
+[35mimport[0m Numeric.Natural
+
+[31mlat[0m [33mNat[0m [31mwhere[0m
+  [31mtype[0m = [33mNatural[0m
+  [31mleq[0m = ([35m<=[0m)
+  [31mjoin[0m = [35mmax[0m
+  [31mmeet[0m = [35mmin[0m
+
+[31mrel[0m [32mA[0m: [33mNat[0m
+
+[31mrule[0m [33mnotMonotone[0m: [32mA[0m x, [31mif[0m x [35m==[0m [34m0[0m [31m|-[0m [32mA[0m (x [35m+[0m [34m2[0m)
+```
+
+It is not monotone because `A 1` invalidates the condition `x == 0` and thus does not cause the rule to fire. However, `A 0`, which is subsumed by `A 1`, validates the condition `x == 0`. Thus, actually, given fact `A 1`, the rule should fire and conclude `A 2`. Fixen does not know this as it keeps track of only the largest facts in the database, so this Fixen program will wrongly not conclude `A 2`.
+:::
 
 ## Variable Unification
 
@@ -131,6 +149,35 @@ Consider this Fixen program fragment:
 ```
 
 If the database contains `R 5 2` and `R 4 7`, a naive solver would fail to fire this rule because `2` $\neq$ `4`. But under the lattice order `<=`, the fact `R 4 7` subsumes `R 2 7` (since `2 <= 4`). The solver computes `meet 2 4 = min 2 4 = 2`, instantiating the shared variable `y` as `2`, and derives `R 5 7`.
+
+:::caution[Well-Sortedness]
+Variables in rules must have a single **sort**, not just a single type. For instance, the following rule is well-typed, but not well-sorted:
+
+```ansi frame='code'
+[35mimport[0m Numeric.Natural
+
+[31mlat[0m [33mNat[0m [31mwhere[0m
+  [31mtype[0m = [33mNatural[0m
+  [31mleq[0m = ([35m<=[0m)
+  [31mjoin[0m = [35mmax[0m
+  [31mmeet[0m = [35mmin[0m
+
+[31mlat[0m [33mNat'[0m [31mwhere[0m
+  [31mtype[0m = [33mNatural[0m
+  [31mleq[0m = ([35m>=[0m)
+  [31mjoin[0m = [35mmin[0m
+  [31mmeet[0m = [35mmax[0m
+
+[31mrel[0m [32mA[0m: [33mNat[0m
+[31mrel[0m [32mB[0m: [33mNat'[0m
+[31mrel[0m [32mC[0m
+
+[31mrule[0m [33millSorted[0m: [32mA[0m x, [32mB[0m x [31m|-[0m [32mC[0m
+```
+
+The `illSorted` rule instantiates the variable `x` with Haskell's `Natural`s. However, it belongs to sort `Nat` (based on `A`) and `Nat'` (based on `B`). Fixen does not know how to unify variables in this scenario.
+:::
+
 
 ## Complete Example: Shortest Paths
 
