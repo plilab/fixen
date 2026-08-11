@@ -18,7 +18,7 @@
 --       parameter @σ@ that is built from composable pieces using the
 --       type combinators defined in this module.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad.Type where
 
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -33,7 +33,7 @@ import Error.Diagnose.Diagnostic (Diagnostic)
 -- | The error type carried by 'FixenM'. This is a 'Diagnostic' of 'String'
 -- values, produced by the 'Error.Diagnose' library.
 --
--- @since 0.0.1
+-- @since 26.7
 type FixenErrorResult = Diagnostic String
 
 -- | The top-level monad used by the Fixen compiler pipeline.
@@ -47,7 +47,7 @@ type FixenErrorResult = Diagnostic String
 --   'Fixen.Monad.Env.Errors.runFixenPass', converting their results back
 --   into 'FixenM'.
 --
--- @since 0.0.1
+-- @since 26.7
 type FixenM α = ExceptT FixenErrorResult IO α
 
 -- | Run a 'FixenM' computation, returning the result as an 'IO' action.
@@ -56,7 +56,7 @@ type FixenM α = ExceptT FixenErrorResult IO α
 --   returns 'Left' with a 'FixenErrorResult' containing diagnostic
 --   information.
 --
--- @since 0.0.1
+-- @since 26.7
 runFixenM :: FixenM α -> IO (Either FixenErrorResult α)
 runFixenM = runExceptT
 
@@ -96,5 +96,5 @@ runFixenM = runExceptT
 --   'MaybeT' result and the accumulated errors before deciding whether
 --   to continue or short-circuit into 'FixenM'.
 --
--- @since 0.0.1
+-- @since 26.7
 type FixenPass σ α = MaybeT (StateT σ IO) α

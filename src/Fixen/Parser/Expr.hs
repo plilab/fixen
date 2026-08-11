@@ -44,7 +44,7 @@
 -- * 'parseParenExpr' — atomic expressions including parenthesized sub-expressions
 -- * 'parseAnyExpr' — any expression at the atom level
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Parser.Expr where
 
 import Control.Applicative.Combinators (
@@ -94,7 +94,7 @@ import Text.Megaparsec.Pos qualified as MPos
 --        |  \<app_expr\>           -- e.g. @f x y@, @Cons True False@
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 parseExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp indentCheck
 
@@ -148,7 +148,7 @@ parseExpr indentCheck = P.try (parseInfixExpr indentCheck) <|> parseExprApp inde
 -- The 'parsePositioned' wrapper ensures the position spans the entire
 -- @(...)@, including the parentheses.
 --
--- @since 0.0.1
+-- @since 26.7
 parseParenExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseParenExpr indent_check =
   P.try f
@@ -239,7 +239,7 @@ parseParenExpr indent_check =
 -- are required: @((a + b) + c)@ parses as two separate infix expressions,
 -- and @a + (b + c)@ similarly.
 --
--- @since 0.0.1
+-- @since 26.7
 parseInfixExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseInfixExpr indentCheck =
   parsePositioned $ do
@@ -310,7 +310,7 @@ parseInfixExpr indentCheck =
 -- Indentation is enforced: the identifier must appear at the correct indentation
 -- level relative to its context.
 --
--- @since 0.0.1
+-- @since 26.7
 parseExprVar :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExprVar indentCheck = parsePositioned $ do
   -- Verify correct indentation before parsing the identifier.
@@ -362,7 +362,7 @@ parseExprVar indentCheck = parsePositioned $ do
 -- position is set via 'setPosition'. The outermost position is also
 -- captured by 'parsePositioned' (the wrapper around the entire do-block).
 --
--- @since 0.0.1
+-- @since 26.7
 parseExprApp :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseExprApp indent_check = parsePositioned $ do
   -- Parse a non-empty left-associative chain of atom expressions.
@@ -402,7 +402,7 @@ parseExprApp indent_check = parsePositioned $ do
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the start to the end of the integer digits.
 --
--- @since 0.0.1
+-- @since 26.7
 parseIntLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseIntLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the integer.
@@ -425,7 +425,7 @@ parseIntLit indent_check = parsePositioned $ do
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening quote to the closing quote.
 --
--- @since 0.0.1
+-- @since 26.7
 parseStringLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseStringLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the string.
@@ -448,7 +448,7 @@ parseStringLit indent_check = parsePositioned $ do
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening parenthesis to the closing parenthesis.
 --
--- @since 0.0.1
+-- @since 26.7
 parseUnitLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseUnitLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the unit literal.
@@ -484,7 +484,7 @@ parseUnitLit indent_check = parsePositioned $ do
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening parenthesis to the closing parenthesis.
 --
--- @since 0.0.1
+-- @since 26.7
 parseTupleLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseTupleLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the tuple.
@@ -516,7 +516,7 @@ parseTupleLit indent_check = parsePositioned $ do
 -- The position is captured automatically by 'parsePositioned', spanning from
 -- the opening bracket to the closing bracket.
 --
--- @since 0.0.1
+-- @since 26.7
 parseListLit :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseListLit indent_check = parsePositioned $ do
   -- Verify correct indentation before parsing the list.
@@ -569,7 +569,7 @@ parseAnyExpr indent_check =
 -- See 'parseInfixExpr' for details on the representation and position
 -- computation.
 --
--- @since 0.0.1
+-- @since 26.7
 parseNestedInfixExpr :: ParserState σ => Parser σ MPos.Pos -> Parser σ Expr
 parseNestedInfixExpr indent_check = parsePositioned $ do
   -- Step 1: Parse the left operand. Wrapped with 'l' to enforce indentation

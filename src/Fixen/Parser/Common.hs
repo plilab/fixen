@@ -31,7 +31,7 @@
 --     * Bracket combinators ('betweenParentheses', 'betweenSquareBrackets',
 --       'betweenCurlyBraces') for parsing delimited expressions
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Parser.Common where
 
 import Control.Monad.State.Strict
@@ -81,7 +81,7 @@ data FixenParserError
 --   This state is shared across all parser combinators and is updated
 --   as the parser consumes input and constructs AST nodes.
 --
--- @since 0.0.1
+-- @since 26.7
 type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 
 -- | The parser type used by the Fixen parser.
@@ -97,7 +97,7 @@ type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --   Instead, use the combinators provided in this module and the higher-level
 --   parsers in 'Fixen.Parser'.
 --
--- @since 0.0.1
+-- @since 26.7
 type Parser σ = P.ParsecT Void Text (State σ)
 
 --------------------------------------------------------------------------------
@@ -110,16 +110,16 @@ type Parser σ = P.ParsecT Void Text (State σ)
 
 -- | Parse zero or more comma-separated items, with indentation checking.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy
   :: Parser σ MPos.Pos
   -- ^ The indentation check
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ α
   -- ^ The parser for a single item
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ [α]
 commaSepBy indent_check p = do
   x <- P.observing $ P.try $ do
@@ -141,28 +141,28 @@ commaSepBy indent_check p = do
 
 -- | This is 'commaSepBy' with 'indented'.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy'
   :: ParserState σ
   => Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ [α]
 commaSepBy' = commaSepBy indented
 
 -- | Parse one or more items separated by commas, with indentation checking.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy1
   :: Parser σ MPos.Pos
   -- ^ The parser that checks the indentation level before each item
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ (NonEmpty α)
 commaSepBy1 indent_check p = do
   _ <- indent_check
@@ -172,27 +172,27 @@ commaSepBy1 indent_check p = do
 
 -- | This is 'commaSepBy1', using 'indented' for indentation.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy1'
   :: Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ (NonEmpty α)
 commaSepBy1' = commaSepBy1 indented
 
 -- | Parse two or more items separated by commas, with indentation checking.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy2
   :: Parser σ MPos.Pos
   -- ^ The parser that checks the indentation level before each item
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ (α, NonEmpty α)
 commaSepBy2 indent_check p = do
   e <- indent_check *> p <* indent_check
@@ -204,12 +204,12 @@ commaSepBy2 indent_check p = do
 
 -- | This is 'commaSepBy2', using 'indented' for indentation.
 --
--- @since 0.0.1
+-- @since 26.7
 commaSepBy2'
   :: Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ (α, NonEmpty α)
 commaSepBy2' = commaSepBy2 indented
 
@@ -223,16 +223,16 @@ commaSepBy2' = commaSepBy2 indented
 
 -- | Parse zero or more items, each preceded by an indentation check.
 --
--- @since 0.0.1
+-- @since 26.7
 manyI
   :: Parser σ MPos.Pos
   -- ^ The parser that checks the indentation level before each item
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ [α]
 manyI indent_check p = do
   m <- P.observing (P.try $ indent_check *> p)
@@ -242,27 +242,27 @@ manyI indent_check p = do
 
 -- | This is 'manyI' using 'indented' for indentation.
 --
--- @since 0.0.1
+-- @since 26.7
 manyI'
   :: Parser σ α
   -- ^ The parser for individual items.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ [α]
 manyI' = manyI indented
 
 -- | Parse one or more items, each preceded by an indentation check.
 --
--- @since 0.0.1
+-- @since 26.7
 someI
   :: Parser σ MPos.Pos
   -- ^ The parser that checks the indentation level before each item
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ α
   -- ^ The parser for individual items
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> Parser σ (NonEmpty α)
 someI indent_check p = do
   e <- indent_check *> p
@@ -270,7 +270,7 @@ someI indent_check p = do
 
 -- | This is 'someI', using 'indented' for indentation.
 --
--- @since 0.0.1
+-- @since 26.7
 someI' :: Parser σ α -> Parser σ (NonEmpty α)
 someI' = someI indented
 
@@ -278,19 +278,19 @@ someI' = someI indented
 
 -- | Parse an expression delimited by parentheses @(@ ... @)@.
 --
--- @since 0.0.1
+-- @since 26.7
 betweenParentheses :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
 betweenParentheses indent_check = P.between (L.symbol sc "(") (indent_check >> ")")
 
 -- | Parse an expression delimited by square brackets @[@ ... @]@.
 --
--- @since 0.0.1
+-- @since 26.7
 betweenSquareBrackets :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
 betweenSquareBrackets indent_check = P.between (L.symbol sc "[") (indent_check >> "]")
 
 -- | Parse an expression delimited by curly braces @{@ ... @}@.
 --
--- @since 0.0.1
+-- @since 26.7
 betweenCurlyBraces :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
 betweenCurlyBraces indent_check = P.between (L.symbol sc "{") (indent_check >> "}")
 
@@ -316,21 +316,21 @@ betweenCurlyBraces indent_check = P.between (L.symbol sc "{") (indent_check >> "
 -- B        -- ERROR: not indented, parser will reject
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 indented :: Parser σ MPos.Pos
 indented = indentedByMoreThan (MPos.mkPos 1)
 
 -- | Ensure that the current position is indented by strictly more than
 -- the given amount (in columns).
 --
--- @since 0.0.1
+-- @since 26.7
 indentedByMoreThan :: MPos.Pos -> Parser σ MPos.Pos
 indentedByMoreThan = L.indentGuard sc GT
 
 -- | Ensure that the current position is indented by exactly the given
 -- amount (in columns).
 --
--- @since 0.0.1
+-- @since 26.7
 indentedByExactly :: MPos.Pos -> Parser σ MPos.Pos
 indentedByExactly = L.indentGuard sc EQ
 
@@ -349,7 +349,7 @@ indentedByExactly = L.indentGuard sc EQ
 --   it is the primary whitespace handler, and other combinators like
 --   'l' (lexeme) and 'symbol' build on top of it.
 --
--- @since 0.0.1
+-- @since 26.7
 sc :: Parser σ ()
 sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 
@@ -365,7 +365,7 @@ sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 --   Example: @l (keywordOp "if")@ parses the keyword @if@ and consumes
 --   any trailing whitespace, positioning the cursor at the next token.
 --
--- @since 0.0.1
+-- @since 26.7
 l :: Parser σ α -> Parser σ α
 l = L.lexeme sc
 
@@ -376,7 +376,7 @@ l = L.lexeme sc
 --   hints. All error reporting is handled through the 'FixenErrors'
 --   accumulator instead.
 --
--- @since 0.0.1
+-- @since 26.7
 instance HasHints Void String where
   hints _ = []
 
@@ -410,7 +410,7 @@ instance HasHints Void String where
 --
 -- This ensures the end position does not include trailing whitespace.
 --
--- @since 0.0.1
+-- @since 26.7
 parsePositioned :: ParserState σ => HasNodeId α NodeId => Parser σ α -> Parser σ α
 parsePositioned p = do
   start <- P.getSourcePos

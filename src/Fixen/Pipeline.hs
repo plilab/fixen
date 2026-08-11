@@ -51,20 +51,20 @@ import Prettyprinter
 
 -- | The main compiler pipeline.
 --
--- @since 0.0.1
+-- @since 26.7
 pipeline
   :: FilePath
   -- ^ The path of the compiled file
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The contents of the compiled file
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
   -- ^ The warnings printer
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenM (Program, NonEmpty RuleForest, RelationRepresentation, Text)
 pipeline file_path contents error_printer = do
   let file_map = [(file_path, contents)]

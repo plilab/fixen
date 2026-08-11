@@ -8,7 +8,7 @@
 --
 -- This module provides facilities for solving query declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Query where
 
 import Control.Lens
@@ -32,7 +32,7 @@ import Fixen.SymbolSolver.Validation
 --
 -- /Precondition/: 'RelationDeclaration's must have been initialized in the 'SymbolEnv'
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithQuery
   :: SymbolState σ
   => SymbolEnv
@@ -68,7 +68,7 @@ initEnvWithQuery env q = do
 -- * __Against Prelude Terms__: A warning is emitted whenever the query being
 --   declared has the same name as a term in Prelude.
 --
--- @since 0.0.1
+-- @since 26.7
 validateQuery :: SymbolState σ => SymbolValidator σ Query
 validateQuery = validate r
   where

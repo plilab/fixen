@@ -23,7 +23,7 @@
 --     monadic types and utilities.
 --
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.Monad (
   module Fixen.Monad.Type,
   module Fixen.Monad.Env,

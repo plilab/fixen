@@ -10,7 +10,7 @@
 --
 -- This module provides facilities for solving priority declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Priorities where
 
 import Control.Lens
@@ -43,7 +43,7 @@ import Prelude hiding (map)
 --
 -- /Precondition/: Rules must have been initialized in the 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithPriorities
   :: SymbolState σ
   => SymbolEnv
@@ -136,7 +136,7 @@ initEnvWithPriorities env p = do
 -- The rule being instantiated must also have assumptions, otherwise, they are
 -- never added to the priority queue.
 --
--- @since 0.0.1
+-- @since 26.7
 validateRuleInstance :: SymbolState σ => SymbolValidator σ RuleInstance
 validateRuleInstance = validate [ruleExists]
   where
@@ -186,7 +186,7 @@ validateRuleInstance = validate [ruleExists]
 
 -- | Obtains a 'Rule' declaration from a rule instance.
 --
--- @since 0.0.1
+-- @since 26.7
 getRuleFromRuleInstance
   :: SymbolState σ
   => RuleInstance

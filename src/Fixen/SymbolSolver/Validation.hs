@@ -9,7 +9,7 @@
 -- This module provides validation rules for various syntactic categories in
 -- Fixen programs.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Validation where
 
 import Control.Lens
@@ -32,19 +32,19 @@ import Fixen.Utils
 
 -- | A rule for a syntactic category.
 --
--- @since 0.0.1
+-- @since 26.7
 type SymbolRule σ α = α -> SymbolEnv -> FixenPass σ [Report String]
 
 -- | A symbol validator, i.e., a function that checks the validity of a symbol
 -- with respect to a 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 type SymbolValidator σ α = α -> SymbolEnv -> FixenPass σ Bool
 
 -- | A 'SymbolRule' that uses the name of the symbol for validation. We also
 -- require these to have 'NodeId's for source position tracking.
 --
--- @since 0.0.1
+-- @since 26.7
 type NamedSymbolRule σ α = HasNodeId α NodeId => Name -> SymbolRule σ α
 
 --------------------------------------------------------------------------------
@@ -65,13 +65,13 @@ type NamedSymbolRule σ α = HasNodeId α NodeId => Name -> SymbolRule σ α
 --   mySymbolRules = [ rule1, rule2, ..., ruleN ]
 -- @
 --
--- @since 0.0.1
+-- @since 26.7
 validate
   :: SymbolState σ
   => [SymbolRule σ α]
   -- ^ The list of rules for this symbol
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> SymbolValidator σ α
 validate ruls subject env = do
   reports <- ruls <&> (\f -> f subject env) & sequence
@@ -81,7 +81,7 @@ validate ruls subject env = do
 
 -- Turns a 'NamedSymbolRule' into a regular 'SymbolRule'.
 --
--- @since 0.0.1
+-- @since 26.7
 validateNamed :: (HasNodeId a NodeId, HasName a n, IdentifierLike n) => NamedSymbolRule σ a -> SymbolRule σ a
 validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 
@@ -128,14 +128,14 @@ validateUniqueParamNames whereMsg _relationName rel _env = do
 -- | Validates a symbol against a relation. This rule prevents the symbol from
 -- sharing the same name as a relation symbol in the 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstRelation
   :: SymbolState σ
   => String
   -- ^ The error message attached to the symbol being validated (in the case of
   -- a validation error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ a
 validateAgainstRelation where_msg repr i env = do
   case env ^. relationInfos . at repr of
@@ -157,17 +157,17 @@ validateAgainstRelation where_msg repr i env = do
 -- | Checks that a relation-like symbol exists as a relation declaration in the
 -- program and has the right arity.
 --
--- @since 0.0.1
+-- @since 26.7
 relationExistsAndHasRightArity
   :: SymbolState σ
   => RelationLike b
   -- ^ The relation
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The name of the thing that contains the occurrence of this relation symbol
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> SymbolEnv
   -> FixenPass σ [Report String]
 relationExistsAndHasRightArity rel containing_name env = do
@@ -214,18 +214,18 @@ relationExistsAndHasRightArity rel containing_name env = do
 -- | Validates a symbol against a partial order declaration. This rule prevents
 -- the symbol from sharing the same name as a partial order declaration.
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstPartialOrd
   :: SymbolState σ
   => String
   -- ^ The error message attached to the symbol being validated (in the case of
   -- a validation error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ Notes to attach to the error message in the case of a validation error
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstPartialOrd this_msg notes repr i env = do
   case env ^. partialOrdInfos . at repr of
@@ -248,18 +248,18 @@ validateAgainstPartialOrd this_msg notes repr i env = do
 -- | Validates a symbol against a lattice declaration. This rule prevents
 -- the symbol from sharing the same name as a lattice declaration.
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstLattice
   :: SymbolState σ
   => String
   -- ^ The error message attached to the symbol being validated (in the case of
   -- a validation error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ Notes to attach to the error message in the case of a validation error
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstLattice this_msg notes repr i env = do
   case env ^. latticeInfos . at repr of
@@ -287,18 +287,18 @@ validateAgainstLattice this_msg notes repr i env = do
 -- | Validates a symbol against external symbols. This rule prevents a symbol
 -- from sharing the same name as an external symbol.
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstExtern
   :: SymbolState σ
   => String
   -- ^ The error message to attach to the symbol (in the case of a validation
   -- error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> [Note String]
   -- ^ Notes to attach to the error message in the case of a validation error
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstExtern this_msg notes repr i env = do
   case env ^. externInfos . at repr of
@@ -320,18 +320,18 @@ validateAgainstExtern this_msg notes repr i env = do
 -- the moment, this function does not check against __all__ Fixen-generated
 -- symbols (since relations, etc., also generate new Haskell definitions)
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstFixenCapitalized
   :: SymbolState σ
   => String
   -- ^ The error message to attach to this symbol (in the case of a validation
   -- error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The name of the type of this symbol (relation declaration, query, etc.)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstFixenCapitalized this_msg decl_type repr i _ =
   if repr ∈ fixenTypesCons
@@ -350,18 +350,18 @@ validateAgainstFixenCapitalized this_msg decl_type repr i _ =
 -- the moment, this function does not check against __all__ Fixen-generated
 -- symbols (since relations, etc., also generate new Haskell definitions)
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstFixenLowercase
   :: SymbolState σ
   => String
   -- ^ The error message to attach to this symbol (in the case of a validation
   -- error)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The name of the type of this symbol (relation declaration, query, etc.)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstFixenLowercase this_msg decl_type repr i _ =
   if repr ∈ fixenTerms
@@ -381,14 +381,14 @@ validateAgainstFixenLowercase this_msg decl_type repr i _ =
 -- | Validates a symbol against a query declaration. This rule prevents a symbol
 -- from sharing the same name as a query declaration.
 --
--- @since 0.0.1
+-- @since 26.7
 validateAgainstQuery
   :: SymbolState σ
   => String
   -- ^ The error message to attach to the symbol, in the case of a validation
   -- error
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 validateAgainstQuery where_msg repr i env = do
   case env ^. queryInfos . at repr of
@@ -424,13 +424,13 @@ validateAgainstQuery where_msg repr i env = do
 -- /Precondition/: Requires that everything in the program has been inserted
 -- into the 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 warnUnusedRuleParameters
   :: SymbolState σ
   => SymbolEnv
   -- ^ The 'SymbolEnv' to check
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ ()
 warnUnusedRuleParameters env = do
   unused_rule_params <- getUnusedRuleParams
@@ -475,13 +475,13 @@ warnUnusedRuleParameters env = do
 -- | Emits warnings whenever an external symbol is shadowed by some kind of
 -- bound variable (in rules and priorities).
 --
--- @since 0.0.1
+-- @since 26.7
 warnNameShadowingAgainstBoundVar
   :: SymbolState σ
   => String
   -- ^ The error message to attach to the variable
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 warnNameShadowingAgainstBoundVar where_msg repr i env = do
   let matching_bvs =
@@ -523,13 +523,13 @@ warnNameShadowingAgainstBoundVar where_msg repr i env = do
 -- | Warns whenever a rule parameter or priority local variable shadows an
 -- external symbol.
 --
--- @since 0.0.1
+-- @since 26.7
 warnNameShadowingAgainstExtern
   :: SymbolState σ
   => String
   -- ^ The name of the thing (e.g., rule parameter, local variable)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 warnNameShadowingAgainstExtern decl_name repr i env = do
   against_extern <- case env ^. externInfos . at repr of
@@ -563,17 +563,17 @@ warnNameShadowingAgainstExtern decl_name repr i env = do
 -- | Warns whenever something has the same name as a type or constructor in
 -- Haskell's Prelude.
 --
--- @since 0.0.1
+-- @since 26.7
 warnAgainstPreludeCapitalized
   :: SymbolState σ
   => String
   -- ^ The error message to attach to the thing being validated
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The type of the thing being validated (e.g., relation, variable, etc.)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 warnAgainstPreludeCapitalized this_msg decl_type repr i _ =
   if repr ∈ preludeTermsCons
@@ -591,17 +591,17 @@ warnAgainstPreludeCapitalized this_msg decl_type repr i _ =
 -- | Warns whenever something has the same name as a term in
 -- Haskell's Prelude.
 --
--- @since 0.0.1
+-- @since 26.7
 warnAgainstPreludeLowercase
   :: SymbolState σ
   => String
   -- ^ The error message to attach to the thing being validated
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> String
   -- ^ The type of the thing being validated (e.g., relation, variable, etc.)
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> NamedSymbolRule σ α
 warnAgainstPreludeLowercase this_msg decl_type repr i _ =
   if repr ∈ preludeTerms
@@ -624,13 +624,13 @@ warnAgainstPreludeLowercase this_msg decl_type repr i _ =
 
 -- | Standard notes for whenever a relation has a bad name.
 --
--- @since 0.0.1
+-- @since 26.7
 relationValidationErrorNotes :: [Note String]
 relationValidationErrorNotes = [Note "relations cannot share names with\n  1. other declarations in the program (i.e., rel and partial ord), and\n  2. types/constructors used in the program"]
 
 -- | Standard notes for whenever a query has a bad name.
 --
--- @since 0.0.1
+-- @since 26.7
 queryValidationErrorNotes :: [Note String]
 queryValidationErrorNotes =
   [Note "queries cannot share names with \"external\" terms used in the program (these include other queries)"]

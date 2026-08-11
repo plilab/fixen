@@ -53,7 +53,7 @@
 -- arguments @[0, 0]@ above. Since these two argument lists are different, they
 -- cannot be merged into a single branch in the forest.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.IR.RuleForest (
   -- * Rule Forests
   RuleForest (..),
@@ -83,16 +83,16 @@ import Fixen.IR.AST
 -- | A 'RuleForest', consisting of (typically) at least one tree. Non-leaf trees
 -- are stored in '_ruleForestTrees'; leaves are stored in '_ruleForestLeaves'.
 --
--- @since 0.0.1
+-- @since 26.7
 data RuleForest = RuleForest
   { _ruleForestTrees :: Map Text (NonEmpty RuleTreeChoppedHead)
   -- ^ The non-leaf trees
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleForestLeaves :: [RuleLeaf]
   -- ^ The leaves
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Eq)
 
@@ -105,29 +105,29 @@ instance HasLeaves RuleForest [RuleLeaf] where
 -- | A tree in the rule forest with its head (the relation symbol of the very
 -- first assumption) chopped off.
 --
--- @since 0.0.1
+-- @since 26.7
 data RuleTreeChoppedHead = RuleTreeChoppedHead
   { _ruleTreeChoppedHeadArgs :: [Int]
   -- ^ The arguments to the relation symbol (the relation symbol is not present
   -- in this data structure; it should be stored in the enclosing 'RuleForest').
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleTreeChoppedHeadBranches :: RuleForest
   -- ^ The children of this node, itself a 'RuleForest'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Eq)
 
 -- | A leaf in the rule forest. It represents a rule with all assumptions
 -- removed.
 --
--- @since 0.0.1
+-- @since 26.7
 data RuleLeaf = RuleLeaf
   { _ruleLeafRuleId :: NodeId
   -- ^ The 'NodeId' of the rule this leaf represents
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleLeafVariableMap :: [Text]
   -- ^ A variable map. The \(i^\text{th}\) element of the map being \(x\) means
   -- that in the tree branch leading up to this leaf, occurrences of \(i\)
@@ -135,15 +135,15 @@ data RuleLeaf = RuleLeaf
   -- conclusions of this leaf is simply a matter of renaming via the inverse of
   -- this map.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleLeafCondition :: [Condition]
   -- ^ The 'Condition's of this leaf.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   , _ruleLeafConclusion :: Conclusion
   -- ^ The 'Conclusion' of this leaf.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   }
   deriving (Eq)
 
@@ -155,7 +155,7 @@ instance Show RuleForest where
 
 -- | Conversion of 'RuleForest's to 'String's.
 --
--- @since 0.0.1
+-- @since 26.7
 showPhasedForests
   :: Bool
   -- ^ Whether to draw the forest with unicode ('True' means unicode symbols

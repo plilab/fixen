@@ -190,7 +190,7 @@ thrd (_, _, x) = x
 --   Convention: right-associative, so @a :+: b :+: c@ parses as
 --   @a :+: (b :+: c)@. The left argument should not itself be a sum.
 --
--- @since 0.0.1
+-- @since 26.7
 type (:+:) = Either
 
 type (⊕) = Either
@@ -209,7 +209,7 @@ infixr 3 :+:, ⊕
 --   Convention: right-associative, so @a :*: b :*: c@ parses as
 --   @a :*: (b :*: c)@. The left argument should not itself be a product.
 --
--- @since 0.0.1
+-- @since 26.7
 type (:*:) = (,)
 
 type (×) = (,)
@@ -256,7 +256,7 @@ infixr 3 :*:, ×
 --   state, while '+<-:' lets you update just one component without
 --   touching the others.
 --
--- @since 0.0.1
+-- @since 26.7
 class ϕ :<: γ where
   -- | Inject a value of type @ϕ@ into a value of type @γ@.
   --
@@ -264,7 +264,7 @@ class ϕ :<: γ where
   --   For the 'a :<: (a :+: b)' instance this wraps in 'Left'.
   --   For the deep sum instance this recursively wraps in 'Right'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (↑) :: ϕ -> γ
 
   -- | Optionally project a value of type @ϕ@ from a value of type @γ@.
@@ -273,7 +273,7 @@ class ϕ :<: γ where
   --   otherwise. For the 'a :<: (a :+: b)' instance, this pattern-
   --   matches on 'Left' and returns 'Nothing' for 'Right'.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (↓?) :: γ -> Maybe ϕ
 
   -- | Replace the @ϕ@ component inside a @γ@ value with a new @ϕ@ value.
@@ -282,7 +282,7 @@ class ϕ :<: γ where
   --   the new @ϕ@. For the sum instances, it replaces the @ϕ@ component
   --   at the appropriate depth, leaving other components untouched.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (+<-:) :: γ -> ϕ -> γ
 
 infixr 3 :<:
@@ -349,7 +349,7 @@ instance {-# OVERLAPPABLE #-} a :<: c => (a :<: (b :+: c)) where
 --   new_state = old_state *<-: new_position_env
 --   @
 --
--- @since 0.0.1
+-- @since 26.7
 class α :>: β where
   -- | Project a value of type @α@ from a value of type @β@.
   --
@@ -358,7 +358,7 @@ class α :>: β where
   --   For the deep product instance this projects from the right side
   --   and then recursively projects.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (↓) :: α -> β
 
   -- | Optionally inject a value of type @α@ into a value of type @β@.
@@ -368,7 +368,7 @@ class α :>: β where
   --   unambiguous way to embed a value into a product without knowing
   --   the other components.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (↑?) :: β -> Maybe α
 
   -- | Replace the @α@ component inside a @β@ product with a new @α@ value.
@@ -378,7 +378,7 @@ class α :>: β where
   --   the left component while preserving the right. For the deep
   --   product instance, this recursively updates the right component.
   --
-  -- @since 0.0.1
+  -- @since 26.7
   (*<-:) :: α -> β -> α
 
 instance {-# OVERLAPPING #-} α :>: α where

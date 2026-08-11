@@ -11,10 +11,10 @@
 
 <br />
 <div align="center">
-<h3 align="center">The Fixen Domain-Specific Language</h3>
+<h3 align="center">Fixen: The Fixed-Point Generator</h3>
 
   <p align="center">
-    Fixed-Point Computation for Haskell
+    Fixed-Point-Oriented Programming for Haskell
     <br />
     <br />
     <a href="https://fixen-lang.org">Documentation</a>
@@ -78,6 +78,8 @@ rule addDist: DistTo a d, Edge a b e |- DistTo b (d + e)
 ```
 
 Then run the Fixen compiler on these declarations to generate Haskell source code that implements the work-queue algorithm that computes shortest paths. The generated source code is a Haskell module that can be imported and used by application code.
+
+A detailed tutorial on how to write programs with Fixen is found in the <a href="https://fixen-lang.org/">documentation</a>.
 
 This library and executable has been tested on GHC version 9.12.2.
 

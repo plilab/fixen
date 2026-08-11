@@ -10,7 +10,7 @@
 --
 -- This module provides code-generation facilities for 'HsBlock's.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.CodeGen.HsBlock where
 
 import Data.Text (Text)
@@ -26,7 +26,7 @@ import Fixen.IR.AST
 
 -- | Generates the Haskell code blocks in the 'Program'
 --
--- @since 0.0.1
+-- @since 26.7
 codeGenHsBlocks :: Program -> Text
 codeGenHsBlocks prog =
   let blocks = prog ^. hsBlocks

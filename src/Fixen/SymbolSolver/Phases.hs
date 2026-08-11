@@ -10,7 +10,7 @@
 --
 -- This module provides facilities for solving phases declarations.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver.Phases where
 
 import Control.Lens
@@ -40,7 +40,7 @@ import Fixen.Utils
 --
 -- /Precondition/: Rules must have been initialized in the 'SymbolEnv'.
 --
--- @since 0.0.1
+-- @since 26.7
 initEnvWithPhases
   :: SymbolState σ
   => Maybe PhasesDeclaration

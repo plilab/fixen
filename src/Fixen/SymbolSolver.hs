@@ -8,7 +8,7 @@
 --
 -- This module provides the main entry point 'solveSymbols'.
 --
--- @since 0.0.1
+-- @since 26.7
 module Fixen.SymbolSolver where
 
 import Fixen.Fields
@@ -41,13 +41,13 @@ import Fixen.Utils
 -- The invariants for each syntactic category are found in the submodules of
 -- the symbol solver.
 --
--- @since 0.0.1
+-- @since 26.7
 solveSymbols
   :: SymbolState σ
   => Program
   -- ^ The program whose symbols are being solved
   --
-  -- @since 0.0.1
+  -- @since 26.7
   -> FixenPass σ SymbolEnv
 solveSymbols prog = do
   env_with_rels_and_pords <-
