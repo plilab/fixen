@@ -64,6 +64,20 @@ cabal install fixen # requires GHC 9.12.2
 
 Do you have research ideas, applications, uses or general interest in Fixen? Get in touch with us!
 
+```haskell title="ContactInfo.hs"
+{-# LANGUAGE OverloadedStrings #-}
+module ContactInfo where
+
+import Data.Text (Text)
+import Data.Text qualified as T
+
+dom :: Text
+dom = T.concat [ "@", "fixen-lang", ".", T.reverse "gro"]
+
+email :: Text
+email = T.append "collaborations" dom
+```
+
 ## Contributors
 
 <a href="https://github.com/plilab/fixen/graphs/contributors">

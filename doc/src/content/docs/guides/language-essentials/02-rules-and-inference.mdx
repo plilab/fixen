@@ -16,7 +16,7 @@ A rule has the form:
 ```
 
 - The `rule` keyword introduces the declaration.
-- An optional **name** after `rule` identifies the rule (used by priorities, see [Priorities](../04-priorities/)).
+- An optional **name** after `rule` identifies the rule (used by priorities and phases, see [Priorities](../04-priorities/) and [Phases](../05-phases)).
 - An optional **parameter list** `arg1` to `argm` after the rule name specifies the parameters to the rule to be instantiated by premises of the rule. If no parameter list is specified, it will be inferred by the premises of the rule. Explicitly specifying rule parameters can improve readability and also allows the compiler check for typos in the rule premises, e.g., using the wrong variable name.
 - Zero or more **premises** `p1` to `pn` are relations applied to variables, separated by commas. They specify what relations must be satisfied by the program for the rule to fire.
 - Zero or more `if` guards specify boolean conditions `c1` to `ck`. These restrict firing to cases where Haskell expressions evaluate to `True`.

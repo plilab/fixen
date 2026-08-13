@@ -69,37 +69,68 @@ Without priorities, a naive FPOP graph-distance algorithm repeatedly revisits ve
 
 The priority ensures that `addDist` instances producing shorter distances are processed first, mirroring Dijkstra's greedy vertex selection.
 
-## Example: Multi-Objective Shortest Paths
+## Example: Bi-objective Shortest Paths
 
-For bi-objective shortest paths (distance and time), priorities can impose a lexicographical order:
+For bi-objective shortest paths (distance and cost), priorities can impose a lexicographical order:
 
-```fixen
-priority:
-  ((d1 + d1') > (d2 + d2'))
-    || (((d1 + d1') == (d2 + d2'))
-          && ((c1 + c1') > (c2 + c2')))
-    |- addDist { d = d1, d' = d1', c = c1, c' = c1' }
-        < addDist { d = d2, d' = d2', c = c2, c' = c2' }
+````diff lang="ansi" title="fix/BOSP.fix" frame='code'
+[35mmodule[0m BOSP [35mwhere[0m
+
+[35mimport[0m Numeric.Natural
+
+```hs
+[35mtype Vertex [36m= [35mString[0m
+[35mdistMlbs [36m:: [35mNatural [36m-> [35mNatural [36m-> [[35mNatural[36m][0m
+[35mdistMlbs[0m x y [36m=[0m [35mif[0m x [36m<=[0m y [35mthen[0m [36m[[0my[36m][0m [35melse[0m [36m[[0mx[36m][0m
 ```
 
-This prioritizes instances with smaller total distance, breaking ties by preferring smaller total time.
+[31mpartial ord[0m [33mDist[0m [31mwhere[0m
+  [31mtype[0m = [33mNatural[0m
+  [31mleq[0m = ([35m>=[0m)
+  [31mmlbs[0m = [35mdistMlbs[0m
+
+-- Now our relations have two `Dist` components
+[31mrel[0m [32mEdge[0m: [33mVertex[0m, [33mVertex[0m, [33mDist[0m, [33mDist[0m
+[31mrel[0m [32mDistTo[0m: [33mVertex[0m, [33mDist[0m, [33mDist[0m
+
+[31mrule[0m [33maddDist[0m: [32mDistTo[0m a w1 w2, [32mEdge[0m a b w1' w2'
+              [31m|-[0m [32mDistTo[0m b (w1 [35m+[0m w1') (w2 [35m+[0m w2')
+
++ [31mpriority[0m: ((w11 [35m+[0m w11') [35m>[0m (w21 [35m+[0m w21')) [35m||[0m
++           ((w11 [35m+[0m w11') [35m==[0m (w21 [35m+[0m w21') [35m&&[0m (w12 [35m+[0m w12') [35m>[0m (w22 [35m+[0m w22'))
++           [31m|-[0m [33maddDist[0m { w1 = w11, w1' = w11', w2 = w12, w2' = w12' }
++              [31m<[0m [33maddDist[0m { w1 = w21, w1' = w21', w2 = w22, w2' = w22' }
+
+[31mquery[0m [35mdistances[0m: [32mDistTo[0m [31m- - -[0m
+````
+
+
+This prioritizes instances with smaller total distance, breaking ties by preferring smaller total cost.
 
 ## Comparing Arbitrary Instances
 
 Priorities are not limited to comparing instances of the same rule. You can compare instances of different rules:
 
-```fixen
-priority:
-  |- addDist { } < assignI { }
+
+```ansi frame="code"
+[31mpriority[0m: [35mTrue[0m [31m|-[0m [33mrule1[0m { } [31m<[0m [33mrule2[0m { }
 ```
 
-This always gives `assignI` higher priority than `addDist`, regardless of the instantiated values. Such cross-rule priorities can be used to control the relative ordering of different rule families during execution.
+This unconditionally gives instances of `rule2` higher priority than instances of `rule1`, regardless of the instantiated values. Such cross-rule priorities can be used to stratify rule execution.
+
+:::tip
+Support for condition-less priorities, e.g.,
+```ansi frame="code"
+[31mpriority[0m: [31m|-[0m [33mrule1[0m { } [31m<[0m [33mrule2[0m { }
+```
+is underway.
+:::
 
 ## Performance Implications
 
-Choosing the right priorities is crucial for performance. The paper reports that rule-instance priorities can improve performance by up to 30× (7× on average) on benchmarks. However, writing the wrong priorities can make algorithms slower, as the solver may process facts in an order that generates more redundant work.
+Choosing the right priorities is crucial for performance. In our examples above, rule-instance priorities significantly improves the performance of our algorithms. However, writing the wrong priorities can make algorithms slower, as the solver may process facts in an order that generates more redundant work.
 
-Priorities require domain-specific knowledge of the algorithm. They are an optimization lever, not a correctness mechanism — the final set of derived facts is the same regardless of priority ordering (provided the rules are monotone).
+Priorities require domain-specific knowledge of the algorithm. They are an optimization lever, not a correctness mechanism. The final set of derived facts is the same regardless of priority ordering (provided the rules are monotone).
 
 ## Summary
 
@@ -107,5 +138,5 @@ Priorities require domain-specific knowledge of the algorithm. They are an optim
 - They are declared with `priority:` followed by a condition and an ordering between rule instances.
 - The solver uses a priority queue of rule instances, dequeuing the highest-priority instance at each step.
 - Correct priorities enable algorithm-level optimizations (e.g., Dijkstra's greedy selection).
-- Priorities affect performance, not correctness — the final result is the same regardless of ordering.
+- Priorities affect performance, not correctness—the final result is the same regardless of ordering.
 - Multiple priorities can compare instances of the same or different rules.

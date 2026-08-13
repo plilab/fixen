@@ -270,9 +270,9 @@ The following is a complete, self-contained program implementing a shortest-path
     ```
 </Steps>
 
-## Complete Example: Bi-Objective Shortest Paths
+## Complete Example: Bi-objective Shortest Paths
 
-Now consider a variant where each edge has both a distance and a cost. We want to find all Pareto-optimal (distance, cost) pairs for each vertex — paths that are not dominated by any other path on both metrics.
+Now consider a variant where each edge has both a distance and a cost. We want to find all Pareto-optimal (distance, cost) pairs for each vertex—paths that are not dominated by any other path on both metrics.
 
 <Steps>
 1.  First, set up a cabal project with the following structure:
@@ -296,6 +296,7 @@ Now consider a variant where each edge has both a distance and a cost. We want t
 
         ```hs
         [35mtype Vertex [36m= [35mString[0m
+        [35mdistMlbs [36m:: [35mNatural [36m-> [35mNatural [36m-> [[35mNatural[36m][0m
         [35mdistMlbs[0m x y [36m=[0m [35mif[0m x [36m<=[0m y [35mthen[0m [36m[[0my[36m][0m [35melse[0m [36m[[0mx[36m][0m
         ```
 
@@ -385,7 +386,7 @@ Relations in Fixen can have arbitrarily many discrete, partially ordered and lat
 
 [31mrel[0m [32mR[0m: [33mA[0m, [33mB[0m, [33mB[0m, [33mC[0m, [33mC[0m
 ````
-The arguments of sort `A` and `B` are the keys of `R`, while the arguments of sort `C` are the values of `R`. Two facts of `R` are merged as long as their keys match, and their values are merged via the lattice join specified by the declaration of `C`.
+The arguments of sort `A` and `B` are the keys of `R`, while the arguments of sort `C` are the values of `R`. Two facts of `R` are merged as long as their keys match (or they each subsume other facts that have matching keys, obtained via `mlbs`), and their values are merged via the lattice join specified by the declaration of `C`.
 :::
 
 
