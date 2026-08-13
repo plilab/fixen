@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- |
 -- Module      : Fixen.CodeGen.MultiPhase
@@ -48,20 +48,22 @@ import Fixen.Utils
 codeGenMultiPhase :: FixenPass CodeGenState Text
 codeGenMultiPhase = do
   num_phases <- NonEmpty.length <$> fixenGetPhases
-  return $ if num_phases == 1
-    then ""
-    else
-      Text.intercalate "\n\n"
-        [ codeGenInterpretationDef num_phases
-        , codeGenEmptyInterpretation num_phases
-        , codeGenPhasesDef num_phases
-        , codeGenNextPhaseDef num_phases
-        , codeGenSelectDbDef num_phases
-        , codeGenInterpretationEntailment
-        , codeGenReplaceDb num_phases
-        , codeGenInsertToInterpretation
-        , codeGenEvaluatePhased
-        ]
+  return $
+    if num_phases == 1
+      then ""
+      else
+        Text.intercalate
+          "\n\n"
+          [ codeGenInterpretationDef num_phases
+          , codeGenEmptyInterpretation num_phases
+          , codeGenPhasesDef num_phases
+          , codeGenNextPhaseDef num_phases
+          , codeGenSelectDbDef num_phases
+          , codeGenInterpretationEntailment
+          , codeGenReplaceDb num_phases
+          , codeGenInsertToInterpretation
+          , codeGenEvaluatePhased
+          ]
 
 --------------------------------------------------------------------------------
 
@@ -103,11 +105,13 @@ codeGenEmptyInterpretation n =
 codeGenPhasesDef :: Int -> Text
 codeGenPhasesDef n =
   Text.concat
-   [ "data Phase = "
-   , (Text.intercalate "\n           | "
-       (Text.append "Phase" . Text.show <$> [1 .. n]))
-   , "\n deriving (Eq, Show, Ord)"
-   ]
+    [ "data Phase = "
+    , ( Text.intercalate
+          "\n           | "
+          (Text.append "Phase" . Text.show <$> [1 .. n])
+      )
+    , "\n deriving (Eq, Show, Ord)"
+    ]
 
 -- | Generates the @nextPhase@ function
 --
@@ -117,13 +121,14 @@ codeGenNextPhaseDef n =
   Text.append "nextPhase :: Phase -> Phase\n" $
     Text.intercalate "\n" $
       fmap
-        (\i ->
-          Text.concat
-            [ "nextPhase Phase"
-            , Text.show i
-            , " = Phase"
-            , Text.show (mod i n + 1)
-            ])
+        ( \i ->
+            Text.concat
+              [ "nextPhase Phase"
+              , Text.show i
+              , " = Phase"
+              , Text.show (mod i n + 1)
+              ]
+        )
         [1 .. n]
 
 -- ** Selecting Databases

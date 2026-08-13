@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- |
 -- Module      : Fixen.SymbolSolver.RuleInstance
@@ -51,13 +51,15 @@ codeGenRuleInstance = do
   eval_def <- codeGenEvaluate
   priority_def <- codeGenPriorities
   q_def <- codeGenQueueDef
-  return $ Text.intercalate "\n\n" 
-    [ rule_instance_def
-    , eval_def
-    , eq_instance
-    , priority_def
-    , q_def
-    ]
+  return $
+    Text.intercalate
+      "\n\n"
+      [ rule_instance_def
+      , eval_def
+      , eq_instance
+      , priority_def
+      , q_def
+      ]
 
 --------------------------------------------------------------------------------
 
@@ -154,12 +156,13 @@ codeGenPriorities :: FixenPass CodeGenState Text
 codeGenPriorities = do
   priority_info <- values <$> fixenGetPriorities
   if null priority_info
-    then return
-      """
-      instance Ord RuleInstance where
-        _ <= Init _ = True
-        _ <= _ = False
-      """
+    then
+      return
+        """
+        instance Ord RuleInstance where
+          _ <= Init _ = True
+          _ <= _ = False
+        """
     else do
       let header =
             """
@@ -170,11 +173,12 @@ codeGenPriorities = do
               _ < Init _ = True
             """
       cases <- mapM codeGenPriority priority_info
-      return $ Text.concat
-        [ header
-        , Text.concat $ Text.append "\n" <$> cases
-        , "\n  _ < _ = False"
-        ]
+      return $
+        Text.concat
+          [ header
+          , Text.concat $ Text.append "\n" <$> cases
+          , "\n  _ < _ = False"
+          ]
 
 -- | Generates a @<@ case using a @priority@ declaration.
 --
@@ -187,30 +191,39 @@ codeGenPriority p_info = do
       (lhs_rule_id, rhs_rule_id) = p_info ^. rules
       (lhs_rule_info, rhs_rule_info) =
         ( rule_info_map IntMap.! lhs_rule_id
-        , rule_info_map IntMap.! rhs_rule_id )
+        , rule_info_map IntMap.! rhs_rule_id
+        )
       (lhs_rule_instance, rhs_rule_instance) = (conc ^. lhs, conc ^. rhs)
       (lhs_rule_instance_name, lhs_code_vars) = mk lhs_rule_info lhs_rule_instance
       (rhs_rule_instance_name, rhs_code_vars) = mk rhs_rule_info rhs_rule_instance
   return $
     Text.concat
-      [ "  (", lhs_rule_instance_name, " ", Text.intercalate " " lhs_code_vars
+      [ "  ("
+      , lhs_rule_instance_name
+      , " "
+      , Text.intercalate " " lhs_code_vars
       , ") < ("
-      , rhs_rule_instance_name, " ", Text.intercalate " " rhs_code_vars
+      , rhs_rule_instance_name
+      , " "
+      , Text.intercalate " " rhs_code_vars
       , ") = "
       , codeGenExpr prem
       ]
   where
-    mk rule_info rule_instance = 
+    mk rule_info rule_instance =
       let priority_vars =
-            rule_instance ^. map
+            rule_instance
+              ^. map
               & Map.mapKeys simpleIdentifier
-              & Map.map simpleIdentifier 
+              & Map.map simpleIdentifier
           rule_instance_name = codeGenRuleInstanceName (rule_info ^. declaration)
           rule_params = rule_info ^. args & Map.keys
           params_code =
-            ( \v -> case priority_vars Map.!? v of 
+            ( \v -> case priority_vars Map.!? v of
                 Nothing -> "_"
-                Just v' -> v' ) <$> rule_params
+                Just v' -> v'
+            )
+              <$> rule_params
        in (rule_instance_name, params_code)
 
 -- ** Work Queues
@@ -256,4 +269,5 @@ codeGenEvaluateCase rule_info =
         , parenthesize $ Text.intercalate " " $ rule_instance_name : rule_params
         , "="
         , simpleIdentifier rule_conclusion
-        ] ++ rule_conclusion_args
+        ]
+          ++ rule_conclusion_args

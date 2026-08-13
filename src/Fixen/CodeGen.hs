@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Fixen.CodeGen where
 
@@ -40,8 +40,8 @@ codeGen forest relation_rep prog = do
   re_solve_code <- codeGenReSolve forest
   q_code <- mapM (codeGenQuery relation_rep) (prog ^. queries)
   multi_phase <- codeGenMultiPhase
-  return
-    $ Text.intercalate
+  return $
+    Text.intercalate
       "\n\n"
       [ mod_head_code
       , import_code
@@ -119,7 +119,6 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
     else do
       if n == length ty'
         then -- finished, return the fact
-
           let args' = (\(_, i) -> let num = name_supply IntMap.! i in Text.concat [" _v", Text.show i, "_", Text.show num]) <$> IntMap.toList imap'
            in return $ Text.concat ["  return $ ", rel_name, Text.concat args']
         else case ty' !! n of
@@ -182,11 +181,11 @@ codeGenQueryStep n rel_rep name_supply rel_name = do
                   )
                     <$> [n .. length ty' - 1]
                 lhs_tup = if length lhs' == 1 then lhs' !! 0 else Text.concat ["(", Text.intercalate ", " lhs', ")"]
-                fst_i = 
+                fst_i =
                   case name_supply IntMap.!? (-1) of
-                    Nothing -> 
+                    Nothing ->
                       Text.concat ["  ", lhs_tup, " <- maybeToList ", parenthesize prev_step, "\n"]
-                    Just _ -> 
+                    Just _ ->
                       Text.concat ["  let ", lhs_tup, " = ", prev_step, "\n"]
                 need_to_leq = filter (`IntMap.member` name_supply) [n .. length ty' - 1]
                 guards = (\i -> Text.concat ["  guard (", codeGenIdentifier $ get_leq ty' i, " _v", Text.show i, "_0 _v", Text.show i, "_1)\n"]) <$> need_to_leq
@@ -270,42 +269,44 @@ codeGenLoopAndSolve :: FixenPass CodeGenState Text
 codeGenLoopAndSolve = do
   p <- fixenGetPhases
   if length p == 1
-    then return
-          """
-          loop :: Queue -> Database -> Database
-          loop q db
-            | Just (p, q') <- Q.maxView q =
-              let f = evaluate p
-               in if db |= f
-                  then loop q' db
-                  else let c = mergeContour f db
-                           new_facts = filter (not . (db |=)) (maximalContour c)
-                           new_db = foldl' insertToDb db new_facts
-                        in loop (stepAll new_db new_facts q') new_db
-            | otherwise = db
+    then
+      return
+        """
+        loop :: Queue -> Database -> Database
+        loop q db
+          | Just (p, q') <- Q.maxView q =
+            let f = evaluate p
+             in if db |= f
+                then loop q' db
+                else let c = mergeContour f db
+                         new_facts = filter (not . (db |=)) (maximalContour c)
+                         new_db = foldl' insertToDb db new_facts
+                      in loop (stepAll new_db new_facts q') new_db
+          | otherwise = db
 
-          solve :: [Fact] -> Database
-          solve = reSolve emptyDb
-          """
-    else return 
-          """
-          loop :: Queue -> Interpretation -> Interpretation
-          loop q i
-            | Just (p, q') <- Q.maxView q =
-              let (f, phase) = evaluatePhased p
-                  db = selectDb i phase
-               in if db |= f
-                  then loop q' i
-                  else let c = mergeContour f db
-                           new_facts = filter (not . (db |=)) (maximalContour c)
-                           new_db = foldl' insertToDb db new_facts
-                           new_int = replaceDb i new_db phase
-                        in loop (stepAll new_int new_facts phase q') new_int
-            | otherwise = i
+        solve :: [Fact] -> Database
+        solve = reSolve emptyDb
+        """
+    else
+      return
+        """
+        loop :: Queue -> Interpretation -> Interpretation
+        loop q i
+          | Just (p, q') <- Q.maxView q =
+            let (f, phase) = evaluatePhased p
+                db = selectDb i phase
+             in if db |= f
+                then loop q' i
+                else let c = mergeContour f db
+                         new_facts = filter (not . (db |=)) (maximalContour c)
+                         new_db = foldl' insertToDb db new_facts
+                         new_int = replaceDb i new_db phase
+                      in loop (stepAll new_int new_facts phase q') new_int
+          | otherwise = i
 
-          solve :: [Fact] -> Interpretation
-          solve = reSolve emptyInterpretation
-          """
+        solve :: [Fact] -> Interpretation
+        solve = reSolve emptyInterpretation
+        """
 
 codeGenStep :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStep f r = do
@@ -321,16 +322,18 @@ codeGenStepAll :: FixenPass CodeGenState Text
 codeGenStepAll = do
   p <- fixenGetPhases
   if length p == 1
-    then return
-          """
-          stepAll :: Database -> [Fact] -> Queue -> Queue
-          stepAll db xs q = foldl' (\\q' f -> step db f q') q xs
-          """
-    else return 
-          """
-          stepAll :: Interpretation -> [Fact] -> Phase -> Queue -> Queue
-          stepAll i xs p q = foldl' (\\q' f -> step i f p q') q xs
-          """
+    then
+      return
+        """
+        stepAll :: Database -> [Fact] -> Queue -> Queue
+        stepAll db xs q = foldl' (\\q' f -> step db f q') q xs
+        """
+    else
+      return
+        """
+        stepAll :: Interpretation -> [Fact] -> Phase -> Queue -> Queue
+        stepAll i xs p q = foldl' (\\q' f -> step i f p q') q xs
+        """
 
 codeGenStepMultiPhase :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStepMultiPhase xs r = do
@@ -474,7 +477,6 @@ codeGenSinglePhaseForest rel_rep name_supply indent forest phase_no = do
       leaves' = _ruleForestLeaves forest
   if length branches + length leaves' <= 1
     then -- continue in the straight line
-
       if length branches == 0
         then do
           leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply indent phase_no) leaves'
@@ -797,15 +799,16 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
               remaining <- codeGenSinglePhaseForest rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
               -- is a hashset. walk down set and mlbs
               if curr_pos == 0
-                then return $
-                  Text.concat [
-                    stepIndent indent
-                    , lhs_tup
-                    , " <- maybeToList "
-                    , prev_step
-                    , Text.concat r_s
-                    , remaining
-                  ]
+                then
+                  return $
+                    Text.concat
+                      [ stepIndent indent
+                      , lhs_tup
+                      , " <- maybeToList "
+                      , prev_step
+                      , Text.concat r_s
+                      , remaining
+                      ]
                 else
                   return $
                     Text.concat
