@@ -70,6 +70,7 @@ library
                       , Fixen.CodeGen.ModuleDeclaration
                       , Fixen.CodeGen.MultiPhase
                       , Fixen.CodeGen.RuleInstance
+                      , Fixen.Diagnostics
                       , Fixen.Fields
                       , Fixen.IR.AST
                       , Fixen.IR.RelationRepresentation
