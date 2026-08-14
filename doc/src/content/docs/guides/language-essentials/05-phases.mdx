@@ -4,6 +4,8 @@ description: Stratify program state and compose rule sets using phases of execut
 ---
 
 import Math from "../../../../components/starlight/Math.astro"
+import { FileTree } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
 Fixen programs enjoy **compositionality**: given two disjoint programs (sharing no relations), their union is a valid program whose evaluation is the union of the individual results. But what if you want to compose programs that **share** relations? For example, in static analysis, you might want to combine an interval analysis and a parity analysis, allowing them to exchange information during computation. A naive union of their rules fails because over-approximated facts subsume refined ones.
 
@@ -49,8 +51,9 @@ This allows us to easily represent the program using Fixen facts. The relation d
 
 - `Var l v` states that program point `l` declares variable `v`.
 - `Assign l x e` states that program point `l` assigns expression `e` to variable `x`.
-- `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false) (this language assumes the [law of the excluded middle](https://youtu.be/K2tUymm5o4M?si=ffKdsN-nG1UpaiGb&t=149)).
+- `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false) (unfortunately, this language assumes the [law of the excluded middle](https://youtu.be/K2tUymm5o4M?si=ffKdsN-nG1UpaiGb&t=149)).
 - `Seq l l'` states that program point `l` is followed by `l'`.
+- `Label`s are aliases for Haskell's `Natural`, and `Expr` is a datatype we will define later for capturing expressions in the imperative language.
 
 For instance, the example program `example.imp-ir` is represented using the following Fixen facts:
 
@@ -59,10 +62,10 @@ For instance, the example program `example.imp-ir` is represented using the foll
 [32mSeq[0m [34m0[0m [34m1[0m
 [32mAssign[0m [34m1[0m [36m"v"[0m ([35mNum[0m [34m1[0m)
 [32mSeq[0m [34m1[0m [34m2[0m
-[32mBranch[0m [34m2[0m ([35mLeq[0m ([35mId[0m [36m"v"[0m) ([35mNum[0m [34m1[0m)) [34m3[0m [34m5[0m
+[32mBranch[0m [34m2[0m ([35mLeq[0m [36m"v"[0m ([35mNum[0m [34m9[0m)) [34m3[0m [34m5[0m
 [32mAssign[0m [34m3[0m [36m"v"[0m ([35mPlus[0m ([35mId[0m [36m"v"[0m) ([35mNum[0m [34m2[0m))
 [32mSeq[0m [34m3[0m [34m2[0m
-[32mBranch[0m [34m5[0m ([35mEq[0m ([35mId[0m [36m"v"[0m) ([35mNum[0m [34m11[0m)) [34m6[0m [34m101[0m
+[32mBranch[0m [34m5[0m ([35mEq[0m [36m"v"[0m ([35mNum[0m [34m11[0m)) [34m6[0m [34m101[0m
 [32mAssign[0m [34m6[0m [36m"v"[0m ([35mNum[0m [34m0[0m)
 [32mSeq[0m [34m6[0m [34m101[0m
 [32mVar[0m [34m101[0m [36m"END"[0m
@@ -81,21 +84,21 @@ Then, we track program states with a relation:
 ```ansi frame="code" title="Lattice and relation for interval analysis"
 [31mlat[0m [33mStateI[0m [31mwhere[0m
   [31mtype[0m = [33mHashMap String Interval[0m
-  [31mleq[0m  = [35mstateILeq[0m
-  [31mjoin[0m = [35mjoinI[0m
-  [31mmeet[0m = [35mmeetI[0m
+  [31mleq[0m  = [35mleq[0m
+  [31mjoin[0m = ([35m\/[0m)
+  [31mmeet[0m = ([35m/\[0m)
 
 [31mrel[0m [32mStateBeforeI[0m: [33mLabel[0m, [33mStateI[0m
 ```
-`StateI` is a **map lattice**, ordered by inclusion of map keys and the interval order on map values. The `StateBeforeI` relation maps each program label to a `StateI`. Essentially, at every program point, we track the intervals assigned to each variable that exists within the program.
+`StateI` is a **map lattice**, ordered by inclusion of map keys and the interval order on map values. The `StateBeforeI` relation maps each program label to a `StateI`. Essentially, at every program point, we track the intervals assigned to each variable that exists within the program. The `leq`, `join` and `meet` functions are standard, so we use definitions from the [`lattices`](https://hackage-content.haskell.org/package/lattices-2.2.1.1) library.
 
 The analysis rules initialize states and propagate them through assignments and branches:
 
 ```ansi frame="code" title="Interval analysis rules"
 
-[31mrule[0m [33massignInitI[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeI[0m [33mHashMap[0m.[35mempty[0m 
-[31mrule[0m [33mbranchInitI[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeI[0m [33mHashMap[0m.[35mempty[0m 
-[31mrule[0m [33mvarInitI[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeI[0m [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33massignInitI[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mbranchInitI[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mvarInitI[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
 
 [31mrule[0m [33massignStepI[0m: [32mAssign[0m l x e, [32mSeq[0m l l', [32mStateBeforeI[0m l st
                   [31m|-[0m [32mStateBeforeI[0m l' ([33mHashMap[0m.[35minsert[0m x ([35mevalI[0m e st) st)
@@ -105,11 +108,363 @@ The analysis rules initialize states and propagate them through assignments and 
                   [31m|-[0m [32mStateBeforeI[0m t ([35mrefineTI[0m e st)
 
 [31mrule[0m [33mbranchFalseI[0m: [32mBranch[0m l e _ f, [32mStateBeforeI[0m l st,
-                  [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondI[0m e st)
-                  [31m|-[0m [32mStateBeforeI[0m t ([35mrefineFI[0m e st)
+                   [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                   [31m|-[0m [32mStateBeforeI[0m f ([35mrefineFI[0m e st)
 ```
 
-The transfer functions (`assignStepI`, `branchTrueI`, `branchFalseI`) propagate states forward. The `evalI`, `evalCondI`, `refineTI`, and `refineFI` functions are defined in Haskell and evaluate expressions, check conditions, and refine intervals.
+- The `assignInitI`, `branchInitI` and `varInitI` rules initialize the state before each program point to the empty map
+- The `assignStepI` rule is a transfer function that inserts the variable-interval map entry `x` and `evalI e st` into the state before the label it jumps to. `evalI` receives an expression and the current state `st` and evaluates it into an interval. We define the `evalI` function later.
+- The `branchTrueI` and `branchFalseI` rules are transfer functions for conditional branching. There are several aspects to these. Firstly, we should visit the true (resp. false) branches only if the condition allows it. This is represented by the condition ``BTrue `leq` (evalCondI e st)`` (resp. ``BFalse `leq` (evalCondI e st)``). The `BTrue` and `BFalse` construtors belong to a boolean lattice, with values <Math formula="\bot" /> representing no information, `BTrue` representing "definitely true", `BFalse` representing "definitely false", and <Math formula="\top" /> representing "either true or false". Secondly, if a true (resp. false) branch is visited, we refine the intervals in the state based on the condition itself using `refineTI` (resp. `refineFI`), which we define in Haskell later. As an intuitive example, suppose the condition is `x <= 10` and `st` has `x` being within the interval <Math formula="[5, 15]" />. Then, in the true branch, `x` must be within <Math formula="[5, 10]" />, while in the false branch `x` must be within <Math formula="[11, 15]" />.
+
+#### Complete Example
+
+Let us make these ideas concrete by implementing the interval analysis, executing it, and observing the state at the end of the program. Our project is going to have the following structure:
+
+<FileTree>
+- my-project
+  - my-project.cabal
+  - app
+    - Main.hs
+    - Common.hs
+    - IntervalUtils.hs
+  - fix
+    - Program.fix
+    - IntervalAnalysis.fix
+</FileTree>
+
+The cabal configuration file will be as follows. Note the use of the `lattices` library which contains definitions that will simplify our implementation, and the `hashable` library so that expressions can be used as map keys.
+
+```txt title="my-project.cabal"
+cabal-version:      3.0
+name:               my-project
+version:            0.1.0.0
+build-type:         Simple
+common warnings
+    ghc-options: -Wall
+executable my-project
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:    Common
+                    , IntervalAnalysis
+                    , IntervalUtils
+    build-depends:    base
+                    , pqueue
+                    , unordered-containers
+                    , hashable
+                    , lattices
+    hs-source-dirs:   app
+    default-language: GHC2021
+```
+
+##### Common Definitions
+
+First, populate `app/Common.hs` with some common definitions. 
+
+
+```haskell title="app/Common.hs"
+module Common where
+
+import Algebra.PartialOrd
+import Data.Hashable
+import GHC.Generics
+import Numeric.Natural
+
+data Expr
+  = Id String -- x
+  | Num Int -- 1
+  | Plus Expr Expr -- e + e'
+  | Leq String Expr -- x <= e
+  | Eq String Expr -- x = e
+  deriving (Eq, Generic, Show)
+
+instance Hashable Expr
+
+type Label = Natural
+
+data BBool = BTop | BBot | BTrue | BFalse
+  deriving (Eq, Generic, Show)
+
+instance PartialOrd BBool where
+  BBot `leq` _ = True
+  _ `leq` BTop = True
+  x `leq` y = x == y
+```
+
+<Steps>
+1. The `Expr` data type captures the kind of expressions we are expecting in the program:
+   - `Id` refers to variables
+   - `Num` refers to integers
+   - `Plus` refers to additions in the form of `e + e'`
+   - `Leq` refers to variable inequalities in the form of `x <= e`. Note that in other languages we typically have these in the form of `e <= e'` where both `e` and `e'` are expressions. For our example, the version of `Leq` we have will suffice.
+   - `Eq` refers to variable equalities in the form of `x = e`. Note again that we typically have equalities in the form of `e = e'` in other languages.
+2. We make `Expr`s `Hashable` by deriving `Generic Expr` and by declaring an instance of `Hashable Expr`. This allows `Expr` to be used as map keys in the Fixen-generated fact database.
+3. `Label`s in our language are `Natural` numbers.
+4. The `BBool` data type, as mentioned above, describes a lattice of boolean values. To endow this structure with a partial order, we declare an instance of `PartialOrd`, which comes from the `lattices` package. It is not always necessary to use `lattices` with Fixen, but can be idiomatic when using existing partially ordered or lattice types.
+</Steps>
+
+##### Utilities for the Interval Analysis
+Next, we define the functions and data structures used by the interval analysis in `app/IntervalUtils.hs`:
+
+```haskell title="app/IntervalUtils.hs"
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE OverlappingInstances #-}
+
+module IntervalUtils where
+
+import Algebra.Lattice
+import Algebra.PartialOrd
+import Common
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List (intercalate)
+
+data Interval = Pair Int Int | ITop | IBot
+  deriving Eq
+
+instance Show Interval where
+  show (Pair a b) = "[" ++ show a ++ ", " ++ show b ++ "]"
+  show ITop = "[-inf, inf]"
+  show IBot = "empty"
+
+instance Show (HashMap String Interval) where
+  show m = "{ " ++ intercalate ", " (fmap (\(k, v) -> k ++ ": " ++ show v) (HashMap.toList m)) ++ " }"
+
+(...) :: Int -> Int -> Interval
+a ... b = if a > b then IBot else Pair a b
+
+infix 5 ...
+
+instance PartialOrd Interval where
+  leq IBot _ = True
+  leq _ ITop = True
+  leq ITop _ = False
+  leq _ IBot = False
+  Pair a b `leq` Pair c d = a >= c && b <= d
+
+instance Lattice Interval where
+  ITop \/ _ = ITop
+  _ \/ ITop = ITop
+  IBot \/ x = x
+  x \/ IBot = x
+  Pair a b \/ Pair c d = min a c ... max b d
+
+  IBot /\ _ = IBot
+  _ /\ IBot = IBot
+  ITop /\ x = x
+  x /\ ITop = x
+  Pair a b /\ Pair c d = max a c ... min b d
+
+-- Easy lookups for intervals in state
+lookupInterval :: String -> HashMap String Interval -> Interval
+lookupInterval = HashMap.lookupDefault IBot
+
+-- Puts a cap on the upper bound of an interval.
+withUpperBound :: Int -> Interval -> Interval
+withUpperBound n (Pair a b) = if n < b then a ... n else a ... b
+withUpperBound _ x = x
+
+-- Puts a minimum on the lower bound of an interval.
+withLowerBound :: Int -> Interval -> Interval
+withLowerBound n (Pair a b) = if n > a then n ... b else a ... b
+withLowerBound _ x = x
+
+-- Evaluates an expression, giving an interval.
+evalI :: Expr -> HashMap String Interval -> Interval
+evalI (Id x) st = lookupInterval x st
+evalI (Num i) _ = i ... i
+evalI (Plus e e') st = case (evalI e st, evalI e' st) of
+  (Pair a b, Pair c d) -> a + c ... b + d
+  (IBot, _) -> IBot
+  (_, IBot) -> IBot
+  _ -> ITop
+evalI _ _ = IBot
+
+-- Evaluates a condition, giving a BBool.
+evalCondI :: Expr -> HashMap String Interval -> BBool
+evalCondI (Leq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if
+      | b <= c -> BTrue
+      | a > d -> BFalse
+      | otherwise -> BTop
+  (IBot, _) -> BBot
+  (_, IBot) -> BBot
+  _ -> BTop
+evalCondI (Eq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if
+      | a == b && a == c && b == d -> BTrue
+      | b < c || a > d -> BFalse
+      | otherwise -> BTop
+  (IBot, _) -> BBot
+  (_, IBot) -> BBot
+  _ -> BTop
+evalCondI _ _ = BBot
+
+-- Refines intervals assuming a condition is true.
+refineTI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineTI (Leq x e) st = case evalI e st of
+  Pair _ b ->
+    let int = withUpperBound b $ lookupInterval x st
+     in HashMap.insert x int st
+  _ -> st
+refineTI (Eq x e) st =
+  let int = lookupInterval x st /\ evalI e st
+   in HashMap.insert x int st
+refineTI _ st = st
+
+-- Refines intervals assuming a condition is true.
+refineFI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineFI (Leq x e) st = case evalI e st of
+  Pair a _ ->
+    let int = withLowerBound (a + 1) $ lookupInterval x st
+     in HashMap.insert x int st
+  _ -> st
+refineFI (Eq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if c == d then
+      if
+        | b == c -> HashMap.insert x (a ... b - 1) st
+        | a == c -> HashMap.insert x (a + 1 ... b) st
+        | otherwise -> st
+    else
+      st
+  _ -> st
+refineFI _ st = st
+```
+
+Let us break down this monstrosity:
+<Steps>
+1. The first portion defines some basics of `Interval`s. In addition, we introduce a smart constructor `...` so that nonsensical intervals like `[1, 0]` become the bottom, empty interval `IBot`.
+2. We introduce instances of `PartialOrd` and `Lattice` for `Interval`. This allows `HashMap String Interval` to also be lattices (`leq`, `/\` and `\/` need these to work).
+3. We write some convenience functions `lookupInterval`, `withUpperBound` and `withLowerBound`. These are thoroughly pedestrian.
+4. The purpose of the functions `evalI`, `evalCondI`, `refineTI` and `refineFI` are as described earlier.
+</Steps>
+
+##### Relations for the Program
+Next, we define the relations needed for capturing the statements in the program in `fix/Program.fix`. We separate these out from the interval analysis because we want these to be re-used for other analyses for the same imperative language.
+
+```ansi title="fix/Program.fix" frame="code"
+[35mmodule[0m Program [35mwhere[0m
+
+[31mrel[0m [32mVar[0m: [33mLabel[0m, [33mString[0m
+[31mrel[0m [32mAssign[0m: [33mLabel[0m, [33mString[0m, [33mExpr[0m
+[31mrel[0m [32mBranch[0m: [33mLabel[0m, [33mExpr[0m, [33mLabel[0m, [33mLabel[0m
+[31mrel[0m [32mSeq[0m: [33mLabel[0m, [33mLabel[0m
+```
+
+##### Interval Analysis
+Finally, we can write the Fixen program expressing the interval analysis in `fix/IntervalAnalysis.fix`:
+
+
+```ansi frame="code" title="fix/IntervalAnalysis.fix"
+[35mmodule[0m IntervalAnalysis [35mwhere[0m
+
+[35mimport[0m Algebra.PartialOrd
+[35mimport[0m Algebra.Lattice
+[35mimport[0m Common
+[35mimport[0m IntervalUtils
+
+[31minclude[0m [36m"Program"[0m
+
+[31mlat[0m [33mStateI[0m [31mwhere[0m
+  [31mtype[0m = [33mHashMap String Interval[0m
+  [31mleq[0m  = [35mleq[0m
+  [31mjoin[0m = ([35m\/[0m)
+  [31mmeet[0m = ([35m/\[0m)
+
+[31mrel[0m [32mStateBeforeI[0m: [33mLabel[0m, [33mStateI[0m
+
+[31mrule[0m [33massignInitI[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mbranchInitI[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mvarInitI[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+
+[31mrule[0m [33massignStepI[0m: [32mAssign[0m l x e, [32mSeq[0m l l', [32mStateBeforeI[0m l st
+                  [31m|-[0m [32mStateBeforeI[0m l' ([33mHashMap[0m.[35minsert[0m x ([35mevalI[0m e st) st)
+
+[31mrule[0m [33mbranchTrueI[0m: [32mBranch[0m l e t _, [32mStateBeforeI[0m l st,
+                  [31mif[0m [33mBTrue[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                  [31m|-[0m [32mStateBeforeI[0m t ([35mrefineTI[0m e st)
+
+[31mrule[0m [33mbranchFalseI[0m: [32mBranch[0m l e _ f, [32mStateBeforeI[0m l st,
+                   [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                   [31m|-[0m [32mStateBeforeI[0m f ([35mrefineFI[0m e st)
+
+[31mquery[0m [35mstateBeforeI[0m: [32mStateBeforeI[0m [31m+ -[0m
+```
+
+<Steps>
+1. This program imports all the Haskell modules needed for the analysis to work.
+2. The program consists of an **include** statement, which essentially copies all definitions in another **Fixen** program into the current one. Include statements copy everything except priorities and phases declarations (which we will cover shortly). The argument to the `include` keyword is a path to the Fixen program to copy, where the `.fix` extension is optional.
+3. The lattice, relation and rule declarations are as described before.
+4. We introduce a `stateBeforeI` query to obtain analysis results.
+</Steps>
+
+:::note
+Support for a less naive module system is underway.
+:::
+
+##### Building and Running
+Let's run the program!
+
+<Steps>
+1. Compile the Fixen program into a Haskell module. Note that `fix/Program.fix` does not need to be compiled, since `fix/IntervalAnalysis.fix` already contains every definition in it.
+   ```ansi title="Terminal"
+    [35m~/my-project $[0m [31m[1m[4mfixen --output app/IntervalAnalysis.hs fix/IntervalAnalysis.fix[0m
+   ```
+2. As always, we need some driver module. Populate `app/Main.hs` with the following, which performs the analysis, reads user input (program point) and shows the state before that program point:
+   ```haskell title="app/Main.hs"
+   module Main where
+
+   import Common
+   import IntervalAnalysis
+   import Numeric.Natural
+
+   main :: IO ()
+   main = do
+     let facts =
+           [ Var 0 "v"
+           , Seq 0 1
+           , Assign 1 "v" (Num 1)
+           , Seq 1 2
+           , Branch 2 (Leq "v" (Num 9)) 3 5
+           , Assign 3 "v" (Plus (Id "v") (Num 2))
+           , Seq 3 2
+           , Branch 5 (Eq "v" (Num 11)) 6 101
+           , Assign 6 "v" (Num 0)
+           , Seq 6 101
+           , Var 101 "END"
+           ]
+         db = solve facts
+     (label :: Natural) <- readLn
+     print (stateBeforeI label db)
+   ```
+3. Run it and supply the label `101`!
+   ```ansi title="Terminal"
+   [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+   [31m[1m[4m101[0m
+   [StateBeforeI 101 { v: [0, 10] }]
+   ```
+</Steps>
+
+##### Understanding the Results
+*Weird*. Why does the analysis conclude that `v` is within <Math formula="[0, 10]" />, instead of being exactly to 0 (i.e., within the interval <Math formula="[0, 0]" />)? Let us inspect the states before other program points:
+
+```ansi title="Terminal"
+[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[31m[1m[4m2[0m
+[StateBeforeI 2 { v: [1, 11] }]
+[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[31m[1m[4m5[0m
+[StateBeforeI 5 { v: [10, 11] }]
+```
+
+That's right! 
+- The state before entering the `while` loop (program point 2) has `v` within <Math formula="[1, 11]" /> as expected, since the loop increments (by 2) `v` from `1` to `11`. 
+- Exiting the `while` loop allows us to refine the interval for `v` to <Math formula="[10, 11]" /> since the condition is `v <= 9`. 
+- This means that the condition in the `if` statement (program point 5) could be either true or false; it is true if `v` is `11`, false if it is `10`. Both branches could be visited, and thus the best we can conclude is that `v` is either 
+  - `0` (caused by the update in the true branch of the `if` statement) or
+  - `10` (caused by not visiting the true branch in the `if` statement)!
 
 ### Parity Analysis
 
@@ -118,10 +473,9 @@ A **parity analysis** determines whether each variable is even, odd, or unknown.
 ```txt
 lat StateP where
   type = HashMap String Parity
-  leq = statePLeq
-  join = joinP
-  meet = meetP
-  bot = HashMap.empty
+  leq = leq
+  join = (\/)
+  meet = (/\)
 
 rel StateBeforeP: Label, StateP
 ```
