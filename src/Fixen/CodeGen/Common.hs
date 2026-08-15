@@ -43,7 +43,7 @@ codeGenExpr (ExprApp _ lhs' rhs') =
    in Text.intercalate " " [lhs_code, rhs_code]
 codeGenExpr (ExprList _ ls) = Text.concat ["[", Text.intercalate ", " $ codeGenExpr <$> ls, "]"]
 codeGenExpr (ExprTuple _ hd tl) = parenthesize $ Text.intercalate ", " $ codeGenExpr <$> hd : NonEmpty.toList tl
-codeGenExpr (ExprIntLit _ i) = Text.show i
+codeGenExpr (ExprIntLit _ i) = if i < 0 then parenthesize (Text.show i) else Text.show i
 codeGenExpr (ExprStrLit _ i) = Text.show i
 codeGenExpr (ExprUnit _) = "()"
 
