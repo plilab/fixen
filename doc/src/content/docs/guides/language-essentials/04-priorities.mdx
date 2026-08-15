@@ -118,12 +118,11 @@ Priorities are not limited to comparing instances of the same rule. You can comp
 
 This unconditionally gives instances of `rule2` higher priority than instances of `rule1`, regardless of the instantiated values. Such cross-rule priorities can be used to stratify rule execution.
 
-:::tip
-Support for condition-less priorities, e.g.,
+:::note[In Progress]
+Condition-less priorities is currently under development:
 ```ansi frame="code"
 [31mpriority[0m: [31m|-[0m [33mrule1[0m { } [31m<[0m [33mrule2[0m { }
 ```
-is underway.
 :::
 
 ## Performance Implications
