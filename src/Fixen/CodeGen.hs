@@ -215,12 +215,12 @@ codeGenReSolve f =
           , "\n          ]\n   in loop q db"
           ]
     _ -> do
-      let numbered = (NonEmpty.toList $ NonEmpty.zip (1 :| [2 .. length f]) f) >>= (\(i, ls) -> (i,) <$> _ruleForestLeaves ls)
+      let numbered = (NonEmpty.toList $ NonEmpty.zip (0 :| [1 .. length f - 1]) f) >>= (\(i, ls) -> (i,) <$> _ruleForestLeaves ls)
       l_c <- mapM (\(i, f') -> codeGenFactLeaves (Just i) f') numbered
       return $
         Text.concat
           [ "\nreSolve :: Interpretation -> [Fact] -> Interpretation\nreSolve i f =\n  let q = Q.fromList $ concat [\n            (,Phase"
-          , Text.show (length f)
+          , Text.show (length f - 1)
           , ") . Init <$> f"
           , Text.concat (Text.cons ',' <$> l_c)
           , "\n          ]\n   in loop q i"
@@ -337,7 +337,7 @@ codeGenStepAll = do
 
 codeGenStepMultiPhase :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStepMultiPhase xs r = do
-  let zipped = NonEmpty.zip (1 :| [2 .. length xs]) xs
+  let zipped = NonEmpty.zip (0 :| [1 .. length xs - 1]) xs
   ls <- mapM (codeGenStepMultiPhaseCase r) zipped
   return $ Text.concat $ NonEmpty.toList ls
 

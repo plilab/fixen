@@ -108,7 +108,7 @@ codeGenPhasesDef n =
     [ "data Phase = "
     , ( Text.intercalate
           "\n           | "
-          (Text.append "Phase" . Text.show <$> [1 .. n])
+          (Text.append "Phase" . Text.show <$> [0 .. n - 1])
       )
     , "\n deriving (Eq, Show, Ord)"
     ]
@@ -126,10 +126,10 @@ codeGenNextPhaseDef n =
               [ "nextPhase Phase"
               , Text.show i
               , " = Phase"
-              , Text.show (mod i n + 1)
+              , Text.show (mod (i + 1) n)
               ]
         )
-        [1 .. n]
+        [0 .. n - 1]
 
 -- ** Selecting Databases
 
@@ -140,14 +140,14 @@ codeGenSelectDbDef :: Int -> Text
 codeGenSelectDbDef n =
   Text.append "selectDb :: Interpretation -> Phase -> Database\n" $
     Text.intercalate "\n" $
-      (`Text.append` " = db") ∘ selectLhs n <$> [1 .. n]
+      (`Text.append` " = db") ∘ selectLhs n <$> [0 .. n - 1]
   where
     -- selectDb (_, _, ..., _, db, _, ..., _) Phase{i} = ...
     selectLhs n' i =
       Text.concat
         [ "selectDb ("
         , Text.intercalate ", " $
-            (replicate (i - 1) "_") ++ ("db" : replicate (n' - i) "_")
+            (replicate i "_") ++ ("db" : replicate (n' - i - 1) "_")
         , ") Phase"
         , Text.show i
         ]
@@ -175,7 +175,7 @@ codeGenReplaceDb :: Int -> Text
 codeGenReplaceDb n =
   Text.append "replaceDb :: Interpretation -> Database -> Phase -> Interpretation\n" $
     Text.intercalate "\n" $
-      replaceCase n <$> [1 .. n]
+      replaceCase n <$> [0 .. n - 1]
   where
     replaceCase n' i =
       Text.concat
@@ -189,12 +189,12 @@ codeGenReplaceDb n =
 
     -- (db1, db2, ..., dbi-1, _, dbi+1, ..., dbn)
     replaceLhsTup n' i =
-      let components = [if i == i' then "_" else db i' | i' <- [1 .. n']]
+      let components = [if i == i' then "_" else db i' | i' <- [0 .. n' - 1]]
        in parenthesize $ Text.intercalate ", " components
 
     -- (db1, db2, ..., dbi-1, db', dbi+1, ..., dbn)
     replaceRhs n' i =
-      let components = [if i == i' then "db'" else db i' | i' <- [1 .. n']]
+      let components = [if i == i' then "db'" else db i' | i' <- [0 .. n' - 1]]
        in parenthesize $ Text.intercalate ", " components
 
     db :: Int -> Text
