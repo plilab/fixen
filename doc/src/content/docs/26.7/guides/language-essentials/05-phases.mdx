@@ -1,0 +1,1981 @@
+---
+title: Phases
+description: Stratify program state and compose rule sets using phases of execution.
+slug: 26.7/guides/language-essentials/05-phases
+---
+
+import Math from "../../../../../components/starlight/Math.astro"
+import { FileTree } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Fixen programs enjoy **compositionality**: given two disjoint programs (sharing no relations), their union is a valid program whose evaluation is the union of the individual results. But what if you want to compose programs that **share** relations? For example, in static analysis, you might want to combine an interval analysis and a parity analysis, allowing them to exchange information during computation. A naive union of their rules fails because over-approximated facts subsume refined ones.
+
+**Phases of execution** solve this by stratifying the program state into multiple fact databases, cycling through them as rules execute. This enables post-composition of rule sets and the modular composition of non-disjoint programs.
+
+## Motivating Example: Composing Analyses
+
+To motivate phases, consider building a static analyzer for a simple imperative language. Programs in this language have variable declarations, assignments, conditional branches, and sequence points. An example program is as follows (taken from \[^1]):
+
+```ansi frame="code" title="example.imp"
+v [34m<-[0m [33m1[0m
+[35mwhile[0m v [34m<=[0m [33m9[0m [35mdo[0m
+    v [34m<-[0m v [34m+[0m [33m2[0m
+[35mdone[0m
+[35mif[0m v [34m=[0m [33m11[0m [35mthen[0m
+    v [34m<-[0m [33m0[0m
+[35mfi[0m
+```
+
+Running this program shows us that `v` is equal to `0` at the end of the program. Let us statically determine that this is the case.
+
+First, we lower this program as an intermediate representation via a de-sugaring to basic statements in an assembly-like language:
+
+```ansi frame="code" title="example.imp-ir"
+  [36m0[0m: [35mvar[0m v
+  [36m1[0m: v [34m<-[0m [33m1[0m
+  [36m2[0m: [35mbranch[0m v [34m<=[0m [33m9[0m, [36m3[0m, [36m5[0m
+  [36m3[0m: v [34m<-[0m v [34m+[0m [33m2[0m
+  [36m4[0m: [35mjump[0m [36m2[0m
+  [36m5[0m: [35mbranch[0m v [34m=[0m [33m11[0m, [36m6, [36m101[0m
+  [36m6[0m: v [34m<-[0m [33m0[0m
+[36m101[0m: [35mEND[0m
+```
+
+This allows us to easily represent the program using Fixen facts. The relation declarations are as follows:
+
+```ansi frame='code' title="Relations for representing imperative programs"
+[31mrel[0m [32mVar[0m: [33mLabel[0m, [33mString[0m
+[31mrel[0m [32mAssign[0m: [33mLabel[0m, [33mString[0m, [33mExpr[0m
+[31mrel[0m [32mBranch[0m: [33mLabel[0m, [33mExpr[0m, [33mLabel[0m, [33mLabel[0m
+[31mrel[0m [32mSeq[0m: [33mLabel[0m, [33mLabel[0m
+```
+
+* `Var l v` states that program point `l` declares variable `v`.
+* `Assign l x e` states that program point `l` assigns expression `e` to variable `x`.
+* `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false) (unfortunately, this language assumes the [law of the excluded middle](https://youtu.be/K2tUymm5o4M?si=ffKdsN-nG1UpaiGb\&t=149)).
+* `Seq l l'` states that program point `l` is followed by `l'`.
+* `Label`s are aliases for Haskell's `Natural`, and `Expr` is a datatype we will define later for capturing expressions in the imperative language.
+
+For instance, the example program `example.imp-ir` is represented using the following Fixen facts:
+
+```ansi frame='code' title="Facts for representing example.imp-ir"
+[32mVar[0m [34m0[0m [36m"v"[0m
+[32mSeq[0m [34m0[0m [34m1[0m
+[32mAssign[0m [34m1[0m [36m"v"[0m ([35mNum[0m [34m1[0m)
+[32mSeq[0m [34m1[0m [34m2[0m
+[32mBranch[0m [34m2[0m ([35mLeq[0m [36m"v"[0m ([35mNum[0m [34m9[0m)) [34m3[0m [34m5[0m
+[32mAssign[0m [34m3[0m [36m"v"[0m ([35mPlus[0m ([35mId[0m [36m"v"[0m) ([35mNum[0m [34m2[0m))
+[32mSeq[0m [34m3[0m [34m2[0m
+[32mBranch[0m [34m5[0m ([35mEq[0m [36m"v"[0m ([35mNum[0m [34m11[0m)) [34m6[0m [34m101[0m
+[32mAssign[0m [34m6[0m [36m"v"[0m ([35mNum[0m [34m0[0m)
+[32mSeq[0m [34m6[0m [34m101[0m
+[32mVar[0m [34m101[0m [36m"END"[0m
+```
+
+### Interval Analysis
+
+An **interval analysis** ascribes a range of possible values to each variable at each program point. Ideally, we should conclude that `v` belongs to the interval <Math formula="[0, 0]" /> at the end of the program.
+
+Intervals assemble into a lattice, ordered by inclusion, i.e., <Math formula="[a, b] \sqsubseteq [c, d]" /> whenever <Math formula="a \geq c" /> and <Math formula="b \leq d" />. Interval joins and meets follow immediately from this order. Presume that we define the `Interval` data type (and associated order, join and meet functions) in Haskell (we show this later).
+
+Then, we track program states with a relation:
+
+```ansi frame="code" title="Lattice and relation for interval analysis"
+[31mlat[0m [33mStateI[0m [31mwhere[0m
+  [31mtype[0m = [33mHashMap String Interval[0m
+  [31mleq[0m  = [35mleq[0m
+  [31mjoin[0m = ([35m\/[0m)
+  [31mmeet[0m = ([35m/\[0m)
+
+[31mrel[0m [32mStateBeforeI[0m: [33mLabel[0m, [33mStateI[0m
+```
+
+`StateI` is a **map lattice**, ordered by inclusion of map keys and the interval order on map values. The `StateBeforeI` relation maps each program label to a `StateI`. Essentially, at every program point, we track the intervals assigned to each variable that exists within the program. The `leq`, `join` and `meet` functions are standard, so we use definitions from the [`lattices`](https://hackage-content.haskell.org/package/lattices-2.2.1.1) library.
+
+The analysis rules initialize states and propagate them through assignments and branches:
+
+```ansi frame="code" title="Interval analysis rules"
+
+[31mrule[0m [33massignInitI[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mbranchInitI[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mvarInitI[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+
+[31mrule[0m [33massignStepI[0m: [32mAssign[0m l x e, [32mSeq[0m l l', [32mStateBeforeI[0m l st
+                  [31m|-[0m [32mStateBeforeI[0m l' ([33mHashMap[0m.[35minsert[0m x ([35mevalI[0m e st) st)
+
+[31mrule[0m [33mbranchTrueI[0m: [32mBranch[0m l e t _, [32mStateBeforeI[0m l st,
+                  [31mif[0m [33mBTrue[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                  [31m|-[0m [32mStateBeforeI[0m t ([35mrefineTI[0m e st)
+
+[31mrule[0m [33mbranchFalseI[0m: [32mBranch[0m l e _ f, [32mStateBeforeI[0m l st,
+                   [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                   [31m|-[0m [32mStateBeforeI[0m f ([35mrefineFI[0m e st)
+```
+
+* The `assignInitI`, `branchInitI` and `varInitI` rules initialize the state before each program point to the empty map
+* The `assignStepI` rule is a transfer function that inserts the variable-interval map entry `x` and `evalI e st` into the state before the label it jumps to. `evalI` receives an expression and the current state `st` and evaluates it into an interval. We define the `evalI` function later.
+* The `branchTrueI` and `branchFalseI` rules are transfer functions for conditional branching. There are several aspects to these. Firstly, we should visit the true (resp. false) branches only if the condition allows it. This is represented by the condition ``BTrue `leq` (evalCondI e st)`` (resp. ``BFalse `leq` (evalCondI e st)``). The `BTrue` and `BFalse` construtors belong to a boolean lattice, with values <Math formula="\bot" /> representing no information, `BTrue` representing "definitely true", `BFalse` representing "definitely false", and <Math formula="\top" /> representing "either true or false". Secondly, if a true (resp. false) branch is visited, we refine the intervals in the state based on the condition itself using `refineTI` (resp. `refineFI`), which we define in Haskell later. As an intuitive example, suppose the condition is `x <= 10` and `st` has `x` being within the interval <Math formula="[5, 15]" />. Then, in the true branch, `x` must be within <Math formula="[5, 10]" />, while in the false branch `x` must be within <Math formula="[11, 15]" />.
+
+#### Complete Example
+
+Let us make these ideas concrete by implementing the interval analysis, executing it, and observing the state at the end of the program. Our project is going to have the following structure:
+
+<FileTree>
+  * my-project
+    * my-project.cabal
+    * app
+      * Main.hs
+      * Common.hs
+      * IntervalUtils.hs
+    * fix
+      * Program.fix
+      * IntervalAnalysis.fix
+</FileTree>
+
+The cabal configuration file will be as follows. Note the use of the `lattices` library which contains definitions that will simplify our implementation, and the `hashable` library so that expressions can be used as map keys.
+
+```txt title="my-project.cabal"
+cabal-version:      3.0
+name:               my-project
+version:            0.1.0.0
+build-type:         Simple
+common warnings
+    ghc-options: -Wall
+executable my-project
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:    Common
+                    , IntervalAnalysis
+                    , IntervalUtils
+    build-depends:    base
+                    , pqueue
+                    , unordered-containers
+                    , hashable
+                    , lattices
+    hs-source-dirs:   app
+    default-language: GHC2021
+```
+
+##### Common Definitions
+
+First, populate `app/Common.hs` with some common definitions.
+
+```haskell title="app/Common.hs"
+module Common where
+
+import Algebra.PartialOrd
+import Data.Hashable
+import GHC.Generics
+import Numeric.Natural
+
+data Expr
+  = Id String -- x
+  | Num Int -- 1
+  | Plus Expr Expr -- e + e'
+  | Leq String Expr -- x <= e
+  | Eq String Expr -- x = e
+  deriving (Eq, Generic, Show)
+
+instance Hashable Expr
+
+type Label = Natural
+
+data BBool = BTop | BBot | BTrue | BFalse
+  deriving (Eq, Generic, Show)
+
+instance PartialOrd BBool where
+  BBot `leq` _ = True
+  _ `leq` BTop = True
+  x `leq` y = x == y
+```
+
+<Steps>
+  1. The `Expr` data type captures the kind of expressions we are expecting in the program:
+     * `Id` refers to variables
+     * `Num` refers to integers
+     * `Plus` refers to additions in the form of `e + e'`
+     * `Leq` refers to variable inequalities in the form of `x <= e`. Note that in other languages we typically have these in the form of `e <= e'` where both `e` and `e'` are expressions. For our example, the version of `Leq` we have will suffice.
+     * `Eq` refers to variable equalities in the form of `x = e`. Note again that we typically have equalities in the form of `e = e'` in other languages.
+  2. We make `Expr`s `Hashable` by deriving `Generic Expr` and by declaring an instance of `Hashable Expr`. This allows `Expr` to be used as map keys in the Fixen-generated fact database.
+  3. `Label`s in our language are `Natural` numbers.
+  4. The `BBool` data type, as mentioned above, describes a lattice of boolean values. To endow this structure with a partial order, we declare an instance of `PartialOrd`, which comes from the `lattices` package. It is not always necessary to use `lattices` with Fixen, but can be idiomatic when using existing partially ordered or lattice types.
+</Steps>
+
+##### Utilities for the Interval Analysis
+
+Next, we define the functions and data structures used by the interval analysis in `app/IntervalUtils.hs`:
+
+```haskell title="app/IntervalUtils.hs"
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE OverlappingInstances #-}
+
+module IntervalUtils where
+
+import Algebra.Lattice
+import Algebra.PartialOrd
+import Common
+import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict qualified as HashMap
+import Data.List (intercalate)
+
+data Interval = Pair Int Int | ITop | IBot
+  deriving Eq
+
+instance Show Interval where
+  show (Pair a b) = "[" ++ show a ++ ", " ++ show b ++ "]"
+  show ITop = "[-inf, inf]"
+  show IBot = "empty"
+
+instance Show (HashMap String Interval) where
+  show m = "{ " ++ intercalate ", " (fmap (\(k, v) -> k ++ ": " ++ show v) (HashMap.toList m)) ++ " }"
+
+(...) :: Int -> Int -> Interval
+a ... b = if a > b then IBot else Pair a b
+
+infix 5 ...
+
+instance PartialOrd Interval where
+  leq IBot _ = True
+  leq _ ITop = True
+  leq ITop _ = False
+  leq _ IBot = False
+  Pair a b `leq` Pair c d = a >= c && b <= d
+
+instance Lattice Interval where
+  ITop \/ _ = ITop
+  _ \/ ITop = ITop
+  IBot \/ x = x
+  x \/ IBot = x
+  Pair a b \/ Pair c d = min a c ... max b d
+
+  IBot /\ _ = IBot
+  _ /\ IBot = IBot
+  ITop /\ x = x
+  x /\ ITop = x
+  Pair a b /\ Pair c d = max a c ... min b d
+
+-- Easy lookups for intervals in state
+lookupInterval :: String -> HashMap String Interval -> Interval
+lookupInterval = HashMap.lookupDefault IBot
+
+-- Puts a cap on the upper bound of an interval.
+withUpperBound :: Int -> Interval -> Interval
+withUpperBound n (Pair a b) = if n < b then a ... n else a ... b
+withUpperBound _ x = x
+
+-- Puts a minimum on the lower bound of an interval.
+withLowerBound :: Int -> Interval -> Interval
+withLowerBound n (Pair a b) = if n > a then n ... b else a ... b
+withLowerBound _ x = x
+
+-- Evaluates an expression, giving an interval.
+evalI :: Expr -> HashMap String Interval -> Interval
+evalI (Id x) st = lookupInterval x st
+evalI (Num i) _ = i ... i
+evalI (Plus e e') st = case (evalI e st, evalI e' st) of
+  (Pair a b, Pair c d) -> a + c ... b + d
+  (IBot, _) -> IBot
+  (_, IBot) -> IBot
+  _ -> ITop
+evalI _ _ = IBot
+
+-- Evaluates a condition, giving a BBool.
+evalCondI :: Expr -> HashMap String Interval -> BBool
+evalCondI (Leq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if
+      | b <= c -> BTrue
+      | a > d -> BFalse
+      | otherwise -> BTop
+  (IBot, _) -> BBot
+  (_, IBot) -> BBot
+  _ -> BTop
+evalCondI (Eq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if
+      | a == b && a == c && b == d -> BTrue
+      | b < c || a > d -> BFalse
+      | otherwise -> BTop
+  (IBot, _) -> BBot
+  (_, IBot) -> BBot
+  _ -> BTop
+evalCondI _ _ = BBot
+
+-- Refines intervals assuming a condition is true.
+refineTI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineTI (Leq x e) st = case evalI e st of
+  Pair _ b ->
+    let int = withUpperBound b $ lookupInterval x st
+     in HashMap.insert x int st
+  _ -> st
+refineTI (Eq x e) st =
+  let int = lookupInterval x st /\ evalI e st
+   in HashMap.insert x int st
+refineTI _ st = st
+
+-- Refines intervals assuming a condition is true.
+refineFI :: Expr -> HashMap String Interval -> HashMap String Interval
+refineFI (Leq x e) st = case evalI e st of
+  Pair a _ ->
+    let int = withLowerBound (a + 1) $ lookupInterval x st
+     in HashMap.insert x int st
+  _ -> st
+refineFI (Eq x e) st = case (lookupInterval x st, evalI e st) of
+  (Pair a b, Pair c d) ->
+    if c == d then
+      if
+        | b == c -> HashMap.insert x (a ... b - 1) st
+        | a == c -> HashMap.insert x (a + 1 ... b) st
+        | otherwise -> st
+    else
+      st
+  _ -> st
+refineFI _ st = st
+```
+
+Let us break down this monstrosity:
+
+<Steps>
+  1. The first portion defines some basics of `Interval`s. In addition, we introduce a smart constructor `...` so that nonsensical intervals like `[1, 0]` become the bottom, empty interval `IBot`.
+  2. We introduce instances of `PartialOrd` and `Lattice` for `Interval`. This allows `HashMap String Interval` to also be lattices (`leq`, `/\` and `\/` need these to work).
+  3. We write some convenience functions `lookupInterval`, `withUpperBound` and `withLowerBound`. These are thoroughly pedestrian.
+  4. The purpose of the functions `evalI`, `evalCondI`, `refineTI` and `refineFI` are as described earlier.
+</Steps>
+
+##### Relations for the Program
+
+Next, we define the relations needed for capturing the statements in the program in `fix/Program.fix`. We separate these out from the interval analysis because we want these to be re-used for other analyses for the same imperative language.
+
+```ansi title="fix/Program.fix" frame="code"
+[35mmodule[0m Program [35mwhere[0m
+
+[31mrel[0m [32mVar[0m: [33mLabel[0m, [33mString[0m
+[31mrel[0m [32mAssign[0m: [33mLabel[0m, [33mString[0m, [33mExpr[0m
+[31mrel[0m [32mBranch[0m: [33mLabel[0m, [33mExpr[0m, [33mLabel[0m, [33mLabel[0m
+[31mrel[0m [32mSeq[0m: [33mLabel[0m, [33mLabel[0m
+```
+
+##### Interval Analysis
+
+Finally, we can write the Fixen program expressing the interval analysis in `fix/IntervalAnalysis.fix`:
+
+```ansi frame="code" title="fix/IntervalAnalysis.fix"
+[35mmodule[0m IntervalAnalysis [35mwhere[0m
+
+[35mimport[0m Algebra.PartialOrd
+[35mimport[0m Algebra.Lattice
+[35mimport[0m Common
+[35mimport[0m IntervalUtils
+
+[31minclude[0m [36m"Program"[0m
+
+[31mlat[0m [33mStateI[0m [31mwhere[0m
+  [31mtype[0m = [33mHashMap String Interval[0m
+  [31mleq[0m  = [35mleq[0m
+  [31mjoin[0m = ([35m\/[0m)
+  [31mmeet[0m = ([35m/\[0m)
+
+[31mrel[0m [32mStateBeforeI[0m: [33mLabel[0m, [33mStateI[0m
+
+[31mrule[0m [33massignInitI[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mbranchInitI[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+[31mrule[0m [33mvarInitI[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeI[0m l [33mHashMap[0m.[35mempty[0m 
+
+[31mrule[0m [33massignStepI[0m: [32mAssign[0m l x e, [32mSeq[0m l l', [32mStateBeforeI[0m l st
+                  [31m|-[0m [32mStateBeforeI[0m l' ([33mHashMap[0m.[35minsert[0m x ([35mevalI[0m e st) st)
+
+[31mrule[0m [33mbranchTrueI[0m: [32mBranch[0m l e t _, [32mStateBeforeI[0m l st,
+                  [31mif[0m [33mBTrue[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                  [31m|-[0m [32mStateBeforeI[0m t ([35mrefineTI[0m e st)
+
+[31mrule[0m [33mbranchFalseI[0m: [32mBranch[0m l e _ f, [32mStateBeforeI[0m l st,
+                   [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondI[0m e st)
+                   [31m|-[0m [32mStateBeforeI[0m f ([35mrefineFI[0m e st)
+
+[31mquery[0m [35mstateBeforeI[0m: [32mStateBeforeI[0m [31m+ -[0m
+```
+
+<Steps>
+  1. This program imports all the Haskell modules needed for the analysis to work.
+  2. The program consists of an **include** statement, which essentially copies all definitions in another **Fixen** program into the current one. Include statements copy everything except priorities and phases declarations (which we will cover shortly). The argument to the `include` keyword is a path to the Fixen program to copy, where the `.fix` extension is optional.
+  3. The lattice, relation and rule declarations are as described before.
+  4. We introduce a `stateBeforeI` query to obtain analysis results.
+</Steps>
+
+:::note[In Progress]
+A less naive module system is being designed. Please [reach out to us](../../../#collaboration) if you have ideas!
+:::
+
+##### Building and Running
+
+Let's run the program!
+
+<Steps>
+  1. Compile the Fixen program into a Haskell module. Note that `fix/Program.fix` does not need to be compiled, since `fix/IntervalAnalysis.fix` already contains every definition in it.
+     ```ansi title="Terminal"
+      [35m~/my-project $[0m [31m[1m[4mfixen --output app/IntervalAnalysis.hs fix/IntervalAnalysis.fix[0m
+     ```
+  2. As always, we need some driver module. Populate `app/Main.hs` with the following, which performs the analysis, reads user input (program point) and shows the state before that program point:
+     ```haskell title="app/Main.hs"
+     module Main where
+
+     import Common
+     import IntervalAnalysis
+     import Numeric.Natural
+
+     main :: IO ()
+     main = do
+       let facts =
+             [ Var 0 "v"
+             , Seq 0 1
+             , Assign 1 "v" (Num 1)
+             , Seq 1 2
+             , Branch 2 (Leq "v" (Num 9)) 3 5
+             , Assign 3 "v" (Plus (Id "v") (Num 2))
+             , Seq 3 2
+             , Branch 5 (Eq "v" (Num 11)) 6 101
+             , Assign 6 "v" (Num 0)
+             , Seq 6 101
+             , Var 101 "END"
+             ]
+           db = solve facts
+       (label :: Natural) <- readLn
+       print (stateBeforeI label db)
+     ```
+  3. Run it and supply the label `101`!
+     ```ansi title="Terminal"
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m101[0m
+     [StateBeforeI 101 { v: [0, 10] }]
+     ```
+</Steps>
+
+##### Understanding the Results
+
+*Weird*. Why does the analysis conclude that `v` is within <Math formula="[0, 10]" />, instead of being exactly to 0 (i.e., within the interval <Math formula="[0, 0]" />)? Let us inspect the states before other program points:
+
+```ansi title="Terminal"
+[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[31m[1m[4m2[0m
+[StateBeforeI 2 { v: [1, 11] }]
+[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[31m[1m[4m5[0m
+[StateBeforeI 5 { v: [10, 11] }]
+```
+
+That's right!
+
+* The state before entering the `while` loop (program point 2) has `v` within <Math formula="[1, 11]" /> as expected, since the loop increments (by 2) `v` from `1` to `11`.
+* Exiting the `while` loop allows us to refine the interval for `v` to <Math formula="[10, 11]" /> since the condition is `v <= 9`.
+* This means that the condition in the `if` statement (program point 5) could be either true or false; it is true if `v` is `11`, false if it is `10`. Both branches could be visited, and thus the best we can conclude is that `v` is either
+  * `0` (caused by the update in the true branch of the `if` statement) or
+  * `10` (caused by not visiting the true branch in the `if` statement)!
+
+### Parity Analysis
+
+How do we deal with the imprecision of the interval analysis? One approach is to ditch it altogether and instead perform a constant-propagation analysis. This is the simplest approach. However, for the sake of illustrating the purpose of Fixen's phases, we can make the following observation: the variable `v` remains odd throughout loop execution.
+
+* `v` is initialized as `1`, which is odd.
+* `v` is incremented by `2` at every loop iteration.
+  Thus, exiting the loop, `v` remains odd.
+
+Therefore, before the `if` statement at program point 5, `v` is within the interval <Math formula="[10, 11]" /> and is odd. Crucially, we can use the oddness of `v` to refine the interval down to <Math formula="[11, 11]" />, ensuring that we never visit the false branch of the `if` statement!
+
+As such, we shall work towards (1) adding a parity analysis (which determines if each variable is even or odd), then (2) composing it with the interval analysis, obtaining what's known as their **reduced product**.
+
+Let us define the parity analysis. Make the following changes to your existing project:
+
+<Tabs>
+  <TabItem label="New Files">
+    <FileTree>
+      * my-project
+        * my-project.cabal
+        * app
+          * Main.hs
+          * Common.hs
+          * IntervalAnalysis.hs
+          * IntervalUtils.hs
+          * ParityUtils.hs
+        * fix
+          * Program.fix
+          * IntervalAnalysis.fix
+          * ParityAnalysis.fix
+    </FileTree>
+
+    Add two files to your project:
+
+    1. `app/ParityUtils.hs`: utilities for the parity analysis, similar to `app/IntervalUtils.hs`.
+    2. `fix/ParityAnalysis.fix`: the parity analysis itself.
+
+    ***
+  </TabItem>
+
+  <TabItem label="Cabal configuration">
+    ```diff title="my-project.cabal"
+    cabal-version:      3.0
+    name:               my-project
+    version:            0.1.0.0
+    build-type:         Simple
+    common warnings
+        ghc-options: -Wall
+    executable my-project
+        import:           warnings
+        main-is:          Main.hs
+        other-modules:    Common
+                        , IntervalAnalysis
+                        , IntervalUtils
+    +                    , ParityAnalysis
+    +                    , ParityUtils
+        build-depends:    base
+                        , pqueue
+                        , unordered-containers
+                        , hashable
+                        , lattices
+        hs-source-dirs:   app
+        default-language: GHC2021
+    ```
+
+    Add the two modules for the parity analysis to your project.
+
+    ***
+  </TabItem>
+
+  <TabItem label="Utilities">
+    ```haskell title="app/ParityUtils.hs"
+    {-# LANGUAGE OverlappingInstances #-}
+
+    module ParityUtils where
+
+    import Algebra.Lattice
+    import Algebra.PartialOrd
+    import Common
+    import Data.HashMap.Strict (HashMap)
+    import Data.HashMap.Strict qualified as HashMap
+    import Data.List (intercalate)
+
+    data Parity = PBot | Even | Odd | PTop
+      deriving (Eq, Show)
+
+    instance Show (HashMap String Parity) where
+      show m = "{ " ++ intercalate ", " (fmap (\(k, v) -> k ++ ": " ++ show v) (HashMap.toList m)) ++ " }"
+
+    instance PartialOrd Parity where
+      leq PBot _ = True
+      leq _ PTop = True
+      leq PTop _ = False
+      leq _ PBot = False
+      x `leq` y = x == y
+
+    instance Lattice Parity where
+      PTop \/ _ = PTop
+      _ \/ PTop = PTop
+      PBot \/ x = x
+      x \/ PBot = x
+      x \/ y
+        | x == y = x
+        | otherwise = PTop
+
+      PBot /\ _ = PBot
+      _ /\ PBot = PBot
+      PTop /\ x = x
+      x /\ PTop = x
+      x /\ y
+        | x == y = x
+        | otherwise = PBot
+
+    -- Easy lookups for parities in state
+    lookupParity :: String -> HashMap String Parity -> Parity
+    lookupParity = HashMap.lookupDefault PBot
+
+    -- Evaluates an expression, giving a parity.
+    evalP :: Expr -> HashMap String Parity -> Parity
+    evalP (Id x) st = lookupParity x st
+    evalP (Num i) _ = if even i then Even else Odd
+    evalP (Plus e e') st = case (evalP e st, evalP e' st) of
+      (Even, Odd) -> Odd
+      (Odd, Even) -> Odd
+      (Odd, Odd) -> Even
+      (Even, Even) -> Even
+      (PBot, _) -> PBot
+      (_, PBot) -> PBot
+      _ -> PTop
+    evalP _ _ = PBot
+
+    -- Evaluates a condition, giving a BBool.
+    evalCondP :: Expr -> HashMap String Parity -> BBool
+    evalCondP (Eq x e) st = case (lookupParity x st, evalP e st) of
+      (Even, Odd) -> BFalse
+      (Odd, Even) -> BFalse
+      (PBot, _) -> BBot
+      (_, PBot) -> BBot
+      _ -> BTop
+    evalCondP (Leq _ _) _ = BTop
+    evalCondP _ _ = BBot
+
+    -- Refines parities assuming a condition is true.
+    refineTP :: Expr -> HashMap String Parity -> HashMap String Parity
+    refineTP (Eq x e) st =
+      let p = evalP e st
+       in HashMap.insert x (lookupParity x st /\ p) st
+    refineTP _ st = st
+
+    -- Refines parities assuming a condition is false.
+    refineFP :: Expr -> HashMap String Parity -> HashMap String Parity
+    refineFP (Eq x e) st =
+      let p = if evalP e st == Even then Odd else Even
+       in HashMap.insert x (lookupParity x st /\ p) st
+    refineFP _ st = st
+    ```
+
+    The utilities for the parity analysis mirror `app/IntervalUtils.hs`. All of these
+    operate over the parity lattice (notice that it is essentially identical to the
+    `BBool` lattice).
+
+    ***
+  </TabItem>
+
+  <TabItem label="Analysis">
+    ```ansi frame="code" title="fix/ParityAnalysis.fix"
+    [35mmodule[0m ParityAnalysis [35mwhere[0m
+
+    [35mimport[0m Algebra.PartialOrd
+    [35mimport[0m Algebra.Lattice
+    [35mimport[0m Common
+    [35mimport[0m ParityUtils
+
+    [31minclude[0m [36m"Program"[0m
+
+    [31mlat[0m [33mStateP[0m [31mwhere[0m
+      [31mtype[0m = [33mHashMap String Parity[0m
+      [31mleq[0m  = [35mleq[0m
+      [31mjoin[0m = ([35m\/[0m)
+      [31mmeet[0m = ([35m/\[0m)
+
+    [31mrel[0m [32mStateBeforeP[0m: [33mLabel[0m, [33mStateP[0m
+
+    [31mrule[0m [33massignInitP[0m: [32mAssign[0m l _ _   [31m|-[0m [32mStateBeforeP[0m l [33mHashMap[0m.[35mempty[0m 
+    [31mrule[0m [33mbranchInitP[0m: [32mBranch[0m l _ _ _ [31m|-[0m [32mStateBeforeP[0m l [33mHashMap[0m.[35mempty[0m 
+    [31mrule[0m [33mvarInitP[0m:    [32mVar[0m l _        [31m|-[0m [32mStateBeforeP[0m l [33mHashMap[0m.[35mempty[0m 
+
+    [31mrule[0m [33massignStepP[0m: [32mAssign[0m l x e, [32mSeq[0m l l', [32mStateBeforeP[0m l st
+                      [31m|-[0m [32mStateBeforeP[0m l' ([33mHashMap[0m.[35minsert[0m x ([35mevalP[0m e st) st)
+
+    [31mrule[0m [33mbranchTrueP[0m: [32mBranch[0m l e t _, [32mStateBeforeP[0m l st,
+                      [31mif[0m [33mBTrue[0m `[35mleq[0m` ([35mevalCondP[0m e st)
+                      [31m|-[0m [32mStateBeforeP[0m t ([35mrefineTP[0m e st)
+
+    [31mrule[0m [33mbranchFalseP[0m: [32mBranch[0m l e _ f, [32mStateBeforeP[0m l st,
+                       [31mif[0m [33mBFalse[0m `[35mleq[0m` ([35mevalCondP[0m e st)
+                       [31m|-[0m [32mStateBeforeP[0m f ([35mrefineFP[0m e st)
+
+    [31mquery[0m [35mstateBeforeP[0m: [32mStateBeforeP[0m [31m+ -[0m
+    ```
+
+    The actual parity analysis is virtually identical to the interval analysis, except
+    that it operates over the parity lattice.
+
+    ***
+  </TabItem>
+
+  <TabItem label="Driver">
+    ```diff lang="haskell"
+    module Main where
+
+    import Common
+    -import IntervalAnalysis
+    import Numeric.Natural
+    +import ParityAnalysis
+
+    main :: IO ()
+    main = do
+      let facts =
+            [ Var 0 "v"
+            , Seq 0 1
+            , Assign 1 "v" (Num 1)
+            , Seq 1 2
+            , Branch 2 (Leq "v" (Num 9)) 3 5
+            , Assign 3 "v" (Plus (Id "v") (Num 2))
+            , Seq 3 2
+            , Branch 5 (Eq "v" (Num 11)) 6 101
+            , Assign 6 "v" (Num 0)
+            , Seq 6 101
+            , Var 101 "END"
+            ]
+          db = solve facts
+      (label :: Natural) <- readLn
+    -  print (stateBeforeI label db)
+    +  print (stateBeforeP label db)
+    ```
+
+    Modify the driver program to emit `StateBeforeP` facts.
+
+    ***
+  </TabItem>
+</Tabs>
+
+:::note[In Progress]
+Notice that most of the Fixen code written for the parity analysis is identical to the interval analysis. Support for rule templates/schema are underway.
+:::
+
+Build and run the project, and observe the parity of `v` at crucial portions of the program:
+
+<Steps>
+  1. Compile the parity analysis into a Haskell module.
+     ```ansi title="Terminal"
+      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ParityAnalysis.hs fix/ParityAnalysis.fix[0m
+     ```
+  2. Run the program, and supplying labels like `2`, `5` and `101`:
+     ```ansi title="Terminal"
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m2[0m
+     [StateBeforeP 2 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m5[0m
+     [StateBeforeP 5 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m101[0m
+     [StateBeforeP 101 { v: Even }]
+     ```
+</Steps>
+
+It works! Particularly, we see that exiting the loop at program label 5, `v` remains `Odd`. This means that the interval for `v` at that same program point can be
+reduced from <Math formula="[10, 11]" /> to <Math formula="[11, 11]" />, allowing us to conclude that the false branch of the `if` statement is never visited,
+so `v` must be exactly equal `0` at the end of the program!
+
+### The Reduced Product Problem
+
+Now that we have everything set up, we compose the interval and parity analysis and perform a state reduction via a rule.
+Make the following changes to the project:
+
+<Tabs>
+  <TabItem label="New Files">
+    <FileTree>
+      * my-project
+        * my-project.cabal
+        * app
+          * Main.hs
+          * Common.hs
+          * IntervalAnalysis.hs
+          * IntervalUtils.hs
+          * ParityUtils.hs
+          * ReducedProductUtils.hs
+        * fix
+          * Program.fix
+          * IntervalAnalysis.fix
+          * ParityAnalysis.fix
+          * ReducedProduct.fix
+    </FileTree>
+
+    Add two files to your project:
+
+    1. `app/ReducedProductUtils.hs` contains definitions needed to perform the state reduction
+    2. `fix/ReducedProduct.fix` contains the union of the interval and parity analyses, along with a rule for state reduction.
+  </TabItem>
+
+  <TabItem label="Cabal Configuration">
+    ```diff title="my-project.cabal"
+    cabal-version:      3.0
+    name:               my-project
+    version:            0.1.0.0
+    build-type:         Simple
+    common warnings
+        ghc-options: -Wall
+    executable my-project
+        import:           warnings
+        main-is:          Main.hs
+        other-modules:    Common
+                        , IntervalAnalysis
+                        , IntervalUtils
+                        , ParityAnalysis
+                        , ParityUtils
+    +                    , ReducedProduct
+    +                    , ReducedProductUtils
+        build-depends:    base
+                        , pqueue
+                        , unordered-containers
+                        , hashable
+                        , lattices
+        hs-source-dirs:   app
+        default-language: GHC2021
+    ```
+
+    Add the two modules for the parity analysis to your project.
+  </TabItem>
+
+  <TabItem label="Utilities">
+    ```haskell title="app/ReducedProductUtils.hs"
+    module ReducedProductUtils where
+
+    import Data.HashMap.Strict (HashMap)
+    import Data.HashMap.Strict qualified as HashMap
+    import IntervalUtils
+    import ParityUtils
+
+    reducedExchangeI 
+      :: HashMap String Parity 
+      -> HashMap String Interval 
+      -> HashMap String Interval
+    reducedExchangeI st st' = HashMap.fromList $ do
+      (v, int) <- HashMap.toList st'
+      return $ case int of
+        Pair a b -> case lookupParity v st of
+          Odd ->
+            let a' = if even a then a + 1 else a
+                b' = if even b then b - 1 else b
+             in (v, a' ... b')
+          Even ->
+            let a' = if odd a then a + 1 else a
+                b' = if odd b then b - 1 else b
+             in (v, a' ... b')
+          PBot -> (v, IBot)
+          _ -> (v, int)
+        _ -> (v, int)
+    ```
+
+    The `reducedExchangeI` function modifies the interval states by checking against the parity states. Essentially, it refines interval bounds based on the parity of the variable.
+  </TabItem>
+
+  <TabItem label="Analysis">
+    ```ansi frame="code" title="fix/ReducedProduct.fix"
+    [35mmodule[0m ReducedProduct [35mwhere[0m
+
+    [31minclude[0m [36m"IntervalAnalysis"[0m
+    [31minclude[0m [36m"ParityAnalysis"[0m
+
+    [35mimport[0m ReducedProductUtils
+
+    [31mrule[0m [33mreducedExchangeI[0m: [32mStateBeforeP[0m l st, [32mStateBeforeI[0m l st'
+                           [31m|-[0m [32mStateBeforeI[0m l ([35mreducedExchangeI[0m st st')
+    ```
+
+    The reduced product obtains the union of the interval analysis and the parity analysis. This is done simply by `include`-ing the individual analyses into the program. The state reduction is performed via the `reducedExchangeI` rule, which invokes the `reducedExchangeI` function defined in our utilities file.
+  </TabItem>
+
+  <TabItem label="Driver">
+    ```diff lang="haskell"
+    module Main where
+
+    import Common
+    import Numeric.Natural
+    -import ParityAnalysis
+    +import ReducedProduct
+
+    main :: IO ()
+    main = do
+      let facts =
+            [ Var 0 "v"
+            , Seq 0 1
+            , Assign 1 "v" (Num 1)
+            , Seq 1 2
+            , Branch 2 (Leq "v" (Num 9)) 3 5
+            , Assign 3 "v" (Plus (Id "v") (Num 2))
+            , Seq 3 2
+            , Branch 5 (Eq "v" (Num 11)) 6 101
+            , Assign 6 "v" (Num 0)
+            , Seq 6 101
+            , Var 101 "END"
+            ]
+          db = solve facts
+      (label :: Natural) <- readLn
+    +  print (stateBeforeI label db)
+      print (stateBeforeP label db)
+    ```
+
+    Now, modify the driver to use the reduced product analysis. Since the reduced product performs both the interval analysis and the parity analysis, we can query both `StateBeforeI` and `StateBeforeP` facts at the end of the analysis.
+  </TabItem>
+</Tabs>
+
+***
+
+Build and run the project, and observe the interval and parity of `v` at crucial portions of the program:
+
+<Steps>
+  1. Compile the reduced product analysis into a Haskell module.
+     ```ansi title="Terminal"
+      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
+     ```
+  2. Run the program, and supplying labels like `2`, `5` and `101`:
+     ```ansi title="Terminal"
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m2[0m
+     [StateBeforeI 2 { v: [1, 11] }]
+     [StateBeforeP 2 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m5[0m
+     [StateBeforeI 5 { v: [1m[4m[10, 11][0m }]
+     [StateBeforeP 5 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m101[0m
+     [StateBeforeI 101 { v: [1m[4m[0, 10][0m }]
+     [StateBeforeP 101 { v: Even }]
+     ```
+</Steps>
+
+Notice that our state reduction is **completely inert**. This is because even if the state reduction rule derives the tighter interval `[11, 11]` at program point 5 (since `v` is `Odd` at that program point), the over-approximated `[10, 11]` from the interval analysis rules subsumes it. The solver drops the refined fact as redundant work, and continues with the transfer functions using the over-approximated states!
+
+Our actual intention of defining the reduced product is to **post-compose** the domain reduction rule onto the original rules from our analyses, **before** committing the `StateBeforeI` facts back into the database. Essentially, if we let the original analyses rules be organized as a function <Math formula="f_1" /> and the domain reduction rule as a function <Math formula="f_2" />, then one step of fact inference should be <Math formula="f_2 \circ f_1" />, not <Math formula="\lambda x. f_2(x) \cup f_1(x)" />. What we require is a way to **compose sets of rules** so that we can modularly and meaningfully compose non-disjoint programs.
+
+## Phases of Execution
+
+Fixen supports **phases of execution**. Phases **stratify** the fact database into <Math formula="N" /> independent databases, <Math formula="S_0, \dots, S_{N - 1}" />. Facts in different databases do not subsume each other. Phases are assigned a set of rules. Phase <Math formula="i" /> rules draw premises only from the <Math formula="i^\text{th}" /> database, <Math formula="S_i" />, and commits their conclusions only to the <Math formula="(i + 1 \pmod N)^\text{th}" /> database, <Math formula="S_{i + 1\pmod N}" />. This stratified architecture is illustrated in :autoref{#fig:phases}. The result is that phase 0 facts are the results of the composition of phase <Math formula="N - 1" />, phase <Math formula="N - 2" />, ..., down to phase <Math formula="0" /> rules.
+
+:::figure{#fig:phases caption="Illustration of N-phase program."}
+<svg viewBox="0 0 471.55119 58.114769" width="471.55118pt" height="58.114769pt" version="1.1" id="svg133" sodipodi:docname="fig1.svg" inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+  <g transform="translate(0.50000027)" id="g106">
+    <path fill="none" transform="translate(13.249894,6.3907283)" d="M 0,0 M 0,0 H 47.201 V 23.078 H 0 Z" id="path1" />
+
+    <g transform="translate(13.249894,6.3907283)" id="g15">
+      <g transform="matrix(1,0,0,-1,3.278,7.81)" id="g6">
+        <use xlink:href="#gE5C8E2CC8670B44F8FE90A38683DB0E0" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use1" />
+
+        <use xlink:href="#g35D2A0460D0F3B87070CF0B9575FF3EA" x="6.809" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use2" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="13.002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use3" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="18.964001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use4" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="24.530001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use5" />
+
+        <use xlink:href="#g8E9C905C3C2AA9F9B38FCF17C0C0AF8D" x="33.407001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use6" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,1.6e-8,22.77)" id="g14">
+        <use xlink:href="#gFE60A20560C962AFEB35699D0BE82B1B" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use7" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="7.6669998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use8" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="13.057" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use9" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="17.115999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use10" />
+
+        <use xlink:href="#g8BC3041BDBF0F8E48DCDCF8B2BB174D0" x="23.045" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use11" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="29.546" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use12" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="35.507999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use13" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="41.074001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use14" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(0,0.92185433)" d="M 0,0 M 0,0 V 34.015748 H 73.700787 V 0 Z" id="path15" />
+
+    <path fill="none" transform="translate(154.98218,6.4127283)" d="M 0,0 M 0,0 H 47.201 V 23.034 H 0 Z" id="path16" />
+
+    <g transform="translate(154.98218,6.4127283)" id="g30">
+      <g transform="matrix(1,0,0,-1,4.8455,7.81)" id="g21">
+        <use xlink:href="#gE5C8E2CC8670B44F8FE90A38683DB0E0" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use16" />
+
+        <use xlink:href="#g35D2A0460D0F3B87070CF0B9575FF3EA" x="6.809" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use17" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="13.002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use18" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="18.964001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use19" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="24.530001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use20" />
+
+        <use xlink:href="#g217B26143AA64CA652DD4E38D410FC8B" x="33.407001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use21" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,1.6e-8,22.77)" id="g29">
+        <use xlink:href="#gFE60A20560C962AFEB35699D0BE82B1B" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use22" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="7.6669998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use23" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="13.057" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use24" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="17.115999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use25" />
+
+        <use xlink:href="#g8BC3041BDBF0F8E48DCDCF8B2BB174D0" x="23.045" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use26" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="29.546" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use27" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="35.507999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use28" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="41.074001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use29" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(141.73228,0.92185433)" d="M 0,0 M 0,0 V 34.015748 H 73.700787 V 0 Z" id="path30" />
+
+    <path fill="none" transform="translate(278.86107)" d="M 0,0 M 0,0 H 37.553457 V 35.859457 H 0 Z" id="path31" />
+
+    <g transform="translate(278.86107)" id="g32">
+      <g transform="matrix(1,0,0,-1,14.173228,21.686228)" id="g31">
+        <use xlink:href="#gA77A7DEEFEB9F4D68E05212BC337C08" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use31" />
+      </g>
+    </g>
+
+    <path fill="none" transform="translate(402.52434,6.4787283)" d="M 0,0 M 0,0 H 62.352889 V 22.902 H 0 Z" id="path32" />
+
+    <g transform="translate(402.52434,6.4787283)" id="g48">
+      <g transform="matrix(1,0,0,-1,2.8e-8,7.81)" id="g36">
+        <use xlink:href="#gE5C8E2CC8670B44F8FE90A38683DB0E0" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use32" />
+
+        <use xlink:href="#g35D2A0460D0F3B87070CF0B9575FF3EA" x="6.809" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use33" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="13.002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use34" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="18.964001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use35" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="24.530001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use36" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,33.407,7.81)" id="g37">
+        <use xlink:href="#g74095D2A60C48A9D512C1590D5CFCC34" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use37" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,45.850444,7.81)" id="g38">
+        <use xlink:href="#g8C5DE8B42A8F44179A2C3172A23CB10B" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use38" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,56.852889,7.81)" id="g39">
+        <use xlink:href="#g3E2A4E29F5F78B7482203F9341039E72" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use39" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,7.5759445,22.77)" id="g47">
+        <use xlink:href="#gFE60A20560C962AFEB35699D0BE82B1B" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use40" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="7.6669998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use41" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="13.057" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use42" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="17.115999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use43" />
+
+        <use xlink:href="#g8BC3041BDBF0F8E48DCDCF8B2BB174D0" x="23.045" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use44" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="29.546" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use45" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="35.507999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use46" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="41.074001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use47" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(396.85039,0.92185433)" d="M 0,0 M 0,0 V 34.015748 H 73.700787 V 0 Z" id="path48" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(73.700787,17.929728)" d="M 0,0 M 0,0 H 60.938204" id="path49" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(134.63899,15.803744)" d="M 0,0 M 5.6692913,2.1259843 0,4.2519685 V 0 Z" id="path50" />
+
+    <path fill="none" transform="translate(80.555335,5.871637)" d="M 0,0 M 0,0 H 54.3224 V 12.058091 H 0 Z" id="path51" />
+
+    <g transform="translate(80.555335,5.871637)" id="g62">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g61">
+        <use xlink:href="#g53431E498C5824E59C9F4D68E005E6B5" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use51" />
+
+        <use xlink:href="#gA5D50FA391BF06863A27D01506C12113" x="5.4471998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use52" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="10.4016" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use53" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="15.1712" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use54" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="19.624001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use55" />
+
+        <use xlink:href="#gF44359E519A5D3FB2F014B0A7FC337A5" x="26.725599" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use56" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="34.716" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use57" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="37.743198" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use58" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="42.750401" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use59" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="44.967999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use60" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="49.781601" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use61" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(215.43307,17.929728)" d="M 0,0 M 0,0 H 56.334704" id="path62" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(271.76777,15.803744)" d="M 0,0 M 5.6692913,2.1259843 0,4.2519685 V 0 Z" id="path63" />
+
+    <path fill="none" transform="translate(221.23987,5.906837)" d="M 0,0 M 0,0 H 51.8144 V 12.022891 H 0 Z" id="path64" />
+
+    <g transform="translate(221.23987,5.906837)" id="g75">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g74">
+        <use xlink:href="#g53431E498C5824E59C9F4D68E005E6B5" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use64" />
+
+        <use xlink:href="#gA5D50FA391BF06863A27D01506C12113" x="5.4471998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use65" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="10.4016" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use66" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="15.1712" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use67" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="19.624001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use68" />
+
+        <use xlink:href="#g66C26678EBAE5E45773420E632994958" x="26.725599" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use69" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="32.208" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use70" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="35.235199" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use71" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="40.242401" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use72" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="42.459999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use73" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="47.273602" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use74" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(316.41452,17.929728)" d="M 0,0 M 0,0 H 73.342578" id="path75" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(389.7571,15.803744)" d="M 0,0 M 5.6692913,2.1259843 0,4.2519685 V 0 Z" id="path76" />
+
+    <path fill="none" transform="translate(320.7881,5.906837)" d="M 0,0 M 0,0 H 71.688711 V 12.022891 H 0 Z" id="path77" />
+
+    <g transform="translate(320.7881,5.906837)" id="g90">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g81">
+        <use xlink:href="#g53431E498C5824E59C9F4D68E005E6B5" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use77" />
+
+        <use xlink:href="#gA5D50FA391BF06863A27D01506C12113" x="5.4471998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use78" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="10.4016" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use79" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="15.1712" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use80" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="19.624001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use81" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,26.7256,6.248)" id="g82">
+        <use xlink:href="#gEA9FF0B59C4B2CFC474FCD1112879B52" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use82" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,36.680356,6.248)" id="g83">
+        <use xlink:href="#gECC925052A81638EAA70C45895251CFC" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use83" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,45.482311,6.248)" id="g84">
+        <use xlink:href="#gEA6DBC2E01600D87775E5DBDE84CABF5" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use84" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,49.882311,6.248)" id="g89">
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="2.2" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use85" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="5.2272" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use86" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="10.2344" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use87" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="12.452" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use88" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="17.2656" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use89" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(36.850394,34.937602)" d="M 0,0 M 396.85039,0 V 22.677165 H 0 V 7.093292" id="path90" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(34.724409,36.361603)" d="M 0,0 M 2.1259843,0 4.2519685,5.6692913 H 0 Z" id="path91" />
+
+    <path fill="none" transform="translate(199.43123,45.591876)" d="M 0,0 M 0,0 H 71.688711 V 12.022891 H 0 Z" id="path92" />
+
+    <g transform="translate(199.43123,45.591876)" id="g105">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g96">
+        <use xlink:href="#g53431E498C5824E59C9F4D68E005E6B5" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use92" />
+
+        <use xlink:href="#gA5D50FA391BF06863A27D01506C12113" x="5.4471998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use93" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="10.4016" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use94" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="15.1712" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use95" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="19.624001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use96" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,26.7256,6.248)" id="g97">
+        <use xlink:href="#gEA9FF0B59C4B2CFC474FCD1112879B52" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use97" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,36.680356,6.248)" id="g98">
+        <use xlink:href="#gECC925052A81638EAA70C45895251CFC" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use98" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,45.482311,6.248)" id="g99">
+        <use xlink:href="#g844A7FA9A34E0E471608F66CD46069D" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use99" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,49.882311,6.248)" id="g104">
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="2.2" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use100" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="5.2272" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use101" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="10.2344" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use102" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="12.452" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use103" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="17.2656" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use104" />
+      </g>
+    </g>
+  </g>
+
+  <defs id="defs133">
+    <symbol id="gE5C8E2CC8670B44F8FE90A38683DB0E0" overflow="visible">
+      <path d="M 0,0 M 1.023,0 V 7.81 H 3.762 Q 5.049,7.81 5.7695,7.1885 6.49,6.567 6.49,5.478 6.49,4.389 5.7695,3.7675 5.049,3.146 3.762,3.146 H 1.771 V 0 Z m 0.748,3.872 h 1.991 q 0.957,0 1.4465,0.4125 Q 5.698,4.697 5.698,5.478 5.698,6.27 5.2085,6.677 4.719,7.084 3.762,7.084 H 1.771 Z" id="path106" />
+    </symbol>
+
+    <symbol id="g35D2A0460D0F3B87070CF0B9575FF3EA" overflow="visible">
+      <path d="M 0,0 M 0.902,0 V 7.81 H 1.628 V 4.796 q 0.209,0.594 0.704,0.88 0.495,0.286 1.133,0.286 0.638,0 1.067,-0.286 Q 4.961,5.39 5.181,4.8895 5.401,4.389 5.401,3.751 V 0 H 4.675 v 3.487 q 0,0.88 -0.33,1.353 Q 4.015,5.313 3.3,5.313 2.53,5.313 2.079,4.8235 1.628,4.334 1.628,3.476 V 0 Z" id="path107" />
+    </symbol>
+
+    <symbol id="g68EA509669F5373E9180436580B0FE2E" overflow="visible">
+      <path d="m 0,0 m 2.442,-0.132 q -0.88,0 -1.408,0.418 -0.528,0.418 -0.528,1.155 0,0.715 0.462,1.1385 Q 1.43,3.003 2.321,3.168 l 2.156,0.407 q 0,0.869 -0.374,1.2815 Q 3.729,5.269 2.97,5.269 2.299,5.269 1.903,4.95 1.507,4.631 1.375,4.048 L 0.605,4.114 Q 0.77,4.961 1.3805,5.4615 1.991,5.962 2.97,5.962 4.059,5.962 4.631,5.346 5.203,4.73 5.203,3.586 V 1.155 Q 5.203,0.858 5.2965,0.7535 5.39,0.649 5.599,0.649 H 5.775 V 0 Q 5.665,-0.022 5.478,-0.022 5.016,-0.022 4.7795,0.187 4.543,0.396 4.488,0.924 L 4.477,1.001 Q 4.257,0.517 3.696,0.1925 3.135,-0.132 2.442,-0.132 Z m 0.066,0.649 q 0.605,0 1.045,0.242 0.44,0.242 0.682,0.6545 Q 4.477,1.826 4.477,2.343 V 2.926 L 2.475,2.552 Q 1.848,2.442 1.5565,2.1835 1.265,1.925 1.265,1.507 1.265,1.034 1.595,0.7755 1.925,0.517 2.508,0.517 Z" id="path108" />
+    </symbol>
+
+    <symbol id="gE3D26730C8276FEE1F2A7C23918B45C0" overflow="visible">
+      <path d="m 0,0 m 2.97,-0.132 q -1.177,0 -1.7875,0.55 Q 0.572,0.968 0.506,1.793 L 1.265,1.848 Q 1.331,1.265 1.7325,0.913 2.134,0.561 2.97,0.561 q 0.693,0 1.056,0.231 0.363,0.231 0.363,0.715 0,0.264 -0.11,0.4455 Q 4.169,2.134 3.828,2.2715 3.487,2.409 2.805,2.53 1.991,2.684 1.5455,2.904 1.1,3.124 0.9295,3.443 0.759,3.762 0.759,4.213 q 0,0.77 0.5665,1.2595 Q 1.892,5.962 2.893,5.962 3.641,5.962 4.1195,5.7035 4.598,5.445 4.8455,5.027 5.093,4.609 5.159,4.136 L 4.4,4.07 Q 4.367,4.389 4.2075,4.6585 4.048,4.928 3.729,5.0985 3.41,5.269 2.871,5.269 2.211,5.269 1.8645,4.9885 1.518,4.708 1.518,4.246 1.518,3.927 1.639,3.7235 1.76,3.52 2.079,3.3935 2.398,3.267 2.981,3.168 3.828,3.025 4.301,2.8105 4.774,2.596 4.9665,2.2825 5.159,1.969 5.159,1.518 5.159,0.726 4.5595,0.297 3.96,-0.132 2.97,-0.132 Z" id="path109" />
+    </symbol>
+
+    <symbol id="g66CCD5028DB5B7CD8A67533E1C33E732" overflow="visible">
+      <path d="m 0,0 m 3.135,-0.132 q -0.836,0 -1.419,0.3905 Q 1.133,0.649 0.8195,1.3365 0.506,2.024 0.506,2.915 0.506,3.806 0.814,4.4935 1.122,5.181 1.6995,5.5715 2.277,5.962 3.091,5.962 3.872,5.962 4.4385,5.588 5.005,5.214 5.313,4.532 5.621,3.85 5.621,2.937 V 2.706 H 1.265 Q 1.309,1.672 1.804,1.1165 2.299,0.561 3.135,0.561 q 0.638,0 1.045,0.308 0.407,0.308 0.561,0.814 L 5.522,1.628 Q 5.302,0.858 4.675,0.363 4.048,-0.132 3.135,-0.132 Z M 1.265,3.355 H 4.829 Q 4.774,4.29 4.312,4.7795 3.85,5.269 3.091,5.269 2.332,5.269 1.848,4.7685 1.364,4.268 1.265,3.355 Z" id="path110" />
+    </symbol>
+
+    <symbol id="g8E9C905C3C2AA9F9B38FCF17C0C0AF8D" overflow="visible">
+      <path d="m 0,0 m 3.619,-0.176 q -0.935,0 -1.6115,0.495 Q 1.331,0.814 0.957,1.727 0.583,2.64 0.583,3.894 0.583,5.148 0.957,6.0665 1.331,6.985 2.0075,7.4855 2.684,7.986 3.619,7.986 4.543,7.986 5.225,7.4855 5.907,6.985 6.281,6.072 6.655,5.159 6.655,3.894 6.655,2.64 6.281,1.727 5.907,0.814 5.225,0.319 4.543,-0.176 3.619,-0.176 Z m 0,0.737 q 1.067,0 1.6555,0.8745 Q 5.863,2.31 5.863,3.894 5.863,5.489 5.2745,6.369 4.686,7.249 3.619,7.249 2.552,7.249 1.9635,6.369 1.375,5.489 1.375,3.894 1.375,2.31 1.9635,1.4355 2.552,0.561 3.619,0.561 Z" id="path111" />
+    </symbol>
+
+    <symbol id="gFE60A20560C962AFEB35699D0BE82B1B" overflow="visible">
+      <path d="M 0,0 M 1.023,0 V 7.81 H 3.377 Q 5.159,7.81 6.1215,6.7925 7.084,5.775 7.084,3.894 7.084,2.024 6.1435,1.012 5.203,0 3.443,0 Z m 0.748,0.726 h 1.606 q 1.441,0 2.1835,0.803 0.7425,0.803 0.7425,2.365 0,1.573 -0.7425,2.3815 Q 4.818,7.084 3.377,7.084 H 1.771 Z" id="path112" />
+    </symbol>
+
+    <symbol id="gD2FD727BBFC4485AB4606A13BA4A69C" overflow="visible">
+      <path d="M 0,0 M 2.937,0 Q 1.54,0 1.54,1.364 V 5.181 H 0.627 V 5.83 H 1.54 V 7.194 H 2.266 V 5.83 H 3.773 V 5.181 H 2.266 V 1.386 Q 2.266,0.979 2.4475,0.814 2.629,0.649 3.003,0.649 h 0.77 V 0 Z" id="path113" />
+    </symbol>
+
+    <symbol id="g8BC3041BDBF0F8E48DCDCF8B2BB174D0" overflow="visible">
+      <path d="m 0,0 m 3.465,-0.132 q -0.66,0 -1.155,0.3355 Q 1.815,0.539 1.573,1.078 L 1.54,0 H 0.902 V 7.81 H 1.628 V 4.807 q 0.22,0.473 0.704,0.814 0.484,0.341 1.133,0.341 0.759,0 1.32,-0.374 Q 5.346,5.214 5.6485,4.532 5.951,3.85 5.951,2.915 5.951,1.98 5.6485,1.298 5.346,0.616 4.785,0.242 4.224,-0.132 3.465,-0.132 Z M 3.432,0.561 q 0.803,0 1.276,0.638 0.473,0.638 0.473,1.716 0,1.089 -0.4675,1.7215 Q 4.246,5.269 3.443,5.269 2.607,5.269 2.1175,4.6255 1.628,3.982 1.628,2.915 1.628,1.848 2.112,1.2045 2.596,0.561 3.432,0.561 Z" id="path114" />
+    </symbol>
+
+    <symbol id="g217B26143AA64CA652DD4E38D410FC8B" overflow="visible">
+      <path d="M 0,0 M 2.112,0 V 5.929 H 0.473 v 0.638 h 0.616 q 0.649,0 0.913,0.2585 Q 2.266,7.084 2.266,7.81 H 2.86 V 0 Z" id="path115" />
+    </symbol>
+
+    <symbol id="gA77A7DEEFEB9F4D68E05212BC337C08" overflow="visible">
+      <path d="m 0,0 m 8.261,0.583 c 0,0.33 -0.286,0.583 -0.616,0.583 C 7.304,1.166 7.018,0.913 7.018,0.583 7.018,0.253 7.304,0 7.645,0 7.975,0 8.261,0.253 8.261,0.583 Z m -3.036,0 c 0,0.33 -0.286,0.583 -0.616,0.583 C 4.268,1.166 3.993,0.913 3.993,0.583 3.993,0.253 4.268,0 4.609,0 4.939,0 5.225,0.253 5.225,0.583 Z m -3.025,0 C 2.2,0.913 1.914,1.166 1.573,1.166 1.243,1.166 0.957,0.913 0.957,0.583 0.957,0.253 1.243,0 1.573,0 1.903,0 2.2,0.253 2.2,0.583 Z" id="path116" />
+    </symbol>
+
+    <symbol id="g74095D2A60C48A9D512C1590D5CFCC34" overflow="visible">
+      <path d="M 0,0 M 9.504,7.513 C 9.295,7.513 8.613,7.48 8.404,7.48 8.195,7.48 7.502,7.513 7.293,7.513 7.128,7.513 7.051,7.425 7.051,7.249 7.051,7.15 7.128,7.095 7.293,7.084 7.755,7.084 7.986,6.941 7.986,6.655 7.986,6.589 7.975,6.512 7.964,6.435 L 6.776,1.727 4.411,7.282 C 4.323,7.491 4.301,7.513 4.026,7.513 H 2.563 C 2.299,7.513 2.2,7.491 2.2,7.249 2.2,7.139 2.321,7.084 2.552,7.084 3.014,7.084 3.245,7.073 3.256,7.04 L 1.793,1.21 C 1.694,0.781 1.441,0.539 1.045,0.462 0.759,0.429 0.429,0.473 0.429,0.165 0.429,0.055 0.495,0 0.616,0 0.814,0 1.496,0.033 1.705,0.033 1.914,0.033 2.618,0 2.827,0 2.992,0 3.069,0.088 3.069,0.264 3.069,0.363 2.981,0.418 2.805,0.429 2.354,0.44 2.134,0.583 2.134,0.858 2.134,0.913 2.145,0.99 2.167,1.1 l 1.419,5.621 2.75,-6.49 C 6.402,0.077 6.49,0 6.589,0 6.688,0 6.754,0.088 6.798,0.264 l 1.529,6.05 C 8.47,6.875 8.778,7.073 9.46,7.084 9.614,7.095 9.691,7.183 9.691,7.359 9.658,7.458 9.647,7.513 9.504,7.513 Z" id="path117" />
+    </symbol>
+
+    <symbol id="g8C5DE8B42A8F44179A2C3172A23CB10B" overflow="visible">
+      <path d="M 0,0 M 7.678,2.97 H 0.88 C 0.704,2.97 0.616,2.893 0.616,2.75 0.616,2.607 0.704,2.53 0.88,2.53 h 6.798 c 0.176,0 0.264,0.077 0.264,0.22 0,0.132 -0.132,0.22 -0.264,0.22 z" id="path118" />
+    </symbol>
+
+    <symbol id="g3E2A4E29F5F78B7482203F9341039E72" overflow="visible">
+      <path d="M 0,0 M 2.959,7.326 C 2.508,6.864 1.848,6.633 0.979,6.633 V 6.204 c 0.572,0 1.045,0.088 1.408,0.264 V 0.902 C 2.387,0.704 2.343,0.572 2.244,0.517 2.145,0.462 1.87,0.429 1.43,0.429 H 1.045 V 0 C 1.32,0.022 1.914,0.033 2.827,0.033 3.74,0.033 4.334,0.022 4.609,0 V 0.429 H 4.224 C 3.773,0.429 3.498,0.462 3.41,0.517 3.322,0.572 3.267,0.704 3.267,0.902 v 6.094 c 0,0.264 -0.022,0.33 -0.308,0.33 z" id="path119" />
+    </symbol>
+
+    <symbol id="g53431E498C5824E59C9F4D68E005E6B5" overflow="visible">
+      <path d="m 0,0 m 0.8184,0 v 6.248 h 2.1912 q 1.0296,0 1.606,-0.4972 Q 5.192,5.2536 5.192,4.3824 5.192,3.5112 4.6156,3.014 4.0392,2.5168 3.0096,2.5168 H 1.4168 V 0 Z m 0.5984,3.0976 h 1.5928 q 0.7656,0 1.1572,0.33 0.3916,0.33 0.3916,0.9548 0,0.6336 -0.3916,0.9592 Q 3.7752,5.6672 3.0096,5.6672 H 1.4168 Z" id="path120" />
+    </symbol>
+
+    <symbol id="gA5D50FA391BF06863A27D01506C12113" overflow="visible">
+      <path d="M 0,0 M 0.7216,0 V 6.248 H 1.3024 V 3.8368 q 0.1672,0.4752 0.5632,0.704 0.396,0.2288 0.9064,0.2288 0.5104,0 0.8536,-0.2288 Q 3.9688,4.312 4.1448,3.9116 4.3208,3.5112 4.3208,3.0008 V 0 H 3.74 V 2.7896 Q 3.74,3.4936 3.476,3.872 3.212,4.2504 2.64,4.2504 2.024,4.2504 1.6632,3.8588 1.3024,3.4672 1.3024,2.7808 V 0 Z" id="path121" />
+    </symbol>
+
+    <symbol id="gD2A1838A447DC54FD7C602314FCD0E1D" overflow="visible">
+      <path d="m 0,0 m 1.9536,-0.1056 q -0.704,0 -1.1264,0.3344 -0.4224,0.3344 -0.4224,0.924 0,0.572 0.3696,0.9108 0.3696,0.3388 1.0824,0.4708 L 3.5816,2.86 q 0,0.6952 -0.2992,1.0252 -0.2992,0.33 -0.9064,0.33 Q 1.8392,4.2152 1.5224,3.96 1.2056,3.7048 1.1,3.2384 L 0.484,3.2912 q 0.132,0.6776 0.6204,1.078 0.4884,0.4004 1.2716,0.4004 0.8712,0 1.3288,-0.4928 Q 4.1624,3.784 4.1624,2.8688 V 0.924 q 0,-0.2376 0.0748,-0.3212 Q 4.312,0.5192 4.4792,0.5192 H 4.62 V 0 Q 4.532,-0.0176 4.3824,-0.0176 4.0128,-0.0176 3.8236,0.1496 3.6344,0.3168 3.5904,0.7392 L 3.5816,0.8008 Q 3.4056,0.4136 2.9568,0.154 2.508,-0.1056 1.9536,-0.1056 Z m 0.0528,0.5192 q 0.484,0 0.836,0.1936 0.352,0.1936 0.5456,0.5236 0.1936,0.33 0.1936,0.7436 V 2.3408 L 1.98,2.0416 Q 1.4784,1.9536 1.2452,1.7468 1.012,1.54 1.012,1.2056 1.012,0.8272 1.276,0.6204 1.54,0.4136 2.0064,0.4136 Z" id="path122" />
+    </symbol>
+
+    <symbol id="gCCDD8691B819B16548E688A3CF00DFE" overflow="visible">
+      <path d="m 0,0 m 2.376,-0.1056 q -0.9416,0 -1.43,0.44 -0.4884,0.44 -0.5412,1.1 L 1.012,1.4784 Q 1.0648,1.012 1.386,0.7304 1.7072,0.4488 2.376,0.4488 q 0.5544,0 0.8448,0.1848 0.2904,0.1848 0.2904,0.572 0,0.2112 -0.088,0.3564 Q 3.3352,1.7072 3.0624,1.8172 2.7896,1.9272 2.244,2.024 1.5928,2.1472 1.2364,2.3232 0.88,2.4992 0.7436,2.7544 0.6072,3.0096 0.6072,3.3704 q 0,0.616 0.4532,1.0076 0.4532,0.3916 1.254,0.3916 0.5984,0 0.9812,-0.2068 Q 3.6784,4.356 3.8764,4.0216 4.0744,3.6872 4.1272,3.3088 L 3.52,3.256 Q 3.4936,3.5112 3.366,3.7268 3.2384,3.9424 2.9832,4.0788 2.728,4.2152 2.2968,4.2152 1.7688,4.2152 1.4916,3.9908 1.2144,3.7664 1.2144,3.3968 1.2144,3.1416 1.3112,2.9788 1.408,2.816 1.6632,2.7148 1.9184,2.6136 2.3848,2.5344 3.0624,2.42 3.4408,2.2484 3.8192,2.0768 3.9732,1.826 4.1272,1.5752 4.1272,1.2144 4.1272,0.5808 3.6476,0.2376 3.168,-0.1056 2.376,-0.1056 Z" id="path123" />
+    </symbol>
+
+    <symbol id="g51CB28B8B16BB0E26AB6ACCB86229D45" overflow="visible">
+      <path d="m 0,0 m 2.508,-0.1056 q -0.6688,0 -1.1352,0.3124 -0.4664,0.3124 -0.7172,0.8624 -0.2508,0.55 -0.2508,1.2628 0,0.7128 0.2464,1.2628 0.2464,0.55 0.7084,0.8624 0.462,0.3124 1.1132,0.3124 0.6248,0 1.078,-0.2992 Q 4.004,4.1712 4.2504,3.6256 4.4968,3.08 4.4968,2.3496 V 2.1648 H 1.012 Q 1.0472,1.3376 1.4432,0.8932 1.8392,0.4488 2.508,0.4488 q 0.5104,0 0.836,0.2464 0.3256,0.2464 0.4488,0.6512 L 4.4176,1.3024 Q 4.2416,0.6864 3.74,0.2904 3.2384,-0.1056 2.508,-0.1056 Z M 1.012,2.684 H 3.8632 Q 3.8192,3.432 3.4496,3.8236 3.08,4.2152 2.4728,4.2152 1.8656,4.2152 1.4784,3.8148 1.0912,3.4144 1.012,2.684 Z" id="path124" />
+    </symbol>
+
+    <symbol id="gF44359E519A5D3FB2F014B0A7FC337A5" overflow="visible">
+      <path d="m 0,0 m 2.8952,-0.1408 q -0.748,0 -1.2892,0.396 -0.5412,0.396 -0.8404,1.1264 -0.2992,0.7304 -0.2992,1.7336 0,1.0032 0.2992,1.738 Q 1.0648,5.588 1.606,5.9884 2.1472,6.3888 2.8952,6.3888 3.6344,6.3888 4.18,5.9884 4.7256,5.588 5.0248,4.8576 5.324,4.1272 5.324,3.1152 5.324,2.112 5.0248,1.3816 4.7256,0.6512 4.18,0.2552 3.6344,-0.1408 2.8952,-0.1408 Z m 0,0.5896 q 0.8536,0 1.3244,0.6996 0.4708,0.6996 0.4708,1.9668 0,1.276 -0.4708,1.98 -0.4708,0.704 -1.3244,0.704 -0.8536,0 -1.3244,-0.704 Q 1.1,4.3912 1.1,3.1152 1.1,1.848 1.5708,1.1484 2.0416,0.4488 2.8952,0.4488 Z" id="path125" />
+    </symbol>
+
+    <symbol id="gB73948F3FE5894E951B4037C30E98335" overflow="visible">
+      <path d="M 0,0 M 0.7216,0 V 4.664 H 1.2232 L 1.2496,3.74 Q 1.5224,4.664 2.42,4.664 H 2.8248 V 4.1008 H 2.4024 q -0.528,0 -0.814,-0.3388 Q 1.3024,3.4232 1.3024,2.8424 V 0 Z" id="path126" />
+    </symbol>
+
+    <symbol id="g6DB11269D0D4B65C89ABDF0FF062CAFA" overflow="visible">
+      <path d="m 0,0 m 2.2528,-0.1056 q -0.704,0 -1.1176,0.4708 Q 0.7216,0.836 0.7216,1.6632 V 4.664 H 1.3024 V 1.8392 q 0,-1.4256 1.1,-1.4256 0.6072,0 0.9548,0.3916 0.3476,0.3916 0.3476,1.078 V 4.664 H 4.2856 V 0 H 3.74 L 3.7312,0.8448 Q 3.564,0.3872 3.1768,0.1408 2.7896,-0.1056 2.2528,-0.1056 Z" id="path127" />
+    </symbol>
+
+    <symbol id="g93CB7AD2879CA5D442549701326FDAAB" overflow="visible">
+      <path d="M 0,0 M 1.5752,0 Q 1.1792,0 0.9504,0.198 0.7216,0.396 0.7216,0.8184 V 6.248 H 1.3024 V 0.8624 q 0,-0.3432 0.352,-0.3432 H 2.024 V 0 Z" id="path128" />
+    </symbol>
+
+    <symbol id="g66C26678EBAE5E45773420E632994958" overflow="visible">
+      <path d="M 0,0 M 1.6896,0 V 4.7432 H 0.3784 v 0.5104 h 0.4928 q 0.5192,0 0.7304,0.2068 0.2112,0.2068 0.2112,0.7876 H 2.288 V 0 Z" id="path129" />
+    </symbol>
+
+    <symbol id="gEA9FF0B59C4B2CFC474FCD1112879B52" overflow="visible">
+      <path d="M 0,0 M 7.6032,6.0104 C 7.436,6.0104 6.8904,5.984 6.7232,5.984 6.556,5.984 6.0016,6.0104 5.8344,6.0104 5.7024,6.0104 5.6408,5.94 5.6408,5.7992 5.6408,5.72 5.7024,5.676 5.8344,5.6672 6.204,5.6672 6.3888,5.5528 6.3888,5.324 6.3888,5.2712 6.38,5.2096 6.3712,5.148 L 5.4208,1.3816 3.5288,5.8256 C 3.4584,5.9928 3.4408,6.0104 3.2208,6.0104 H 2.0504 C 1.8392,6.0104 1.76,5.9928 1.76,5.7992 c 0,-0.088 0.0968,-0.132 0.2816,-0.132 0.3696,0 0.5544,-0.0088 0.5632,-0.0352 L 1.4344,0.968 C 1.3552,0.6248 1.1528,0.4312 0.836,0.3696 0.6072,0.3432 0.3432,0.3784 0.3432,0.132 0.3432,0.044 0.396,0 0.4928,0 0.6512,0 1.1968,0.0264 1.364,0.0264 1.5312,0.0264 2.0944,0 2.2616,0 c 0.132,0 0.1936,0.0704 0.1936,0.2112 0,0.0792 -0.0704,0.1232 -0.2112,0.132 -0.3608,0.0088 -0.5368,0.1232 -0.5368,0.3432 0,0.044 0.0088,0.1056 0.0264,0.1936 l 1.1352,4.4968 2.2,-5.192 C 5.1216,0.0616 5.192,0 5.2712,0 5.3504,0 5.4032,0.0704 5.4384,0.2112 l 1.2232,4.84 C 6.776,5.5 7.0224,5.6584 7.568,5.6672 7.6912,5.676 7.7528,5.7464 7.7528,5.8872 7.7264,5.9664 7.7176,6.0104 7.6032,6.0104 Z" id="path130" />
+    </symbol>
+
+    <symbol id="gECC925052A81638EAA70C45895251CFC" overflow="visible">
+      <path d="M 0,0 M 6.1424,2.376 H 0.704 C 0.5632,2.376 0.4928,2.3144 0.4928,2.2 0.4928,2.0856 0.5632,2.024 0.704,2.024 h 5.4384 c 0.1408,0 0.2112,0.0616 0.2112,0.176 0,0.1056 -0.1056,0.176 -0.2112,0.176 z" id="path131" />
+    </symbol>
+
+    <symbol id="gEA6DBC2E01600D87775E5DBDE84CABF5" overflow="visible">
+      <path d="M 0,0 M 2.0856,5.8608 C 1.6368,5.8608 1.2584,5.7024 0.9328,5.3856 0.6072,5.0688 0.44,4.6992 0.44,4.2504 c 0,-0.2992 0.22,-0.5192 0.4928,-0.5192 0.264,0 0.484,0.2288 0.484,0.4928 0,0.2904 -0.2112,0.4928 -0.4928,0.4928 -0.0264,0 -0.044,0 -0.0616,-0.0088 0.1672,0.4312 0.5544,0.8096 1.1088,0.8096 0.7216,0 1.1264,-0.6248 1.1264,-1.3816 C 3.0976,3.5464 2.7984,2.9128 2.2,2.244 L 0.5456,0.3784 C 0.4312,0.2464 0.44,0.2552 0.44,0 H 3.7048 L 3.96,1.584 H 3.6696 C 3.5992,1.1352 3.5376,0.88 3.4848,0.8008 3.4408,0.7568 3.1768,0.7392 2.6928,0.7392 H 1.2232 l 0.8536,0.836 c 0.5984,0.5632 1.3552,1.1704 1.6104,1.6368 0.176,0.308 0.264,0.616 0.264,0.924 0,1.0384 -0.8096,1.7248 -1.8656,1.7248 z" id="path132" />
+    </symbol>
+
+    <symbol id="g844A7FA9A34E0E471608F66CD46069D" overflow="visible">
+      <path d="M 0,0 M 2.3672,5.8608 C 2.0064,5.4912 1.4784,5.3064 0.7832,5.3064 V 4.9632 c 0.4576,0 0.836,0.0704 1.1264,0.2112 V 0.7216 C 1.9096,0.5632 1.8744,0.4576 1.7952,0.4136 1.716,0.3696 1.496,0.3432 1.144,0.3432 H 0.836 V 0 C 1.056,0.0176 1.5312,0.0264 2.2616,0.0264 2.992,0.0264 3.4672,0.0176 3.6872,0 v 0.3432 h -0.308 c -0.3608,0 -0.5808,0.0264 -0.6512,0.0704 -0.0704,0.044 -0.1144,0.1496 -0.1144,0.308 v 4.8752 c 0,0.2112 -0.0176,0.264 -0.2464,0.264 z" id="path133" />
+    </symbol>
+  </defs>
+</svg>
+:::
+
+{/* 
+  #import "@preview/cetz:0.5.2"
+
+  #set page(fill: none)
+  #set text(font: "Geist", weight: "light")
+
+  #cetz.canvas({
+  import cetz.draw: *
+  content((0, 0), name: "phase0db", align(center, "Phase 0\nDatabase"))
+  rect((rel: (-1.3, 0.6), to: "phase0db"), (rel: (1.3, -.6), to: "phase0db"), name: "phase0rect")
+  content((5, 0), name: "phase1db", align(center, "Phase 1\nDatabase"))
+  rect((rel: (-1.3, 0.6), to: "phase1db"), (rel: (1.3, -.6), to: "phase1db"), name: "phase1rect")
+  content((9.2, 0), name: "dots", padding: .5, align(center, [$dots$]))
+  content((14, 0), name: "phasendb", align(center, [Phase $N -1$\ Database]))
+  rect((rel: (-1.3, 0.6), to: "phasendb"), (rel: (1.3, -.6), to: "phasendb"), name: "phasenrect")
+  line("phase0rect", "phase1rect", mark: (end: ">"), name: "01")
+  content("01.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[Phase 0 rules])
+  line("phase1rect", "dots", mark: (end: ">"), name: "1d")
+  content("1d.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[Phase 1 rules])
+  line("dots", "phasenrect", mark: (end: ">"), name: "dn")
+  content("dn.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[Phase $N-2$ rules])
+  line("phasenrect.south", (rel: (0, -0.8), to: "phasenrect.south"), (rel: (0, -0.8), to: "phase0rect.south"), "phase0rect.south", mark: (end: ">"), name: "n0")
+  content("n0.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[Phase $N-1$ rules])
+  })
+  */}
+
+Let us post-compose our state reduction rules onto the original analysis rules. We do so using a `phases` declaration, describing a list of sets of rules:
+
+```diff lang="ansi" frame="code" title="fix/ReducedProduct.fix"
+[35mmodule[0m ReducedProduct [35mwhere[0m
+
+[31minclude[0m [36m"IntervalAnalysis"[0m
+[31minclude[0m [36m"ParityAnalysis"[0m
+
+[35mimport[0m ReducedProductUtils
+
+[31mrule[0m [33mreducedExchangeI[0m: [32mStateBeforeP[0m l st, [32mStateBeforeI[0m l st'
+                       [31m|-[0m [32mStateBeforeI[0m l ([35mreducedExchangeI[0m st st')
++[31mrule[0m [33mreducedExchangeP[0m: [32mStateBeforeP[0m l st [31m|-[0m [32mStateBeforeP[0m l st
+
++[31mphases[0m: [ [31m*[0m , { [33mreducedExchangeP[0m, [33mreducedExchangeI[0m } ]
+```
+
+This makes our reduced product program consist of two phases:
+
+1. **Phase 0** (`*`): the wildcard `*` captures all rules not explicitly listed in the `phases` declaration. In our program, these are the transfer functions/rules defined in `IntervalAnalysis.fix` and `ParityAnalysis.fix`.
+2. **Phase 1**: the exchange rules that refine intervals using parity states. Note that we additionally define a `reducedExchangeP` rule which forwards parity states from phase 1 back to phase 0 untouched, since parity states should remain invariant across phase 1. If we do not have this, then no `StateBeforeP` facts make it back to phase 0 for subsequent transfers.
+
+The architecture result of this declaration is illustrated in :autoref{#fig:reduced-product-phases}. The phase 0 rules (the interval and parity transfer functions) draw premises from the phase 0 database (<Math formula="S_0" />) and stream their unrefined conclusions to the phase 1 database (<Math formula="S_1" />). The phase 1 rules (the state reduction/exchange rules) consume these unrefined states from <Math formula="S_1" />, apply the cross-domain refinements, and route the tighter facts back to <Math formula="S_0" />. Wider, unrefined facts and narrower, refined facts never coexist within the same database.
+
+:::note
+Initial facts are, by default, considered as premiseless phase <Math formula="N - 1" /> rules. The result is that the initial facts are committed to the phase 0 database.
+:::
+
+:::figure{#fig:reduced-product-phases caption="Phases for the reduced product."}
+<svg viewBox="0 0 386.51182 76.205093" width="386.51181pt" height="76.205093pt" version="1.1" id="svg180" sodipodi:docname="fig2.svg" inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview id="namedview180" pagecolor="#ffffff" bordercolor="#000000" borderopacity="0.25" inkscape:showpageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:deskcolor="#d1d1d1" inkscape:document-units="pt" inkscape:zoom="2.4768776" inkscape:cx="202.67453" inkscape:cy="104.76901" inkscape:window-width="2560" inkscape:window-height="1440" inkscape:window-x="0" inkscape:window-y="0" inkscape:window-maximized="0" inkscape:current-layer="svg180" />
+
+  <g transform="translate(0.50000027,0.50000027)" id="g135">
+    <path fill="none" transform="translate(14.86635,4.665874)" d="M 0,0 M 0,0 H 100.661 V 24.684 H 0 Z" id="path1" />
+
+    <g transform="translate(14.86635,4.665874)" id="g33">
+      <g transform="matrix(1,0,0,-1,1.6e-8,7.81)" id="g17">
+        <use xlink:href="#gE5C8E2CC8670B44F8FE90A38683DB0E0" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use1" />
+
+        <use xlink:href="#gECC67509521523B63CF5680AC4E99F1A" x="6.9520001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use2" />
+
+        <use xlink:href="#g844C0719C80B0AECA5B9F3757AD6CFDC" x="10.549" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use3" />
+
+        <use xlink:href="#g6FB7E7983C229E882BD56555F200227" x="16.653999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use4" />
+
+        <use xlink:href="#gECC67509521523B63CF5680AC4E99F1A" x="23.1" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use5" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="26.664" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use6" />
+
+        <use xlink:href="#gB6815C5A101CC98A4970D07CCB4D4702" x="32.637001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use7" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="44.924" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use8" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="50.237" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use9" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="54.296001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use10" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="59.686001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use11" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="63.701" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use12" />
+
+        <use xlink:href="#gB6815C5A101CC98A4970D07CCB4D4702" x="69.718002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use13" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="79.123001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use14" />
+
+        <use xlink:href="#g12389462BA46BAA0EFEBA157ADC68FB4" x="85.139999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use15" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="90.970001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use16" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="94.985001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use17" />
+      </g>
+
+      <g transform="matrix(1,0,0,-1,5.797,22.77)" id="g32">
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use18" />
+
+        <use xlink:href="#g12389462BA46BAA0EFEBA157ADC68FB4" x="5.973" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use19" />
+
+        <use xlink:href="#g3F8957D4E8604A7B51845AA581860F3A" x="12.144" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use20" />
+
+        <use xlink:href="#gECC67509521523B63CF5680AC4E99F1A" x="21.351" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use21" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="24.948" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use22" />
+
+        <use xlink:href="#g7120DF4A5E7CFE7C311598125995C4A4" x="30.733999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use23" />
+
+        <use xlink:href="#g12389462BA46BAA0EFEBA157ADC68FB4" x="37.202" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use24" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="43.373001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use25" />
+
+        <use xlink:href="#g3F8957D4E8604A7B51845AA581860F3A" x="49.389999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use26" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="58.597" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use27" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="63.91" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use28" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="67.969002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use29" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="73.359001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use30" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="77.374001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use31" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="83.390999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use32" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" d="M 0,0 M 0,0 V 34.015748 H 130.3937 V 0 Z" id="path33" />
+
+    <path fill="none" transform="translate(279.65896,13.014874)" d="M 0,0 M 0,0 H 81.312 V 7.986 H 0 Z" id="path34" />
+
+    <g transform="translate(279.65896,13.014874)" id="g48">
+      <g transform="matrix(1,0,0,-1,4.7e-8,7.81)" id="g47">
+        <use xlink:href="#g2563A5F24550E27697361F7978D5E63D" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use34" />
+
+        <use xlink:href="#g12389462BA46BAA0EFEBA157ADC68FB4" x="7.48" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use35" />
+
+        <use xlink:href="#gECC67509521523B63CF5680AC4E99F1A" x="13.596" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use36" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="17.193001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use37" />
+
+        <use xlink:href="#g7120DF4A5E7CFE7C311598125995C4A4" x="22.979" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use38" />
+
+        <use xlink:href="#g12389462BA46BAA0EFEBA157ADC68FB4" x="29.447001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use39" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="35.618" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use40" />
+
+        <use xlink:href="#g3F8957D4E8604A7B51845AA581860F3A" x="41.634998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use41" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="50.841999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use42" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="56.154999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use43" />
+
+        <use xlink:href="#g68EA509669F5373E9180436580B0FE2E" x="60.214001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use44" />
+
+        <use xlink:href="#gD2FD727BBFC4485AB4606A13BA4A69C" x="65.603996" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use45" />
+
+        <use xlink:href="#g66CCD5028DB5B7CD8A67533E1C33E732" x="69.619003" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use46" />
+
+        <use xlink:href="#gE3D26730C8276FEE1F2A7C23918B45C0" x="75.636002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use47" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(255.11811)" d="M 0,0 M 0,0 V 34.015748 H 130.3937 V 0 Z" id="path48" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(130.3937,17.007874)" d="M 0,0 M 0,0 H 117.63112" id="path49" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(248.02482,14.88189)" d="M 0,0 M 5.6692913,2.1259843 0,4.2519685 V 0 Z" id="path50" />
+
+    <path fill="none" transform="translate(141.08231,3.6649827)" d="M 0,0 M 0,0 H 103.3472 V 13.342891 H 0 Z" id="path51" />
+
+    <g transform="translate(141.08231,3.6649826)" id="g76">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g75">
+        <use xlink:href="#gF8A3846FD93F38124717F66A64CB193B" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use51" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="6.4327998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use52" />
+
+        <use xlink:href="#g19347931CC1FA08EEA3230221AB9D536" x="9.3984003" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use53" />
+
+        <use xlink:href="#gF9C38AA9AD0C080FC07588EC5D17E923" x="11.3256" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use54" />
+
+        <use xlink:href="#g19347931CC1FA08EEA3230221AB9D536" x="16.368" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use55" />
+
+        <use xlink:href="#g112510F53901F85B7656F626C9F2EAF0" x="18.436001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use56" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="23.3904" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use57" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="28.1336" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use58" />
+
+        <use xlink:href="#g6241CEBCF74988B8173E18B8EE00AA4A" x="32.5952" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use59" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="35.9744" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use60" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="38.8256" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use61" />
+
+        <use xlink:href="#g112510F53901F85B7656F626C9F2EAF0" x="43.604" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use62" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="48.540798" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use63" />
+
+        <use xlink:href="#gF80C6A6FC2DB386BEEEE979530523A51" x="52.8088" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use64" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="55.818401" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use65" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="60.632" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use66" />
+
+        <use xlink:href="#gF80C6A6FC2DB386BEEEE979530523A51" x="66.0616" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use67" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="69.4496" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use68" />
+
+        <use xlink:href="#g112510F53901F85B7656F626C9F2EAF0" x="74.456802" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use69" />
+
+        <use xlink:href="#g7310CCDF101D4AE21703A9D56A42396E" x="79.3936" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use70" />
+
+        <use xlink:href="#g6241CEBCF74988B8173E18B8EE00AA4A" x="83.863998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use71" />
+
+        <use xlink:href="#g19347931CC1FA08EEA3230221AB9D536" x="87.058403" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use72" />
+
+        <use xlink:href="#g6B8D62A4EE34ABD48F7C164458D11611" x="88.985603" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use73" />
+
+        <use xlink:href="#g112510F53901F85B7656F626C9F2EAF0" x="93.869598" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use74" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="98.806396" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use75" />
+      </g>
+    </g>
+
+    <path fill="none" transform="translate(190.11591,17.007874)" d="M 0,0 M 0,0 H 5.28 V 11.917291 H 0 Z" id="path76" />
+
+    <g transform="translate(190.11591,17.007874)" id="g78">
+      <g transform="matrix(1,0,0,-1,0,11.917291)" id="g77">
+        <use xlink:href="#gEE29023A3C1399925F04143F81CFBC5F" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use76" />
+      </g>
+    </g>
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" transform="translate(65.19685,34.015748)" d="M 0,0 M 255.11811,0 V 28.346457 H 0 V 7.093292" id="path78" />
+
+    <path fill="none" stroke="var(--sl-color-white)" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dashoffset="0" stroke-dasharray="none" transform="translate(63.070866,35.439749)" d="M 0,0 M 2.1259843,0 4.2519685,5.6692913 H 0 Z" id="path79" />
+
+    <path fill="none" transform="translate(151.67751,50.304113)" d="M 0,0 H 82.1568 V 12.058091 H 0 Z" id="path80" />
+
+    <g transform="translate(151.67751,50.304113)" id="g99">
+      <g transform="matrix(1,0,0,-1,0,6.248)" id="g98">
+        <use xlink:href="#g228F4B05E6D9AACE02A35286F7EB0570" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use80" />
+
+        <use xlink:href="#g6241CEBCF74988B8173E18B8EE00AA4A" x="5.3415999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use81" />
+
+        <use xlink:href="#gD2A1838A447DC54FD7C602314FCD0E1D" x="8.5888004" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use82" />
+
+        <use xlink:href="#g6241CEBCF74988B8173E18B8EE00AA4A" x="12.9008" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use83" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="16.112801" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use84" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="23.214399" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use85" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="26.091999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use86" />
+
+        <use xlink:href="#gF6B8C1ABB7AAA4873BA44A048D250C63" x="30.9056" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use87" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="35.9128" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use88" />
+
+        <use xlink:href="#g7310CCDF101D4AE21703A9D56A42396E" x="40.832001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use89" />
+
+        <use xlink:href="#g6241CEBCF74988B8173E18B8EE00AA4A" x="45.302399" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use90" />
+
+        <use xlink:href="#g19347931CC1FA08EEA3230221AB9D536" x="48.496799" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use91" />
+
+        <use xlink:href="#g6B8D62A4EE34ABD48F7C164458D11611" x="50.424" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use92" />
+
+        <use xlink:href="#g112510F53901F85B7656F626C9F2EAF0" x="55.307999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use93" />
+
+        <use xlink:href="#gB73948F3FE5894E951B4037C30E98335" x="62.5504" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use94" />
+
+        <use xlink:href="#g6DB11269D0D4B65C89ABDF0FF062CAFA" x="65.577599" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use95" />
+
+        <use xlink:href="#g93CB7AD2879CA5D442549701326FDAAB" x="70.584801" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use96" />
+
+        <use xlink:href="#g51CB28B8B16BB0E26AB6ACCB86229D45" x="72.802399" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use97" />
+
+        <use xlink:href="#gCCDD8691B819B16548E688A3CF00DFE" x="77.615997" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use98" />
+      </g>
+    </g>
+
+    <path fill="none" transform="translate(92.435906,62.362205)" d="M 0,0 H 200.64 V 13.342891 H 0 Z" id="path99" />
+
+    <g transform="translate(92.435905,62.362205)" id="g134">
+      <g transform="matrix(1,0,0,-1,0,11.917291)" id="g133">
+        <use xlink:href="#g6FAD6E1E1D53099129B4D44149EB217D" x="0" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use99" />
+
+        <use xlink:href="#gE59ACCB3437996D8ACC011274925D69B" x="10.56" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use100" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="15.84" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use101" />
+
+        <use xlink:href="#g4EAC0B1D91429F18EB24F6029D739AA1" x="21.120001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use102" />
+
+        <use xlink:href="#g9EC11AEC0356334E169BDFF05D498AC" x="26.4" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use103" />
+
+        <use xlink:href="#gE4BF361C5D265A065B5D26169EB02CF9" x="31.68" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use104" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="36.959999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use105" />
+
+        <use xlink:href="#g4EAC0B1D91429F18EB24F6029D739AA1" x="42.240002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use106" />
+
+        <use xlink:href="#g1D0C4326EA70A2DA084796A7E5363504" x="47.52" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use107" />
+
+        <use xlink:href="#g910230FFAA0350611D6C81C9C48DFC7E" x="52.799999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use108" />
+
+        <use xlink:href="#gE4BF361C5D265A065B5D26169EB02CF9" x="58.080002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use109" />
+
+        <use xlink:href="#g2CDF112DF0D7883D8C51BFA79CBF2055" x="63.360001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use110" />
+
+        <use xlink:href="#gBBF37AEDC97BCF811D762CF818A3648C" x="68.639999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use111" />
+
+        <use xlink:href="#g326DB7B57CFD19A6E2434AD1EA98798E" x="73.919998" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use112" />
+
+        <use xlink:href="#gD151ED42885B823F2427705C4C2B96EC" x="79.199997" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use113" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="84.480003" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use114" />
+
+        <use xlink:href="#g2A62E19EE2E6D189C4143CCC25E8039E" x="89.760002" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use115" />
+
+        <use xlink:href="#g9BBCC7C935A8083D2B986FABA43C7391" x="95.040001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use116" />
+
+        <use xlink:href="#gE59ACCB3437996D8ACC011274925D69B" x="105.6" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use117" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="110.88" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use118" />
+
+        <use xlink:href="#g4EAC0B1D91429F18EB24F6029D739AA1" x="116.16" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use119" />
+
+        <use xlink:href="#g9EC11AEC0356334E169BDFF05D498AC" x="121.44" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use120" />
+
+        <use xlink:href="#gE4BF361C5D265A065B5D26169EB02CF9" x="126.72" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use121" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="132" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use122" />
+
+        <use xlink:href="#g4EAC0B1D91429F18EB24F6029D739AA1" x="137.28" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use123" />
+
+        <use xlink:href="#g1D0C4326EA70A2DA084796A7E5363504" x="142.56" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use124" />
+
+        <use xlink:href="#g910230FFAA0350611D6C81C9C48DFC7E" x="147.84" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use125" />
+
+        <use xlink:href="#gE4BF361C5D265A065B5D26169EB02CF9" x="153.12" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use126" />
+
+        <use xlink:href="#g2CDF112DF0D7883D8C51BFA79CBF2055" x="158.39999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use127" />
+
+        <use xlink:href="#gBBF37AEDC97BCF811D762CF818A3648C" x="163.67999" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use128" />
+
+        <use xlink:href="#g326DB7B57CFD19A6E2434AD1EA98798E" x="168.96001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use129" />
+
+        <use xlink:href="#gD151ED42885B823F2427705C4C2B96EC" x="174.24001" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use130" />
+
+        <use xlink:href="#gAFB471203BADAC387845BBC14C88A0C9" x="179.52" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use131" />
+
+        <use xlink:href="#gD3CA19CF5A0CF83C129EC7EC7D0ED240" x="184.8" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use132" />
+
+        <use xlink:href="#g7728DB420D4A49F4349CFEBF606004D7" x="195.36" y="0" fill="var(--sl-color-text)" fill-rule="nonzero" id="use133" />
+      </g>
+    </g>
+  </g>
+
+  <defs id="defs180">
+    <symbol id="gE5C8E2CC8670B44F8FE90A38683DB0E0" overflow="visible">
+      <path d="M 0,0 M 1.023,0 V 7.81 H 3.762 Q 5.049,7.81 5.7695,7.1885 6.49,6.567 6.49,5.478 6.49,4.389 5.7695,3.7675 5.049,3.146 3.762,3.146 H 1.771 V 0 Z m 0.748,3.872 h 1.991 q 0.957,0 1.4465,0.4125 Q 5.698,4.697 5.698,5.478 5.698,6.27 5.2085,6.677 4.719,7.084 3.762,7.084 H 1.771 Z" id="path135" />
+    </symbol>
+
+    <symbol id="gECC67509521523B63CF5680AC4E99F1A" overflow="visible">
+      <path d="M 0,0 M 0.902,0 V 5.83 H 1.529 L 1.562,4.675 Q 1.903,5.83 3.025,5.83 H 3.531 V 5.126 H 3.003 Q 2.343,5.126 1.9855,4.7025 1.628,4.279 1.628,3.553 V 0 Z" id="path136" />
+    </symbol>
+
+    <symbol id="g844C0719C80B0AECA5B9F3757AD6CFDC" overflow="visible">
+      <path d="m 0,0 m 3.113,-0.132 q -0.792,0 -1.375,0.374 Q 1.155,0.616 0.8305,1.298 0.506,1.98 0.506,2.915 0.506,3.85 0.8305,4.532 1.155,5.214 1.738,5.588 2.321,5.962 3.113,5.962 3.905,5.962 4.488,5.588 5.071,5.214 5.39,4.532 5.709,3.85 5.709,2.915 5.709,1.98 5.39,1.298 5.071,0.616 4.488,0.242 3.905,-0.132 3.113,-0.132 Z m 0,0.693 q 0.858,0 1.3475,0.6325 Q 4.95,1.826 4.95,2.915 4.95,4.015 4.4605,4.642 3.971,5.269 3.113,5.269 2.244,5.269 1.7545,4.642 1.265,4.015 1.265,2.915 1.265,1.826 1.7545,1.1935 2.244,0.561 3.113,0.561 Z" id="path137" />
+    </symbol>
+
+    <symbol id="g6FB7E7983C229E882BD56555F200227" overflow="visible">
+      <path d="m 0,0 m 3.058,-1.782 q -0.935,0 -1.573,0.473 -0.638,0.473 -0.77,1.232 l 0.759,0.044 q 0.099,-0.484 0.484,-0.77 0.385,-0.286 1.1,-0.286 0.847,0 1.3035,0.396 0.4565,0.396 0.4565,1.155 V 1.463 Q 4.587,0.935 4.1085,0.616 3.63,0.297 3.003,0.297 2.266,0.297 1.6995,0.6545 1.133,1.012 0.8195,1.65 0.506,2.288 0.506,3.135 0.506,3.971 0.8195,4.609 1.133,5.247 1.6885,5.6045 2.244,5.962 2.97,5.962 3.63,5.962 4.136,5.6265 4.642,5.291 4.851,4.741 V 5.83 H 5.544 V 0.462 q 0,-1.045 -0.66,-1.6445 Q 4.224,-1.782 3.058,-1.782 Z M 3.036,0.99 q 0.803,0 1.2925,0.5775 Q 4.818,2.145 4.818,3.135 4.829,4.092 4.3395,4.6805 3.85,5.269 3.036,5.269 2.211,5.269 1.738,4.6915 1.265,4.114 1.265,3.135 1.265,2.145 1.7435,1.5675 2.222,0.99 3.036,0.99 Z" id="path138" />
+    </symbol>
+
+    <symbol id="g68EA509669F5373E9180436580B0FE2E" overflow="visible">
+      <path d="m 0,0 m 2.442,-0.132 q -0.88,0 -1.408,0.418 -0.528,0.418 -0.528,1.155 0,0.715 0.462,1.1385 Q 1.43,3.003 2.321,3.168 l 2.156,0.407 q 0,0.869 -0.374,1.2815 Q 3.729,5.269 2.97,5.269 2.299,5.269 1.903,4.95 1.507,4.631 1.375,4.048 L 0.605,4.114 Q 0.77,4.961 1.3805,5.4615 1.991,5.962 2.97,5.962 4.059,5.962 4.631,5.346 5.203,4.73 5.203,3.586 V 1.155 Q 5.203,0.858 5.2965,0.7535 5.39,0.649 5.599,0.649 H 5.775 V 0 Q 5.665,-0.022 5.478,-0.022 5.016,-0.022 4.7795,0.187 4.543,0.396 4.488,0.924 L 4.477,1.001 Q 4.257,0.517 3.696,0.1925 3.135,-0.132 2.442,-0.132 Z m 0.066,0.649 q 0.605,0 1.045,0.242 0.44,0.242 0.682,0.6545 Q 4.477,1.826 4.477,2.343 V 2.926 L 2.475,2.552 Q 1.848,2.442 1.5565,2.1835 1.265,1.925 1.265,1.507 1.265,1.034 1.595,0.7755 1.925,0.517 2.508,0.517 Z" id="path139" />
+    </symbol>
+
+    <symbol id="gB6815C5A101CC98A4970D07CCB4D4702" overflow="visible">
+      <path d="m 0,0 m 0.902,0 v 5.83 h 0.66 L 1.584,4.73 Q 1.782,5.291 2.244,5.6265 2.706,5.962 3.311,5.962 3.938,5.962 4.378,5.61 4.818,5.258 4.994,4.631 5.181,5.258 5.6485,5.61 6.116,5.962 6.776,5.962 7.645,5.962 8.14,5.368 8.635,4.774 8.635,3.74 V 0 H 7.909 v 3.52 q 0,0.869 -0.3355,1.331 Q 7.238,5.313 6.611,5.313 5.951,5.313 5.533,4.8015 5.115,4.29 5.115,3.454 V 0 H 4.389 v 3.487 q 0,0.847 -0.308,1.3365 Q 3.773,5.313 3.135,5.313 2.464,5.313 2.046,4.807 1.628,4.301 1.628,3.487 V 0 Z" id="path140" />
+    </symbol>
+
+    <symbol id="gE3D26730C8276FEE1F2A7C23918B45C0" overflow="visible">
+      <path d="m 0,0 m 2.97,-0.132 q -1.177,0 -1.7875,0.55 Q 0.572,0.968 0.506,1.793 L 1.265,1.848 Q 1.331,1.265 1.7325,0.913 2.134,0.561 2.97,0.561 q 0.693,0 1.056,0.231 0.363,0.231 0.363,0.715 0,0.264 -0.11,0.4455 Q 4.169,2.134 3.828,2.2715 3.487,2.409 2.805,2.53 1.991,2.684 1.5455,2.904 1.1,3.124 0.9295,3.443 0.759,3.762 0.759,4.213 q 0,0.77 0.5665,1.2595 Q 1.892,5.962 2.893,5.962 3.641,5.962 4.1195,5.7035 4.598,5.445 4.8455,5.027 5.093,4.609 5.159,4.136 L 4.4,4.07 Q 4.367,4.389 4.2075,4.6585 4.048,4.928 3.729,5.0985 3.41,5.269 2.871,5.269 2.211,5.269 1.8645,4.9885 1.518,4.708 1.518,4.246 1.518,3.927 1.639,3.7235 1.76,3.52 2.079,3.3935 2.398,3.267 2.981,3.168 3.828,3.025 4.301,2.8105 4.774,2.596 4.9665,2.2825 5.159,1.969 5.159,1.518 5.159,0.726 4.5595,0.297 3.96,-0.132 2.97,-0.132 Z" id="path141" />
+    </symbol>
+
+    <symbol id="gD2FD727BBFC4485AB4606A13BA4A69C" overflow="visible">
+      <path d="M 0,0 M 2.937,0 Q 1.54,0 1.54,1.364 V 5.181 H 0.627 V 5.83 H 1.54 V 7.194 H 2.266 V 5.83 H 3.773 V 5.181 H 2.266 V 1.386 Q 2.266,0.979 2.4475,0.814 2.629,0.649 3.003,0.649 h 0.77 V 0 Z" id="path142" />
+    </symbol>
+
+    <symbol id="g66CCD5028DB5B7CD8A67533E1C33E732" overflow="visible">
+      <path d="m 0,0 m 3.135,-0.132 q -0.836,0 -1.419,0.3905 Q 1.133,0.649 0.8195,1.3365 0.506,2.024 0.506,2.915 0.506,3.806 0.814,4.4935 1.122,5.181 1.6995,5.5715 2.277,5.962 3.091,5.962 3.872,5.962 4.4385,5.588 5.005,5.214 5.313,4.532 5.621,3.85 5.621,2.937 V 2.706 H 1.265 Q 1.309,1.672 1.804,1.1165 2.299,0.561 3.135,0.561 q 0.638,0 1.045,0.308 0.407,0.308 0.561,0.814 L 5.522,1.628 Q 5.302,0.858 4.675,0.363 4.048,-0.132 3.135,-0.132 Z M 1.265,3.355 H 4.829 Q 4.774,4.29 4.312,4.7795 3.85,5.269 3.091,5.269 2.332,5.269 1.848,4.7685 1.364,4.268 1.265,3.355 Z" id="path143" />
+    </symbol>
+
+    <symbol id="g12389462BA46BAA0EFEBA157ADC68FB4" overflow="visible">
+      <path d="m 0,0 m 0.902,0 v 5.83 h 0.66 L 1.584,4.708 q 0.209,0.627 0.715,0.9405 0.506,0.3135 1.144,0.3135 0.671,0 1.1,-0.297 Q 4.972,5.368 5.1865,4.8675 5.401,4.367 5.401,3.751 V 0 H 4.675 v 3.487 q 0,0.858 -0.319,1.342 Q 4.037,5.313 3.289,5.313 2.541,5.313 2.0845,4.829 1.628,4.345 1.628,3.487 V 0 Z" id="path144" />
+    </symbol>
+
+    <symbol id="g3F8957D4E8604A7B51845AA581860F3A" overflow="visible">
+      <path d="M 0,0 M 2.959,-0.132 Q 2.2,-0.132 1.65,0.242 1.1,0.616 0.803,1.298 0.506,1.98 0.506,2.915 0.506,3.85 0.803,4.532 1.1,5.214 1.65,5.588 2.2,5.962 2.959,5.962 3.597,5.962 4.103,5.6485 4.609,5.335 4.829,4.807 V 7.81 H 5.555 V 0 H 4.917 L 4.884,1.089 Q 4.642,0.517 4.1195,0.1925 3.597,-0.132 2.959,-0.132 Z M 3.08,0.561 q 0.825,0 1.287,0.6435 Q 4.829,1.848 4.829,2.915 4.829,3.971 4.367,4.62 3.905,5.269 3.08,5.269 2.255,5.269 1.76,4.6365 1.265,4.004 1.265,2.915 1.265,1.837 1.76,1.199 2.255,0.561 3.08,0.561 Z" id="path145" />
+    </symbol>
+
+    <symbol id="g7120DF4A5E7CFE7C311598125995C4A4" overflow="visible">
+      <path d="M 0,0 M 1.507,0 V 5.181 H 0.682 V 5.83 h 0.825 v 0.605 q 0,0.627 0.352,1.001 Q 2.211,7.81 2.948,7.81 H 3.784 V 7.161 H 3.003 Q 2.596,7.161 2.4145,6.9575 2.233,6.754 2.233,6.38 V 5.83 H 3.729 V 5.181 H 2.233 V 0 Z M 4.785,0 V 5.83 H 5.511 V 0 Z M 4.752,6.798 v 0.979 h 0.77 V 6.798 Z" id="path146" />
+    </symbol>
+
+    <symbol id="g2563A5F24550E27697361F7978D5E63D" overflow="visible">
+      <path d="m 0,0 m 3.74,-0.176 q -1.342,0 -2.112,0.7755 Q 0.858,1.375 0.858,2.728 V 7.81 H 1.606 V 2.728 Q 1.606,1.683 2.1615,1.122 2.717,0.561 3.74,0.561 4.763,0.561 5.3185,1.122 5.874,1.683 5.874,2.728 V 7.81 H 6.622 V 2.728 Q 6.622,1.375 5.852,0.5995 5.082,-0.176 3.74,-0.176 Z" id="path147" />
+    </symbol>
+
+    <symbol id="gF8A3846FD93F38124717F66A64CB193B" overflow="visible">
+      <path d="m 0,0 m 3.212,-0.1408 q -0.8712,0 -1.5004,0.396 Q 1.0824,0.6512 0.748,1.3816 0.4136,2.112 0.4136,3.1152 q 0,1.012 0.3344,1.7468 0.3344,0.7348 0.9636,1.1308 0.6292,0.396 1.5004,0.396 0.8712,0 1.5004,-0.396 Q 5.3416,5.5968 5.6804,4.862 6.0192,4.1272 6.0192,3.1152 6.0192,2.112 5.6804,1.3816 5.3416,0.6512 4.7124,0.2552 4.0832,-0.1408 3.212,-0.1408 Z m 0,0.5896 q 1.0208,0 1.6016,0.7084 0.5808,0.7084 0.5808,1.958 0,1.2496 -0.5808,1.9668 Q 4.2328,5.7992 3.212,5.7992 2.2,5.7992 1.6192,5.082 1.0384,4.3648 1.0384,3.1152 1.0384,1.8656 1.6192,1.1572 2.2,0.4488 3.212,0.4488 Z" id="path148" />
+    </symbol>
+
+    <symbol id="gB73948F3FE5894E951B4037C30E98335" overflow="visible">
+      <path d="M 0,0 M 0.7216,0 V 4.664 H 1.2232 L 1.2496,3.74 Q 1.5224,4.664 2.42,4.664 H 2.8248 V 4.1008 H 2.4024 q -0.528,0 -0.814,-0.3388 Q 1.3024,3.4232 1.3024,2.8424 V 0 Z" id="path149" />
+    </symbol>
+
+    <symbol id="g19347931CC1FA08EEA3230221AB9D536" overflow="visible">
+      <path d="M 0,0 M 0.7216,0 V 4.664 H 1.3024 V 0 Z M 0.704,5.4384 V 6.2216 H 1.32 V 5.4384 Z" id="path150" />
+    </symbol>
+
+    <symbol id="gF9C38AA9AD0C080FC07588EC5D17E923" overflow="visible">
+      <path d="m 0,0 m 2.4464,-1.4256 q -0.748,0 -1.2584,0.3784 -0.5104,0.3784 -0.616,0.9856 l 0.6072,0.0352 q 0.0792,-0.3872 0.3872,-0.616 0.308,-0.2288 0.88,-0.2288 0.6776,0 1.0428,0.3168 0.3652,0.3168 0.3652,0.924 V 1.1704 Q 3.6696,0.748 3.2868,0.4928 2.904,0.2376 2.4024,0.2376 q -0.5896,0 -1.0428,0.286 -0.4532,0.286 -0.704,0.7964 -0.2508,0.5104 -0.2508,1.188 0,0.6688 0.2508,1.1792 0.2508,0.5104 0.6952,0.7964 0.4444,0.286 1.0252,0.286 0.528,0 0.9328,-0.2684 0.4048,-0.2684 0.572,-0.7084 V 4.664 H 4.4352 V 0.3696 q 0,-0.836 -0.528,-1.3156 -0.528,-0.4796 -1.4608,-0.4796 z M 2.4288,0.792 q 0.6424,0 1.034,0.462 Q 3.8544,1.716 3.8544,2.508 3.8632,3.2736 3.4716,3.7444 3.08,4.2152 2.4288,4.2152 q -0.66,0 -1.0384,-0.462 Q 1.012,3.2912 1.012,2.508 1.012,1.716 1.3948,1.254 1.7776,0.792 2.4288,0.792 Z" id="path151" />
+    </symbol>
+
+    <symbol id="g112510F53901F85B7656F626C9F2EAF0" overflow="visible">
+      <path d="m 0,0 m 0.7216,0 v 4.664 h 0.528 L 1.2672,3.7664 q 0.1672,0.5016 0.572,0.7524 0.4048,0.2508 0.9152,0.2508 0.5368,0 0.88,-0.2376 Q 3.9776,4.2944 4.1492,3.894 4.3208,3.4936 4.3208,3.0008 V 0 H 3.74 V 2.7896 Q 3.74,3.476 3.4848,3.8632 3.2296,4.2504 2.6312,4.2504 2.0328,4.2504 1.6676,3.8632 1.3024,3.476 1.3024,2.7896 V 0 Z" id="path152" />
+    </symbol>
+
+    <symbol id="gD2A1838A447DC54FD7C602314FCD0E1D" overflow="visible">
+      <path d="m 0,0 m 1.9536,-0.1056 q -0.704,0 -1.1264,0.3344 -0.4224,0.3344 -0.4224,0.924 0,0.572 0.3696,0.9108 0.3696,0.3388 1.0824,0.4708 L 3.5816,2.86 q 0,0.6952 -0.2992,1.0252 -0.2992,0.33 -0.9064,0.33 Q 1.8392,4.2152 1.5224,3.96 1.2056,3.7048 1.1,3.2384 L 0.484,3.2912 q 0.132,0.6776 0.6204,1.078 0.4884,0.4004 1.2716,0.4004 0.8712,0 1.3288,-0.4928 Q 4.1624,3.784 4.1624,2.8688 V 0.924 q 0,-0.2376 0.0748,-0.3212 Q 4.312,0.5192 4.4792,0.5192 H 4.62 V 0 Q 4.532,-0.0176 4.3824,-0.0176 4.0128,-0.0176 3.8236,0.1496 3.6344,0.3168 3.5904,0.7392 L 3.5816,0.8008 Q 3.4056,0.4136 2.9568,0.154 2.508,-0.1056 1.9536,-0.1056 Z m 0.0528,0.5192 q 0.484,0 0.836,0.1936 0.352,0.1936 0.5456,0.5236 0.1936,0.33 0.1936,0.7436 V 2.3408 L 1.98,2.0416 Q 1.4784,1.9536 1.2452,1.7468 1.012,1.54 1.012,1.2056 1.012,0.8272 1.276,0.6204 1.54,0.4136 2.0064,0.4136 Z" id="path153" />
+    </symbol>
+
+    <symbol id="g93CB7AD2879CA5D442549701326FDAAB" overflow="visible">
+      <path d="M 0,0 M 1.5752,0 Q 1.1792,0 0.9504,0.198 0.7216,0.396 0.7216,0.8184 V 6.248 H 1.3024 V 0.8624 q 0,-0.3432 0.352,-0.3432 H 2.024 V 0 Z" id="path154" />
+    </symbol>
+
+    <symbol id="g6241CEBCF74988B8173E18B8EE00AA4A" overflow="visible">
+      <path d="M 0,0 M 2.3496,0 Q 1.232,0 1.232,1.0912 V 4.1448 H 0.5016 V 4.664 H 1.232 V 5.7552 H 1.8128 V 4.664 H 3.0184 V 4.1448 H 1.8128 v -3.036 q 0,-0.3256 0.1452,-0.4576 0.1452,-0.132 0.4444,-0.132 h 0.616 V 0 Z" id="path155" />
+    </symbol>
+
+    <symbol id="gCCDD8691B819B16548E688A3CF00DFE" overflow="visible">
+      <path d="m 0,0 m 2.376,-0.1056 q -0.9416,0 -1.43,0.44 -0.4884,0.44 -0.5412,1.1 L 1.012,1.4784 Q 1.0648,1.012 1.386,0.7304 1.7072,0.4488 2.376,0.4488 q 0.5544,0 0.8448,0.1848 0.2904,0.1848 0.2904,0.572 0,0.2112 -0.088,0.3564 Q 3.3352,1.7072 3.0624,1.8172 2.7896,1.9272 2.244,2.024 1.5928,2.1472 1.2364,2.3232 0.88,2.4992 0.7436,2.7544 0.6072,3.0096 0.6072,3.3704 q 0,0.616 0.4532,1.0076 0.4532,0.3916 1.254,0.3916 0.5984,0 0.9812,-0.2068 Q 3.6784,4.356 3.8764,4.0216 4.0744,3.6872 4.1272,3.3088 L 3.52,3.256 Q 3.4936,3.5112 3.366,3.7268 3.2384,3.9424 2.9832,4.0788 2.728,4.2152 2.2968,4.2152 1.7688,4.2152 1.4916,3.9908 1.2144,3.7664 1.2144,3.3968 1.2144,3.1416 1.3112,2.9788 1.408,2.816 1.6632,2.7148 1.9184,2.6136 2.3848,2.5344 3.0624,2.42 3.4408,2.2484 3.8192,2.0768 3.9732,1.826 4.1272,1.5752 4.1272,1.2144 4.1272,0.5808 3.6476,0.2376 3.168,-0.1056 2.376,-0.1056 Z" id="path156" />
+    </symbol>
+
+    <symbol id="gF80C6A6FC2DB386BEEEE979530523A51" overflow="visible">
+      <path d="m 0,0 m 1.2056,0 v 4.1448 h -0.66 V 4.664 h 0.66 v 0.484 q 0,0.5016 0.2816,0.8008 Q 1.7688,6.248 2.3584,6.248 H 3.0272 V 5.7288 H 2.4024 Q 2.0768,5.7288 1.9316,5.566 1.7864,5.4032 1.7864,5.104 V 4.664 H 2.9832 V 4.1448 H 1.7864 V 0 Z" id="path157" />
+    </symbol>
+
+    <symbol id="g51CB28B8B16BB0E26AB6ACCB86229D45" overflow="visible">
+      <path d="m 0,0 m 2.508,-0.1056 q -0.6688,0 -1.1352,0.3124 -0.4664,0.3124 -0.7172,0.8624 -0.2508,0.55 -0.2508,1.2628 0,0.7128 0.2464,1.2628 0.2464,0.55 0.7084,0.8624 0.462,0.3124 1.1132,0.3124 0.6248,0 1.078,-0.2992 Q 4.004,4.1712 4.2504,3.6256 4.4968,3.08 4.4968,2.3496 V 2.1648 H 1.012 Q 1.0472,1.3376 1.4432,0.8932 1.8392,0.4488 2.508,0.4488 q 0.5104,0 0.836,0.2464 0.3256,0.2464 0.4488,0.6512 L 4.4176,1.3024 Q 4.2416,0.6864 3.74,0.2904 3.2384,-0.1056 2.508,-0.1056 Z M 1.012,2.684 H 3.8632 Q 3.8192,3.432 3.4496,3.8236 3.08,4.2152 2.4728,4.2152 1.8656,4.2152 1.4784,3.8148 1.0912,3.4144 1.012,2.684 Z" id="path158" />
+    </symbol>
+
+    <symbol id="g6DB11269D0D4B65C89ABDF0FF062CAFA" overflow="visible">
+      <path d="m 0,0 m 2.2528,-0.1056 q -0.704,0 -1.1176,0.4708 Q 0.7216,0.836 0.7216,1.6632 V 4.664 H 1.3024 V 1.8392 q 0,-1.4256 1.1,-1.4256 0.6072,0 0.9548,0.3916 0.3476,0.3916 0.3476,1.078 V 4.664 H 4.2856 V 0 H 3.74 L 3.7312,0.8448 Q 3.564,0.3872 3.1768,0.1408 2.7896,-0.1056 2.2528,-0.1056 Z" id="path159" />
+    </symbol>
+
+    <symbol id="g7310CCDF101D4AE21703A9D56A42396E" overflow="visible">
+      <path d="m 0,0 m 2.4904,-0.1056 q -0.6512,0 -1.1176,0.3124 -0.4664,0.3124 -0.7172,0.8624 -0.2508,0.55 -0.2508,1.2628 0,0.7128 0.2508,1.2628 0.2508,0.55 0.7172,0.8624 0.4664,0.3124 1.1176,0.3124 0.8008,0 1.3068,-0.4312 0.506,-0.4312 0.638,-1.1704 L 3.828,3.1328 Q 3.7224,3.6432 3.3748,3.9292 3.0272,4.2152 2.4904,4.2152 1.804,4.2152 1.408,3.7136 1.012,3.212 1.012,2.332 q 0,-0.8712 0.396,-1.3772 0.396,-0.506 1.0824,-0.506 0.5368,0 0.8932,0.3036 Q 3.74,1.056 3.8368,1.628 L 4.444,1.584 Q 4.312,0.8272 3.8016,0.3608 3.2912,-0.1056 2.4904,-0.1056 Z" id="path160" />
+    </symbol>
+
+    <symbol id="g6B8D62A4EE34ABD48F7C164458D11611" overflow="visible">
+      <path d="m 0,0 m 2.4904,-0.1056 q -0.6336,0 -1.1,0.2992 Q 0.924,0.4928 0.6644,1.0384 0.4048,1.584 0.4048,2.332 q 0,0.748 0.2596,1.2936 0.2596,0.5456 0.726,0.8448 0.4664,0.2992 1.1,0.2992 0.6336,0 1.1,-0.2992 Q 4.0568,4.1712 4.312,3.6256 4.5672,3.08 4.5672,2.332 4.5672,1.584 4.312,1.0384 4.0568,0.4928 3.5904,0.1936 3.124,-0.1056 2.4904,-0.1056 Z m 0,0.5544 q 0.6864,0 1.078,0.506 Q 3.96,1.4608 3.96,2.332 3.96,3.212 3.5684,3.7136 3.1768,4.2152 2.4904,4.2152 1.7952,4.2152 1.4036,3.7136 1.012,3.212 1.012,2.332 q 0,-0.8712 0.3916,-1.3772 0.3916,-0.506 1.0868,-0.506 z" id="path161" />
+    </symbol>
+
+    <symbol id="gEE29023A3C1399925F04143F81CFBC5F" overflow="visible">
+      <path d="M 0,0 M 1.6984,2.5256 1.2672,2.8248 2.1736,4.1272 H 0.704 V 4.6464 H 2.1736 L 1.2672,5.9576 1.6984,6.248 2.64,4.8576 3.5904,6.248 4.0216,5.9576 3.1064,4.6464 H 4.576 V 4.1272 H 3.1064 L 4.0216,2.8248 3.5904,2.5256 2.64,3.9248 Z" id="path162" />
+    </symbol>
+
+    <symbol id="g228F4B05E6D9AACE02A35286F7EB0570" overflow="visible">
+      <path d="m 0,0 m 2.9128,-0.1408 q -0.6952,0 -1.2276,0.2728 Q 1.1528,0.4048 0.8448,0.8844 0.5368,1.364 0.5016,1.9712 l 0.6248,0.044 Q 1.188,1.3112 1.6588,0.88 2.1296,0.4488 2.9304,0.4488 q 0.6952,0 1.1088,0.2948 0.4136,0.2948 0.4136,0.8404 0,0.308 -0.1408,0.5456 Q 4.1712,2.3672 3.7664,2.5696 3.3616,2.772 2.5872,2.9568 1.8744,3.1328 1.4476,3.344 1.0208,3.5552 0.8272,3.8676 0.6336,4.18 0.6336,4.6552 q 0,0.5016 0.2464,0.8932 0.2464,0.3916 0.7084,0.616 0.462,0.2244 1.1044,0.2244 0.6864,0 1.1704,-0.2684 Q 4.3472,5.852 4.62,5.4076 4.8928,4.9632 4.9368,4.4264 L 4.312,4.3824 Q 4.2592,4.9808 3.85,5.39 3.4408,5.7992 2.6752,5.7992 2.0152,5.7992 1.6368,5.4868 1.2584,5.1744 1.2584,4.6728 1.2584,4.3472 1.3992,4.1404 1.54,3.9336 1.9008,3.7796 2.2616,3.6256 2.9304,3.4672 3.7576,3.2736 4.224,3.0096 4.6904,2.7456 4.8884,2.398 5.0864,2.0504 5.0864,1.6104 5.0864,1.0736 4.8004,0.682 4.5144,0.2904 4.026,0.0748 3.5376,-0.1408 2.9128,-0.1408 Z" id="path163" />
+    </symbol>
+
+    <symbol id="gF6B8C1ABB7AAA4873BA44A048D250C63" overflow="visible">
+      <path d="M 0,0 M 2.3672,-0.1056 Q 1.76,-0.1056 1.32,0.1936 0.88,0.4928 0.6424,1.0384 0.4048,1.584 0.4048,2.332 0.4048,3.08 0.6424,3.6256 0.88,4.1712 1.32,4.4704 1.76,4.7696 2.3672,4.7696 2.8776,4.7696 3.2824,4.5188 3.6872,4.268 3.8632,3.8456 V 6.248 H 4.444 V 0 H 3.9336 L 3.9072,0.8712 Q 3.7136,0.4136 3.2956,0.154 2.8776,-0.1056 2.3672,-0.1056 Z M 2.464,0.4488 q 0.66,0 1.0296,0.5148 0.3696,0.5148 0.3696,1.3684 0,0.8448 -0.3696,1.364 Q 3.124,4.2152 2.464,4.2152 1.804,4.2152 1.408,3.7092 1.012,3.2032 1.012,2.332 1.012,1.4696 1.408,0.9592 1.804,0.4488 2.464,0.4488 Z" id="path164" />
+    </symbol>
+
+    <symbol id="g6FAD6E1E1D53099129B4D44149EB217D" overflow="visible">
+      <path d="m 0,0 m 3.6168,-1.0384 q -0.7304,0 -1.078,0.4136 -0.3476,0.4136 -0.3476,1.0912 v 0.88 Q 2.1912,1.76 2.09,2.0108 1.9888,2.2616 1.7336,2.376 1.4784,2.4904 0.9944,2.4904 v 0.5808 q 0.484,0 0.7392,0.1144 Q 1.9888,3.3 2.09,3.5552 q 0.1012,0.2552 0.1012,0.66 v 0.88 q 0,0.6776 0.3476,1.0912 Q 2.8864,6.6 3.6168,6.6 H 4.2856 V 6.0544 h -0.66 Q 3.168,6.0544 2.9612,5.8036 2.7544,5.5528 2.7544,5.104 V 4.2944 Q 2.7544,3.6256 2.4992,3.2428 2.244,2.86 1.6632,2.8072 V 2.7544 Q 2.244,2.7016 2.4992,2.3188 2.7544,1.936 2.7544,1.2672 V 0.4576 q 0,-0.44 0.2068,-0.6952 0.2068,-0.2552 0.6644,-0.2552 h 0.66 v -0.5456 z" id="path165" />
+    </symbol>
+
+    <symbol id="gE59ACCB3437996D8ACC011274925D69B" overflow="visible">
+      <path d="M 0,0 M 0.8184,0 V 0.5192 H 2.0768 V 4.1448 H 0.8184 V 4.664 H 2.5608 L 2.6048,3.6872 Q 2.86,4.664 3.7752,4.664 H 4.6904 V 4.1272 h -0.924 q -0.5192,0 -0.814,-0.352 Q 2.6576,3.4232 2.6576,2.8424 V 0.5192 H 4.1624 V 0 Z" id="path166" />
+    </symbol>
+
+    <symbol id="gAFB471203BADAC387845BBC14C88A0C9" overflow="visible">
+      <path d="m 0,0 m 2.6928,-0.1056 q -0.6688,0 -1.1352,0.3124 -0.4664,0.3124 -0.7172,0.8624 -0.2508,0.55 -0.2508,1.2628 0,0.7128 0.2464,1.2628 0.2464,0.55 0.7084,0.8624 0.462,0.3124 1.1132,0.3124 0.6248,0 1.0824,-0.2992 Q 4.1976,4.1712 4.444,3.6256 4.6904,3.08 4.6904,2.3496 V 2.1648 H 1.1968 Q 1.232,1.3376 1.628,0.8932 2.024,0.4488 2.6928,0.4488 q 0.5104,0 0.836,0.2464 0.3256,0.2464 0.4488,0.6512 L 4.6024,1.3024 Q 4.4264,0.6864 3.9248,0.2904 3.4232,-0.1056 2.6928,-0.1056 Z M 1.1968,2.684 h 2.86 Q 4.0128,3.432 3.6388,3.8236 3.2648,4.2152 2.6576,4.2152 2.0504,4.2152 1.6632,3.8148 1.276,3.4144 1.1968,2.684 Z" id="path167" />
+    </symbol>
+
+    <symbol id="g4EAC0B1D91429F18EB24F6029D739AA1" overflow="visible">
+      <path d="m 0,0 m 2.376,-0.1056 q -0.6072,0 -1.0516,0.2992 Q 0.88,0.4928 0.638,1.0384 0.396,1.584 0.396,2.332 q 0,0.748 0.242,1.2936 0.242,0.5456 0.6864,0.8448 0.4444,0.2992 1.0516,0.2992 0.5192,0 0.9108,-0.2728 Q 3.6784,4.224 3.8456,3.8632 V 6.248 H 4.4264 V 0 H 3.916 L 3.8896,0.8448 Q 3.6872,0.4136 3.2912,0.154 2.8952,-0.1056 2.376,-0.1056 Z m 0.0264,0.5544 q 0.6688,0 1.056,0.5148 0.3872,0.5148 0.3872,1.3684 0,0.8536 -0.3872,1.3684 Q 3.0712,4.2152 2.3936,4.2152 1.76,4.2152 1.3816,3.7092 1.0032,3.2032 1.0032,2.332 1.0032,1.4696 1.3816,0.9592 1.76,0.4488 2.4024,0.4488 Z" id="path168" />
+    </symbol>
+
+    <symbol id="g9EC11AEC0356334E169BDFF05D498AC" overflow="visible">
+      <path d="m 0,0 m 2.3496,-0.1056 q -0.6952,0 -1.1132,0.4708 -0.418,0.4708 -0.418,1.298 V 4.664 H 1.3992 V 1.8392 q 0,-1.4256 1.1088,-1.4256 0.5984,0 0.946,0.3916 0.3476,0.3916 0.3476,1.078 V 4.664 H 4.3824 V 0 H 3.8368 L 3.828,0.8448 Q 3.6608,0.3872 3.2736,0.1408 2.8864,-0.1056 2.3496,-0.1056 Z" id="path169" />
+    </symbol>
+
+    <symbol id="gE4BF361C5D265A065B5D26169EB02CF9" overflow="visible">
+      <path d="m 0,0 m 2.7632,-0.1056 q -0.6512,0 -1.1176,0.3124 -0.4664,0.3124 -0.7172,0.8624 -0.2508,0.55 -0.2508,1.2628 0,0.7128 0.2508,1.2628 0.2508,0.55 0.7172,0.8624 0.4664,0.3124 1.1176,0.3124 0.7656,0 1.2584,-0.4312 Q 4.5144,3.9072 4.664,3.168 L 4.0568,3.1328 Q 3.9336,3.6432 3.5948,3.9292 3.256,4.2152 2.7632,4.2152 2.0768,4.2152 1.6808,3.7136 1.2848,3.212 1.2848,2.332 q 0,-0.8712 0.396,-1.3772 0.396,-0.506 1.0824,-0.506 0.4928,0 0.8492,0.3036 Q 3.9688,1.056 4.0832,1.628 L 4.6904,1.584 Q 4.5408,0.8272 4.0348,0.3608 3.5288,-0.1056 2.7632,-0.1056 Z" id="path170" />
+    </symbol>
+
+    <symbol id="g1D0C4326EA70A2DA084796A7E5363504" overflow="visible">
+      <path d="M 0,0 M 0.8184,0 V 6.248 H 4.5672 V 5.6672 H 1.4168 V 3.4144 H 4.4616 V 2.8424 H 1.4168 V 0.5808 H 4.6376 V 0 Z" id="path171" />
+    </symbol>
+
+    <symbol id="g910230FFAA0350611D6C81C9C48DFC7E" overflow="visible">
+      <path d="M 0,0 M 0.5544,0 2.2792,2.376 0.6336,4.664 H 1.3112 L 2.6488,2.772 3.96,4.664 H 4.6464 L 3.0096,2.3672 4.7256,0 H 4.048 L 2.6488,1.9888 1.2496,0 Z" id="path172" />
+    </symbol>
+
+    <symbol id="g2CDF112DF0D7883D8C51BFA79CBF2055" overflow="visible">
+      <path d="M 0,0 M 0.9416,0 V 6.248 H 1.5224 V 3.8368 q 0.1672,0.4752 0.5632,0.704 0.396,0.2288 0.8976,0.2288 0.5104,0 0.858,-0.2288 Q 4.1888,4.312 4.3604,3.9116 4.532,3.5112 4.532,3.0008 V 0 H 3.9512 v 2.7896 q 0,0.704 -0.264,1.0824 Q 3.4232,4.2504 2.86,4.2504 2.244,4.2504 1.8832,3.8588 1.5224,3.4672 1.5224,2.7808 V 0 Z" id="path173" />
+    </symbol>
+
+    <symbol id="gBBF37AEDC97BCF811D762CF818A3648C" overflow="visible">
+      <path d="m 0,0 m 2.0328,-0.1056 q -0.44,0 -0.7876,0.1584 -0.3476,0.1584 -0.5456,0.44 -0.198,0.2816 -0.198,0.66 0,0.572 0.374,0.902 0.374,0.33 1.0868,0.4708 l 1.6544,0.3256 q 0,0.704 -0.2948,1.034 -0.2948,0.33 -0.858,0.33 Q 1.9272,4.2152 1.6192,3.96 1.3112,3.7048 1.2056,3.2384 l -0.616,0.0528 q 0.132,0.6776 0.616,1.078 0.484,0.4004 1.2584,0.4004 0.8272,0 1.2804,-0.4928 Q 4.1976,3.784 4.1976,2.8688 V 0.924 q 0,-0.2376 0.0792,-0.3212 Q 4.356,0.5192 4.5232,0.5192 H 4.8136 V 0 Q 4.7608,-0.0088 4.6552,-0.0132 4.5496,-0.0176 4.4528,-0.0176 4.092,-0.0176 3.8852,0.1496 3.6784,0.3168 3.6256,0.7304 3.432,0.3696 3.0052,0.132 2.5784,-0.1056 2.0328,-0.1056 Z m 0.0528,0.5192 q 0.7304,0 1.1308,0.4004 0.4004,0.4004 0.4004,1.0164 V 2.3408 L 2.0856,2.0416 Q 1.584,1.9448 1.3508,1.7424 1.1176,1.54 1.1176,1.2056 1.1176,0.8272 1.3728,0.6204 1.628,0.4136 2.0856,0.4136 Z" id="path174" />
+    </symbol>
+
+    <symbol id="g326DB7B57CFD19A6E2434AD1EA98798E" overflow="visible">
+      <path d="m 0,0 m 0.8008,0 v 4.664 h 0.528 L 1.3464,3.7664 q 0.176,0.5016 0.5984,0.7524 0.4224,0.2508 0.9328,0.2508 0.5368,0 0.8932,-0.2376 Q 4.1272,4.2944 4.3032,3.894 4.4792,3.4936 4.4792,3.0008 V 0 H 3.8984 v 2.7896 q 0,0.6864 -0.2728,1.0736 Q 3.3528,4.2504 2.7544,4.2504 2.156,4.2504 1.7688,3.8632 1.3816,3.476 1.3816,2.7896 V 0 Z" id="path175" />
+    </symbol>
+
+    <symbol id="gD151ED42885B823F2427705C4C2B96EC" overflow="visible">
+      <path d="m 0,0 m 2.596,-1.4256 q -0.7392,0 -1.254,0.3784 -0.5148,0.3784 -0.6204,0.9856 l 0.6072,0.0352 q 0.0792,-0.3872 0.3872,-0.616 0.308,-0.2288 0.88,-0.2288 0.6776,0 1.0472,0.3168 0.3696,0.3168 0.3696,0.924 V 1.1704 Q 3.828,0.748 3.4408,0.4928 3.0536,0.2376 2.552,0.2376 q -0.5896,0 -1.0384,0.286 -0.4488,0.286 -0.704,0.7964 -0.2552,0.5104 -0.2552,1.188 0,0.6688 0.2508,1.1792 0.2508,0.5104 0.6952,0.7964 0.4444,0.286 1.034,0.286 0.528,0 0.9284,-0.2684 Q 3.8632,4.2328 4.0304,3.7928 V 4.664 H 4.5936 V 0.3696 q 0,-0.836 -0.5324,-1.3156 Q 3.5288,-1.4256 2.596,-1.4256 Z M 2.5784,0.792 q 0.6512,0 1.0384,0.462 0.3872,0.462 0.396,1.254 0.0088,0.7656 -0.3872,1.2364 -0.396,0.4708 -1.0472,0.4708 -0.66,0 -1.034,-0.462 -0.374,-0.462 -0.374,-1.2452 0,-0.792 0.3784,-1.254 0.3784,-0.462 1.0296,-0.462 z" id="path176" />
+    </symbol>
+
+    <symbol id="g2A62E19EE2E6D189C4143CCC25E8039E" overflow="visible">
+      <path d="M 0,0 M 0.8536,0 V 6.248 H 2.684 q 0.968,0 1.5488,-0.4972 0.5808,-0.4972 0.5808,-1.3772 0,-0.88 -0.5808,-1.3684 Q 3.652,2.5168 2.684,2.5168 H 1.452 V 0 Z M 1.452,3.0976 h 1.1616 q 1.5664,0 1.5664,1.276 0,0.6336 -0.3916,0.9636 -0.3916,0.33 -1.1748,0.33 H 1.452 Z" id="path177" />
+    </symbol>
+
+    <symbol id="g9BBCC7C935A8083D2B986FABA43C7391" overflow="visible">
+      <path d="M 0,0 M 2.1736,-1.4256 2.6136,0 h -0.44 V 0.9504 H 3.1064 V 0.0792 L 2.6136,-1.4256 Z" id="path178" />
+    </symbol>
+
+    <symbol id="gD3CA19CF5A0CF83C129EC7EC7D0ED240" overflow="visible">
+      <path d="M 0,0 M 0.7304,0 V 0.5808 H 2.3408 V 5.6672 H 0.7304 V 6.248 H 4.5496 V 5.6672 H 2.9392 V 0.5808 H 4.5496 V 0 Z" id="path179" />
+    </symbol>
+
+    <symbol id="g7728DB420D4A49F4349CFEBF606004D7" overflow="visible">
+      <path d="M 0,0 M 1.6632,-1.0384 H 0.9944 v 0.5456 h 0.66 q 0.4664,0 0.6688,0.2552 0.2024,0.2552 0.2024,0.6952 v 0.8096 q 0,0.6688 0.2552,1.0516 0.2552,0.3828 0.836,0.4356 V 2.8072 Q 3.036,2.86 2.7808,3.2428 2.5256,3.6256 2.5256,4.2944 V 5.104 q 0,0.4488 -0.2024,0.6996 -0.2024,0.2508 -0.6688,0.2508 h -0.66 V 6.6 h 0.6688 q 0.7304,0 1.078,-0.4136 0.3476,-0.4136 0.3476,-1.0912 v -0.88 q 0,-0.4048 0.1012,-0.66 Q 3.2912,3.3 3.5464,3.1856 3.8016,3.0712 4.2856,3.0712 V 2.4904 Q 3.8016,2.4904 3.5464,2.376 3.2912,2.2616 3.19,2.0108 3.0888,1.76 3.0888,1.3464 v -0.88 q 0,-0.6776 -0.3476,-1.0912 -0.3476,-0.4136 -1.078,-0.4136 z" id="path180" />
+    </symbol>
+  </defs>
+</svg>
+:::
+
+{/*
+  #import "@preview/cetz:0.5.2"
+  #set page(fill: none)
+  #set text(font: "Geist", weight: "light")
+  #cetz.canvas({
+  import cetz.draw: *
+  content((0, 0), name: "phase0db", align(center, "Program statements\nand refined states"))
+  rect((rel: (-2.3, 0.6), to: "phase0db"), (rel: (2.3, -.6), to: "phase0db"), name: "phase0rect")
+  content((9, 0), name: "phase1db", align(center, "Unrefined states"))
+  rect((rel: (-2.3, 0.6), to: "phase1db"), (rel: (2.3, -.6), to: "phase1db"), name: "phase1rect")
+  line("phase0rect", "phase1rect", mark: (end: ">"), name: "01")
+  content("01.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[Original transfer functions])
+  content("01.mid", anchor:"north", padding: (top: 0.2), text(size: .8em, font: "Geist Mono")[\*])
+  line("phase1rect.south", (rel: (0, -1), to: "phase1rect.south"), (rel: (0, -1), to: "phase0rect.south"), "phase0rect.south", mark: (end: ">"), name: "1d")
+  content("1d.mid", anchor:"south", padding: (bottom: 0.2), text(size: .8em)[State reduction rules])
+  content("1d.mid", anchor:"north", padding: (top: 0.2), text(size: .8em, font: "Geist Mono")[{ reducedExchangeP, reducedExchangeI }])
+  })
+  */}
+
+### Phases In Action
+
+Let us run the proper reduced-product analysis and observe the outputs:
+
+<Steps>
+  1. Recompile `fix/ReducedProduct.fix`:
+     ```ansi title="Terminal"
+      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
+     ```
+  2. Now that we are using a multi-phase architecture, the result of fixed-point solving is a **pair** of databases. As such, the generated query functions also receive a phase selector for you to decide which database you want to query from. We want the refined facts, so we query from phase 0:
+     ```diff lang="haskell" title="app/Main.hs"
+     module Main where
+
+     import Common
+     import Numeric.Natural
+     import ReducedProduct
+
+     main :: IO ()
+     main = do
+       let facts =
+             [ Var 0 "v"
+             , Seq 0 1
+             , Assign 1 "v" (Num 1)
+             , Seq 1 2
+             , Branch 2 (Leq "v" (Num 9)) 3 5
+             , Assign 3 "v" (Plus (Id "v") (Num 2))
+             , Seq 3 2
+             , Branch 5 (Eq "v" (Num 11)) 6 101
+             , Assign 6 "v" (Num 0)
+             , Seq 6 101
+             , Var 101 "END"
+             ]
+           db = solve facts
+       (label :: Natural) <- readLn
+     -  print (stateBeforeI label db)
+     -  print (stateBeforeP label db)
+     +  print (stateBeforeI label db Phase0)
+     +  print (stateBeforeP label db Phase0)
+     ```
+  3. Run the program, and supplying labels like `2`, `5` and `101`:
+     ```ansi title="Terminal"
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m2[0m
+     [StateBeforeI 2 { v: [1, 11] }]
+     [StateBeforeP 2 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m5[0m
+     [StateBeforeI 5 { v: [1m[4m[11, 11][0m }]
+     [StateBeforeP 5 { v: Odd }]
+     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [31m[1m[4m101[0m
+     [StateBeforeI 101 { v: [1m[4m[0, 0][0m }]
+     [StateBeforeP 101 { v: Even }]
+     ```
+</Steps>
+
+Success!
+
+:::tip
+1. Not every rule must be used in a `phases` declaration. A rule can occur multiple times in a `phases` declaration.
+2. You can have any positive number of phases. For instance, you can perform [widening](https://en.wikipedia.org/wiki/Widening_\(computer_science\)) **after** state reduction by appending a ruleset of widening rules after your state reduction ruleset.
+3. `phases` declarations are optional. By default, every program has `phases: [*]` declared.
+4. There can only be one `phases` declaration per program. `phases` are not imported via `include` statements.
+:::
+
+:::note
+Phases are not **strictly** necessary for defining the reduced product. An alternative is to redefine all the original rules and manually post-compose state-reduction operations. However, phases allow users to compose rulesets modularly without having to re-define individual Fixen programs.
+:::
+
+## Key Properties
+
+* **Monotonicity is preserved**: the overall fixed-point computation remains monotone despite the multi-phase architecture.
+* **State stratification**: facts in different databases are independent, preventing subsumption between refined and unrefined facts.
+* **Modular composition**: individual analyses or rule sets can be developed independently and composed via phases.
+
+## Summary
+
+* `include` imports every declaration (except priorities and phases) of a Fixen program into the current program being defined. The argument to the `include` keyword is a relative filepath of the Fixen program to include.
+* **Phases** stratify the fact database into <Math formula="N" /> independent databases, cycling through them during execution.
+* Rules in phase `i` read from <Math formula="S_i" /> write to <Math formula="S_{i + 1\pmod N}" />.
+* The `*` wildcard captures all unassigned rules.
+* Phases enable **post-composition** of rule sets, supporting the modular composition of non-disjoint programs.
+* This is essential for patterns like the **reduced product** of abstract interpretations, where cross-domain refinement must bypass subsumption.
+
+***
+
+\[^1]: **Antoine Miné et al**. 2017. Tutorial on static inference of numeric invariants by abstract interpretation. *Foundations and Trends® in Programming Languages* 4, 3--4(2017), 120--372.

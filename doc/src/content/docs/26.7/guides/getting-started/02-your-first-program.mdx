@@ -1,6 +1,6 @@
 ---
 title: Your First Program
-slug: 26.07/guides/getting-started/02-your-first-program
+slug: 26.7/guides/getting-started/02-your-first-program
 ---
 
 import { FileTree } from '@astrojs/starlight/components';
@@ -16,7 +16,7 @@ The `fixen` compiler takes a Fixen source file (`.fix`) and generates a Haskell 
 
 The basic invocation is:
 
-```ansi
+```ansi title="Terminal"
 [35m~ $[0m [31m[1m[4mfixen --output [32m<output.hs>[31m [32m<input.fix>[0m
 ```
 
@@ -68,13 +68,10 @@ Configure the project to have the following dependencies that are used by Fixen-
 
 For example, we can let `my-project.cabal` be the following:
 
-```txt title="my-project.cabal" showLineNumbers=true 
+```txt title="my-project.cabal"
 cabal-version:      3.0
 name:               my-project
 version:            0.1.0.0
-author:             Fix En
-maintainer:         fix.en@email.dom
-category:           Language
 build-type:         Simple
 common warnings
     ghc-options: -Wall
@@ -95,8 +92,8 @@ We are going to write a simple Fixen program in `fix/Simple.fix`, then make use 
 in `app/Main.hs`. Populate these files with the following content:
 
 <Tabs>
-  <TabItem label="fix/Simple.fix">
-    ```ansi title="Simple.fix"
+  <TabItem label="Fixen Program">
+    ```ansi title="fix/Simple.fix" frame='code'
     [35mmodule[0m Simple [35mwhere[0m
 
     [31mrel[0m [32mSimpleRel[0m: [33mString[0m, [33mInt[0m
@@ -108,8 +105,8 @@ in `app/Main.hs`. Populate these files with the following content:
     This Fixen program defines a single relation `SimpleRel` consisting of a `String` and an `Int`. The only inference rule in this program concludes `SimpleRel "start" 0`. Finally, the `facts` query obtains all facts of `SimpleRel` from the solved fact database.
   </TabItem>
 
-  <TabItem label="app/Main.hs">
-    ```haskell title="Main.hs"
+  <TabItem label="Driver">
+    ```haskell title="app/Main.hs"
     module Main where
 
     import Simple
@@ -129,7 +126,7 @@ in `app/Main.hs`. Populate these files with the following content:
   </TabItem>
 </Tabs>
 
-:::note
+:::note[In Progress]
 Syntax highlighting for Fixen is currently under development.
 :::
 

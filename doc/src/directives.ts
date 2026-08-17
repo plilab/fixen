@@ -1,18 +1,18 @@
 
-import {h} from 'hastscript';
+import { h } from 'hastscript';
 
 const Theorem = (properties, children) => {
   if (properties.title) {
-    return h("div.thm.not-content", { id : properties.id },
-      h("div.thm-header", 
+    return h("div.thm.not-content", { id: properties.id },
+      h("div.thm-header",
         h("strong", properties.name),
-        " ("+properties.title +")."
+        " (" + properties.title + ")."
       ),
       ...children
     )
   } else {
-    return h("div.thm.not-content", { id : properties.id },
-      h("div.thm-header", 
+    return h("div.thm.not-content", { id: properties.id },
+      h("div.thm-header",
         h("strong", properties.name),
         "."
       ),
@@ -24,10 +24,17 @@ const Theorem = (properties, children) => {
 
 const Proof = (properties, children) => {
   return h("div.proof",
-      h("div.thm-header", 
-        h("strong", "Proof.")),
-         h("div.qed"),
-         ...children)
+    h("div.thm-header",
+      h("strong", "Proof.")),
+    h("div.qed"),
+    ...children)
+}
+
+const Figure = (properties, children) => {
+  if (properties.caption) {
+    return h("div.figure", { id: properties.id }, ...children, h("div.caption", h("strong", properties.name), ". ", properties.caption))
+  }
+  return h("div.figure", ...children)
 }
 
 const Steps = (properties, children) => {
@@ -57,5 +64,6 @@ const Steps = (properties, children) => {
 export const directives = {
   'theorem': Theorem,
   'proof': Proof,
-  'steps': Steps
+  'steps': Steps,
+  'figure': Figure
 }

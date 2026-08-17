@@ -31,6 +31,7 @@ export default defineConfig({
               lem: "Lemma",
               cor: "Corollary",
               noneg: "Nonexample",
+              fig: "Figure",
             },
           },
         ],
@@ -59,7 +60,7 @@ export default defineConfig({
       },
       plugins: [
         starlightVersions({
-          versions: [{ slug: "26.07" }],
+          versions: [{ slug: "26.7" }],
         }),
       ],
       social: [

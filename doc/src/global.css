@@ -7,9 +7,24 @@ div.thm-header {
   font-size: var(--sl-text-xl);
 }
 
+div.figure {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2em 0pt;
+  flex-direction: column;
+}
+
 div.thm {
   border: 1px solid var(--sl-color-gray-5);
   padding: 1rem;
+}
+
+div.caption {
+  width: 70%;
+  font-size: 0.8em;
+  text-align: center;
 }
 
 div.proof {
