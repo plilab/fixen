@@ -678,7 +678,7 @@ Let us define the parity analysis. Make the following changes to your existing p
   </TabItem>
 
   <TabItem label="Driver">
-    ```diff lang="haskell"
+    ```diff lang="haskell" title="app/Main.hs"
     module Main where
 
     import Common
@@ -1971,7 +1971,7 @@ Phases are not **strictly** necessary for defining the reduced product. An alter
 
 * `include` imports every declaration (except priorities and phases) of a Fixen program into the current program being defined. The argument to the `include` keyword is a relative filepath of the Fixen program to include.
 * **Phases** stratify the fact database into <Math formula="N" /> independent databases, cycling through them during execution.
-* Rules in phase `i` read from <Math formula="S_i" /> write to <Math formula="S_{i + 1\pmod N}" />.
+* Rules in phase <Math formula="i" /> read from <Math formula="S_i" /> write to <Math formula="S_{i + 1\pmod N}" />.
 * The `*` wildcard captures all unassigned rules.
 * Phases enable **post-composition** of rule sets, supporting the modular composition of non-disjoint programs.
 * This is essential for patterns like the **reduced product** of abstract interpretations, where cross-domain refinement must bypass subsumption.
