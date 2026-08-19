@@ -29,7 +29,7 @@
 --
 -- Some passes will emit warnings without causing the pipeline to terminate.
 -- These are automatically flushed to stderr (see 'runFixenPass').
-module Fixen.Pipeline (pipeline, pipelineWithSymbols) where
+module Fixen.Pipeline (pipeline, pipelineWithSymbolsAndPositions) where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.IntMap.Strict qualified as Map
@@ -83,18 +83,19 @@ pipeline file_path contents error_printer = do
     run :: WithErrors a => a -> FixenPass a b -> FixenM (b, a)
     run = runFixenPass error_printer
 
-pipelineWithSymbols
+pipelineWithSymbolsAndPositions
   :: FilePath
   -> String
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
   -> FixenM
       ( Program
       , SymbolEnv
+      , PositionEnv
       , NonEmpty RuleForest
       , RelationRepresentation
       , Text
       )
-pipelineWithSymbols file_path contents error_printer = do
+pipelineWithSymbolsAndPositions file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = emptyErrors file_map
       init_pos_env = Map.empty
@@ -104,9 +105,10 @@ pipelineWithSymbols file_path contents error_printer = do
   (program', st') <- run st (getIncludes program)
   (env, st'') <- run st' (solveSymbols program')
   (rt, st''') <- run (env, st'') (getRuleForest program')
+  let posEnv = fst $ snd st'''
   (db, _) <- run st''' getRelationRepresentation
   (t, _) <- run st''' (codeGen rt db program')
-  return (program', env, rt, db, t)
+  return (program', env, posEnv, rt, db, t)
   where
     run :: WithErrors a => a -> FixenPass a b -> FixenM (b, a)
     run = runFixenPass error_printer
