@@ -2,6 +2,7 @@ module Fixen.Diagnostics
   ( FixenDiagnosticSeverity (..)
   , FixenSourceSpan (..)
   , FixenDiagnostic (..)
+  , positionToFixenSpan
   , toFixenDiagnostics
   ) where
 
@@ -21,7 +22,8 @@ data FixenDiagnosticSeverity
   deriving (Eq, Show)
 
 data FixenSourceSpan = FixenSourceSpan
-  { fixenStartLine :: Int
+  { fixenSourceFile :: FilePath
+  , fixenStartLine :: Int
   , fixenStartColumn :: Int
   , fixenEndLine :: Int
   , fixenEndColumn :: Int
@@ -41,9 +43,10 @@ positionToFixenSpan position =
     Position
       (startLine, startColumn)
       (endLine, endColumn)
-      _file ->
+      sourceFile ->
         FixenSourceSpan
-          { fixenStartLine = startLine
+          { fixenSourceFile = sourceFile
+          , fixenStartLine = startLine
           , fixenStartColumn = startColumn
           , fixenEndLine = endLine
           , fixenEndColumn = endColumn
@@ -88,7 +91,6 @@ reportToFixenDiagnostic report =
 toFixenDiagnostics :: FixenErrorResult -> [FixenDiagnostic]
 toFixenDiagnostics diagnostics =
   map reportToFixenDiagnostic (reportsOf diagnostics)
-
 
 
 
