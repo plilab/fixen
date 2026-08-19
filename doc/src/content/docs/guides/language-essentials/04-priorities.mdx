@@ -37,6 +37,10 @@ A priority declaration has the form:
 
 Multiple priority declarations are allowed, and priorities can compare instances of any two rules. The solver combines all priority declarations to form a strict weak order over rule instances.
 
+:::tip
+The unicode right tack `⊢` (U+22a2) and square image of `⊏` (U+228f) symbols can be used in priority declarations in place of `|-` and `<`, respectively. Right tacks can also be used in rules.
+:::
+
 ## Example: Dijkstra's Algorithm
 
 Without priorities, a naive FPOP graph-distance algorithm repeatedly revisits vertices with suboptimal path lengths, degrading to Bellman-Ford performance. With priorities, we get Dijkstra's optimal behavior:
