@@ -94,7 +94,7 @@ To get a local copy up and running follow these simple example steps.
 ### Prerequisites
 - [GHC](https://www.haskell.org/ghc/) v9.12.2 (base v4.21.0.0)
 - [Cabal](https://www.haskell.org/cabal/) v3.16.0.0
-- HLS v2.13.0.0
+- HLS v2.14.0.0
 - git
 
 ### Installing and Building
@@ -110,10 +110,6 @@ To get a local copy up and running follow these simple example steps.
 * Documentation
   ```sh
   cabal haddock
-  ```
-* Tests
-  ```sh
-  cabal test
   ```
 You're all set!
 
