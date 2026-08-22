@@ -41,7 +41,7 @@ Before installing Fixen, ensure you have the following installed. We recommend u
   </TabItem>
 </Tabs>
 
-## Approach 1: Standalone Installation
+## Install
 
 Install Fixen as a standalone command-line tool. After installation, you can compile `.fix` files from anywhere on your system.
 
@@ -75,42 +75,6 @@ Once installed, you can compile Fixen programs with:
 ```ansi title="Terminal"
 [35m~ $[0m [31m[1m[4mfixen --output [32mOutput.hs[31m [32mInput.fix[0m
 ```
-
-## Approach 2: Project Dependency
-
-Use Fixen as a dependency in your Haskell project. This approach is useful when you want to integrate Fixen-generated code directly into a larger Haskell project.
-
-<Steps>
-  1. Add `fixen` to your project's `.cabal` file
-
-     In the `build-depends` section of your library or executable, add:
-
-     ```txt
-     build-depends:
-       fixen
-     ```
-
-     If your project uses a `cabal.project` file with a local path constraint, add:
-
-     ```txt
-     source-repository-package
-       type:             git
-       location:         https://github.com/plilab/fixen.git
-       tag:              <version-or-branch>
-     ```
-
-  2. Build your project
-
-     ```ansi title="Terminal"
-     [35m~ $[0m [31m[1m[4mcabal build[0m
-     ```
-
-     Cabal will fetch and build Fixen alongside your project.
-
-  3. Use the Fixen compiler in your build pipeline
-
-     You can invoke the Fixen compiler as part of your project's build process (e.g., in a `build-tool-depends` section or a custom build script) to generate Haskell source from `.fix` files before compiling the rest of your project.
-</Steps>
 
 :::tip
 If you are developing Fixen itself and want to use the local source, you can run:

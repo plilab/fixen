@@ -5,6 +5,7 @@ description: Control fact subsumption and merging with partial orders and
 slug: 26.7/guides/language-essentials/03-partial-orders-and-lattices
 ---
 
+import Downloader from '../../../../../components/starlight/Downloader.astro';
 import { FileTree } from '@astrojs/starlight/components';
 import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
@@ -189,12 +190,14 @@ The `illSorted` rule instantiates the variable `x` with Haskell's `Natural`s. Ho
 
 The following is a complete, self-contained program implementing a shortest-path algorithm. It demonstrates how relations, rules, and a lattice declaration work together.
 
+<Downloader url="/files/26.7/guides/language-essentials/03-partial-orders-and-lattices/shortest-paths.tar.gz" sum="ac2123a26811084aa58cc8c3995236b8c893c4c826c674fcd13a227ba9f558bc" />
+
 <Steps>
   1. First, set up a cabal project with the following structure:
 
      <FileTree>
-       * my-project
-         * my-project.cabal
+       * shortest-paths
+         * shortest-paths.cabal
          * app
            * Main.hs
          * fix
@@ -251,14 +254,14 @@ The following is a complete, self-contained program implementing a shortest-path
        </TabItem>
 
        <TabItem label="Cabal File">
-         ```txt title="my-project.cabal"
+         ```txt title="shortest-paths.cabal"
          cabal-version:      3.0
-         name:               my-project
+         name:               shortest-paths
          version:            0.1.0.0
          build-type:         Simple
          common warnings
              ghc-options: -Wall
-         executable my-project
+         executable shortest-paths
              import:           warnings
              main-is:          Main.hs
              other-modules:    ShortestPath
@@ -272,8 +275,8 @@ The following is a complete, self-contained program implementing a shortest-path
      </Tabs>
   3. Build and run the project!
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mfixen --output app/ShortestPath.hs fix/ShortestPath.fix[0m
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/shortest-paths $[0m [31m[1m[4mfixen --output app/ShortestPath.hs fix/ShortestPath.fix[0m
+     [35m~/shortest-paths $[0m [31m[1m[4mcabal run[0m
      [DistTo "A" 0,DistTo "D" 4,DistTo "C" 3,DistTo "B" 1]
      ```
 </Steps>
@@ -282,12 +285,14 @@ The following is a complete, self-contained program implementing a shortest-path
 
 Now consider a variant where each edge has both a distance and a cost. We want to find all Pareto-optimal (distance, cost) pairs for each vertex—paths that are not dominated by any other path on both metrics.
 
+<Downloader url="/files/26.7/guides/language-essentials/03-partial-orders-and-lattices/bosp.tar.gz" sum="3a2ea1e5175c3309895d937dd2d5a7d12930002a6da94df9cbd288d9117846ab" />
+
 <Steps>
   1. First, set up a cabal project with the following structure:
 
      <FileTree>
-       * my-project
-         * my-project.cabal
+       * bosp
+         * bosp.cabal
          * app
            * Main.hs
          * fix
@@ -347,14 +352,14 @@ Now consider a variant where each edge has both a distance and a cost. We want t
        </TabItem>
 
        <TabItem label="Cabal File">
-         ```txt title="my-project.cabal"
+         ```txt title="bosp.cabal"
          cabal-version:      3.0
-         name:               my-project
+         name:               bosp
          version:            0.1.0.0
          build-type:         Simple
          common warnings
              ghc-options: -Wall
-         executable my-project
+         executable bosp
              import:           warnings
              main-is:          Main.hs
              other-modules:    BOSP
@@ -368,8 +373,8 @@ Now consider a variant where each edge has both a distance and a cost. We want t
      </Tabs>
   3. Build and run the project!
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mfixen --output app/BOSP.hs fix/BOSP.fix[0m
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/bosp $[0m [31m[1m[4mfixen --output app/BOSP.hs fix/BOSP.fix[0m
+     [35m~/bosp $[0m [31m[1m[4mcabal run[0m
      [ DistTo "A" 0 0, DistTo "D" 9 5, DistTo "D" 5 9
      , DistTo "C" 4 6, DistTo "C" 8 2, DistTo "B" 1 5
      , DistTo "B" 5 1 ]

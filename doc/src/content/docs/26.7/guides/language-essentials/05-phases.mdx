@@ -5,6 +5,7 @@ slug: 26.7/guides/language-essentials/05-phases
 ---
 
 import Math from "../../../../../components/starlight/Math.astro"
+import Downloader from "../../../../../components/starlight/Downloader.astro"
 import { FileTree } from '@astrojs/starlight/components';
 import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
 
@@ -52,7 +53,7 @@ This allows us to easily represent the program using Fixen facts. The relation d
 
 * `Var l v` states that program point `l` declares variable `v`.
 * `Assign l x e` states that program point `l` assigns expression `e` to variable `x`.
-* `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false) (unfortunately, this language assumes the [law of the excluded middle](https://youtu.be/K2tUymm5o4M?si=ffKdsN-nG1UpaiGb\&t=149)).
+* `Branch l e t f` states that program point `l` branches on expression `e`, jumping to `t` (true) or `f` (false) ([unfortunately, like most languages, this language also assumes the law of the excluded middle](https://youtu.be/dAMXxxOtJUc?si=_EaSj7J0GA-Skav4\&t=213)).
 * `Seq l l'` states that program point `l` is followed by `l'`.
 * `Label`s are aliases for Haskell's `Natural`, and `Expr` is a datatype we will define later for capturing expressions in the imperative language.
 
@@ -118,11 +119,13 @@ The analysis rules initialize states and propagate them through assignments and 
 
 #### Complete Example
 
+<Downloader url="/files/26.7/guides/language-essentials/05-phases/interval-analysis.tar.gz" sum="346bec4dc24879e7c23efdb8410e263646fcdce716c2dfe681bb02ddd275ec84" />
+
 Let us make these ideas concrete by implementing the interval analysis, executing it, and observing the state at the end of the program. Our project is going to have the following structure:
 
 <FileTree>
-  * my-project
-    * my-project.cabal
+  * static-analysis
+    * static-analysis.cabal
     * app
       * Main.hs
       * Common.hs
@@ -134,14 +137,14 @@ Let us make these ideas concrete by implementing the interval analysis, executin
 
 The cabal configuration file will be as follows. Note the use of the `lattices` library which contains definitions that will simplify our implementation, and the `hashable` library so that expressions can be used as map keys.
 
-```txt title="my-project.cabal"
+```txt title="static-analysis.cabal"
 cabal-version:      3.0
-name:               my-project
+name:               static-analysis
 version:            0.1.0.0
 build-type:         Simple
 common warnings
     ghc-options: -Wall
-executable my-project
+executable static-analysis
     import:           warnings
     main-is:          Main.hs
     other-modules:    Common
@@ -413,7 +416,7 @@ Let's run the program!
 <Steps>
   1. Compile the Fixen program into a Haskell module. Note that `fix/Program.fix` does not need to be compiled, since `fix/IntervalAnalysis.fix` already contains every definition in it.
      ```ansi title="Terminal"
-      [35m~/my-project $[0m [31m[1m[4mfixen --output app/IntervalAnalysis.hs fix/IntervalAnalysis.fix[0m
+      [35m~/static-analysis $[0m [31m[1m[4mfixen --output app/IntervalAnalysis.hs fix/IntervalAnalysis.fix[0m
      ```
   2. As always, we need some driver module. Populate `app/Main.hs` with the following, which performs the analysis, reads user input (program point) and shows the state before that program point:
      ```haskell title="app/Main.hs"
@@ -444,7 +447,7 @@ Let's run the program!
      ```
   3. Run it and supply the label `101`!
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m101[0m
      [StateBeforeI 101 { v: [0, 10] }]
      ```
@@ -455,10 +458,10 @@ Let's run the program!
 *Weird*. Why does the analysis conclude that `v` is within <Math formula="[0, 10]" />, instead of being exactly to 0 (i.e., within the interval <Math formula="[0, 0]" />)? Let us inspect the states before other program points:
 
 ```ansi title="Terminal"
-[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
 [31m[1m[4m2[0m
 [StateBeforeI 2 { v: [1, 11] }]
-[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
 [31m[1m[4m5[0m
 [StateBeforeI 5 { v: [10, 11] }]
 ```
@@ -483,17 +486,20 @@ Therefore, before the `if` statement at program point 5, `v` is within the inter
 
 As such, we shall work towards (1) adding a parity analysis (which determines if each variable is even or odd), then (2) composing it with the interval analysis, obtaining what's known as their **reduced product**.
 
-Let us define the parity analysis. Make the following changes to your existing project:
+Let us define the parity analysis.
+
+<Downloader url="/files/26.7/guides/language-essentials/05-phases/parity-analysis.tar.gz" sum="2d6d4960de0cb8b91bec10032654a28b6c1d10e8559cb7b68b73ca28fa3d2475" />
+
+Make the following changes to your existing project:
 
 <Tabs>
   <TabItem label="New Files">
     <FileTree>
-      * my-project
-        * my-project.cabal
+      * static-analysis
+        * static-analysis.cabal
         * app
           * Main.hs
           * Common.hs
-          * IntervalAnalysis.hs
           * IntervalUtils.hs
           * ParityUtils.hs
         * fix
@@ -511,18 +517,18 @@ Let us define the parity analysis. Make the following changes to your existing p
   </TabItem>
 
   <TabItem label="Cabal configuration">
-    ```diff title="my-project.cabal"
+    ```diff title="static-analysis.cabal"
     cabal-version:      3.0
-    name:               my-project
+    name:               static-analysis
     version:            0.1.0.0
     build-type:         Simple
     common warnings
         ghc-options: -Wall
-    executable my-project
+    executable static-analysis
         import:           warnings
         main-is:          Main.hs
         other-modules:    Common
-                        , IntervalAnalysis
+    -                    , IntervalAnalysis
                         , IntervalUtils
     +                    , ParityAnalysis
     +                    , ParityUtils
@@ -722,17 +728,17 @@ Build and run the project, and observe the parity of `v` at crucial portions of 
 <Steps>
   1. Compile the parity analysis into a Haskell module.
      ```ansi title="Terminal"
-      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ParityAnalysis.hs fix/ParityAnalysis.fix[0m
+      [35m~/static-analysis $[0m [31m[1m[4mfixen --output app/ParityAnalysis.hs fix/ParityAnalysis.fix[0m
      ```
   2. Run the program, and supplying labels like `2`, `5` and `101`:
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m2[0m
      [StateBeforeP 2 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m5[0m
      [StateBeforeP 5 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m101[0m
      [StateBeforeP 101 { v: Even }]
      ```
@@ -745,17 +751,19 @@ so `v` must be exactly equal `0` at the end of the program!
 ### The Reduced Product Problem
 
 Now that we have everything set up, we compose the interval and parity analysis and perform a state reduction via a rule.
+
+<Downloader url="/files/26.7/guides/language-essentials/05-phases/naive-reduced-product.tar.gz" sum="94c192b4364c5946272da698ba6e7e7479da762d743051993284f8b0f6a485ee" />
+
 Make the following changes to the project:
 
 <Tabs>
   <TabItem label="New Files">
     <FileTree>
-      * my-project
-        * my-project.cabal
+      * static-analysis
+        * static-analysis.cabal
         * app
           * Main.hs
           * Common.hs
-          * IntervalAnalysis.hs
           * IntervalUtils.hs
           * ParityUtils.hs
           * ReducedProductUtils.hs
@@ -773,20 +781,19 @@ Make the following changes to the project:
   </TabItem>
 
   <TabItem label="Cabal Configuration">
-    ```diff title="my-project.cabal"
+    ```diff title="static-analysis.cabal"
     cabal-version:      3.0
-    name:               my-project
+    name:               static-analysis
     version:            0.1.0.0
     build-type:         Simple
     common warnings
         ghc-options: -Wall
-    executable my-project
+    executable static-analysis
         import:           warnings
         main-is:          Main.hs
         other-modules:    Common
-                        , IntervalAnalysis
                         , IntervalUtils
-                        , ParityAnalysis
+    -                    , ParityAnalysis
                         , ParityUtils
     +                    , ReducedProduct
     +                    , ReducedProductUtils
@@ -892,19 +899,19 @@ Build and run the project, and observe the interval and parity of `v` at crucial
 <Steps>
   1. Compile the reduced product analysis into a Haskell module.
      ```ansi title="Terminal"
-      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
+      [35m~/static-analysis $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
      ```
   2. Run the program, and supplying labels like `2`, `5` and `101`:
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m2[0m
      [StateBeforeI 2 { v: [1, 11] }]
      [StateBeforeP 2 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m5[0m
      [StateBeforeI 5 { v: [1m[4m[10, 11][0m }]
      [StateBeforeP 5 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m101[0m
      [StateBeforeI 101 { v: [1m[4m[0, 10][0m }]
      [StateBeforeP 101 { v: Even }]
@@ -1894,12 +1901,14 @@ Initial facts are, by default, considered as premiseless phase <Math formula="N 
 
 ### Phases In Action
 
+<Downloader url="/files/26.7/guides/language-essentials/05-phases/reduced-product.tar.gz" sum="d23ee25b25ed63dcccd1ffc2f11d879868a8ebc31ec4bd59ba656ac9640828af" />
+
 Let us run the proper reduced-product analysis and observe the outputs:
 
 <Steps>
   1. Recompile `fix/ReducedProduct.fix`:
      ```ansi title="Terminal"
-      [35m~/my-project $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
+      [35m~/static-analysis $[0m [31m[1m[4mfixen --output app/ReducedProduct.hs fix/ReducedProduct.fix[0m
      ```
   2. Now that we are using a multi-phase architecture, the result of fixed-point solving is a **pair** of databases. As such, the generated query functions also receive a phase selector for you to decide which database you want to query from. We want the refined facts, so we query from phase 0:
      ```diff lang="haskell" title="app/Main.hs"
@@ -1933,15 +1942,15 @@ Let us run the proper reduced-product analysis and observe the outputs:
      ```
   3. Run the program, and supplying labels like `2`, `5` and `101`:
      ```ansi title="Terminal"
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m2[0m
      [StateBeforeI 2 { v: [1, 11] }]
      [StateBeforeP 2 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m5[0m
      [StateBeforeI 5 { v: [1m[4m[11, 11][0m }]
      [StateBeforeP 5 { v: Odd }]
-     [35m~/my-project $[0m [31m[1m[4mcabal run[0m
+     [35m~/static-analysis $[0m [31m[1m[4mcabal run[0m
      [31m[1m[4m101[0m
      [StateBeforeI 101 { v: [1m[4m[0, 0][0m }]
      [StateBeforeP 101 { v: Even }]
