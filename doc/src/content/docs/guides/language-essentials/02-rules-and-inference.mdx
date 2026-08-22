@@ -2,6 +2,7 @@
 title: Rules and Inference
 description: Define inference rules that derive new facts from existing ones.
 ---
+import Downloader from '../../../../components/starlight/Downloader.astro';
 import { FileTree } from '@astrojs/starlight/components';
 
 Rules express how new facts follow from existing ones. Together with relations, they form the core of a Fixen program: relations declare what facts look like, and rules declare how they propagate.
@@ -88,12 +89,14 @@ The turnstile `|-` is a valid Haskell operator and thus can be part of a Haskell
 ## Complete Example: Graph Reachability
 We have everything we need to write a complete work-queue algorithm with Fixen. 
 
+<Downloader url="/files/guides/language-essentials/02-rules-and-inference/reachability.tar.gz" sum="397310a2db09c8c471e8a5e6fc4cf5431e5288111642f420daf0ebaf13690fc8" />
+
 ### Project Setup
 First, set up a cabal project with the following structure:
 
 <FileTree>
-- my-project
-  - my-project.cabal
+- reachability
+  - reachability.cabal
   - app
     - Main.hs
   - fix
@@ -102,14 +105,14 @@ First, set up a cabal project with the following structure:
 
 The project configuration can be as follows. Note the `other-modules` and `build-depends` fields:
 
-```txt title="my-project.cabal"
+```txt title="reachability.cabal"
 cabal-version:      3.0
-name:               my-project
+name:               reachability
 version:            0.1.0.0
 build-type:         Simple
 common warnings
     ghc-options: -Wall
-executable my-project
+executable reachability
     import:           warnings
     main-is:          Main.hs
     other-modules:    Reachability
@@ -144,7 +147,7 @@ Note the last line of `fix/Reachability.fix`: this is a `query` which allows us 
 Then, from the root directory of the project, compile `fix/Reachability.fix` as a Haskell module `app/Reachability.hs`:
 
 ```ansi title="Terminal"
-[35m~/my-project $[0m [31m[1m[4mfixen --output app/Reachability.hs fix/Reachability.fix[0m
+[35m~/reachability $[0m [31m[1m[4mfixen --output app/Reachability.hs fix/Reachability.fix[0m
 ```
 
 ### Completing the Program
@@ -175,7 +178,7 @@ Run the program using `cabal run`. We should expect to see paths from:
 
 
 ```ansi title="Terminal"
-[35m~/my-project $[0m [31m[1m[4mcabal run[0m
+[35m~/reachability $[0m [31m[1m[4mcabal run[0m
 [Path "Tokyo" "New York",Path "Paris" "Tokyo",Path "Paris" "New York"]
 ```
 ## Summary

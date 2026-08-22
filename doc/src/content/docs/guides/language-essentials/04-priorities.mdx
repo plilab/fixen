@@ -2,6 +2,7 @@
 title: Priorities
 description: Control rule evaluation order with rule-instance priorities for algorithm-level optimizations.
 ---
+import Downloader from '../../../../components/starlight/Downloader.astro';
 
 By default, Fixen applies rules in an unspecified order until a fixed point is reached. For many problems, this is fine — the final set of derived facts is the same regardless of order. But for some algorithms, the **order** in which rules fire directly impacts performance. Processing facts in the wrong order can cause redundant derivations, turning an efficient algorithm into a much slower one.
 
@@ -43,6 +44,8 @@ The unicode right tack `⊢` (U+22a2) and square image of `⊏` (U+228f) symbols
 
 ## Example: Dijkstra's Algorithm
 
+<Downloader url="/files/guides/language-essentials/04-priorities/shortest-paths.tar.gz" sum="a2fa0ddfd33123299d4ea6341d8a8b034886be150fdb880fd0bb01f99236ff98" />
+
 Without priorities, a naive FPOP graph-distance algorithm repeatedly revisits vertices with suboptimal path lengths, degrading to Bellman-Ford performance. With priorities, we get Dijkstra's optimal behavior:
 
 ````diff lang="ansi" frame="code" title="fix/ShortestPath.fix"
@@ -75,6 +78,8 @@ The priority ensures that `addDist` instances producing shorter distances are pr
 
 ## Example: Bi-objective Shortest Paths
 
+<Downloader url="/files/guides/language-essentials/04-priorities/bosp.tar.gz" sum="abf1d2cf8e180c12d69bd0ccaa7188ec3703968ec941b8d5a21caeeb53fa20bf" />
+
 For bi-objective shortest paths (distance and cost), priorities can impose a lexicographical order:
 
 ````diff lang="ansi" title="fix/BOSP.fix" frame='code'
@@ -100,10 +105,10 @@ For bi-objective shortest paths (distance and cost), priorities can impose a lex
 [31mrule[0m [33maddDist[0m: [32mDistTo[0m a w1 w2, [32mEdge[0m a b w1' w2'
               [31m|-[0m [32mDistTo[0m b (w1 [35m+[0m w1') (w2 [35m+[0m w2')
 
-+ [31mpriority[0m: ((w11 [35m+[0m w11') [35m>[0m (w21 [35m+[0m w21')) [35m||[0m
-+           ((w11 [35m+[0m w11') [35m==[0m (w21 [35m+[0m w21') [35m&&[0m (w12 [35m+[0m w12') [35m>[0m (w22 [35m+[0m w22'))
-+           [31m|-[0m [33maddDist[0m { w1 = w11, w1' = w11', w2 = w12, w2' = w12' }
-+              [31m<[0m [33maddDist[0m { w1 = w21, w1' = w21', w2 = w22, w2' = w22' }
++[31mpriority[0m: ((w11 [35m+[0m w11') [35m>[0m (w21 [35m+[0m w21')) [35m||[0m
++            (((w11 [35m+[0m w11') [35m==[0m (w21 [35m+[0m w21')) [35m&&[0m ((w12 [35m+[0m w12') [35m>[0m (w22 [35m+[0m w22')))
++          [31m|-[0m [33maddDist[0m { w1 = w11, w1' = w11', w2 = w12, w2' = w12' }
++             [31m<[0m [33maddDist[0m { w1 = w21, w1' = w21', w2 = w22, w2' = w22' }
 
 [31mquery[0m [35mdistances[0m: [32mDistTo[0m [31m- - -[0m
 ````
@@ -113,7 +118,7 @@ This prioritizes instances with smaller total distance, breaking ties by preferr
 
 ## Comparing Arbitrary Instances
 
-Priorities are not limited to comparing instances of the same rule. You can compare instances of different rules:
+Priorities are not limited to comparing instances of the same rule, nor are you limited to one priority declaration for each program. You can compare instances of different rules:
 
 
 ```ansi frame="code"

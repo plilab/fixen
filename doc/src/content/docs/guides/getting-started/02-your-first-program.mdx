@@ -2,7 +2,8 @@
 title: Your First Program
 ---
 import { FileTree } from '@astrojs/starlight/components';
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Tabs, TabItem, Icon } from '@astrojs/starlight/components';
+import Downloader from '../../../../components/starlight/Downloader.astro';
 
 This page walks you through the basic workflow of the Fixen compiler: writing a `.fix` source file, compiling it to Haskell, and inspecting the output.
 
@@ -43,6 +44,12 @@ These are useful when debugging a Fixen program or understanding how the compile
 ## A Minimal Example
 
 Let us create a simple project that incorporates Fixen programs.
+
+:::tip
+Each complete worked example is also available as a tarball to avoid having to copy-paste the code onto your computer.
+:::
+
+<Downloader url="/files/guides/getting-started/02-your-first-program/my-project.tar.gz" sum="9eab6e0ea0994846d4ab4c1c716caa6562acdc7a39a0c73f5b5c40884aa7db09" />
 
 ### Project Structure
 To start, create a cabal project called, say, `my-project`. The project structure is as follows:
