@@ -128,7 +128,6 @@ You're all set!
 - [x] DB layout inference
 - [x] Generate Haskell source
 - [x] Benchmarks
-- [ ] Unit tests
 
 See the [open issues](https://github.com/plilab/fixen/issues) for a full list of proposed features (and known issues).
 
@@ -169,9 +168,27 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <!-- CONTACT -->
 ## Contact
-Michael D. Adams - https://michaeldadams.org
 
-Foo Yong Qi - https://yongqi.foo/
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+module ContactInfo where
+
+import Data.Text (Text)
+import Data.Text qualified as T
+
+dom :: Text
+dom = T.concat [ "@", "fixen-lang", ".", T.reverse "gro"]
+
+email :: Text
+email = T.append "collaborations" dom
+```
+
+### People
+Michael D. Adams (Principal Investigator) - https://michaeldadams.org
+
+Foo Yong Qi (Maintainer) - https://yongqi.foo/
+
+Brian Cheong (Developer) - https://comp.nus.edu.sg/~bskch
 
 Project Link: [https://github.com/plilab/fixen](https://github.com/plilab/fixen)
 
