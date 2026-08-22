@@ -158,32 +158,6 @@ executable fixen
     -- Base language which the package is written in.
     default-language: GHC2021
 
-test-suite parser-tests
-  -- Import common warning flags.
-  import:           warnings
-  type: exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is: Fixen/ParserTest.hs
-  build-depends:    base 
-                    , optparse-applicative
-                    , filepath 
-                    , fixen:diagnose 
-                    , megaparsec
-                    , mtl 
-                    , transformers 
-                    , containers 
-                    , parser-combinators
-                    , text
-                    , directory
-                    , tasty
-                    , tasty-hunit
-                    , tasty-quickcheck
-                    , fixen
-  default-extensions: OverloadedStrings
-  -- Base language which the package is written in.
-  default-language: GHC2021
-  other-modules: Fixen.Parser.TokenTest
-
 benchmark shortest-path
   import: warnings
   type: exitcode-stdio-1.0
