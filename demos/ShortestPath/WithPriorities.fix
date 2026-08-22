@@ -1,9 +1,0 @@
--- Put this in benchmarks/ShortestPath/FixenWithPriorities.hs
-module ShortestPath.FixenWithPriorities where
-
-include "NoPriorities"
-
--- Priorities for Dijkstra's
-priority:
-  (d1 + d1') > (d2 + d2') 
-    |- addDist { d = d1, d' = d1' } < addDist { d = d2, d' = d2' }

@@ -100,7 +100,7 @@ To get a local copy up and running follow these simple example steps.
 ### Installing and Building
 * Clone this repository
   ```sh
-  git clone https://github.com/plilab/fixen.git
+  git clone -b 26.7 https://github.com/plilab/fixen.git
   cd fixen/
   ```
 * Building
@@ -111,9 +111,6 @@ To get a local copy up and running follow these simple example steps.
   ```sh
   cabal haddock
   ```
-* Tests
-  ```sh
-  cabal test
   ```
 You're all set!
 
