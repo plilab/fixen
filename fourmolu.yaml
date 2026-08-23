@@ -10,7 +10,7 @@ record-brace-space: true
 newlines-between-decls: 1
 haddock-style: single-line
 haddock-style-module: single-line
-haddock-location-signature: leading
+haddock-location-signature: trailing
 let-style: inline
 in-style: right-align
 if-style: indented
