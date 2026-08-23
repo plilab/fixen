@@ -736,7 +736,7 @@ instance EqModuloNodeId π => EqModuloNodeId (RelationLike π) where
 -- rel Counter: String, (num: Int)
 -- @
 --
--- @since 0.0.1
+-- @since 26.8
 data RelationParameter = RelationParameter
   { relationParameterNodeId :: NodeId
   -- ^ The 'NodeId'.
@@ -2064,7 +2064,7 @@ prettyRelation (RelationDeclaration _ n a) =
 -- | Render an unnamed parameter as its type and a named parameter as
 -- @(name: Type)@.
 --
--- @since 0.0.1
+-- @since 26.8
 prettyRelationParameter :: RelationParameter -> Doc AnsiStyle
 prettyRelationParameter (RelationParameter _ Nothing typ) = prettyType typ
 prettyRelationParameter (RelationParameter _ (Just parameterName) typ) =

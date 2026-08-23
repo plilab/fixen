@@ -350,7 +350,7 @@ parseModuleDeclaration = parsePositioned $ do
 
 -- | Parse a named relation parameter of the form @(name: Type)@.
 --
--- @since 0.0.1
+-- @since 26.8
 parseNamedRelationParameter
   :: ParserState σ
   => Parser σ RelationParameter
@@ -368,7 +368,7 @@ parseNamedRelationParameter = parsePositioned $ do
 
 -- | Parse an unnamed relation parameter consisting only of a type.
 --
--- @since 0.0.1
+-- @since 26.8
 parseUnnamedRelationParameter
   :: ParserState σ
   => Parser σ RelationParameter
@@ -383,7 +383,7 @@ parseUnnamedRelationParameter = parsePositioned $ do
 -- both begin with @(@. Backtracking preserves existing positional syntax such
 -- as @(Maybe Int)@.
 --
--- @since 0.0.1
+-- @since 26.8
 parseRelationParameter
   :: ParserState σ
   => Parser σ RelationParameter

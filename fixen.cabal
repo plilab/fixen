@@ -4,7 +4,7 @@ name:               fixen
 --                  |  +------ month
 --                  |  |    +- minor version
 --                  |  |    |
-version:            26.7
+version:            26.8
 -- synopsis:
 -- description:
 license:            MIT

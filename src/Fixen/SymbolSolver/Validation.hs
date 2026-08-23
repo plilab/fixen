@@ -82,7 +82,7 @@ validate ruls subject env = do
 -- Turns a 'NamedSymbolRule' into a regular 'SymbolRule'.
 --
 -- @since 26.7
-validateNamed :: (HasNodeId a NodeId, HasName a n, IdentifierLike n) => NamedSymbolRule σ a -> SymbolRule σ a
+validateNamed :: (HasName a n, HasNodeId a NodeId, IdentifierLike n) => NamedSymbolRule σ a -> SymbolRule σ a
 validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 
 --------------------------------------------------------------------------------
@@ -102,7 +102,7 @@ validateNamed r i env = r (simpleIdentifier $ i ^. name) i env
 -- shape expected by 'validateNamed', but the check itself only inspects the
 -- parameters.
 --
--- @since 0.0.1
+-- @since 26.8
 validateUniqueParamNames
   :: SymbolState σ
   => String
@@ -119,7 +119,7 @@ validateUniqueParamNames whereMsg _relationName rel _env = do
         [ Err
             Nothing
             "duplicate parameter names"
-            ((, This whereMsg) <$> positions)
+            ((,This whereMsg) <$> positions)
             [ Note "relation parameter names must be unique"
             , Hint "rename one of these parameters"
             ]
