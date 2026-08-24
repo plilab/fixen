@@ -143,7 +143,6 @@ parseRawLowerHsIdentifierString = do
         -- Reject the parse if the resulting string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error indicating the keyword was unexpected
-
       P.parseError
         ( P.FancyError
             offset_start
@@ -183,7 +182,6 @@ parseRawLowerHsIdentifierStringOrHole = do
         -- Reject the parse if the resulting string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error indicating the keyword was unexpected
-
       P.parseError
         ( P.FancyError
             offset_start
@@ -235,7 +233,6 @@ parseRawAnyCaseHsIdentifierString = do
         -- Reject if the string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error for the reserved keyword
-
       P.parseError
         ( P.FancyError
             offset_start
@@ -273,7 +270,6 @@ parseRawAnyCaseHsIdentifierStringNotHole = do
         -- Reject if the string matches a reserved keyword
   if str `elem` reserved
     then -- emit a parse error for the reserved keyword
-
       P.parseError
         ( P.FancyError
             offset_start
@@ -318,7 +314,6 @@ parseRawOpIdentifierString = do
   -- Reject if the string matches a reserved operator
   if str `elem` reservedOps
     then -- emit a parse error for the reserved operator
-
       P.parseError
         ( P.FancyError
             offset_start

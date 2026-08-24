@@ -86,6 +86,7 @@ library
                       , Fixen.Pipeline
                       , Fixen.Parser
                       , Fixen.Parser.Common
+                      , Fixen.Parser.Error
                       , Fixen.Parser.Expr
                       , Fixen.Parser.Token
                       , Fixen.Parser.Type

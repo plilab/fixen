@@ -36,14 +36,13 @@ module Fixen.Parser.Common where
 
 import Control.Monad.State.Strict
 import Data.List.NonEmpty
-import Data.Set (Set)
 import Data.Text
 import Data.Void
 import Error.Diagnose.Compat.Megaparsec
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
-import Text.Megaparsec (ErrorFancy, ErrorItem)
+import Fixen.Parser.Error
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -54,21 +53,6 @@ import Text.Megaparsec.Pos qualified as MPos
 -- * Parsers and Parser States
 
 --------------------------------------------------------------------------------
-
--- | A custom parser error datatype.
-data FixenParserError
-  = TrivialWithParseStack
-      [String]
-      -- ^ The non-terminal stack
-      (Maybe (ErrorItem Text))
-      -- ^ The unexpected item
-      (Set (ErrorItem Char))
-  | FancyWithParseStack
-      [String]
-      -- ^ The non-terminal stack
-      (ErrorFancy Void)
-      -- ^ The fancy error
-  deriving (Eq, Ord, Show)
 
 -- | The state carried by the parser.
 --
@@ -89,16 +73,15 @@ type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --   This is a Megaparsec parser ('P.ParsecT') layered on top of the 'State'
 --   monad.
 --
---   The 'Void' error token means this parser does not produce token-level
---   parse errors (all errors are handled at a higher level via the
---   'FixenErrors' accumulator).
+--   The parser type uses the custom 'FixenParseError' datatype. Internally,
+--   throughout parsing, all errors are represented using this custom datatype.
 --
 --   In practice, you will rarely construct values of type 'Parser' directly.
 --   Instead, use the combinators provided in this module and the higher-level
 --   parsers in 'Fixen.Parser'.
 --
 -- @since 26.7
-type Parser σ = P.ParsecT Void Text (State σ)
+type Parser σ = P.ParsecT FixenParseError Text (State σ)
 
 --------------------------------------------------------------------------------
 
