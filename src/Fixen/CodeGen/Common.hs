@@ -12,7 +12,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.IR.AST
 import Fixen.Monad
-import Fixen.Parser.Token (opChars)
+import Fixen.Parser.Common (isValidOpChar)
 import Fixen.Utils
 
 type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
@@ -97,11 +97,11 @@ codeGenIdentifier i =
     else fullIdentifier i
 
 isOp :: Identifier -> Bool
-isOp i = any (∈ opChars) (Text.unpack $ simpleIdentifier i)
+isOp i = all isValidOpChar (Text.unpack $ simpleIdentifier i)
 
 codeGenInfixIdentifier :: Identifier -> Text
 codeGenInfixIdentifier i =
-  if any (∈ opChars) (Text.unpack $ simpleIdentifier i)
+  if all isValidOpChar (Text.unpack $ simpleIdentifier i)
     then fullIdentifier i
     else Text.concat ["`", fullIdentifier i, "`"]
 

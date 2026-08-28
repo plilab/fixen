@@ -1,5 +1,4 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- |
@@ -98,6 +97,8 @@ data FixenParseError
       -- ^ The parse stack
       String
       -- ^ The error message
+      (Maybe (Int, Int, String))
+      -- ^ A potential additional location and message
       [Note String]
       -- ^ A list of hints
   deriving (Eq, Ord, Show)
@@ -176,37 +177,28 @@ parserErrorBundleToDiagnostic code ParseErrorBundle {..} =
           parse_stack_msg = parseStackMessage parse_stack
        in case real_errs of
             [] -> error "parse error is empty"
-            [x] ->
+            x : _ ->
               let err_len = parseErrorTokenLength x
                   err_pos = getPositionFromOffsets start err_len
                   err_msg = parseErrorMessage x
                   err_notes = parseErrorNotes x
+                  err_where = whereToMessage (parseErrorWhere x) Nothing
                in Err
                     code
                     "syntax error"
-                    [(err_pos, This err_msg)]
+                    ((err_pos, This err_msg) : err_where)
                     (parse_stack_msg ++ err_notes)
-            xs ->
-              let package =
-                    ( \(i, x) ->
-                        let err_len = parseErrorTokenLength x
-                            err_pos = getPositionFromOffsets start err_len
-                            err_msg = parseErrorMessage x
-                            err_notes = parseErrorNotes x
-                         in ( [(err_pos, This $ withErrorNumber i err_msg)]
-                            , fmap (fmap (withErrorNumber i)) err_notes
-                            )
-                    )
-                      <$> Prelude.zip [1 .. Prelude.length xs] xs
-                  (markers, notes) =
-                    foldl'
-                      (\(x1, x2) (y1, y2) -> (x1 ++ y1, x2 ++ y2))
-                      ([], [])
-                      package
-               in Err code "syntax error" markers (parse_stack_msg ++ notes)
     asReport _ = error "unreachable" -- impossible after normalization
     withErrorNumber :: Int -> String -> String
     withErrorNumber i s = show i ++ ". " ++ s
+
+    whereToMessage :: Maybe (Int, Int, String) -> Maybe Int -> [(Position, Marker String)]
+    whereToMessage Nothing _ = []
+    whereToMessage (Just (start, end, msg)) i =
+      let pos = getPositionFromOffsets start (end - start)
+       in case i of
+            Nothing -> [(pos, Where msg)]
+            Just x -> [(pos, Where $ withErrorNumber x msg)]
 
     customErrors :: Set (ErrorFancy FixenParseError) -> [FixenParseError]
     customErrors s =
@@ -247,7 +239,14 @@ parseErrorMessage (FixenTrivialParseError Nothing _ _ _) = "unknown parse error"
 parseErrorMessage (FixenTrivialParseError _ ex _ _) | Set.null ex = "unknown parse error"
 parseErrorMessage (FixenTrivialParseError (Just unex) _ _ _) = "unexpected " ++ showErrorItem textProxy unex
 parseErrorMessage (FixenIndentationError {}) = "incorrect indentation"
-parseErrorMessage (FixenCustomError _ _ msg _) = msg
+parseErrorMessage (FixenCustomError _ _ msg _ _) = msg
+
+-- | Obtains any "where" messages from a 'FixenParseError'.
+--
+-- @since 26.8
+parseErrorWhere :: FixenParseError -> Maybe (Int, Int, String)
+parseErrorWhere (FixenCustomError _ _ _ w _) = w
+parseErrorWhere _ = Nothing
 
 -- | Obtains the 'Note's from a 'FixenParseError'.
 --
@@ -276,12 +275,11 @@ parseErrorNotes (FixenIndentationError o ref act _ hs) =
         ++ ", should be "
         ++ p
         ++ Prelude.show (unPos ref)
-        ++ ")"
     )
     : hs
   where
     p = case o of LT -> "less than "; EQ -> "equal to "; GT -> "greater than "
-parseErrorNotes (FixenCustomError _ _ msg h) = Note msg : h
+parseErrorNotes (FixenCustomError _ _ _ _ h) = h
 
 -- | Converts a 'ParseStack' trace into 'Note's.
 --
@@ -299,11 +297,13 @@ parseStackMessage stack =
 parseErrorTokenLength :: FixenParseError -> Int
 parseErrorTokenLength (FixenTrivialParseError (Just (Tokens unex)) _ _ _) =
   tokensLength textProxy unex
-parseErrorTokenLength (FixenCustomError (Just i) _ _ _) = i
+parseErrorTokenLength (FixenCustomError (Just i) _ _ _ _) = i
 parseErrorTokenLength _ = 1 -- default value, uninteresting
 
--- | Gets the parse stack from parse errors. This crashes
--- when errors have different non-empty call stacks.
+-- | Gets the parse stack from parse errors.
+--
+-- When the stacks are non-empty and different, we take the largest
+-- common prefix.
 --
 -- @since 26.8
 getParseStack :: ParseError Text FixenParseError -> [String]
@@ -312,17 +312,22 @@ getParseStack (FancyError _ s) =
   let stacks =
         Set.map
           ( \case
-              ErrorCustom (FixenTrivialParseError _ _ st _) -> st
-              ErrorCustom (FixenIndentationError _ _ _ st _) -> st
-              ErrorCustom (FixenCustomError _ st _ _) -> st
-              _ -> []
+              ErrorCustom (FixenTrivialParseError _ x st _) -> (show x, st)
+              ErrorCustom (FixenIndentationError _ _ _ st _) -> ("b", st)
+              ErrorCustom (FixenCustomError _ st m _ _) -> (m, st)
+              _ -> ("d", [])
           )
           s
       nonempty_stacks = Set.filter (not . Prelude.null) stacks
-   in if
-        | Set.size nonempty_stacks > 1 -> error "parse errors at the same parse point has different parse stacks!"
-        | Set.null nonempty_stacks -> []
-        | otherwise -> Set.elemAt 0 nonempty_stacks
+      new_stack = longestCommonPrefix (snd <$> Set.toList nonempty_stacks)
+   in new_stack
+  where
+    commonPrefix :: Eq a => [a] -> [a] -> [a]
+    commonPrefix xs ys = map fst $ takeWhile (uncurry (==)) (zip xs ys)
+
+    longestCommonPrefix :: Eq a => [[a]] -> [a]
+    longestCommonPrefix [] = []
+    longestCommonPrefix (x : xs) = foldl' commonPrefix x xs
 
 -- | Prepends a 'Nonterminal' onto a parse error.
 --
@@ -344,8 +349,8 @@ prependFrame s e =
                     ErrorCustom (FixenTrivialParseError unex ex (s : st) h)
                   ErrorCustom (FixenIndentationError o p1 p2 st h) ->
                     ErrorCustom (FixenIndentationError o p1 p2 (s : st) h)
-                  ErrorCustom (FixenCustomError start st msg h) ->
-                    ErrorCustom (FixenCustomError start (s : st) msg h)
+                  ErrorCustom (FixenCustomError start st msg w h) ->
+                    ErrorCustom (FixenCustomError start (s : st) msg w h)
                   x -> x
               )
               errs
@@ -369,7 +374,7 @@ addNote note e =
               ( \case
                   ErrorCustom (FixenTrivialParseError unex ex st h) -> ErrorCustom (FixenTrivialParseError unex ex st (note : h))
                   ErrorCustom (FixenIndentationError o p1 p2 st h) -> ErrorCustom (FixenIndentationError o p1 p2 st (note : h))
-                  ErrorCustom (FixenCustomError start st msg h) -> ErrorCustom (FixenCustomError start st msg (note : h))
+                  ErrorCustom (FixenCustomError start st msg w h) -> ErrorCustom (FixenCustomError start st msg w (note : h))
                   x -> x
               )
               errs
@@ -378,8 +383,7 @@ addNote note e =
 -- | Normalizes parse errors emitted from megaparsec (and Fixen) into a
 -- canonical form which we can work with. Essentially, all megaparsec-emitted
 -- errors are stored as 'FixenCustomError's. Merging errors from alternatives
--- behaves as we would normally expect. This crashes whenever errors have
--- different non-empty stack traces.
+-- behaves as we would normally expect.
 --
 -- @since 26.8
 normalizeParseError :: ParseError Text FixenParseError -> ParseError Text FixenParseError
@@ -404,7 +408,7 @@ normalizeParseError err@(FancyError i s) =
           ( \case
               ErrorFail msg ->
                 ErrorCustom $
-                  FixenCustomError Nothing parse_stack msg []
+                  FixenCustomError Nothing parse_stack msg Nothing []
               ErrorIndentation o p1 p2 ->
                 ErrorCustom $
                   FixenIndentationError o p1 p2 parse_stack []

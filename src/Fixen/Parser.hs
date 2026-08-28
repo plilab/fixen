@@ -39,6 +39,7 @@ import Data.Map.Strict qualified as Map
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
+import Data.Text qualified as Text
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -199,17 +200,18 @@ parseTopLevels =
   -- Parse one or more top-level declarations, consuming whitespace after each
   some $
     l $
-      -- Try each declaration type in order; the first match wins
-      (TLRelation <$> parseRelation)
-        <|> (TLRule <$> parseRule)
-        <|> (TLPartialOrd <$> parsePartialOrd)
-        <|> (TLLattice <$> parseLattice)
-        <|> (TLPriority <$> parsePriority)
-        <|> (TLQuery <$> parseQuery)
-        <|> (TLInclude <$> parseInclude)
-        <|> (TLImport <$> parseImport)
-        <|> (TLHsBlock <$> parseHaskellCodeBlock)
-        <|> (TLPhases <$> parsePhases)
+      inContext "top-level declaration" $
+        -- Try each declaration type in order; the first match wins
+        (TLRelation <$> parseRelation)
+          <|> (TLRule <$> parseRule)
+          <|> (TLPartialOrd <$> parsePartialOrd)
+          <|> (TLLattice <$> parseLattice)
+          <|> (TLPriority <$> parsePriority)
+          <|> (TLQuery <$> parseQuery)
+          <|> (TLInclude <$> parseInclude)
+          <|> (TLImport <$> parseImport)
+          <|> (TLHsBlock <$> parseHaskellCodeBlock)
+          <|> (TLPhases <$> parsePhases)
 
 -- | Represents a top-level declaration in a Fixen program.
 --
@@ -364,6 +366,7 @@ parseModuleDeclaration = inContext "module declaration" $ parsePositioned $ do
             (Just 6)
             ["module name"]
             "empty module declaration"
+            Nothing
             [hint2]
       Right x ->
         -- wrote module name, but just not indented.
@@ -372,6 +375,7 @@ parseModuleDeclaration = inContext "module declaration" $ parsePositioned $ do
             (Just (offset_after_module_name - current_offset))
             ["module name"]
             ("unexpected '" ++ unpack (simpleIdentifier x) ++ "' at indentation 0")
+            (Just (start, offset_after_module_name, "module declaration header"))
             [hint3 "module name"]
   -- Parse the module name (e.g. Data.List)
   m <- withNote (Hint "must be a Haskell module name") parseModuleName
@@ -388,6 +392,7 @@ parseModuleDeclaration = inContext "module declaration" $ parsePositioned $ do
             (Just 5)
             []
             "unexpected 'where' at indentation 0"
+            (Just (start, mod_end_offset, "incomplete module declaration"))
             [hint3 "'where'"]
       Left _ ->
         -- it is not a where, raise an error saying that the 'where' is missing.
@@ -397,6 +402,7 @@ parseModuleDeclaration = inContext "module declaration" $ parsePositioned $ do
             (Just $ mod_end_offset - start)
             []
             "missing 'where' at the end of module declaration"
+            (Just (start, mod_end_offset, "incomplete module declaration"))
             [hint4]
   -- Parse the 'where' keyword
   _ <- withNote hint4 $ keyword "where"
@@ -427,7 +433,7 @@ parseNamedRelationParameter = parsePositioned $ do
   (parameterName, parameterType) <-
     betweenParentheses indented $ do
       parameterName <- parseLowerFirstSimpleIdentifier
-      _ <- indented *> keywordOp ":"
+      _ <- indented *> keyword ":"
       _ <- indented
       parameterType <- parseType indented
       return (parameterName, parameterType)
@@ -440,7 +446,7 @@ parseNamedRelationParameter = parsePositioned $ do
 parseUnnamedRelationParameter
   :: ParserState σ
   => Parser σ RelationParameter
-parseUnnamedRelationParameter = parsePositioned $ do
+parseUnnamedRelationParameter = inContext "unnamed parameter" $ parsePositioned $ do
   parameterType <- parseType indented
   parameterId <- getNewNodeId
   return $ RelationParameter parameterId Nothing parameterType
@@ -456,18 +462,8 @@ parseRelationParameter
   :: ParserState σ
   => Parser σ RelationParameter
 parseRelationParameter =
-  withNote
-    ( Hint
-        """
-        relation parameters can be written via one of two forms:
-          1. named, e.g., (fieldName : MySort)
-          2. unnamed, e.g., MySort
-        sorts like MySort are arbitrary Haskell types or the name of a partial order or lattice
-        """
-    )
-    $ inContext "relation parameter"
-    $ P.try parseNamedRelationParameter
-      <|> parseUnnamedRelationParameter
+  P.try parseNamedRelationParameter
+    <|> parseUnnamedRelationParameter
 
 -- | Parses a relation declaration:
 --
@@ -498,25 +494,63 @@ parseRelationParameter =
 -- @since 26.7
 parseRelation :: ParserState σ => Parser σ RelationDeclaration
 parseRelation = inContext "relation" $ parsePositioned $ do
+  offset_start <- P.getOffset
   -- Parse the 'rel' keyword (must not be indented)
   -- Use 'P.try' so we can backtrack when parsing top-level declarations
   _ <- P.try $ L.nonIndented sc $ keyword "rel"
   -- Verify proper indentation before the relation name
-  _ <- indented
+  indent1 <- P.observing indented
+  when (isLeft indent1) $ do
+    -- attempt to parse the relation name
+    offset_before_rel_name <- P.getOffset
+    rel_name <- P.observing parseCapitalizedSimpleIdentifier
+    case rel_name of
+      Left _ ->
+        customErrorWithOffset offset_start $
+          FixenCustomError
+            (Just 3)
+            []
+            "empty relation declaration"
+            Nothing
+            [Hint "relation declarations are of the form\n  rel RelName[: Sort+]"]
+      Right x ->
+        customErrorWithOffset offset_before_rel_name $
+          FixenCustomError
+            (Just (Text.length $ simpleIdentifier x))
+            ["relation name"]
+            "relation name with indentation 0"
+            (Just (offset_start, offset_before_rel_name, "incomplete relation declaration"))
+            [Hint "indent this relation name"]
   -- Parse the capitalized relation name (relations are constructor-like)
-  rel_name <- withNote (Hint "relation name must start with uppercase latter, just like Haskell constructors") $ inContext "relation name" parseCapitalizedSimpleIdentifier
+  rel_name <- withNote (Hint "relation name must start with uppercase letter, just like Haskell constructors") $ inContext "relation name" parseCapitalizedSimpleIdentifier
   -- Attempt to parse optional arguments: a colon followed by comma-separated types
   -- 'P.observing' allows backtracking — if no colon, args are empty
-  colon <- P.observing $ P.try $ indented *> keywordOp ":"
-  params <- case colon of
+
+  colon_offset <- P.observing $ P.try $ do
+    _ <- indented
+    o <- P.getOffset
+    _ <- keyword ":"
+    return o
+
+  params <- case colon_offset of
     Left _ -> return [] -- no colon — no arguments
-    Right _ -> inContext "relation parameter list" $ do
+    Right o -> inContext "relation parameter list" $ do
       -- Verify proper indentation before the first argument
-      _ <- indented
-      -- Parse one or more comma-separated types with indentation checking
-      params <- commaSepBy1' parseRelationParameter
-      return $ toList params -- convert NonEmpty list to regular list
-      -- Allocate a fresh node ID and construct the Relation AST node
+      indent2 <- P.observing indented
+      case indent2 of
+        Left _ ->
+          customErrorWithOffset o $
+            FixenCustomError
+              Nothing
+              ["relation parameter list"]
+              "empty relation parameter list"
+              Nothing
+              [Hint "the colon can be omitted if this relation has no parameters"]
+        Right _ -> do
+          -- Parse one or more comma-separated types with indentation checking
+          params <- commaSepBy1' parseRelationParameter
+          return $ toList params -- convert NonEmpty list to regular list
+          -- Allocate a fresh node ID and construct the Relation AST node
   i <- getNewNodeId
   return $ RelationDeclaration i rel_name params
 
@@ -564,7 +598,7 @@ parseRule = inContext "rule" $ parsePositioned $ do
       [] -> return (Nothing, []) -- no identifiers — unnamed rule
       (x : xs) -> return (Just x, xs) -- first is name, rest are bound variables
       -- Parse the colon separator with indentation checks on both sides
-  _ <- indented *> keywordOp ":" *> indented
+  _ <- indented *> keyword ":" *> indented
   -- Parse the premises (assumptions and conditions), separated by commas
   -- 'partitionPremises' separates them into assumptions and conditions
   (asms, conds) <- do
@@ -755,12 +789,13 @@ parsePartialOrd = inContext "partial order" $ parsePositioned $ do
   -- Parse the 'where' keyword
   _ <- keyword "where"
   -- Verify proper indentation before the fields
-  _ <- indented
+  level <- indented
+  let block_indent = indentedByMoreThan level
   -- Parse the three required fields: type, leq, mlbs
   -- Each field must be indented relative to the 'partial ord' line
-  type_expr <- parsePartialOrdField "type" (parseType indented)
-  leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
-  mlbs_func <- parsePartialOrdField "mlbs" (parseNonInfixTermIdentifier indented)
+  type_expr <- parsePartialOrdField "type" level (parseType block_indent)
+  leq_func <- parsePartialOrdField "leq" level (parseNonInfixTermIdentifier indented)
+  mlbs_func <- parsePartialOrdField "mlbs" level (parseNonInfixTermIdentifier indented)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
   i <- getNewNodeId
   return $ PartialOrdDeclaration i pord_name type_expr leq_func mlbs_func
@@ -776,7 +811,7 @@ parsePartialOrd = inContext "partial order" $ parsePositioned $ do
 -- For example, the field @type = Dist@ is parsed as:
 --
 -- @
--- keyword "type"  ->  keywordOp "="  ->  parseType indented
+-- keyword "type"  ->  keyword "="  ->  parseType indented
 -- @
 --
 -- @since 26.7
@@ -786,14 +821,18 @@ parsePartialOrdField
   -- ^ Field name (@type@, @leq@, or @mlbs@)
   --
   -- @since 26.7
+  -> P.Pos
+  -- ^ Indentation level of the field
+  --
+  -- @since 26.8
   -> Parser σ a
   -- ^ Parser for the field value
   --
   -- @since 26.7
   -> Parser σ a
-parsePartialOrdField fieldName valueParser = do
+parsePartialOrdField fieldName level valueParser = do
   -- Parse: fieldName = value, with indentation checks between all components
-  _ <- indented *> keyword fieldName *> indented *> keywordOp "=" *> indented
+  _ <- indentedByExactly level *> keyword fieldName *> indentedByMoreThan level *> keyword "=" *> indentedByMoreThan level
   -- Parse the value (type expression, identifier, etc.)
   valueParser
 
@@ -833,13 +872,14 @@ parseLattice = inContext "lattice" $ parsePositioned $ do
   -- Parse the 'where' keyword
   _ <- keyword "where"
   -- Verify proper indentation before the fields
-  _ <- indented
+  level <- indented
+  let indented_level = indentedByMoreThan level
   -- Parse the three required fields: type, leq, mlbs
   -- Each field must be indented relative to the 'partial ord' line
-  type_expr <- parsePartialOrdField "type" (parseType indented)
-  leq_func <- parsePartialOrdField "leq" (parseNonInfixTermIdentifier indented)
-  join_func <- parsePartialOrdField "join" (parseNonInfixTermIdentifier indented)
-  meet_func <- parsePartialOrdField "meet" (parseNonInfixTermIdentifier indented)
+  type_expr <- parsePartialOrdField "type" level (parseType indented_level)
+  leq_func <- parsePartialOrdField "leq" level (parseNonInfixTermIdentifier indented_level)
+  join_func <- parsePartialOrdField "join" level (parseNonInfixTermIdentifier indented_level)
+  meet_func <- parsePartialOrdField "meet" level (parseNonInfixTermIdentifier indented_level)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
   i <- getNewNodeId
   return $ LatticeDeclaration i pord_name type_expr leq_func join_func meet_func
@@ -872,7 +912,7 @@ parsePriority = inContext "lattice" $ parsePositioned $ do
   -- Need 'try' since priority is among many top-level alternatives
   _ <- P.try $ l $ L.nonIndented sc $ keyword "priority"
   -- Parse the colon separator with indentation checks
-  _ <- indented *> keywordOp ":" *> indented
+  _ <- indented *> keyword ":" *> indented
   -- Parse the premise expression (left side of the turnstile)
   prem <- parseExpr indented
   -- Parse the turnstile with indentation checks
@@ -928,8 +968,8 @@ parseRuleInstance = parsePositioned $ do
   -- Parse optional variable substitutions in curly braces
   -- (empty braces {} are allowed)
   subst <- betweenCurlyBraces indented $ commaSepBy' parseSubstitution
-  let keys = simpleIdentifier <$> fst <$> subst
-      key_ct = Map.keys $ Map.filter (> (1 :: Int)) $ foldl' (\m t -> Map.insert t ((Map.findWithDefault 0 t m) + 1) m) Map.empty keys
+  let keys = simpleIdentifier . fst <$> subst
+      key_ct = Map.keys $ Map.filter (> (1 :: Int)) $ foldl' (\m t -> Map.insert t (Map.findWithDefault 0 t m + 1) m) Map.empty keys
   if not (null key_ct)
     then
       P.parseError
@@ -963,7 +1003,7 @@ parseSubstitution = do
   -- Parse the left-hand side identifier
   left <- parseLowerFirstSimpleIdentifier
   -- Parse the '=' operator with indentation checks on both sides
-  _ <- indented *> keywordOp "=" *> indented
+  _ <- indented *> keyword "=" *> indented
   -- Parse the right-hand side identifier
   right <- parseLowerFirstSimpleIdentifier
   return (left, right)
@@ -998,7 +1038,7 @@ parseQuery = inContext "query" $ parsePositioned $ do
   -- Parse the query name (lowercase identifier)
   query_name <- parseLowerFirstSimpleIdentifier
   -- Parse the colon separator with indentation checks
-  _ <- indented *> keywordOp ":" *> indented
+  _ <- indented *> keyword ":" *> indented
   -- Parse the relation with modes
   rel <- parseQueriedRelation
   -- Allocate a fresh node ID and construct the Query AST node
@@ -1040,11 +1080,12 @@ parseQueriedRelation = parsePositioned $ do
 -- @since 26.7
 parseQueryMode :: ParserState σ => Parser σ QueryMode
 parseQueryMode = parsePositioned $ do
-  -- Parse the mode symbol with indentation check, consuming trailing whitespace
-  m <- indented *> P.try (C.char '+' >> return Input) <|> (C.char '-' >> return Output)
-  -- Allocate a fresh node ID and wrap in the QueryMode constructor
-  i <- getNewNodeId
-  return $ m i
+  m <-
+    indented
+      *> ( P.try (C.char '+' >> return Input)
+             <|> (C.char '-' >> return Output)
+         )
+  m <$> getNewNodeId
 
 -- ** Include-Statement Parser
 
@@ -1192,7 +1233,7 @@ parsePhases = inContext "phases" $ parsePositioned $ do
   -- No 'try' needed — phases is the last syntactic category
   _ <- L.nonIndented sc $ keyword "phases"
   -- Parse the colon separator with indentation checks
-  _ <- indented *> keywordOp ":" *> indented
+  _ <- indented *> keyword ":" *> indented
   -- Parse the rulesets in square brackets with indentation checking
   rulesets <- betweenSquareBrackets indented $ commaSepBy1' parsePhaseRuleset
   -- Allocate a fresh node ID and construct the Phases AST node
@@ -1241,10 +1282,8 @@ parseExplicitRuleset = parsePositioned $ do
 parseEverythingElseRuleset :: ParserState σ => Parser σ EverythingElseRuleset
 parseEverythingElseRuleset = parsePositioned $ do
   -- Parse the wildcard operator
-  _ <- keywordOp "*"
-  -- Allocate a fresh node ID and construct the EverythingElseRuleset AST node
-  i <- getNewNodeId
-  return $ EverythingElseRuleset i
+  _ <- keyword "*"
+  EverythingElseRuleset <$> getNewNodeId
 
 -- ** Haskell-Code-Block Parser
 
@@ -1270,9 +1309,10 @@ parseHaskellCodeBlock :: ParserState σ => Parser σ HsBlock
 parseHaskellCodeBlock = inContext "inline Haskell" $ parsePositioned $ do
   -- Parse the opening fence (```hs) — must not be indented
   -- Use 'try' since Haskell blocks are among many top-level alternatives
-  _ <- P.try $ L.nonIndented sc $ keyword "```hs"
+  _ <- P.try $ L.nonIndented sc $ exactMatchNoLookahead "```hs"
+  _ <- indentedByExactly (P.mkPos 1)
   -- Capture all characters until the closing fence (```)
-  code_contents <- P.manyTill P.anySingle (keyword "```")
+  code_contents <- P.manyTill P.anySingle $ exactMatchNoLookahead "```"
   -- Allocate a fresh node ID and construct the HsBlock AST node
   i <- getNewNodeId
   -- Convert the character list to a Text chunk

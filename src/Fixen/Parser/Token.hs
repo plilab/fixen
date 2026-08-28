@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
@@ -10,15 +11,15 @@
 --
 --     This module defines all token-level parsers used by the Fixen parser.
 --     These are the lowest-level parsers that consume raw 'Text' input and
---     produce either unannotated 'Text' values or AST-annotated identifier
+--     produce either unannotated 'Text' values or annotated identifier
 --     types. They are organized into four categories:
 --
 --     * Raw string parsers — parse unannotated text fragments (identifiers,
 --       operator characters) without source-position annotations
 --
 --     * Identifier parsers — parse various forms of identifiers and fully
---       qualified names, wrapping them in 'AST.SimpleIdentifier',
---       'AST.FullyQualifiedName', 'AST.ModuleName', and 'AST.Identifier'
+--       qualified names, wrapping them in 'SimpleIdentifier',
+--       'FullyQualifiedName', 'ModuleName', and 'Identifier'
 --       types while recording source positions via 'parsePositioned'
 --
 --     * Literal parsers — parse string, integer, and natural number literals
@@ -29,84 +30,38 @@
 --
 --     The 'parseRaw...' parsers produce unannotated 'Text' values and serve
 --     as the foundation for the higher-level 'parse...Identifier' parsers,
---     which wrap results in 'AST.SimpleIdentifier', 'AST.FullyQualifiedName',
---     and 'AST.Identifier' types while recording source positions.
+--     which wrap results in 'SimpleIdentifier', 'FullyQualifiedName',
+--     and 'Identifier' types while recording source positions.
 --
 -- @since 26.7
-module Fixen.Parser.Token (
-  -- * Raw string parsers
-  -- $raw
-
-  -- ** Letter identifier strings
-  parseRawLowerHsIdentifierString,
-  parseRawCapitalizedHsIdentifierString,
-  parseRawAnyCaseHsIdentifierString,
-  parseRawAnyCaseHsIdentifierStringNotHole,
-
-  -- ** Operator identifier strings
-  parseRawOpChar,
-  parseRawOpIdentifierString,
-
-  -- * Identifier parsers
-  -- $id
-  parseLowerFirstSimpleIdentifier,
-  parseLowerFirstSimpleIdentifierOrHole,
-  parseCapitalizedSimpleIdentifier,
-  parseCapitalizedFQN,
-  parseLowerFirstFQN,
-  parseCapitalizedIdentifier,
-  parseAnyCasedLetterSimpleIdentifier,
-  parseAnyCasedLetterFQN,
-  parseAnyCasedLetterIdentifier,
-  parseOpSimpleIdentifier,
-  parseOpFQN,
-  parseOpIdentifier,
-  parseInfixTermIdentifier,
-  parseNonInfixTermIdentifier,
-  parseNonInfixOpIdentifier,
-  parseModuleName,
-
-  -- * Literals
-  parseRawString,
-  parseRawInteger,
-  parseRawNatural,
-
-  -- * Miscellaneous
-  opChars,
-  reserved,
-  reservedOps,
-  keyword,
-  keywordOp,
-  turnstile,
-  ltOrSqSubsetEq,
-) where
+module Fixen.Parser.Token where
 
 import Control.Applicative.Combinators (
-  choice,
-  manyTill,
-  some,
+  manyTill_,
   (<|>),
  )
 import Control.Monad.Combinators.NonEmpty qualified as PNE
+import Data.Char
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
+import Data.Text qualified as Text
 import Error.Diagnose.Position
-import Fixen.IR.AST qualified as AST
+import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser.Common
+import Fixen.Parser.Error
+import Fixen.Utils
 import GHC.Natural (Natural)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
-import Text.Megaparsec.Error (ErrorFancy (ErrorFail))
 import Text.Megaparsec.Pos qualified as MPos
 
 -------------------------------------------------------------------------------
---
--- Tokenizers
---
--------------------------------------------------------------------------------
+
+-- * Tokenizers
 
 -- $raw
 -- The @parseRaw...@ parsers are the lowest-level parsers that directly parse
@@ -115,98 +70,37 @@ import Text.Megaparsec.Pos qualified as MPos
 -- used by the higher-level identifier parsers that wrap results with
 -- 'parsePositioned'.
 
--- | Parses an identifier string whose first character is a lowercase letter
--- or underscore (@_@), with the remaining characters being valid Haskell
--- identifier characters (alphanumeric, underscore, apostrophe). The parsed
--- string must not match any entry in 'reserved'.
---
--- It also rejects holes @_@.
---
--- Examples: @hello@ (accepted), @x'@ (accepted), @_123X@ (accepted),
---           @Int@ (rejected—starts with uppercase), @if@ (rejected — reserved),
---           @_@ (rejected—hole)
---
--- @since 26.7
-parseRawLowerHsIdentifierString :: Parser σ Text
-parseRawLowerHsIdentifierString = do
-  -- Capture the current byte offset so we can report errors at the
-  -- correct source position if the result turns out to be a reserved keyword
-  offset_start <- P.getOffset
-  -- Parse the identifier: first character must be lowercase or underscore,
-  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
-  -- Then convert the resulting [Char] to a Text value
-  str <-
-    fmap pack $
-      (:)
-        <$> (C.lowerChar <|> P.single '_') -- first char: lowercase letter or underscore
-        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-        -- Reject the parse if the resulting string matches a reserved keyword
-  if str `elem` reserved
-    then -- emit a parse error indicating the keyword was unexpected
-      P.parseError
-        ( P.FancyError
-            offset_start
-            ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
-            )
-        )
-    else
-      if str == "_"
-        then
-          P.parseError
-            ( P.FancyError
-                offset_start
-                ( Set.singleton
-                    (ErrorFail $ "unexpected hole _")
-                )
-            )
-        else return str -- accept the parsed string
+-------------------------------------------------------------------------------
 
--- | Same as 'parseRawLowerHsIdentifierString', except that it also accepts
--- the hole @_@.
+-- | A parser for a generic token. This parser always
+-- succeeds on non-empty input. This means that the output must
+-- be inspected for this parser to be meaningful. In particular,
+-- you must supply an "expected" whenever the parser that uses 'token'
+-- fails. This is so that we can properly highlight failing tokens
+-- in error messages instead of highlighting only the first character.
 --
--- @since 26.7
-parseRawLowerHsIdentifierStringOrHole :: Parser σ Text
-parseRawLowerHsIdentifierStringOrHole = do
-  -- Capture the current byte offset so we can report errors at the
-  -- correct source position if the result turns out to be a reserved keyword
-  offset_start <- P.getOffset
-  -- Parse the identifier: first character must be lowercase or underscore,
-  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
-  -- Then convert the resulting [Char] to a Text value
-  str <-
-    fmap pack $
-      (:)
-        <$> (C.lowerChar <|> P.single '_') -- first char: lowercase letter or underscore
-        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-        -- Reject the parse if the resulting string matches a reserved keyword
-  if str `elem` reserved
-    then -- emit a parse error indicating the keyword was unexpected
-      P.parseError
-        ( P.FancyError
-            offset_start
-            ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
-            )
-        )
-    else return str -- accept the parsed string
-
--- | Parses an identifier string whose first character is an uppercase letter,
--- with the remaining characters being valid Haskell type/constructor identifier
--- characters (alphanumeric, underscore, apostrophe). Unlike
--- 'parseRawLowerHsIdentifierString', this parser does __not__ reject reserved
--- keywords because type/constructor names cannot conflict with keywords.
---
--- Examples: @Int@ (accepted), @A'@ (accepted), @int@ (rejected — starts lowercase)
---
--- @since 26.7
-parseRawCapitalizedHsIdentifierString :: Parser σ Text
-parseRawCapitalizedHsIdentifierString =
-  -- Parse the capitalized identifier string and convert [Char] to Text
-  fmap pack $
-    (:)
-      <$> C.upperChar -- first character MUST be an uppercase letter
-      <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- remaining: alphanumeric, underscore, or apostrophe
+-- @since 26.8
+parseSomeToken :: Parser σ Text
+parseSomeToken =
+  parseAlphaNumToken
+    <|> parseOpToken
+    -- at this point, this is just bullshit
+    -- used for error messages
+    <|> fmap pack (P.some C.digitChar)
+    -- some unrecognizable thing
+    <|> fmap Text.singleton P.anySingle
+  where
+    parseAlphaNumToken :: Parser σ Text
+    parseAlphaNumToken =
+      -- Parse the identifier: first char is lowercase, uppercase, or
+      -- underscore; followed by zero or more alphanumeric characters,
+      -- underscores, or apostrophes
+      fmap pack $
+        (:)
+          <$> (C.lowerChar <|> P.single '_' <|> C.upperChar) -- first char: any case letter or underscore
+          <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
+    parseOpToken :: Parser σ Text
+    parseOpToken = P.takeWhile1P (Just "operator character") isValidOpChar
 
 -- | Parses an identifier string whose first character can be lowercase,
 -- uppercase, or underscore, with remaining characters being valid Haskell
@@ -221,83 +115,112 @@ parseRawCapitalizedHsIdentifierString =
 -- @since 26.7
 parseRawAnyCaseHsIdentifierString :: Parser σ Text
 parseRawAnyCaseHsIdentifierString = do
-  -- Capture the current byte offset for error reporting
+  -- Capture the current byte offset so we can report errors at the
+  -- correct source position if the result turns out to be a reserved keyword
   offset_start <- P.getOffset
-  -- Parse the identifier: first char is lowercase, uppercase, or underscore;
-  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
-  str <-
-    fmap pack $
-      (:)
-        <$> (C.lowerChar <|> P.single '_' <|> C.upperChar) -- first char: any case letter or underscore
-        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-        -- Reject if the string matches a reserved keyword
-  if str `elem` reserved
-    then -- emit a parse error for the reserved keyword
-      P.parseError
-        ( P.FancyError
-            offset_start
-            ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
-            )
-        )
-    else
-      if str == "_"
-        then
-          P.parseError
-            ( P.FancyError
-                offset_start
-                ( Set.singleton
-                    (ErrorFail $ "unexpected hole _")
-                )
-            )
-        else return str -- accept the parsed string
+  str <- parseSomeToken
+  if
+    | Text.any isValidOpChar str ->
+        -- operator; disallowed!
+        standard_error offset_start str []
+    | Nothing <- Text.uncons str ->
+        -- parseSomeToken always returns nonempty input, unless
+        -- EOF is reached, in which case, parseSomeToken will error out
+        -- anyway.
+        error "unreachable!"
+    | str ∈ reserved ->
+        -- disallow keywords
+        standard_error
+          offset_start
+          str
+          [Note $ "'" ++ unpack str ++ "' is a reserved keyword"]
+    | Just (h, _) <- Text.uncons str
+    , (¬) (isUpper h) ∧ (¬) (isLower h) ∧ h ≠ '_' ->
+        standard_error offset_start str []
+    | str == "_" ->
+        standard_error
+          offset_start
+          str
+          [Note $ "hole '" ++ unpack str ++ "' is not allowed in this position"]
+    | otherwise -> return str
+  where
+    standard_error offset s h =
+      customErrorWithOffset offset $
+        FixenTrivialParseError
+          (Just (textToTokens s))
+          (Set.singleton (P.Label $ 'i' :| "dentifier"))
+          []
+          h
 
--- | Same as 'parseRawAnyCaseHsIdentifierString' except that the hole
--- @_@ is rejected.
+-- | Parses an identifier string whose first character is a lowercase letter
+-- or underscore (@_@), with the remaining characters being valid Haskell
+-- identifier characters (alphanumeric, underscore, apostrophe). The parsed
+-- string must not match any entry in 'reserved'.
+--
+-- It also rejects holes @_@.
+--
+-- Examples: @hello@ (accepted), @x'@ (accepted), @_123X@ (accepted),
+--           @Int@ (rejected—starts with uppercase), @if@ (rejected — reserved),
+--           @_@ (rejected—hole)
 --
 -- @since 26.7
-parseRawAnyCaseHsIdentifierStringNotHole :: Parser σ Text
-parseRawAnyCaseHsIdentifierStringNotHole = do
-  -- Capture the current byte offset for error reporting
+parseRawLowerHsIdentifierString :: Parser σ Text
+parseRawLowerHsIdentifierString = P.try $ do
+  -- Capture the current byte offset so we can report errors at the
+  -- correct source position if the result turns out to be a reserved keyword
   offset_start <- P.getOffset
-  -- Parse the identifier: first char is lowercase, uppercase, or underscore;
-  -- followed by zero or more alphanumeric characters, underscores, or apostrophes
-  str <-
-    fmap pack $
-      (:)
-        <$> (C.lowerChar <|> P.single '_' <|> C.upperChar) -- first char: any case letter or underscore
-        <*> P.many (C.alphaNumChar <|> P.single '_' <|> P.single '\'') -- rest: alphanumeric, underscore, or apostrophe
-        -- Reject if the string matches a reserved keyword
-  if str `elem` reserved
-    then -- emit a parse error for the reserved keyword
-      P.parseError
-        ( P.FancyError
-            offset_start
+  str <- parseRawAnyCaseHsIdentifierString
+  if
+    | Just (h, _) <- Text.uncons str
+    , (¬) (isLower h) ∧ h ≠ '_' ->
+        customErrorWithOffset offset_start $
+          FixenTrivialParseError
+            (Just (textToTokens str))
             ( Set.singleton
-                (ErrorFail $ "unexpected reserved keyword '" ++ unpack str ++ "'")
+                (P.Label $ 'i' :| "dentifier starting with lowercase letter")
             )
-        )
-    else
-      if str == "_"
-        then
-          P.parseError
-            ( P.FancyError
-                offset_start
-                ( Set.singleton
-                    (ErrorFail $ "unexpected reserved hole _")
-                )
-            )
-        else return str -- accept the parsed string
+            []
+            []
+    | otherwise -> return str
 
--- | Parses a single character from the set of valid Haskell operator
--- characters defined in 'opChars'. Each character in 'opChars' is wrapped
--- in 'P.single' and combined with 'choice' to try each in turn.
+-- | Same as 'parseRawLowerHsIdentifierString', except that it also accepts
+-- the hole @_@.
 --
 -- @since 26.7
-parseRawOpChar :: Parser σ Char
-parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
+parseRawLowerHsIdentifierStringOrHole :: Parser σ Text
+parseRawLowerHsIdentifierStringOrHole =
+  P.try parseRawLowerHsIdentifierString <|> C.string "_"
 
--- | Parses a non-empty string of operator characters (from 'opChars').
+-- | Parses an identifier string whose first character is an uppercase letter,
+-- with the remaining characters being valid Haskell type/constructor identifier
+-- characters (alphanumeric, underscore, apostrophe).
+--
+-- Examples: @Int@ (accepted), @A'@ (accepted), @int@ (rejected — starts lowercase)
+--
+-- @since 26.7
+parseRawCapitalizedHsIdentifierString :: Parser σ Text
+parseRawCapitalizedHsIdentifierString = do
+  -- Capture the current byte offset so we can report errors at the
+  -- correct source position if the result turns out to be a reserved keyword
+  offset_start <- P.getOffset
+  str <- parseRawAnyCaseHsIdentifierString
+  if
+    | Just (h, _) <- Text.uncons str
+    , (¬) (isUpper h) ->
+        customErrorWithOffset offset_start $
+          FixenTrivialParseError
+            (Just (textToTokens str))
+            ( Set.singleton
+                ( P.Label $
+                    'i'
+                      :| "dentifier starting with uppercase/titlecase letter"
+                )
+            )
+            []
+            []
+    | otherwise -> return str
+
+-- | Parses a non-empty string of operator characters.
 -- The resulting string must not match any entry in 'reservedOps'.
 -- Requires at least one operator character.
 --
@@ -306,334 +229,349 @@ parseRawOpChar = choice (P.single <$> opChars) -- try each operator character
 -- @since 26.7
 parseRawOpIdentifierString :: Parser σ Text
 parseRawOpIdentifierString = do
-  -- Capture the current byte offset for error reporting
   offset_start <- P.getOffset
-  -- Parse one or more operator characters, then convert to Text
-  -- Note: uses 'some' (not 'many') to require at least one operator char
-  str <- pack <$> some parseRawOpChar
-  -- Reject if the string matches a reserved operator
-  if str `elem` reservedOps
-    then -- emit a parse error for the reserved operator
-      P.parseError
-        ( P.FancyError
-            offset_start
-            ( Set.singleton
-                (ErrorFail $ "unexpected reserved operator (" ++ unpack str ++ ")")
-            )
-        )
-    else return str -- accept the parsed operator string
+  str <- parseSomeToken
+  if
+    | (¬) (Text.all isValidOpChar str) ->
+        standard_error offset_start str []
+    | str ∈ reservedOps ->
+        standard_error
+          offset_start
+          str
+          [Note $ "'" ++ unpack str ++ "' is a reserved symbol"]
+    | Text.all (== '-') str ∧ Text.length str >= 2 ->
+        standard_error
+          offset_start
+          str
+          [Note "dashes start comments"]
+    | otherwise -> return str
+  where
+    standard_error offset s h =
+      customErrorWithOffset offset $
+        FixenTrivialParseError
+          (Just $ textToTokens s)
+          (Set.singleton $ P.Label $ 'o' :| "perator")
+          []
+          h
 
 -------------------------------------------------------------------------------
---
--- Identifier parsers
---
--------------------------------------------------------------------------------
+
+-- * Identifier parsers
 
 -- $id
--- The @parse...Identifier@ parsers parse 'AST'-annotated strings. These parsers
+-- The @parse...Identifier@ parsers parse '-annotated strings. These parsers
 -- __do not consume trailing whitespace__ after parsing. Different kinds of
 -- identifiers are valid in different syntactic contexts: for instance,
 -- operators can appear without parentheses in infix position, while regular
 -- identifiers must be surrounded by backticks when used infix.
 
+-------------------------------------------------------------------------------
+
 -- | Parses a module name as a series of one or more capitalized simple
 -- identifiers separated by dots. For example, @Data.List@ or
 -- @MyCompany.MyProject.MyModule@.
 --
--- The result is wrapped in 'AST.ModuleName' with a fresh node ID and
+-- The result is wrapped in 'ModuleName' with a fresh node ID and
 -- source position recorded via 'parsePositioned'.
 --
 -- @since 26.7
-parseModuleName :: ParserState σ => Parser σ AST.ModuleName
+parseModuleName :: ParserState σ => Parser σ ModuleName
 parseModuleName = parsePositioned $ do
   -- Parse one or more capitalized identifiers separated by dots,
   -- producing a NonEmpty list of SimpleIdentifiers
-  ls <- PNE.sepBy1 parseCapitalizedSimpleIdentifier (P.single '.')
-  -- Allocate a fresh node ID for the module name AST node
+  ls <- PNE.sepBy1 parseCapitalizedSimpleIdentifier (exactMatchNoLookahead ".")
+  -- Allocate a fresh node ID for the module name node
   i <- getNewNodeId
-  -- Construct and return the AST.ModuleName value
-  return $ AST.ModuleName i ls
+  -- Construct and return the ModuleName value
+  return $ ModuleName i ls
 
 -- | Parses a simple identifier starting with a lowercase letter (or underscore)
--- and wraps it in 'AST.SimpleIdentifier'. These represent non-constructor
+-- and wraps it in 'SimpleIdentifier'. These represent non-constructor
 -- variables that are __not__ used in infix position.
 --
 -- Source position and a fresh node ID are recorded via 'parsePositioned'.
 --
 -- @since 26.7
-parseLowerFirstSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifier :: ParserState σ => Parser σ SimpleIdentifier
 parseLowerFirstSimpleIdentifier = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
   str <- parseRawLowerHsIdentifierString
-  -- Allocate a fresh node ID for the AST node
+  -- Allocate a fresh node ID for the node
   i <- getNewNodeId
-  -- Construct and return the SimpleIdentifier AST node
-  return $ AST.SimpleIdentifier i str
+  -- Construct and return the SimpleIdentifier node
+  return $ SimpleIdentifier i str
 
 -- | Same as 'parseLowerFirstSimpleIdentifier', except that it accepts
 -- the hole @_@.
 --
 -- @since 26.7
-parseLowerFirstSimpleIdentifierOrHole :: ParserState σ => Parser σ AST.SimpleIdentifier
+parseLowerFirstSimpleIdentifierOrHole :: ParserState σ => Parser σ SimpleIdentifier
 parseLowerFirstSimpleIdentifierOrHole = parsePositioned $ do
   -- Parse the raw identifier string (lowercase-first, not reserved)
   str <- parseRawLowerHsIdentifierStringOrHole
-  -- Allocate a fresh node ID for the AST node
+  -- Allocate a fresh node ID for the node
   i <- getNewNodeId
-  -- Construct and return the SimpleIdentifier AST node
-  return $ AST.SimpleIdentifier i str
+  -- Construct and return the SimpleIdentifier node
+  return $ SimpleIdentifier i str
 
 -- | Parses a fully qualified name whose last component starts with a lowercase
 -- letter. For example, @Data.List.map@ or @MyModule.myFunction@.
 --
--- The structure is: capitalized module path (e.g. @Data.List@) followed by
--- a dot and a lowercase-starting simple identifier. The result is wrapped in
--- 'AST.FullyQualifiedName' with source position recorded via 'parsePositioned'.
---
 -- @since 26.7
-parseLowerFirstFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
+parseLowerFirstFQN :: ParserState σ => Parser σ FullyQualifiedName
 parseLowerFirstFQN = parsePositioned $ do
   -- Parse the module prefix: one or more capitalized identifiers separated by dots
   module_name <- parsePrefix
   -- Consume the dot separator between module name and final identifier
-  _ <- P.single '.'
+  _ <- exactMatchNoLookahead "."
   -- Parse the final lowercase-first simple identifier
   ident <- parseLowerFirstSimpleIdentifier
-  -- Allocate a fresh node ID and construct the FullyQualifiedName AST node
+  -- Allocate a fresh node ID and construct the FullyQualifiedName node
   i <- getNewNodeId
-  return $ AST.FullyQualifiedName i module_name ident
+  return $ FullyQualifiedName i module_name ident
   where
     -- Parse a module name as one or more capitalized identifiers separated by dots
-    parsePrefix :: ParserState σ => Parser σ AST.ModuleName
+    parsePrefix :: ParserState σ => Parser σ ModuleName
     parsePrefix = parsePositioned $ do
-      -- Parse the first capitalized identifier (head of the module path)
       hd <- parseCapitalizedSimpleIdentifier
-      -- Parse zero or more additional capitalized identifiers, each preceded by a dot
-      tl <- manyNonFailing (P.single '.' *> parseCapitalizedSimpleIdentifier)
-      -- Allocate a fresh node ID and construct the ModuleName AST node
+      tl <-
+        P.many $
+          P.try $
+            exactMatchNoLookahead "." *> parseCapitalizedSimpleIdentifier
       i <- getNewNodeId
-      return $ AST.ModuleName i (hd NE.:| tl)
-    -- Parse zero or more repetitions of a parser without failing if zero matches
-    -- Uses 'P.observing' to backtrack: if the parser fails, returns empty list
-    -- without consuming input; if it succeeds, recurses to find more
-    manyNonFailing :: Parser σ a -> Parser σ [a]
-    manyNonFailing p = do
-      -- Attempt to parse with backtracking on failure
-      m <- P.observing (P.try p)
-      case m of
-        Left _ -> return [] -- parser failed — no more items, return empty list
-        Right e -> (:) e <$> manyNonFailing p -- got an item — cons and recurse
+      return $ ModuleName i (hd NE.:| tl)
 
 -- | Parses a simple identifier starting with an uppercase letter and wraps
--- it in 'AST.SimpleIdentifier'. These represent constructor names or
+-- it in 'SimpleIdentifier'. These represent constructor names or
 -- capitalized variables that are __not__ used in infix position.
 --
--- Source position and a fresh node ID are recorded via 'parsePositioned'.
---
 -- @since 26.7
-parseCapitalizedSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
+parseCapitalizedSimpleIdentifier :: ParserState σ => Parser σ SimpleIdentifier
 parseCapitalizedSimpleIdentifier = parsePositioned $ do
-  -- Parse the raw capitalized identifier string
   str <- parseRawCapitalizedHsIdentifierString
-  -- Allocate a fresh node ID for the AST node
   i <- getNewNodeId
-  -- Construct and return the SimpleIdentifier AST node
-  return $ AST.SimpleIdentifier i str
+  return $ SimpleIdentifier i str
 
 -- | Parses a fully qualified name whose last component starts with an uppercase
 -- letter. For example, @Data.List@ or @MyModule.MyType@.
 --
--- The structure is: one or more capitalized identifiers separated by dots.
--- The result is split into a 'AST.ModuleName' (all but the last component)
--- and a final 'AST.SimpleIdentifier' (the last component). Source positions
--- are manually computed and attached via 'setPosition'.
---
--- Requires at least two dot-separated identifiers; a single identifier
--- (e.g. @Just@) is rejected here and should be parsed by
--- 'parseCapitalizedSimpleIdentifier' instead.
---
 -- @since 26.7
-parseCapitalizedFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
+parseCapitalizedFQN :: ParserState σ => Parser σ FullyQualifiedName
 parseCapitalizedFQN = do
-  -- Capture the current byte offset for error reporting
-  offset_start <- P.getOffset
+  x <- parseCapitalizedSimpleIdentifier
+  _ <- exactMatchNoLookahead "."
+  x' <- parseCapitalizedSimpleIdentifier
+  ls <- P.many (exactMatchNoLookahead "." *> parseCapitalizedSimpleIdentifier)
   -- Parse one or more capitalized identifiers separated by dots
-  ls <- P.sepBy1 parseCapitalizedSimpleIdentifier (P.single '.')
-  case ls of
-    -- Accept only if there are at least two components (module + name)
-    (x : x' : ls') -> do
-      let -- Split into first component and the remaining non-empty tail
-          (first_ident, remaining_idents) = (x, x' NE.:| ls')
-          -- The module name comprises all components except the last one
-          mod_name = first_ident NE.:| NE.init remaining_idents
-          -- The final name component is the last element
-          name = NE.last remaining_idents
-      -- Get source positions for the first and last module name components
-      m_init_pos <- getPosition first_ident
-      m_last_pos <- getPosition (NE.last mod_name)
-      -- Get source position for the final name component
-      name_pos <- getPosition name
-      let -- The module name position spans from the start of the first
-          -- component to the end of the last module name component
-          m_pos =
-            Position
-              { begin = begin m_init_pos
-              , end = end m_last_pos
-              , file = file m_init_pos
-              }
-          -- The full FQN position spans from the start of the first
-          -- component to the end of the final name component
-          fqn_pos =
-            Position
-              { begin = begin m_init_pos
-              , end = end name_pos
-              , file = file m_init_pos
-              }
-      -- Allocate fresh node IDs for the ModuleName and FullyQualifiedName nodes
-      i <- getNewNodeId
-      i' <- getNewNodeId
-      -- Construct the AST nodes
-      let parsed_mod_name = AST.ModuleName i mod_name
-          parsed_fqn = AST.FullyQualifiedName i' parsed_mod_name name
-      -- Attach source positions to the ModuleName and FullyQualifiedName nodes
-      setPosition parsed_mod_name m_pos
-      setPosition parsed_fqn fqn_pos
-      -- Return the FullyQualifiedName AST node
-      return $ AST.FullyQualifiedName i' (AST.ModuleName i mod_name) name
-    -- If fewer than two components, emit an error requiring a module name
-    _ ->
-      P.parseError
-        ( P.FancyError
-            offset_start
-            ( Set.singleton
-                (ErrorFail "expected module name")
-            )
-        )
+  let -- Split into first component and the remaining non-empty tail
+      (first_ident, remaining_idents) = (x, x' NE.:| ls)
+      -- The module name comprises all components except the last one
+      mod_name = first_ident NE.:| NE.init remaining_idents
+      -- The final name component is the last element
+      name = NE.last remaining_idents
+  -- Get source positions for the first and last module name components
+  m_init_pos <- getPosition first_ident
+  m_last_pos <- getPosition (NE.last mod_name)
+  -- Get source position for the final name component
+  name_pos <- getPosition name
+  let -- The module name position spans from the start of the first
+      -- component to the end of the last module name component
+      m_pos =
+        Position
+          { begin = begin m_init_pos
+          , end = end m_last_pos
+          , file = file m_init_pos
+          }
+      -- The full FQN position spans from the start of the first
+      -- component to the end of the final name component
+      fqn_pos =
+        Position
+          { begin = begin m_init_pos
+          , end = end name_pos
+          , file = file m_init_pos
+          }
+  -- Allocate fresh node IDs for the ModuleName and FullyQualifiedName nodes
+  i <- getNewNodeId
+  i' <- getNewNodeId
+  -- Construct the nodes
+  let parsed_mod_name = ModuleName i mod_name
+      parsed_fqn = FullyQualifiedName i' parsed_mod_name name
+  -- Attach source positions to the ModuleName and FullyQualifiedName nodes
+  setPosition parsed_mod_name m_pos
+  setPosition parsed_fqn fqn_pos
+  -- Return the FullyQualifiedName node
+  return $ FullyQualifiedName i' (ModuleName i mod_name) name
 
 -- | Parses either a capitalized fully qualified name (e.g. @Data.List@) or
 -- a capitalized simple identifier (e.g. @Just@). Returns the result wrapped
--- in the corresponding 'AST.Identifier' constructor.
---
--- Uses 'P.try' on 'parseCapitalizedFQN' to backtrack if the FQN parse
--- fails, falling through to 'parseCapitalizedSimpleIdentifier'.
+-- in the corresponding 'Identifier' constructor.
 --
 -- @since 26.7
-parseCapitalizedIdentifier :: ParserState σ => Parser σ AST.Identifier
+parseCapitalizedIdentifier :: ParserState σ => Parser σ Identifier
 parseCapitalizedIdentifier =
   -- Attempt to parse a capitalized fully qualified name first
-  (AST.IdentifierFullyQualifiedName <$> P.try parseCapitalizedFQN)
+  ( IdentifierFullyQualifiedName
+      <$> P.try
+        ( parseCapitalizedFQN
+            <* P.notFollowedBy (P.single '.')
+        )
+  )
     -- Fall back to parsing a capitalized simple identifier
-    <|> (AST.IdentifierSimpleIdentifier <$> parseCapitalizedSimpleIdentifier)
+    <|> ( IdentifierSimpleIdentifier
+            <$> parseCapitalizedSimpleIdentifier
+            <* P.notFollowedBy (P.single '.')
+        )
 
 -- | Parses a simple identifier (any case for the first letter) and wraps
--- it in 'AST.SimpleIdentifier'. These represent normal terms or constructors
+-- it in 'SimpleIdentifier'. These represent normal terms or constructors
 -- that are __not__ used in infix position.
 --
--- Source position and a fresh node ID are recorded via 'parsePositioned'.
---
 -- @since 26.7
-parseAnyCasedLetterSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
+parseAnyCasedLetterSimpleIdentifier :: ParserState σ => Parser σ SimpleIdentifier
 parseAnyCasedLetterSimpleIdentifier = parsePositioned $ do
-  -- Parse the raw identifier string (any case, not reserved)
   str <- parseRawAnyCaseHsIdentifierString
-  -- Allocate a fresh node ID for the AST node
   i <- getNewNodeId
-  -- Construct and return the SimpleIdentifier AST node
-  return $ AST.SimpleIdentifier i str
+  return $ SimpleIdentifier i str
 
 -- | Parses a fully qualified name regardless of the case of its last component.
 -- Attempts 'parseLowerFirstFQN' first (for names like @Data.List.map@),
 -- then falls back to 'parseCapitalizedFQN' (for names like @Data.List@).
 --
--- Uses 'P.try' on the lower-first variant to backtrack on failure.
---
 -- @since 26.7
-parseAnyCasedLetterFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
+parseAnyCasedLetterFQN :: ParserState σ => Parser σ FullyQualifiedName
 parseAnyCasedLetterFQN = P.try parseLowerFirstFQN <|> parseCapitalizedFQN
 
 -- | Parses either a fully qualified name (any case last component, e.g.
 -- @Data.List@ or @Data.List.map@) or a simple identifier (any case, e.g.
--- @Just@ or @myFunction@). Returns the result wrapped in the corresponding
--- 'AST.Identifier' constructor.
---
--- These represent normal terms or constructors that are __not__ used in infix.
+-- @Just@ or @myFunction@).
 --
 -- @since 26.7
-parseAnyCasedLetterIdentifier :: ParserState σ => Parser σ AST.Identifier
+parseAnyCasedLetterIdentifier :: ParserState σ => Parser σ Identifier
 parseAnyCasedLetterIdentifier =
   -- Attempt to parse a fully qualified name first (with backtracking)
-  (AST.IdentifierFullyQualifiedName <$> P.try parseAnyCasedLetterFQN)
+  ( IdentifierFullyQualifiedName
+      <$> P.try
+        ( parseAnyCasedLetterFQN
+            <* P.notFollowedBy (exactMatchNoLookahead ".")
+        )
+  )
     -- Fall back to parsing a simple identifier
-    <|> (AST.IdentifierSimpleIdentifier <$> parseAnyCasedLetterSimpleIdentifier)
+    <|> ( IdentifierSimpleIdentifier
+            <$> parseAnyCasedLetterSimpleIdentifier
+            <* P.notFollowedBy (exactMatchNoLookahead ".")
+        )
 
--- | Parses a simple operator identifier (a non-empty string of operator
--- characters from 'opChars') and wraps it in 'AST.SimpleIdentifier'.
--- The parsed string must not match any entry in 'reservedOps'.
---
--- Source position and a fresh node ID are recorded via 'parsePositioned'.
+-- | Parses a simple operator identifier and wraps it in 'SimpleIdentifier'.
 --
 -- @since 26.7
-parseOpSimpleIdentifier :: ParserState σ => Parser σ AST.SimpleIdentifier
+parseOpSimpleIdentifier :: ParserState σ => Parser σ SimpleIdentifier
 parseOpSimpleIdentifier = parsePositioned $ do
-  -- Parse the raw operator identifier string (non-empty, not reserved)
   str <- parseRawOpIdentifierString
-  -- Allocate a fresh node ID for the AST node
   i <- getNewNodeId
-  -- Construct and return the SimpleIdentifier AST node
-  return $ AST.SimpleIdentifier i str
+  return $ SimpleIdentifier i str
+
+-- | Parses a simple type operator identifier and wraps it in 'SimpleIdentifier'.
+-- The parsed string must not match any entry in 'reservedOps'. Must start
+-- with @:@ and have at least two characters.
+--
+-- @since 26.8
+parseTypeOpSimpleIdentifier :: ParserState σ => Parser σ SimpleIdentifier
+parseTypeOpSimpleIdentifier = parsePositioned $ do
+  offset_start <- P.getOffset
+  str <- parseRawOpIdentifierString
+  case Text.uncons str of
+    Just (':', "") ->
+      standard_error offset_start str [Note "':' is a reserved keyword"]
+    Just (':', _) -> do
+      i <- getNewNodeId
+      return $ SimpleIdentifier i str
+    _ ->
+      standard_error offset_start str [Note "type symbols must begin with ':'"]
+  where
+    standard_error offset s h =
+      customErrorWithOffset offset $
+        FixenTrivialParseError
+          (Just (textToTokens s))
+          (Set.singleton (P.Label $ 't' :| "ype symbol"))
+          []
+          h
+
+-- | Parses a fully qualified type operator name, such as @Data.List.:++@.
+-- The identifier portion must start with @:@.
+--
+-- @since 26.8
+parseTypeOpFQN :: ParserState σ => Parser σ FullyQualifiedName
+parseTypeOpFQN = parsePositioned $ do
+  module_name <- parsePrefix
+  _ <- exactMatchNoLookahead "."
+  ident <- parseTypeOpSimpleIdentifier
+  i <- getNewNodeId
+  return $ FullyQualifiedName i module_name ident
+  where
+    parsePrefix :: ParserState σ => Parser σ ModuleName
+    parsePrefix = parsePositioned $ do
+      hd <- parseCapitalizedSimpleIdentifier
+      tl <- P.many $ P.try $ exactMatchNoLookahead "." *> parseCapitalizedSimpleIdentifier
+      i <- getNewNodeId
+      return $ ModuleName i (hd NE.:| tl)
 
 -- | Parses a fully qualified operator name, such as @Data.List.++@.
 -- The structure is: capitalized module path followed by a dot and an
--- operator identifier. The result is wrapped in 'AST.FullyQualifiedName'
+-- operator identifier. The result is wrapped in 'FullyQualifiedName'
 -- with source position recorded via 'parsePositioned'.
 --
 -- @since 26.7
-parseOpFQN :: ParserState σ => Parser σ AST.FullyQualifiedName
+parseOpFQN :: ParserState σ => Parser σ FullyQualifiedName
 parseOpFQN = parsePositioned $ do
-  -- Parse the module prefix: one or more capitalized identifiers separated by dots
   module_name <- parsePrefix
-  -- Consume the dot separator between module name and operator
-  _ <- P.single '.'
-  -- Parse the operator identifier
+  _ <- exactMatchNoLookahead "."
   ident <- parseOpSimpleIdentifier
-  -- Allocate a fresh node ID and construct the FullyQualifiedName AST node
   i <- getNewNodeId
-  return $ AST.FullyQualifiedName i module_name ident
+  return $ FullyQualifiedName i module_name ident
   where
-    -- Parse a module name as one or more capitalized identifiers separated by dots
-    parsePrefix :: ParserState σ => Parser σ AST.ModuleName
+    parsePrefix :: ParserState σ => Parser σ ModuleName
     parsePrefix = parsePositioned $ do
-      -- Parse the first capitalized identifier (head of the module path)
       hd <- parseCapitalizedSimpleIdentifier
-      -- Parse zero or more additional capitalized identifiers, each preceded by a dot
-      tl <- manyNonFailing (P.single '.' *> parseCapitalizedSimpleIdentifier)
-      -- Allocate a fresh node ID and construct the ModuleName AST node
+      tl <- P.many $ P.try $ exactMatchNoLookahead "." *> parseCapitalizedSimpleIdentifier
       i <- getNewNodeId
-      return $ AST.ModuleName i (hd NE.:| tl)
-    -- Parse zero or more repetitions of a parser without failing if zero matches
-    -- Uses 'P.observing' to backtrack: if the parser fails, returns empty list
-    -- without consuming input; if it succeeds, recurses to find more
-    manyNonFailing :: Parser σ a -> Parser σ [a]
-    manyNonFailing p = do
-      -- Attempt to parse with backtracking on failure
-      m <- P.observing (P.try p)
-      case m of
-        Left _ -> return [] -- parser failed — no more items, return empty list
-        Right e -> (:) e <$> manyNonFailing p -- got an item — cons and recurse
+      return $ ModuleName i (hd NE.:| tl)
 
 -- | Parses either a fully qualified operator name (e.g. @Data.List.++@) or
 -- a simple operator identifier (e.g. @++@). Returns the result wrapped in
--- the corresponding 'AST.Identifier' constructor.
---
--- Uses 'P.try' on 'parseOpFQN' to backtrack if the FQN parse fails.
+-- the corresponding 'Identifier' constructor.
 --
 -- @since 26.7
-parseOpIdentifier :: ParserState σ => Parser σ AST.Identifier
+parseOpIdentifier :: ParserState σ => Parser σ Identifier
 parseOpIdentifier =
+  ( IdentifierFullyQualifiedName
+      <$> P.try (parseOpFQN <* P.notFollowedBy (exactMatchNoLookahead "."))
+  )
+    <|> ( IdentifierSimpleIdentifier
+            <$> ( parseOpSimpleIdentifier
+                    <* P.notFollowedBy (exactMatchNoLookahead ".")
+                )
+        )
+
+-- | Parses either a fully qualified operator name (e.g. @Data.List.:+@) or
+-- a simple operator identifier (e.g. @++@). Returns the result wrapped in
+-- the corresponding 'Identifier' constructor.
+--
+-- @since 26.8
+parseTypeOpIdentifier :: ParserState σ => Parser σ Identifier
+parseTypeOpIdentifier =
   -- Attempt to parse a fully qualified operator name first
-  (AST.IdentifierFullyQualifiedName <$> P.try parseOpFQN)
+  ( IdentifierFullyQualifiedName
+      <$> P.try
+        ( parseTypeOpFQN
+            <* P.notFollowedBy (exactMatchNoLookahead ".")
+        )
+  )
     -- Fall back to parsing a simple operator identifier
-    <|> (AST.IdentifierSimpleIdentifier <$> parseOpSimpleIdentifier)
+    <|> ( IdentifierSimpleIdentifier
+            <$> ( parseTypeOpSimpleIdentifier
+                    <* P.notFollowedBy (exactMatchNoLookahead ".")
+                )
+        )
 
 -- | Parses a term-level identifier usable in infix position. This covers:
 --
@@ -644,35 +582,61 @@ parseOpIdentifier =
 -- verify proper indentation around the backticks.
 --
 -- @since 26.7
-parseInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
+parseInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
 parseInfixTermIdentifier indent_check =
-  -- Attempt to parse a backtick-wrapped letter identifier (with backtracking)
   P.try (parseInfixLetterIdentifier indent_check)
-    -- Fall back to parsing an operator identifier
     <|> parseOpIdentifier
+
+-- | Parses a type-level identifier usable in infix position. This covers:
+--
+--   1. Letter-based identifiers surrounded by backticks (e.g. @`List`@, @`Data.Text`@)
+--   2. Operator identifiers (e.g. @:++:@, @Data.List.:@)
+--
+-- The 'indent_check' argument is used by 'parseInfixTypeLetterIdentifier' to
+-- verify proper indentation around the backticks.
+--
+-- @since 26.8
+parseInfixTypeIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
+parseInfixTypeIdentifier indent_check =
+  -- Attempt to parse a backtick-wrapped letter identifier (with backtracking)
+  P.try (parseInfixTypeLetterIdentifier indent_check)
+    -- Fall back to parsing an operator identifier
+    <|> parseTypeOpIdentifier
 
 -- | Parses a letter-based identifier used in infix position, surrounded
 -- by backticks (e.g. @`elem`@, @`notElem`@, @`Just`@). The annotated
--- source positions stored in the AST do __not__ include the backtick
+-- source positions stored in the do __not__ include the backtick
 -- characters themselves — only the inner identifier is position-annotated.
 --
 -- The 'indentCheck' argument verifies that both the opening and closing
 -- backticks are at proper indentation levels.
 --
 -- @since 26.7
-parseInfixLetterIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
+parseInfixLetterIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
 parseInfixLetterIdentifier indentCheck = do
-  -- Consume the opening backtick
-  _ <- P.single '`'
-  -- Verify proper indentation before the opening backtick
+  _ <- exactMatchNoLookahead "`"
   _ <- indentCheck
-  -- Parse the inner letter-based identifier (any case, FQN or simple)
   ident <- parseAnyCasedLetterIdentifier
-  -- Verify proper indentation after the closing backtick
   _ <- indentCheck
-  -- Consume the closing backtick
-  _ <- P.single '`'
-  -- Return the parsed identifier (backticks are not part of the AST node)
+  _ <- exactMatchNoLookahead "`"
+  return ident
+
+-- | Parses a identifier for types used in infix position, surrounded
+-- by backticks (e.g. @`List`@, @`Data.Text`@). The annotated
+-- source positions stored in the do __not__ include the backtick
+-- characters themselves — only the inner identifier is position-annotated.
+--
+-- The 'indentCheck' argument verifies that both the opening and closing
+-- backticks are at proper indentation levels.
+--
+-- @since 26.8
+parseInfixTypeLetterIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
+parseInfixTypeLetterIdentifier indentCheck = do
+  _ <- exactMatchNoLookahead "`"
+  _ <- indentCheck
+  ident <- parseCapitalizedIdentifier
+  _ <- indentCheck
+  _ <- exactMatchNoLookahead "`"
   return ident
 
 -- | Parses a term-level identifier that is __not__ used in infix position.
@@ -686,12 +650,22 @@ parseInfixLetterIdentifier indentCheck = do
 -- verify proper indentation of the parentheses.
 --
 -- @since 26.7
-parseNonInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
+parseNonInfixTermIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
 parseNonInfixTermIdentifier indent_check =
-  -- Attempt to parse any cased letter identifier first (FQN or simple)
   P.try parseAnyCasedLetterIdentifier
-    -- Fall back to parsing a parenthesized operator
     <|> parseNonInfixOpIdentifier indent_check
+
+-- | Parses a type operator identifier used in non-infix (prefix) notation,
+-- wrapped in parentheses (e.g. @(:+)@, @(Data.List.:|)@). Essentially
+-- 'parseTypeOpIdentifier' surrounded by parentheses.
+--
+-- The 'indent_check' argument verifies proper indentation of both the
+-- opening and closing parentheses.
+--
+-- @since 26.8
+parseNonInfixTypeOpIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
+parseNonInfixTypeOpIdentifier indent_check =
+  betweenParentheses indent_check parseTypeOpIdentifier
 
 -- | Parses an operator identifier used in non-infix (prefix) notation,
 -- wrapped in parentheses (e.g. @(++)@, @(Data.List.++)@). Essentially
@@ -701,10 +675,8 @@ parseNonInfixTermIdentifier indent_check =
 -- opening and closing parentheses.
 --
 -- @since 26.7
-parseNonInfixOpIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ AST.Identifier
+parseNonInfixOpIdentifier :: ParserState σ => Parser σ MPos.Pos -> Parser σ Identifier
 parseNonInfixOpIdentifier indent_check =
-  -- Parse the operator between parentheses, checking indentation after the
-  -- opening paren and before the closing paren
   betweenParentheses indent_check (indent_check >> parseOpIdentifier)
 
 -------------------------------------------------------------------------------
@@ -723,11 +695,19 @@ parseNonInfixOpIdentifier indent_check =
 --
 -- @since 26.7
 parseRawString :: Parser σ Text
-parseRawString =
-  -- Consume the opening double quote, then parse character literals until
-  -- the closing double quote, converting the resulting [Char] to Text
-  fmap pack $
-    C.char '"' >> manyTill L.charLiteral (C.char '"')
+parseRawString = do
+  start <- P.getOffset
+  (str, end) <- exactMatchNoLookahead "\"" >> manyTill_ L.charLiteral (C.char '"' <|> C.char '\n')
+  if end == '\n'
+    then
+      customErrorWithOffset start $
+        FixenTrivialParseError
+          (Just (textToTokens $ Text.cons '"' $ pack str))
+          (Set.singleton (P.Label $ 's' :| "tring literal"))
+          []
+          [Note "unclosed string literal"]
+    else
+      return $ pack str
 
 -- | Parses a signed integer literal (with optional leading @+@ or @-@ sign).
 -- The result is an unannotated 'Integer' value.
@@ -763,19 +743,6 @@ parseRawNatural = L.decimal -- decimal digits only, no sign
 --
 -------------------------------------------------------------------------------
 
--- | The set of valid Haskell operator characters.
---
---   This is the union of:
---
---   * Symbol characters: @:!#$%&*+./<=>?@\\^|-~@
---   * The colon character @:@ (used for constructors like @:Cons@)
---
---   Used by 'parseRawOpChar' and 'keywordOp' to recognize operator tokens.
---
--- @since 26.7
-opChars :: [Char]
-opChars = ":!#$%&*+./<=>?@\\^|-~"
-
 -- | Reserved keywords that cannot be used as identifier names.
 --
 --   If a raw identifier string matches any entry in this list, the
@@ -805,7 +772,6 @@ reserved =
   , "newtype"
   , "deriving"
   , "qualified"
-  , "as"
   , "hiding"
   , "do"
   , "infix"
@@ -821,11 +787,13 @@ reserved =
 --   If a raw operator string matches any entry in this list, the
 --   'parseRawOpIdentifierString' parser will reject it with a parse error.
 --
---   Currently contains: @\"=\"@
+--   Currently contains: @["=", "..", "::", "\\", "|", "<-", "@", "~", "=>", "->"]@
+--
+--   The values changed since 26.8
 --
 -- @since 26.7
 reservedOps :: [Text]
-reservedOps = ["="]
+reservedOps = ["=", "..", "::", "\\", "|", "<-", "@", "~", "=>", "->"]
 
 -- | Parses a keyword string, ensuring it is not immediately followed by
 -- identifier-continuation characters (alphanumeric, underscore, apostrophe).
@@ -837,55 +805,37 @@ reservedOps = ["="]
 -- @since 26.7
 keyword :: Text -> Parser σ Text
 keyword s = do
-  -- Consume the keyword string
-  x <- C.string s
-  -- Ensure the keyword is not followed by identifier-continuation characters
-  P.notFollowedBy (C.alphaNumChar <|> C.char '_' <|> C.char '\'')
-  -- Return the parsed keyword string
-  return x
-
--- | Parses a keyword operator string, ensuring it is not immediately followed
--- by another operator character.
---
--- This guard prevents partial operator matches — for example, parsing the
--- operator @<=@ will reject input like @<=<@ because the trailing '<'
--- is a valid operator character.
---
--- @since 26.7
-keywordOp :: Text -> Parser σ Text
-keywordOp s = do
-  -- Consume the operator string
-  x <- C.string s
-  -- Ensure the operator is not followed by another operator character
-  P.notFollowedBy parseRawOpChar
-  -- Return the parsed operator string
-  return x
+  start <- P.getOffset
+  x <- parseSomeToken P.<?> show (Text.unpack s)
+  if x ≠ s
+    then
+      customErrorWithOffset start $
+        FixenTrivialParseError
+          (Just (textToTokens x))
+          (Set.singleton (textToTokens s))
+          []
+          []
+    else return x
 
 -- | Parses a turnstile symbol used in Fixen's sequent notation.
 -- Accepts either the Unicode turnstile (@⊢@) or the ASCII variant (@|-@).
---
--- Uses 'P.try' on the Unicode variant to backtrack if it fails, then
--- falls through to the ASCII variant.
 --
 -- @since 26.7
 turnstile :: Parser σ Text
 turnstile =
   -- Attempt the Unicode turnstile first (with backtracking)
-  P.try (keywordOp "⊢")
+  P.try (keyword "⊢")
     -- Fall back to the ASCII turnstile variant
-    <|> keywordOp "|-"
+    <|> keyword "|-"
 
 -- | Parses a less-than-or-equal symbol used for partial order relations.
 -- Accepts either the ASCII less-than sign (@<@) or the Unicode
 -- subset-of-or-equal symbol (@⊏@).
 --
--- Uses 'P.try' on the ASCII variant to backtrack if it fails, then
--- falls through to the Unicode variant.
---
 -- @since 26.7
 ltOrSqSubsetEq :: Parser σ Text
 ltOrSqSubsetEq =
   -- Attempt the ASCII less-than first (with backtracking)
-  P.try (keywordOp "<")
+  P.try (keyword "<")
     -- Fall back to the Unicode subset-of-or-equal symbol
-    <|> keywordOp "⊏"
+    <|> keyword "⊏"

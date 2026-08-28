@@ -34,15 +34,17 @@
 -- @since 26.7
 module Fixen.Parser.Common where
 
+import Control.Monad
 import Control.Monad.State.Strict
+import Data.Char
 import Data.List.NonEmpty
+import Data.Set qualified as Set
 import Data.Text
-import Data.Void
-import Error.Diagnose.Compat.Megaparsec
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser.Error
+import Fixen.Utils
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -75,6 +77,7 @@ type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --
 --   The parser type uses the custom 'FixenParseError' datatype. Internally,
 --   throughout parsing, all errors are represented using this custom datatype.
+--   This was introduced since 26.8.
 --
 --   In practice, you will rarely construct values of type 'Parser' directly.
 --   Instead, use the combinators provided in this module and the higher-level
@@ -92,6 +95,15 @@ type Parser σ = P.ParsecT FixenParseError Text (State σ)
 -- ** Comma separation
 
 -- | Parse zero or more comma-separated items, with indentation checking.
+-- Starts with a comma. Used by the other comma-separation parsers.
+-- Commits on the comma.
+--
+-- @since 26.8
+commaSepByCommaFirst :: Parser σ MPos.Pos -> Parser σ α -> Parser σ [α]
+commaSepByCommaFirst i p' = do
+  manyICommitted (== ',') i (exactMatchNoLookahead "," *> i *> p')
+
+-- | Parse zero or more comma-separated items, with indentation checking.
 --
 -- @since 26.7
 commaSepBy
@@ -106,21 +118,11 @@ commaSepBy
   -> Parser σ [α]
 commaSepBy indent_check p = do
   x <- P.observing $ P.try $ do
-    _ <- sc
     _ <- indent_check
     p
   case x of
     Left _ -> return []
     Right e -> (e :) <$> commaSepByCommaFirst indent_check p
-  where
-    commaSepByCommaFirst i p' = do
-      com <- P.observing $ P.try $ i *> l (P.single ',')
-      case com of
-        Left _ -> return []
-        Right _ -> do
-          e <- p'
-          ls <- commaSepByCommaFirst i p'
-          return $ e : ls
 
 -- | This is 'commaSepBy' with 'indented'.
 --
@@ -150,8 +152,7 @@ commaSepBy1
 commaSepBy1 indent_check p = do
   _ <- indent_check
   e <- p
-  ls <- manyI indent_check (l (P.single ',') *> p)
-  return $ e :| ls
+  (e :|) <$> commaSepByCommaFirst indent_check p
 
 -- | This is 'commaSepBy1', using 'indented' for indentation.
 --
@@ -179,11 +180,10 @@ commaSepBy2
   -> Parser σ (α, NonEmpty α)
 commaSepBy2 indent_check p = do
   e <- indent_check *> p <* indent_check
-  _ <- P.single ','
+  _ <- exactMatchNoLookahead ","
   _ <- indent_check
-  e' <- p
-  ls <- manyI indent_check (l (P.single ',') *> p)
-  return (e, e' :| ls)
+  ls <- commaSepBy1 indent_check p
+  return (e, ls)
 
 -- | This is 'commaSepBy2', using 'indented' for indentation.
 --
@@ -223,6 +223,37 @@ manyI indent_check p = do
     Left _ -> return []
     Right e -> (:) e <$> manyI indent_check p
 
+-- | 'manyI' without backtracking when the lookahead
+-- character meets a predicate.
+--
+-- @since 26.8
+manyICommitted
+  :: (Char -> Bool)
+  -- ^ The lookahead characters to commit the parse with
+  -> Parser σ MPos.Pos
+  -- ^ The parser that checks the indentation level before each item
+  --
+  -- @since 26.8
+  -> Parser σ α
+  -- ^ The parser for individual items
+  --
+  -- @since 26.8
+  -> Parser σ [α]
+manyICommitted s indent_check p = do
+  m <- P.observing $ P.try $ indent_check *> P.lookAhead P.anySingle
+  case m of
+    Left _ -> return []
+    Right c -> do
+      if s c
+        then do
+          e <- p
+          (:) e <$> manyICommitted s indent_check p
+        else do
+          m' <- P.observing $ P.try p
+          case m' of
+            Left _ -> return []
+            Right e -> (:) e <$> manyICommitted s indent_check p
+
 -- | This is 'manyI' using 'indented' for indentation.
 --
 -- @since 26.7
@@ -259,23 +290,113 @@ someI' = someI indented
 
 -- ** Parsing Between Delimiters with Indentation Checking
 
+-- | A helper for parsing stuff between delimiters.
+--
+-- @since 26.8
+betweenIndented
+  :: Text
+  -- ^ Opening, e.g., "("
+  -> Text
+  -- ^ Closing, e.g., ")"
+  -> Text
+  -- ^ The name of the opening and closing punctuations, e.g. parenthesis
+  -> Parser σ MPos.Pos
+  -- ^ The indentation check
+  -> Parser σ α
+  -- ^ The parser of the contents between the delimiters
+  -> Parser σ α
+betweenIndented open close punctuation_name indent_check p = do
+  start <- P.getOffset
+  _ <- l $ exactMatchNoLookahead open
+  r <- p
+  offset_after_p <- P.getOffset
+  indent1 <- P.observing indent_check
+  case indent1 of
+    Left err -> do
+      -- try parsing the close
+      c <- P.observing $ P.try (exactMatchNoLookahead close)
+      case c of
+        Left _ ->
+          customErrorWithOffset offset_after_p $
+            FixenCustomError
+              Nothing
+              []
+              ("unclosed " ++ unpack punctuation_name)
+              (Just (start, start + 1, "opening " ++ unpack punctuation_name))
+              []
+        Right _ -> P.parseError err
+    Right _ -> do
+      _ <- exactMatchNoLookahead close
+      return r
+
 -- | Parse an expression delimited by parentheses @(@ ... @)@.
 --
 -- @since 26.7
 betweenParentheses :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
-betweenParentheses indent_check = P.between (L.symbol sc "(") (indent_check >> ")")
+betweenParentheses = betweenIndented "(" ")" "parenthesis"
 
 -- | Parse an expression delimited by square brackets @[@ ... @]@.
 --
 -- @since 26.7
 betweenSquareBrackets :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
-betweenSquareBrackets indent_check = P.between (L.symbol sc "[") (indent_check >> "]")
+betweenSquareBrackets = betweenIndented "[" "]" "bracket"
 
 -- | Parse an expression delimited by curly braces @{@ ... @}@.
 --
 -- @since 26.7
 betweenCurlyBraces :: Parser σ MPos.Pos -> Parser σ α -> Parser σ α
-betweenCurlyBraces indent_check = P.between (L.symbol sc "{") (indent_check >> "}")
+betweenCurlyBraces = betweenIndented "{" "}" "brace"
+
+--------------------------------------------------------------------------------
+
+-- * Symbols
+
+-- $symbols
+-- We move this section to this module since the space consumer requires a valid
+-- way of identifying Haskell line comment openings. For instance, @----@ is a
+-- valid line comment opening, but not @--|@.
+
+--------------------------------------------------------------------------------
+
+-- | The set of valid Haskell operator characters.
+--
+--   This is the union of:
+--
+--   * Symbol characters: @:!#$%&*+./<=>?@\\^|-~@
+--   * The colon character @:@ (used for constructors like @:Cons@)
+--
+--   This was moved from 'Fixen.Parser.Token' to this module
+--   since 26.8 so that this module can deal with line comments
+--
+-- @since 26.7
+opChars :: [Char]
+opChars = ":!#$%&*+./<=>?@\\^|-~"
+
+-- | Determines if it is an ascii operator character.
+--
+-- @since 26.8
+isAsciiOpChar :: Char -> Bool
+isAsciiOpChar = (∈ opChars)
+
+-- | Determines if it is a unicode symbol or punctuation.
+--
+-- @since 26.8
+isUnicodeSymbol :: Char -> Bool
+isUnicodeSymbol x = isSymbol x ∨ isPunctuation x
+
+-- | Determines if it is a valid operator character in Haskell.
+--
+-- @since 26.8
+isValidOpChar :: Char -> Bool
+isValidOpChar x =
+  isAsciiOpChar x
+    ∨ (isUnicodeSymbol x ∧ x ∉ hsSpecialChars ∧ x ≠ '_' ∧ x ≠ '"' ∧ x ≠ '\'')
+
+-- | The list of "special" characters as defined by the Haskell 98 report.
+--
+-- @since 26.8
+hsSpecialChars :: [Char]
+hsSpecialChars = "(),;[]`{}"
 
 --------------------------------------------------------------------------------
 
@@ -334,7 +455,26 @@ indentedByExactly = L.indentGuard sc EQ
 --
 -- @since 26.7
 sc :: Parser σ ()
-sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
+sc = L.space C.space1 lineCommentParser (L.skipBlockComment "{-" "-}")
+
+-- | A proper line comment parser.
+--
+-- @since 26.8
+lineCommentParser :: Parser σ ()
+lineCommentParser = P.try $ do
+  start <- P.getOffset
+  _ <- C.string "--"
+  dashes <- P.takeWhileP (Just "dash") isValidOpChar
+
+  when (Data.Text.any (/= '-') dashes) $
+    customErrorWithOffset start $
+      FixenCustomError
+        (Just (2 + Data.Text.length dashes))
+        []
+        "invalid line comment opening"
+        Nothing
+        []
+  void (P.takeWhileP (Just "character") (/= '\n'))
 
 -- | Parse a token and consume all trailing whitespace and comments.
 --
@@ -351,17 +491,6 @@ sc = L.space C.space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 -- @since 26.7
 l :: Parser σ α -> Parser σ α
 l = L.lexeme sc
-
--- | Provide a dummy 'HasHints' instance for 'Void'.
---
---   This suppresses the orphan instance warning. Since our parser uses
---   'Void' as the error token type, it does not produce token-level
---   hints. All error reporting is handled through the 'FixenErrors'
---   accumulator instead.
---
--- @since 26.7
-instance HasHints Void String where
-  hints _ = []
 
 --------------------------------------------------------------------------------
 
@@ -417,3 +546,49 @@ parsePositioned p = do
             , end = (end_line, end_col)
             , file = file_path
             }
+
+--------------------------------------------------------------------------------
+
+-- * Miscellaneous
+
+--------------------------------------------------------------------------------
+
+-- | A replacement of 'C.string' from megaparsec that does not
+-- produce some of the most ridiculous error messages.
+--
+-- @since 26.8
+exactMatchNoLookahead
+  :: Text
+  -- ^ The string to match on
+  -> Parser σ Text
+exactMatchNoLookahead s = P.try $ do
+  start <- P.getOffset
+  ls <- getLongestMatchingToken (unpack s)
+  if ls ≠ s
+    then
+      customErrorWithOffset start $
+        FixenTrivialParseError
+          (Just (textToTokens ls))
+          (Set.singleton (textToTokens s))
+          []
+          []
+    else return s
+  where
+    getLongestMatchingToken :: [Char] -> Parser σ Text
+    getLongestMatchingToken [] = return ""
+    getLongestMatchingToken (x : xs) = do
+      x' <- P.anySingle
+      if x ≠ x'
+        then return $ Data.Text.singleton x'
+        else do
+          xs' <- getLongestMatchingToken xs
+          return $ Data.Text.cons x' xs'
+
+-- | A helper function for converting text into a series of tokens for
+-- error reporting
+--
+-- @since 26.8
+textToTokens :: Text -> P.ErrorItem (P.Token Text)
+textToTokens t = case unpack t of
+  [] -> error "text is empty, cannot convert to tokens!"
+  (x : xs) -> P.Tokens (x :| xs)
