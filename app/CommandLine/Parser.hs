@@ -101,6 +101,11 @@ getCommandLineArgs = do
                     <> help "Show the database representation"
                 )
             )
+        <*> ( switch
+                ( long "emit-debug-traces"
+                    <> help "Add debug traces in the Haskell source file"
+                )
+            )
 
 --------------------------------------------------------------------------------
 --

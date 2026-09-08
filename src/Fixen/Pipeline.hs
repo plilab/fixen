@@ -37,6 +37,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text
 import Error.Diagnose
 import Fixen.CodeGen
+import Fixen.CodeGen.Common (CodeGenOptions)
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
@@ -53,7 +54,9 @@ import Prettyprinter
 --
 -- @since 26.7
 pipeline
-  :: FilePath
+  :: CodeGenOptions
+  -- ^ Code generation options
+  -> FilePath
   -- ^ The path of the compiled file
   --
   -- @since 26.7
@@ -66,7 +69,7 @@ pipeline
   --
   -- @since 26.7
   -> FixenM (Program, NonEmpty RuleForest, RelationRepresentation, Text)
-pipeline file_path contents error_printer = do
+pipeline code_gen_options file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = emptyErrors file_map
       init_pos_env = Map.empty
@@ -77,7 +80,7 @@ pipeline file_path contents error_printer = do
   (env, st'') <- run st' (solveSymbols program')
   (rt, st''') <- run (env, st'') (getRuleForest program')
   (db, _) <- run st''' getRelationRepresentation
-  (t, _) <- run st''' (codeGen rt db program')
+  (t, _) <- run st''' (codeGen code_gen_options rt db program')
   return (program', rt, db, t)
   where
     run :: WithErrors a => a -> FixenPass a b -> FixenM (b, a)
@@ -88,13 +91,13 @@ pipelineWithSymbolsAndPositions
   -> String
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
   -> FixenM
-      ( Program
-      , SymbolEnv
-      , PositionEnv
-      , NonEmpty RuleForest
-      , RelationRepresentation
-      , Text
-      )
+       ( Program
+       , SymbolEnv
+       , PositionEnv
+       , NonEmpty RuleForest
+       , RelationRepresentation
+       , Text
+       )
 pipelineWithSymbolsAndPositions file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = emptyErrors file_map

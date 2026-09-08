@@ -26,8 +26,8 @@ import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
 import Fixen.Monad
 
-codeGen :: NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
-codeGen forest relation_rep prog = do
+codeGen :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
+codeGen emit_debug_traces forest relation_rep prog = do
   let mod_head_code = codeGenModuleDeclaration prog
       import_code = codeGenImports prog
       hs_blocks_code = codeGenHsBlocks prog
