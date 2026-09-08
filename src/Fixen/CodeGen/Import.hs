@@ -20,6 +20,8 @@ module Fixen.CodeGen.Import where
 
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Fixen.CodeGen.Common (CodeGenOptions)
+import Fixen.CodeGen.Debug (codeGenDebugImport)
 import Fixen.Fields
 import Fixen.IR.AST
 
@@ -32,8 +34,8 @@ import Fixen.IR.AST
 -- | Generates the import statements for the generated Haskell module.
 --
 -- @since 26.7
-codeGenImports :: Program -> Text
-codeGenImports prog =
+codeGenImports :: CodeGenOptions -> Program -> Text
+codeGenImports options prog =
   let user_imports =
         if null (prog ^. imports)
           then ""
@@ -43,7 +45,7 @@ codeGenImports prog =
               <&> codeGenImportStmt
               & Text.intercalate "\n"
               & Text.append "\n\n----- USER IMPORTS -----\n"
-   in Text.append fixenImports user_imports
+   in Text.append (fixenImports options) user_imports
 
 --------------------------------------------------------------------------------
 
@@ -68,8 +70,8 @@ codeGenImportStmt i =
 -- | The import statements that are always produced by the Fixen compiler.
 --
 -- @since 26.7
-fixenImports :: Text
-fixenImports =
+fixenImports :: CodeGenOptions -> Text
+fixenImports options =
   """
   ----- FIXEN IMPORTS -----
   import Data.HashMap.Strict (HashMap)
@@ -80,3 +82,4 @@ fixenImports =
   import Control.Monad
   import qualified Data.PQueue.Max as Q
   """
+    <> codeGenDebugImport options

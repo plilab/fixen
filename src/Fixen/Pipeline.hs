@@ -87,7 +87,8 @@ pipeline code_gen_options file_path contents error_printer = do
     run = runFixenPass error_printer
 
 pipelineWithSymbolsAndPositions
-  :: FilePath
+  :: CodeGenOptions
+  -> FilePath
   -> String
   -> (forall m msg. (MonadIO m, Pretty msg) => Diagnostic msg -> m ())
   -> FixenM
@@ -98,7 +99,7 @@ pipelineWithSymbolsAndPositions
        , RelationRepresentation
        , Text
        )
-pipelineWithSymbolsAndPositions file_path contents error_printer = do
+pipelineWithSymbolsAndPositions options file_path contents error_printer = do
   let file_map = [(file_path, contents)]
       init_errs = emptyErrors file_map
       init_pos_env = Map.empty
@@ -110,7 +111,7 @@ pipelineWithSymbolsAndPositions file_path contents error_printer = do
   (rt, st''') <- run (env, st'') (getRuleForest program')
   let posEnv = fst $ snd st'''
   (db, _) <- run st''' getRelationRepresentation
-  (t, _) <- run st''' (codeGen rt db program')
+  (t, _) <- run st''' (codeGen options rt db program')
   return (program', env, posEnv, rt, db, t)
   where
     run :: WithErrors a => a -> FixenPass a b -> FixenM (b, a)

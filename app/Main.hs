@@ -79,8 +79,8 @@ main = do
   --   if color
   --     then defaultOutputOptionsDarkBg {outputOptionsCompact = True}
   --     else defaultOutputOptionsNoColor {outputOptionsCompact = True}
-  let codeGenDebug = (CodeGenOptions {codeGenDebug = emit_debug_trace})
-  ast <- runFixenM $ pipeline codeGenDebug in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
+  let code_gen_options = (CodeGenOptions {codeGenDebug = emit_debug_trace})
+  ast <- runFixenM $ pipeline code_gen_options in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
     Left d -> do
       printDiagnostic stderr out_unicode (TabSize 4) out_style d
