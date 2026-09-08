@@ -92,7 +92,7 @@ This is an example of how you may give instructions on setting up your project l
 To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
-- [GHC](https://www.haskell.org/ghc/) v9.12.2 (base v4.21.0.0)
+- [GHC](https://www.haskell.org/ghc/) v9.12.2-9.14.1 (base v4.21.0.0-v4.22.0.0)
 - [Cabal](https://www.haskell.org/cabal/) v3.16.0.0
 - HLS v2.14.0.0
 - git
