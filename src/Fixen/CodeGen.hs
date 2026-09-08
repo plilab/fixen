@@ -14,7 +14,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
 import Fixen.CodeGen.Database
-import Fixen.CodeGen.Debug (codeGenDebugDefinitions, codeGenRuleActivation)
+import Fixen.CodeGen.Debug (
+  codeGenDebugDefinitions,
+  codeGenRuleActivation,
+  codeGenSolverAcceptance,
+  codeGenSolverRejection,
+ )
 import Fixen.CodeGen.Fact
 import Fixen.CodeGen.HsBlock
 import Fixen.CodeGen.Import
@@ -38,7 +43,7 @@ codeGen options forest relation_rep prog = do
   cont_code <- codeGenRuleInstance
   step_code <- codeGenStep options forest relation_rep
   step_all_code <- codeGenStepAll
-  loop_and_solve_code <- codeGenLoopAndSolve
+  loop_and_solve_code <- codeGenLoopAndSolve options
   re_solve_code <- codeGenReSolve forest
   q_code <- mapM (codeGenQuery relation_rep) (prog ^. queries)
   multi_phase <- codeGenMultiPhase
@@ -269,48 +274,55 @@ codeGenFactLeaves phase_no leaf = do
             ]
   return $ Text.append (Text.concat conds_code) conc_code
 
-codeGenLoopAndSolve :: FixenPass CodeGenState Text
-codeGenLoopAndSolve = do
+codeGenLoopAndSolve :: CodeGenOptions -> FixenPass CodeGenState Text
+codeGenLoopAndSolve options = do
   p <- fixenGetPhases
   if length p == 1
     then
-      return
-        """
-        loop :: Queue -> Database -> Database
-        loop q db
-          | Just (p, q') <- Q.maxView q =
-            let f = evaluate p
-             in if db |= f
-                then loop q' db
-                else let c = mergeContour f db
-                         new_facts = filter (not . (db |=)) (maximalContour c)
-                         new_db = foldl' insertToDb db new_facts
-                      in loop (stepAll new_db new_facts q') new_db
-          | otherwise = db
-
-        solve :: [Fact] -> Database
-        solve = reSolve emptyDb
-        """
+      return $
+        -- Single line strings are used instead of multi line strings is because of weird issues with whitespace stripping
+        Text.concat
+          [ "loop :: Queue -> Database -> Database\n"
+          , "loop q db\n"
+          , "  | Just (p, q') <- Q.maxView q =\n"
+          , "    let f = evaluate p\n"
+          , "     in if db |= f\n"
+          , "        then "
+          , codeGenSolverRejection options "f" "loop q' db"
+          , "\n"
+          , "        else let c = mergeContour f db\n"
+          , "                 new_facts = filter (not . (db |=)) (maximalContour c)\n"
+          , "                 new_db = foldl' insertToDb db new_facts\n"
+          , "              in "
+          , codeGenSolverAcceptance options "f" "new_facts" "loop (stepAll new_db new_facts q') new_db"
+          , "\n"
+          , "  | otherwise = db\n\n"
+          , "solve :: [Fact] -> Database\n"
+          , "solve = reSolve emptyDb\n"
+          ]
     else
-      return
-        """
-        loop :: Queue -> Interpretation -> Interpretation
-        loop q i
-          | Just (p, q') <- Q.maxView q =
-            let (f, phase) = evaluatePhased p
-                db = selectDb i phase
-             in if db |= f
-                then loop q' i
-                else let c = mergeContour f db
-                         new_facts = filter (not . (db |=)) (maximalContour c)
-                         new_db = foldl' insertToDb db new_facts
-                         new_int = replaceDb i new_db phase
-                      in loop (stepAll new_int new_facts phase q') new_int
-          | otherwise = i
-
-        solve :: [Fact] -> Interpretation
-        solve = reSolve emptyInterpretation
-        """
+      return $
+        Text.concat
+          [ "loop :: Queue -> Interpretation -> Interpretation\n"
+          , "loop q i\n"
+          , "  | Just (p, q') <- Q.maxView q =\n"
+          , "    let (f, phase) = evaluatePhased p\n"
+          , "        db = selectDb i phase\n"
+          , "     in if db |= f\n"
+          , "        then "
+          , codeGenSolverRejection options "f" "loop q' i"
+          , "\n"
+          , "        else let c = mergeContour f db\n"
+          , "                 new_facts = filter (not . (db |=)) (maximalContour c)\n"
+          , "                 new_db = foldl' insertToDb db new_facts\n"
+          , "                 new_int = replaceDb i new_db phase\n"
+          , "              in "
+          , codeGenSolverAcceptance options "f" "new_facts" "loop (stepAll new_int new_facts phase q') new_int"
+          , "\n"
+          , "  | otherwise = i\n\n"
+          , "solve :: [Fact] -> Interpretation\n"
+          , "solve = reSolve emptyInterpretation\n"
+          ]
 
 codeGenStep :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
 codeGenStep options f r = do
