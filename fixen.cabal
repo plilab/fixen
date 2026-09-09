@@ -64,6 +64,7 @@ library
     exposed-modules:    Fixen.CodeGen
                       , Fixen.CodeGen.Common
                       , Fixen.CodeGen.Database
+                      , Fixen.CodeGen.Debug
                       , Fixen.CodeGen.Fact
                       , Fixen.CodeGen.HsBlock
                       , Fixen.CodeGen.Import

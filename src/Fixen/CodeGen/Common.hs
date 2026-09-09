@@ -20,15 +20,10 @@ type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 data CodeGenOptions = CodeGenOptions
   { codeGenDebug :: Bool
   -- ^ Whether to emit runtime debug traces.
+  , debugColor :: Bool
+  -- ^ Whether debug traces should use ANSI colors
   }
   deriving (Eq, Show)
-
--- | Default code-generation options.
-defaultCodeGenOptions :: CodeGenOptions
-defaultCodeGenOptions =
-  CodeGenOptions
-    { codeGenDebug = False
-    }
 
 codeGenType :: Type -> Text
 codeGenType (TypeApp _ (TypeApp _ (TypeName _ n) l) r)

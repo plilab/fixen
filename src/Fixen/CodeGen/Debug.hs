@@ -22,46 +22,88 @@ import Fixen.CodeGen.Common
 codeGenDebugImport :: CodeGenOptions -> Text
 codeGenDebugImport options
   | codeGenDebug options =
-      "\nimport Debug.Trace (trace, traceM)"
+      """\n
+      import Debug.Trace (trace, traceM)
+      import Data.Text (Text)
+      """
   | otherwise = ""
+
+codeGenDebugColors :: CodeGenOptions -> Text
+codeGenDebugColors options =
+  """
+  debugColors :: Bool
+  debugColors = 
+  """
+    <> (pack . show $ debugColor options)
+    <> """\n
+       red, green, yellow, reset :: [Char]
+       red = "\\ESC[31m"
+       green = "\\ESC[32m"
+       yellow = "\\ESC[33m"
+       reset = "\\ESC[0m"
+
+       applyColor :: [Char] -> [Char] -> [Char]
+       applyColor color t =
+         let color' = if debugColors then color else ""
+             reset' = if debugColors then reset else ""
+          in color' ++ t ++ reset'
+
+       applyRed :: [Char] -> [Char]
+       applyRed = applyColor red
+
+       applyYellow :: [Char] -> [Char]
+       applyYellow = applyColor yellow
+
+       applyGreen :: [Char] -> [Char]
+       applyGreen = applyColor green
+
+       """
 
 -- | Generates runtime helpers used by instrumented solver code.
 codeGenDebugDefinitions :: CodeGenOptions -> Text
 codeGenDebugDefinitions options
   | codeGenDebug options =
-      """
-      debugRuleActivation
-        :: Applicative f
-        => Fact
-        -> Maybe Int
-        -> String
-        -> RuleInstance
-        -> f ()
-      debugRuleActivation premise phase_number rule_name rule_instance =
-        traceM $
-          "\\ESC[33m[Fixen] [Step]\\ESC[0m"
-          ++ maybe "" (\\n -> " [Phase " ++ show n ++ "]") phase_number
-          ++ " \\ESC[32mPremise\\ESC[0m "
-          ++ show premise
-          ++ ", \\ESC[32mRule\\ESC[0m \\ESC[31m"
-          ++ rule_name
-          ++ "\\ESC[0m activated, candidate: "
-          ++ show (evaluate rule_instance)
+      codeGenDebugColors options
+        <> """
+           debugRuleActivation
+             :: Applicative f
+             => Fact
+             -> Maybe Int
+             -> String
+             -> RuleInstance
+             -> f ()
+           debugRuleActivation premise phase_number rule_name rule_instance =
+             traceM $
+               applyYellow ("[Fixen] [Step] " ++ maybe "" (\\n -> "[Phase " ++ show n ++ "] ") phase_number)
+               ++ applyGreen "Premise "
+               ++ show premise
+               ++ ", "
+               ++ applyGreen "Rule "
+               ++ applyRed rule_name
+               ++ " activated, candidate: "
+               ++ show (evaluate rule_instance)
 
-      debugSolverRejected :: Fact -> a -> a
-      debugSolverRejected candidate =
-        trace $
-          "\\ESC[33m[Fixen] [Solver]\\ESC[0m \\ESC[31mSubsumed\\ESC[0m candidate "
-          ++ show candidate
+           debugSolverRejected :: Fact -> a -> a
+           debugSolverRejected candidate =
+             trace $
+               applyYellow "[Fixen] [Solver]"
+               ++ applyRed " Subsumed"
+               ++ " candidate "
+               ++ show candidate
 
-      debugSolverAccepted :: Fact -> [Fact] -> a -> a
-      debugSolverAccepted candidate accepted_facts =
-        trace $
-          "\\ESC[33m[Fixen] [Solver]\\ESC[0m \\ESC[32mProcessed\\ESC[0m candidate "
-          ++ show candidate
-          ++ "; \\ESC[32mInserted Facts\\ESC[0m: "
-          ++ show accepted_facts
-      """
+           debugSolverAccepted :: Fact -> [Fact] -> a -> a
+           debugSolverAccepted candidate accepted_facts =
+             trace $
+               applyYellow "[Fixen] [Solver]"
+               ++ applyGreen " Processed"
+               ++ " candidate "
+               ++ show candidate
+               ++ "\\n"
+               ++ applyYellow "[Fixen] [Solver]"
+               ++ applyGreen " Inserted Facts"
+               ++ ": "
+               ++ show accepted_facts
+           """
   | otherwise = ""
 
 -- | Generates a call to the runtime rule-activation logger.

@@ -332,7 +332,7 @@ codeGenStep options f r = do
       return $ Text.concat ["step :: Database -> Fact -> Queue -> Queue \nstep db fact q = case fact of\n", phase_code]
     _ -> do
       c <- codeGenStepMultiPhase options f r
-      return $ Text.concat ["step :: Interpretation -> Fact -> Phase -> Queue -> Queue\nstep i f p q = let db = selectDb i p in case p of", c]
+      return $ Text.concat ["step :: Interpretation -> Fact -> Phase -> Queue -> Queue\nstep i fact p q = let db = selectDb i p in case p of", c]
 
 codeGenStepAll :: FixenPass CodeGenState Text
 codeGenStepAll = do
@@ -359,7 +359,7 @@ codeGenStepMultiPhase options xs r = do
 
 codeGenStepMultiPhaseCase :: CodeGenOptions -> RelationRepresentation -> (Int, RuleForest) -> FixenPass CodeGenState Text
 codeGenStepMultiPhaseCase options r (no, f) = do
-  let header = Text.concat ["\n  Phase", Text.show no, " -> case f of\n"]
+  let header = Text.concat ["\n  Phase", Text.show no, " -> case fact of\n"]
   res <- codeGenStepSinglePhase options f r (Just no)
   return $ Text.concat [header, res]
 
