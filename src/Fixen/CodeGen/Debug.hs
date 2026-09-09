@@ -83,23 +83,27 @@ codeGenDebugDefinitions options
                ++ " activated, candidate: "
                ++ show (evaluate rule_instance)
 
-           debugSolverRejected :: Fact -> a -> a
-           debugSolverRejected candidate =
+           debugSolverPhase :: Maybe String -> String
+           debugSolverPhase =
+             maybe "" (\\phase_name -> " [" ++ phase_name ++ "]")
+
+           debugSolverRejected :: Maybe String -> Fact -> a -> a
+           debugSolverRejected phase_name candidate =
              trace $
-               applyYellow "[Fixen] [Solver]"
+               applyYellow ("[Fixen] [Solver]" ++ debugSolverPhase phase_name)
                ++ applyRed " Subsumed"
                ++ " candidate "
                ++ show candidate
 
-           debugSolverAccepted :: Fact -> [Fact] -> a -> a
-           debugSolverAccepted candidate accepted_facts =
+           debugSolverAccepted :: Maybe String -> Fact -> [Fact] -> a -> a
+           debugSolverAccepted phase_name candidate accepted_facts =
              trace $
-               applyYellow "[Fixen] [Solver]"
+               applyYellow ("[Fixen] [Solver]" ++ debugSolverPhase phase_name)
                ++ applyGreen " Processed"
                ++ " candidate "
                ++ show candidate
                ++ "\\n"
-               ++ applyYellow "[Fixen] [Solver]"
+               ++ applyYellow ("[Fixen] [Solver]" ++ debugSolverPhase phase_name)
                ++ applyGreen " Inserted Facts"
                ++ ": "
                ++ show accepted_facts
@@ -131,10 +135,13 @@ codeGenSolverAcceptance
   -> Text
   -> Text
   -> Text
-codeGenSolverAcceptance options candidate accepted_facts continuation
+  -> Text
+codeGenSolverAcceptance options phase candidate accepted_facts continuation
   | codeGenDebug options =
       Text.concat
         [ "debugSolverAccepted "
+        , phase
+        , " "
         , candidate
         , " "
         , accepted_facts
@@ -149,10 +156,13 @@ codeGenSolverRejection
   -> Text
   -> Text
   -> Text
-codeGenSolverRejection options candidate continuation
+  -> Text
+codeGenSolverRejection options phase candidate continuation
   | codeGenDebug options =
       Text.concat
         [ "debugSolverRejected "
+        , phase
+        , " "
         , candidate
         , " $ "
         , continuation
