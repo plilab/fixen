@@ -41,6 +41,8 @@ data CommandLineArgs = CommandLineArgs
   -- ^ Whether the output should show the rule forest
   , db :: Bool
   -- ^ Whether the output should show the database representation
+  , emitDebugTraces :: Bool 
+  -- ^ Whether the Haskell output should contain debug messages
   }
   deriving (Show)
 

@@ -17,6 +17,14 @@ import Fixen.Utils
 
 type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 
+data CodeGenOptions = CodeGenOptions
+  { codeGenDebug :: Bool
+  -- ^ Whether to emit runtime debug traces.
+  , debugColor :: Bool
+  -- ^ Whether debug traces should use ANSI colors
+  }
+  deriving (Eq, Show)
+
 codeGenType :: Type -> Text
 codeGenType (TypeApp _ (TypeApp _ (TypeName _ n) l) r)
   | isOp n =

@@ -14,6 +14,12 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
 import Fixen.CodeGen.Database
+import Fixen.CodeGen.Debug (
+  codeGenDebugDefinitions,
+  codeGenRuleActivation,
+  codeGenSolverAcceptance,
+  codeGenSolverRejection,
+ )
 import Fixen.CodeGen.Fact
 import Fixen.CodeGen.HsBlock
 import Fixen.CodeGen.Import
@@ -26,17 +32,18 @@ import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
 import Fixen.Monad
 
-codeGen :: NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
-codeGen forest relation_rep prog = do
+codeGen :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
+codeGen options forest relation_rep prog = do
   let mod_head_code = codeGenModuleDeclaration prog
-      import_code = codeGenImports prog
+      import_code = codeGenImports options prog
       hs_blocks_code = codeGenHsBlocks prog
       fact_code = codeGenFacts relation_rep
+      debug_definitions = codeGenDebugDefinitions options
   db_code <- codeGenDb relation_rep
   cont_code <- codeGenRuleInstance
-  step_code <- codeGenStep forest relation_rep
+  step_code <- codeGenStep options forest relation_rep
   step_all_code <- codeGenStepAll
-  loop_and_solve_code <- codeGenLoopAndSolve
+  loop_and_solve_code <- codeGenLoopAndSolve options
   re_solve_code <- codeGenReSolve forest
   q_code <- mapM (codeGenQuery relation_rep) (prog ^. queries)
   multi_phase <- codeGenMultiPhase
@@ -49,6 +56,8 @@ codeGen forest relation_rep prog = do
       , fact_code
       , db_code
       , cont_code
+      , if codeGenDebug options then "\n----- DEBUG FUNCTION -----" else ""
+      , debug_definitions
       , "\n----- STEP FUNCTION -----"
       , step_code
       , step_all_code
@@ -265,58 +274,75 @@ codeGenFactLeaves phase_no leaf = do
             ]
   return $ Text.append (Text.concat conds_code) conc_code
 
-codeGenLoopAndSolve :: FixenPass CodeGenState Text
-codeGenLoopAndSolve = do
+codeGenLoopAndSolve :: CodeGenOptions -> FixenPass CodeGenState Text
+codeGenLoopAndSolve options = do
   p <- fixenGetPhases
   if length p == 1
     then
-      return
-        """
-        loop :: Queue -> Database -> Database
-        loop q db
-          | Just (p, q') <- Q.maxView q =
-            let f = evaluate p
-             in if db |= f
-                then loop q' db
-                else let c = mergeContour f db
-                         new_facts = filter (not . (db |=)) (maximalContour c)
-                         new_db = foldl' insertToDb db new_facts
-                      in loop (stepAll new_db new_facts q') new_db
-          | otherwise = db
-
-        solve :: [Fact] -> Database
-        solve = reSolve emptyDb
-        """
+      return $
+        -- Single line strings are used instead of multi line strings is because of weird issues with whitespace stripping
+        Text.concat
+          [ "loop :: Queue -> Database -> Database\n"
+          , "loop q db\n"
+          , "  | Just (p, q') <- Q.maxView q =\n"
+          , "    let f = evaluate p\n"
+          , "     in if db |= f\n"
+          , "        then "
+          , codeGenSolverRejection options "Nothing" "f" "loop q' db"
+          , "\n"
+          , "        else let c = mergeContour f db\n"
+          , "                 new_facts = filter (not . (db |=)) (maximalContour c)\n"
+          , "                 new_db = foldl' insertToDb db new_facts\n"
+          , "              in "
+          , codeGenSolverAcceptance options "Nothing" "f" "new_facts" "loop (stepAll new_db new_facts q') new_db"
+          , "\n"
+          , "  | otherwise = db\n\n"
+          , "solve :: [Fact] -> Database\n"
+          , "solve = reSolve emptyDb\n"
+          ]
     else
-      return
-        """
-        loop :: Queue -> Interpretation -> Interpretation
-        loop q i
-          | Just (p, q') <- Q.maxView q =
-            let (f, phase) = evaluatePhased p
-                db = selectDb i phase
-             in if db |= f
-                then loop q' i
-                else let c = mergeContour f db
-                         new_facts = filter (not . (db |=)) (maximalContour c)
-                         new_db = foldl' insertToDb db new_facts
-                         new_int = replaceDb i new_db phase
-                      in loop (stepAll new_int new_facts phase q') new_int
-          | otherwise = i
+      return $
+        Text.concat
+          [ "loop :: Queue -> Interpretation -> Interpretation\n"
+          , "loop q i\n"
+          , "  | Just (p, q') <- Q.maxView q =\n"
+          , "    let source_phase = snd p\n"
+          , "        (f, target_phase) = evaluatePhased p\n"
+          , "        db = selectDb i target_phase\n"
+          , "     in if db |= f\n"
+          , "        then "
+          , codeGenSolverRejection
+              options
+              "(Just (show source_phase ++ \" -> \" ++ show target_phase))"
+              "f"
+              "loop q' i"
+          , "\n"
+          , "        else let c = mergeContour f db\n"
+          , "                 new_facts = filter (not . (db |=)) (maximalContour c)\n"
+          , "                 new_db = foldl' insertToDb db new_facts\n"
+          , "                 new_int = replaceDb i new_db target_phase\n"
+          , "              in "
+          , codeGenSolverAcceptance
+              options
+              "(Just (show source_phase ++ \" -> \" ++ show target_phase))"
+              "f"
+              "new_facts"
+              "loop (stepAll new_int new_facts target_phase q') new_int"
+          , "\n"
+          , "  | otherwise = i\n\n"
+          , "solve :: [Fact] -> Interpretation\n"
+          , "solve = reSolve emptyInterpretation\n"
+          ]
 
-        solve :: [Fact] -> Interpretation
-        solve = reSolve emptyInterpretation
-        """
-
-codeGenStep :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
-codeGenStep f r = do
+codeGenStep :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
+codeGenStep options f r = do
   case f of
     x :| [] -> do
-      phase_code <- codeGenStepSinglePhase x r Nothing
+      phase_code <- codeGenStepSinglePhase options x r Nothing
       return $ Text.concat ["step :: Database -> Fact -> Queue -> Queue \nstep db fact q = case fact of\n", phase_code]
     _ -> do
-      c <- codeGenStepMultiPhase f r
-      return $ Text.concat ["step :: Interpretation -> Fact -> Phase -> Queue -> Queue\nstep i f p q = let db = selectDb i p in case p of", c]
+      c <- codeGenStepMultiPhase options f r
+      return $ Text.concat ["step :: Interpretation -> Fact -> Phase -> Queue -> Queue\nstep i fact p q = let db = selectDb i p in case p of", c]
 
 codeGenStepAll :: FixenPass CodeGenState Text
 codeGenStepAll = do
@@ -335,47 +361,47 @@ codeGenStepAll = do
         stepAll i xs p q = foldl' (\\q' f -> step i f p q') q xs
         """
 
-codeGenStepMultiPhase :: NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
-codeGenStepMultiPhase xs r = do
+codeGenStepMultiPhase :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> FixenPass CodeGenState Text
+codeGenStepMultiPhase options xs r = do
   let zipped = NonEmpty.zip (0 :| [1 .. length xs - 1]) xs
-  ls <- mapM (codeGenStepMultiPhaseCase r) zipped
+  ls <- mapM (codeGenStepMultiPhaseCase options r) zipped
   return $ Text.concat $ NonEmpty.toList ls
 
-codeGenStepMultiPhaseCase :: RelationRepresentation -> (Int, RuleForest) -> FixenPass CodeGenState Text
-codeGenStepMultiPhaseCase r (no, f) = do
-  let header = Text.concat ["\n  Phase", Text.show no, " -> case f of\n"]
-  res <- codeGenStepSinglePhase f r (Just no)
+codeGenStepMultiPhaseCase :: CodeGenOptions -> RelationRepresentation -> (Int, RuleForest) -> FixenPass CodeGenState Text
+codeGenStepMultiPhaseCase options r (no, f) = do
+  let header = Text.concat ["\n  Phase", Text.show no, " -> case fact of\n"]
+  res <- codeGenStepSinglePhase options f r (Just no)
   return $ Text.concat [header, res]
 
-codeGenStepSinglePhase :: RuleForest -> RelationRepresentation -> Maybe Int -> FixenPass CodeGenState Text
-codeGenStepSinglePhase f r phase_no = do
+codeGenStepSinglePhase :: CodeGenOptions -> RuleForest -> RelationRepresentation -> Maybe Int -> FixenPass CodeGenState Text
+codeGenStepSinglePhase options f r phase_no = do
   let cases = Map.toList $ _ruleForestTrees f
-  cases_code <- mapM (codeGenStepSinglePhaseCase r phase_no) cases
+  cases_code <- mapM (codeGenStepSinglePhaseCase options r phase_no) cases
   rels <- fixenGetRelationInfo
   if length rels == length cases
     then return $ Text.intercalate "\n" cases_code
     else return $ Text.concat [Text.intercalate "\n" cases_code, "\n    _ -> q"]
 
-codeGenStepSinglePhaseCase :: RelationRepresentation -> Maybe Int -> (Text, NonEmpty RuleTreeChoppedHead) -> FixenPass CodeGenState Text
-codeGenStepSinglePhaseCase r phase_no (rel_name, br) = do
+codeGenStepSinglePhaseCase :: CodeGenOptions -> RelationRepresentation -> Maybe Int -> (Text, NonEmpty RuleTreeChoppedHead) -> FixenPass CodeGenState Text
+codeGenStepSinglePhaseCase options r phase_no (rel_name, br) = do
   r_info_map <- fixenGetRelationInfo
   let r_info = r_info_map Map.! rel_name
       arity = length $ _relationArgMatchInfo r_info
       case_vars = Text.append "_t" <$> Text.show <$> [0 .. arity - 1]
       header = Text.concat ["    ", rel_name, " ", Text.intercalate " " case_vars, " -> Q.union q $ Q.fromList $ "]
-  branches <- mapM (codeGenSinglePhaseCaseStart r rel_name 0 IntMap.empty 0 phase_no) br
+  branches <- mapM (codeGenSinglePhaseCaseStart options r rel_name 0 IntMap.empty 0 phase_no) br
   if length branches > 1
     then return $ Text.concat [header, "concat [\n", Text.intercalate ",\n" $ NonEmpty.toList branches, "\n      ]"]
     else return $ Text.concat [header, "\n", Text.concat $ NonEmpty.toList branches]
 
-codeGenSinglePhaseCaseStart :: RelationRepresentation -> Text -> Int -> IntMap Int -> Int -> Maybe Int -> RuleTreeChoppedHead -> FixenPass CodeGenState Text
-codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_no tree = do
+codeGenSinglePhaseCaseStart :: CodeGenOptions -> RelationRepresentation -> Text -> Int -> IntMap Int -> Int -> Maybe Int -> RuleTreeChoppedHead -> FixenPass CodeGenState Text
+codeGenSinglePhaseCaseStart options rel_rep rel_name curr_pos name_supply indent phase_no tree = do
   -- curr_pos is the t something something. To get the v something something, look at
   -- tree_args !! curr_pos
   let tree_args = _ruleTreeChoppedHeadArgs tree
   if length tree_args == 0
     then do
-      remaining <- codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
+      remaining <- codeGenSinglePhaseForest options rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
       return $ Text.concat ["      do\n        guard (_facts", rel_name, " db)", remaining]
     else
       if curr_pos < length tree_args
@@ -388,6 +414,7 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                 then do
                   remaining <-
                     codeGenSinglePhaseCaseStart
+                      options
                       rel_rep
                       rel_name
                       (curr_pos + 1)
@@ -400,6 +427,7 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                   -- no leading do
                   remaining <-
                     codeGenSinglePhaseCaseStart
+                      options
                       rel_rep
                       rel_name
                       (curr_pos + 1)
@@ -417,12 +445,12 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                   (q_ty, _) = (_factTypes $ _factRepresentation (rel_rep Map.! rel_name)) !! curr_pos
               -- rec call
               remainin <-
-                codeGenSinglePhaseCaseStart rel_rep rel_name (curr_pos + 1) (IntMap.insert curr_v (curr_var_curr_number + 1) name_supply) indent phase_no tree
+                codeGenSinglePhaseCaseStart options rel_rep rel_name (curr_pos + 1) (IntMap.insert curr_v (curr_var_curr_number + 1) name_supply) indent phase_no tree
               -- match depending on the kind of matching alg.
               case q_ty of
                 Match -> do
                   remaining <-
-                    codeGenSinglePhaseCaseStart rel_rep rel_name (curr_pos + 1) name_supply indent phase_no tree
+                    codeGenSinglePhaseCaseStart options rel_rep rel_name (curr_pos + 1) name_supply indent phase_no tree
                   return $
                     Text.concat
                       [ "\n        guard (_v"
@@ -469,29 +497,29 @@ codeGenSinglePhaseCaseStart rel_rep rel_name curr_pos name_supply indent phase_n
                       , remainin
                       ]
         else -- proceed with the next calls.
-          codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
+          codeGenSinglePhaseForest options rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
 
-codeGenSinglePhaseForest :: RelationRepresentation -> IntMap Int -> Int -> RuleForest -> Maybe Int -> FixenPass CodeGenState Text
-codeGenSinglePhaseForest rel_rep name_supply indent forest phase_no = do
+codeGenSinglePhaseForest :: CodeGenOptions -> RelationRepresentation -> IntMap Int -> Int -> RuleForest -> Maybe Int -> FixenPass CodeGenState Text
+codeGenSinglePhaseForest options rel_rep name_supply indent forest phase_no = do
   let branches = (Map.toList $ _ruleForestTrees forest) >>= (\(t, l) -> (t,) <$> NonEmpty.toList l)
       leaves' = _ruleForestLeaves forest
   if length branches + length leaves' <= 1
     then -- continue in the straight line
       if length branches == 0
         then do
-          leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply indent phase_no) leaves'
+          leaves_code <- mapM (codeGenSinglePhaseLeaves options name_supply indent phase_no) leaves'
           return $ Text.concat leaves_code
         else do
-          branches_code <- mapM (codeGenSinglePhaseBranch rel_rep name_supply indent 0 phase_no) branches
+          branches_code <- mapM (codeGenSinglePhaseBranch options rel_rep name_supply indent 0 phase_no) branches
           return $ Text.concat branches_code
     else do
-      leaves_code <- mapM (codeGenSinglePhaseLeaves name_supply (indent + 1) phase_no) leaves'
-      branches_code <- mapM (codeGenSinglePhaseBranch rel_rep name_supply (indent + 1) 0 phase_no) branches
+      leaves_code <- mapM (codeGenSinglePhaseLeaves options name_supply (indent + 1) phase_no) leaves'
+      branches_code <- mapM (codeGenSinglePhaseBranch options rel_rep name_supply (indent + 1) 0 phase_no) branches
       -- branch out, indent by 1. put do headers everywhere
       return $ Text.concat [stepIndent indent, "concat [", Text.intercalate "," (Text.append (Text.concat [stepIndent indent, "  do"]) <$> branches_code ++ leaves_code), stepIndent indent, "  ]"]
 
-codeGenSinglePhaseLeaves :: IntMap Int -> Int -> Maybe Int -> RuleLeaf -> FixenPass CodeGenState Text
-codeGenSinglePhaseLeaves name_supply indent phase_no leaf = do
+codeGenSinglePhaseLeaves :: CodeGenOptions -> IntMap Int -> Int -> Maybe Int -> RuleLeaf -> FixenPass CodeGenState Text
+codeGenSinglePhaseLeaves options name_supply indent phase_no leaf = do
   let rule_id = _ruleLeafRuleId leaf
       rule_cond = _ruleLeafCondition leaf
       -- rule_conc = _ruleLeafConclusion leaf
@@ -506,35 +534,37 @@ codeGenSinglePhaseLeaves name_supply indent phase_no leaf = do
       cond_code = Text.concat $ (\t -> Text.concat [stepIndent indent, "guard (", t, ")"]) <$> codeGenExprWithNameReplacement name_supply expr_map <$> cond_exprs
       cont_comp = (\(_, i) -> Text.concat ["_v", Text.show i, "_", Text.show (name_supply IntMap.! i)]) <$> m1
       cont_code = Text.concat $ Text.append " " <$> cont_comp
-  case phase_no of
-    Nothing ->
-      return $
-        Text.concat
-          [ cond_code
-          , stepIndent indent
-          , "return $ "
-          , name'
-          , cont_code
-          ]
-    Just p ->
-      return $
-        Text.concat
-          [ cond_code
-          , stepIndent indent
-          , "return ("
-          , name'
-          , cont_code
-          , ", Phase"
-          , Text.show p
-          , ")"
-          ]
+      rule_instance_code = Text.concat [name', cont_code]
+      bind_code = Text.concat [stepIndent indent, "let rule_instance = ", rule_instance_code]
+      debug_code = codeGenRuleActivation options phase_no (stepIndent indent) name'
+      return_code =
+        case phase_no of
+          Nothing ->
+            Text.concat
+              [ stepIndent indent
+              , "return rule_instance"
+              ]
+          Just p ->
+            Text.concat
+              [ stepIndent indent
+              , "return (rule_instance, Phase"
+              , Text.show p
+              , ")"
+              ]
+  return $
+    Text.concat
+      [ cond_code
+      , bind_code
+      , debug_code
+      , return_code
+      ]
 
-codeGenSinglePhaseBranch :: RelationRepresentation -> IntMap Int -> Int -> Int -> Maybe Int -> (Text, RuleTreeChoppedHead) -> FixenPass CodeGenState Text
-codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name, tree) = do
+codeGenSinglePhaseBranch :: CodeGenOptions -> RelationRepresentation -> IntMap Int -> Int -> Int -> Maybe Int -> (Text, RuleTreeChoppedHead) -> FixenPass CodeGenState Text
+codeGenSinglePhaseBranch options rel_rep name_supply indent curr_pos phase_no (rel_name, tree) = do
   let tree_args = _ruleTreeChoppedHeadArgs tree
   if length tree_args == 0
     then do
-      remaining <- codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
+      remaining <- codeGenSinglePhaseForest options rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
       return $ Text.concat [stepIndent indent, "guard (_facts", rel_name, " db)", remaining]
     else
       if curr_pos < length tree_args
@@ -560,7 +590,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                       -- (_v(curr_v)_0, stepN) <- HashMap.toList (_facts... db)
                       -- get the N ^
                       let new_stepNno = (fromMaybe (-1) (name_supply IntMap.!? (-1))) + 1
-                      remaining <- codeGenSinglePhaseBranch rel_rep (IntMap.insert curr_v 0 $ IntMap.insert (-1) new_stepNno name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
+                      remaining <- codeGenSinglePhaseBranch options rel_rep (IntMap.insert curr_v 0 $ IntMap.insert (-1) new_stepNno name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
                       return $
                         Text.concat
                           [ stepIndent indent
@@ -580,6 +610,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                           new_step_no = old_step_no + 1
                       remaining <-
                         codeGenSinglePhaseBranch
+                          options
                           rel_rep
                           (IntMap.insert curr_v 0 $ IntMap.insert (-1) new_step_no name_supply)
                           indent
@@ -600,7 +631,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                 Just curr_v_curr_number -> do
                   -- match.
                   let new_step_no = fromMaybe (-1) (name_supply IntMap.!? (-1)) + 1
-                  remaining <- codeGenSinglePhaseBranch rel_rep (IntMap.insert (-1) new_step_no name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
+                  remaining <- codeGenSinglePhaseBranch options rel_rep (IntMap.insert (-1) new_step_no name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
                   if curr_pos == 0
                     then do
                       return $
@@ -638,7 +669,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
               case name_supply IntMap.!? curr_v of
                 Nothing -> do
                   -- no match, instantiate new var, i.e., v_.. <- HashSet.toList step...
-                  remaining <- codeGenSinglePhaseBranch rel_rep (IntMap.insert curr_v 0 name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
+                  remaining <- codeGenSinglePhaseBranch options rel_rep (IntMap.insert curr_v 0 name_supply) indent (curr_pos + 1) phase_no (rel_name, tree)
                   return $
                     Text.concat
                       [ stepIndent indent
@@ -650,7 +681,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                       ]
                 Just curr_v_curr_number -> do
                   -- just check if curr_v is in the previous step
-                  remaining <- codeGenSinglePhaseBranch rel_rep name_supply indent (curr_pos + 1) phase_no (rel_name, tree)
+                  remaining <- codeGenSinglePhaseBranch options rel_rep name_supply indent (curr_pos + 1) phase_no (rel_name, tree)
                   return $
                     Text.concat
                       [ stepIndent indent
@@ -731,7 +762,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                         (n_s'', ls) = remaining_steps n_s' xs
                      in (n_s'', hd : ls)
                   (name_supply', r_s) = remaining_steps name_supply lhs'
-              remaining <- codeGenSinglePhaseForest rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
+              remaining <- codeGenSinglePhaseForest options rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
               -- is a hashset. walk down set and mlbs
               return $
                 Text.concat
@@ -796,7 +827,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                         (n_s'', ls) = remaining_steps n_s' xs
                      in (n_s'', hd : ls)
                   (name_supply', r_s) = remaining_steps name_supply lhs'
-              remaining <- codeGenSinglePhaseForest rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
+              remaining <- codeGenSinglePhaseForest options rel_rep name_supply' indent (_ruleTreeChoppedHeadBranches tree) phase_no
               -- is a hashset. walk down set and mlbs
               if curr_pos == 0
                 then
@@ -822,7 +853,7 @@ codeGenSinglePhaseBranch rel_rep name_supply indent curr_pos phase_no (rel_name,
                       ]
             (Match, StoredAsSingleton, _) -> error "unreachable"
         else -- proceed with the next calls.
-          codeGenSinglePhaseForest rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
+          codeGenSinglePhaseForest options rel_rep name_supply indent (_ruleTreeChoppedHeadBranches tree) phase_no
 
 stepIndent :: Int -> Text
 stepIndent 0 = Text.cons '\n' $ Text.replicate 8 " "
