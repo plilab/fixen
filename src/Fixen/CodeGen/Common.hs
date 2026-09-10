@@ -3,13 +3,12 @@
 module Fixen.CodeGen.Common where
 
 import Data.Char qualified as Char
-import Data.IntMap.Strict (IntMap)
-import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Fixen.CodeGen.Haskell.Syntax qualified as Hs
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser.Common (isValidOpChar)
@@ -21,100 +20,55 @@ data CodeGenOptions = CodeGenOptions
   { codeGenDebug :: Bool
   -- ^ Whether to emit runtime debug traces.
   , debugColor :: Bool
-  -- ^ Whether debug traces should use ANSI colors
+  -- ^ Whether debug traces should use ANSI colors.
   }
   deriving (Eq, Show)
 
 codeGenType :: Type -> Text
-codeGenType (TypeApp _ (TypeApp _ (TypeName _ n) l) r)
-  | isOp n =
-      Text.intercalate " " [asAtomic l, codeGenInfixIdentifier n, asAtomic r]
-codeGenType (TypeName _ n) = codeGenIdentifier n
-codeGenType (TypeApp _ lhs' rhs') =
-  let lhs_code = if isInfix lhs' then parenthesize (codeGenType lhs') else codeGenType lhs'
-      rhs_code = asAtomic rhs'
-   in Text.intercalate " " [lhs_code, rhs_code]
-codeGenType (TypeList _ t) = Text.concat ["[", codeGenType t, "]"]
-codeGenType (TypeTuple _ hd tl) = Text.concat ["(", codeGenType hd, ", ", (Text.intercalate ", " (codeGenType <$> (NonEmpty.toList tl))), ")"]
-codeGenType (TypeNatLit _ i) = Text.show i
-codeGenType (TypeSymbolLit _ s) = Text.show s
-codeGenType (TypeUnit _) = "()"
+codeGenType = Hs.renderType . lowerType
+
+-- | Lower source types without manufacturing source node IDs for generated
+-- types. Unknown infix type fixities are preserved by the output printer.
+lowerType :: Type -> Hs.Type
+lowerType (TypeApp _ (TypeApp _ (TypeName _ n) l) r)
+  | fullIdentifier n == "->" = Hs.TyArrow (lowerType l) (lowerType r)
+  | isOp n = Hs.TyInfix (lowerType l) (lowerName n) (lowerType r)
+lowerType (TypeName _ n) = Hs.TyName (lowerName n)
+lowerType (TypeApp _ f x) = Hs.TyApp (lowerType f) (lowerType x)
+lowerType (TypeList _ t) = Hs.TyList (lowerType t)
+lowerType (TypeTuple _ hd tl) = Hs.TyTuple (lowerType <$> hd : NonEmpty.toList tl)
+lowerType (TypeNatLit _ n) = Hs.TyInteger (toInteger n)
+lowerType (TypeSymbolLit _ s) = Hs.TyString s
+lowerType (TypeUnit _) = Hs.TyTuple []
 
 codeGenExpr :: Expr -> Text
-codeGenExpr (ExprApp _ (ExprApp _ (ExprVar _ n) l) r)
-  | isOp n =
-      Text.intercalate " " [asAtomic l, codeGenInfixIdentifier n, asAtomic r]
-codeGenExpr (ExprVar _ n) = codeGenIdentifier n
-codeGenExpr (ExprApp _ lhs' rhs') =
-  let lhs_code = if isInfix lhs' then parenthesize (codeGenExpr lhs') else codeGenExpr lhs'
-      rhs_code = asAtomic rhs'
-   in Text.intercalate " " [lhs_code, rhs_code]
-codeGenExpr (ExprList _ ls) = Text.concat ["[", Text.intercalate ", " $ codeGenExpr <$> ls, "]"]
-codeGenExpr (ExprTuple _ hd tl) = parenthesize $ Text.intercalate ", " $ codeGenExpr <$> hd : NonEmpty.toList tl
-codeGenExpr (ExprIntLit _ i) = if i < 0 then parenthesize (Text.show i) else Text.show i
-codeGenExpr (ExprStrLit _ i) = Text.show i
-codeGenExpr (ExprUnit _) = "()"
+codeGenExpr = Hs.renderExpr . lowerExpr
 
-class Atomic τ where
-  isAtomic :: τ -> Bool
-  asAtomic :: τ -> Text
-  isInfix :: τ -> Bool
+lowerName :: Identifier -> Hs.Name
+lowerName i
+  | isOp i = Hs.Operator (fullIdentifier i)
+  | otherwise = Hs.Name (fullIdentifier i)
 
-codeGenTypeAsAtomic :: Type -> Text
-codeGenTypeAsAtomic t
-  | isAtomic t = codeGenType t
-  | otherwise = parenthesize (codeGenType t)
+lowerExpr :: Expr -> Hs.Expr
+lowerExpr = lowerExprWithNames Map.empty
 
-parenthesize :: Text -> Text
-parenthesize t = Text.concat ["(", t, ")"]
-
--- isInfix :: Type -> Bool
--- isInfix (TypeApp _ (TypeApp _ (TypeName _ n) _) _) = isOp n
--- isInfix _ = False
-
-instance Atomic Type where
-  isAtomic :: Type -> Bool
-  isAtomic (TypeApp _ _ _) = False
-  isAtomic _ = True
-
-  isInfix :: Type -> Bool
-  isInfix (TypeApp _ (TypeApp _ (TypeName _ n) _) _) = isOp n
-  isInfix _ = False
-
-  asAtomic t
-    | isAtomic t = codeGenType t
-    | otherwise = parenthesize (codeGenType t)
-
-instance Atomic Expr where
-  isAtomic :: Expr -> Bool
-  isAtomic (ExprApp _ _ _) = False
-  isAtomic _ = True
-
-  isInfix :: Expr -> Bool
-  isInfix (ExprApp _ (ExprApp _ (ExprVar _ n) _) _) = isOp n
-  isInfix _ = False
-
-  asAtomic e
-    | isAtomic e = codeGenExpr e
-    | otherwise = parenthesize (codeGenExpr e)
-
-codeGenIdentifier :: Identifier -> Text
-codeGenIdentifier i =
-  if isOp i
-    then Text.concat ["(", fullIdentifier i, ")"]
-    else fullIdentifier i
+-- | Substitute identifiers before printing. Qualified foreign names are never
+-- rewritten. Prefix application preserves the tree for unknown host fixities.
+lowerExprWithNames :: Map Text Hs.Name -> Expr -> Hs.Expr
+lowerExprWithNames names = go
+  where
+    go (ExprVar _ i@(IdentifierSimpleIdentifier s)) =
+      Hs.Var (Map.findWithDefault (lowerName i) (simpleIdentifier s) names)
+    go (ExprVar _ i) = Hs.Var (lowerName i)
+    go (ExprApp _ f x) = Hs.App (go f) (go x)
+    go (ExprList _ xs) = Hs.List (go <$> xs)
+    go (ExprTuple _ hd tl) = Hs.Tuple (go <$> hd : NonEmpty.toList tl)
+    go (ExprIntLit _ n) = Hs.IntegerLit n
+    go (ExprStrLit _ s) = Hs.StringLit s
+    go (ExprUnit _) = Hs.Tuple []
 
 isOp :: Identifier -> Bool
 isOp i = all isValidOpChar (Text.unpack $ simpleIdentifier i)
-
-codeGenInfixIdentifier :: Identifier -> Text
-codeGenInfixIdentifier i =
-  if all isValidOpChar (Text.unpack $ simpleIdentifier i)
-    then fullIdentifier i
-    else Text.concat ["`", fullIdentifier i, "`"]
-
-buildSimpleType :: Text -> Type
-buildSimpleType t = TypeName (-1) (MkIdentifierSimple (-1) t)
 
 dbFactSelector :: Text -> Text
 dbFactSelector = Text.append "_facts"
@@ -123,24 +77,3 @@ capitalize :: Text -> Text
 capitalize t = case Text.uncons t of
   Just (c, t') -> Text.cons (Char.toUpper c) t'
   Nothing -> t
-
-codeGenExprWithNameReplacement :: IntMap Int -> Map Text Int -> Expr -> Text
-codeGenExprWithNameReplacement name_supply var_map (ExprVar _ (IdentifierSimpleIdentifier (SimpleIdentifier _ i)))
-  | i `Map.member` var_map =
-      let c_v = var_map Map.! i
-       in Text.concat ["_v", Text.show c_v, "_", Text.show $ name_supply IntMap.! c_v]
-codeGenExprWithNameReplacement _ _ (ExprVar _ i) = codeGenIdentifier i
-codeGenExprWithNameReplacement name_supply var_map (ExprApp _ lhs' rhs') =
-  Text.concat ["(", codeGenExprWithNameReplacement name_supply var_map lhs', " ", codeGenExprWithNameReplacement name_supply var_map rhs', ")"]
-codeGenExprWithNameReplacement _ _ (ExprIntLit _ i) = Text.show i
-codeGenExprWithNameReplacement _ _ (ExprStrLit _ s) = Text.show s
-codeGenExprWithNameReplacement name_supply var_map (ExprTuple _ hd tl) =
-  let hd' = codeGenExprWithNameReplacement name_supply var_map hd
-      tl' = codeGenExprWithNameReplacement name_supply var_map <$> NonEmpty.toList tl
-      comp = Text.intercalate ", " $ hd' : tl'
-   in Text.concat ["(", comp, ")"]
-codeGenExprWithNameReplacement name_supply var_map (ExprList _ ls) =
-  let comp = codeGenExprWithNameReplacement name_supply var_map <$> ls
-      comp_code = Text.intercalate ", " comp
-   in Text.concat ["[", comp_code, "]"]
-codeGenExprWithNameReplacement _ _ (ExprUnit _) = "()"

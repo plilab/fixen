@@ -1,836 +1,234 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultilineStrings #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- |
--- Module      : Fixen.CodeGen.Database
--- Description : Code Generation for Fact Databases
--- Copyright   : (c) Programming Languages Innovation Lab@NUS
--- License     : MIT
--- Maintainer  : yongqi@nus.edu.sg
--- Stability   : experimental
---
--- This module provides code-generation facilities for the fact database and
--- associated utilities.
---
--- The 'codeGenDb' function generates:
---
--- 1. The @Database@ type ('codeGenDbDef')
--- 2. The @emptyDb@ definition ('codeGenEmptyDb')
--- 3. The @|=@ (entailment) definition ('codeGenEntailment')
--- 4. The @insertToDb@ function for fact insertion ('codeGenFactInsertions')
--- 5. The @mergeContour@ function for obtaining new facts generated from
---    map-entry merging ('codeGenMergeContour')
---
--- @since 26.7
+-- | Haskell storage declarations, entailment, insertion and contour merging.
+-- Each traversal carries its current index explicitly and produces syntax
+-- trees. No traversal depends on indentation or a sentinel variable ID.
 module Fixen.CodeGen.Database where
 
-import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
-import Fixen.Fields
-import Fixen.IR.AST
+import Fixen.CodeGen.Fact (comparisonName)
+import Fixen.CodeGen.Haskell.Bindings (numberedName)
+import Fixen.CodeGen.Haskell.Syntax qualified as Hs
+import Fixen.IR.AST (Type)
 import Fixen.IR.RelationRepresentation
 import Fixen.Monad
-import Fixen.Utils
-import Prelude hiding (map)
 
---------------------------------------------------------------------------------
-
--- * Main Entry Point
-
---------------------------------------------------------------------------------
-
--- | Generates the Haskell source code for dealing with fact databases.
---
--- @since 26.7
 codeGenDb :: RelationRepresentation -> FixenPass CodeGenState Text
-codeGenDb r = do
-  let db_def = codeGenDbDef r
-      empty_db_def = codeGenEmptyDb r
-      merge_contour_def = codeGenMergeContour r
-  entailment_def <- codeGenEntailment r
-  insert_def <- codeGenInsert r
-  return $
+codeGenDb layouts =
+  pure $
     Text.intercalate
       "\n\n"
-      [db_def, empty_db_def, entailment_def, insert_def, merge_contour_def]
+      [ codeGenDbDef layouts
+      , codeGenEmptyDb layouts
+      , "infix 0 |=\n"
+          <> Hs.renderDecls
+            (signature "|=" ["Database", "Fact"] (Hs.typ "Bool") : (entailmentCase <$> relations))
+      , Hs.renderDecls (signature "insertToDb" ["Database", "Fact"] (Hs.typ "Database") : (insertionCase <$> relations))
+      , codeGenMergeContour layouts
+      ]
+  where
+    relations = Map.toList layouts
 
---------------------------------------------------------------------------------
+signature :: Text -> [Text] -> Hs.Type -> Hs.Decl
+signature n args = Hs.Signature (Hs.name n) . Hs.functionType (Hs.typ <$> args)
 
--- * Helpers
-
---------------------------------------------------------------------------------
-
--- ** Database-Type Generation
-
--- | Generates the @Database@ type.
---
--- @since 26.7
 codeGenDbDef :: RelationRepresentation -> Text
-codeGenDbDef r =
-  let facts = Map.toList r
-      header =
-        """
-        ----- FACT DATABASE -----
-        data Database = Database
-          { 
-        """
-      db_fields = Text.intercalate "\n  , " (codeGenDbField <$> facts)
-      end = "\n  } deriving Eq"
-   in Text.concat [header, db_fields, end]
+codeGenDbDef layouts =
+  Hs.renderDecls
+    [ Hs.Data
+        (Hs.name "Database")
+        ( Hs.RecordConstructor
+            (Hs.name "Database")
+            [(Hs.name (dbFactSelector rel), buildDbFieldType True (_databaseTypes (_databaseRepresentation layout))) | (rel, layout) <- Map.toList layouts]
+            :| []
+        )
+        [Hs.name "Eq"]
+    ]
 
--- | Generates an individual field in the @Database@ type.
---
--- @since 26.7
-codeGenDbField
-  :: (Text, RelationRepresentationInfo)
-  -- ^ The 'Text' is the relation name, the 'RelationRepresentationInfo' is its
-  -- representation information.
-  --
-  -- @since 26.7
-  -> Text
-codeGenDbField (t, r) =
-  let db_ty_code =
-        r
-          ^. database
-          . types
-          & buildDbFieldType True
-          & codeGenType
-   in Text.concat [dbFactSelector t, " :: ", db_ty_code]
+-- | The root lattice suffix is optional; under a discrete key it is present
+-- whenever that key is present. Partial-order suffixes are antichain sets.
+buildDbFieldType :: Bool -> [(QueryType, StoreType, Type)] -> Hs.Type
+buildDbFieldType _ [] = Hs.typ "Bool"
+buildDbFieldType root fields@((LatticeMeet {}, _, _) : _) =
+  let suffix = Hs.tupleType [lowerType t | (_, _, t) <- fields]
+   in if root then Hs.TyApp (Hs.typ "Maybe") suffix else suffix
+buildDbFieldType _ fields@((Meet {}, _, _) : _) =
+  Hs.TyApp (Hs.typ "HashSet") (Hs.tupleType [lowerType t | (_, _, t) <- fields])
+buildDbFieldType _ [(_, _, t)] = Hs.TyApp (Hs.typ "HashSet") (lowerType t)
+buildDbFieldType _ ((_, _, t) : rest) =
+  Hs.TyApp (Hs.TyApp (Hs.typ "HashMap") (lowerType t)) (buildDbFieldType False rest)
 
--- | Builds the 'Type' of the database representation.
---
--- @since 26.7
-buildDbFieldType
-  :: Bool
-  -- ^ Whether this is the first component of the field.
-  -> [(QueryType, StoreType, Type)]
-  -- ^ The relation representation's types.
-  -> Type
--- If the relation has no arguments, just use a bool.
-buildDbFieldType _ [] = buildSimpleType "Bool"
-buildDbFieldType True [(LatticeMeet {}, _, x)] = TypeApp (-1) (buildSimpleType "Maybe") x
-buildDbFieldType False [(LatticeMeet {}, _, x)] = x
-buildDbFieldType False ((LatticeMeet {}, _, t) : x : xs) =
-  -- build a tuple of those stuff.
-  let remaining_types = thrd <$> (x :| xs)
-   in TypeTuple (-1) t remaining_types
-buildDbFieldType True ((LatticeMeet {}, _, t) : x : xs) =
-  -- build a tuple of those stuff.
-  let remaining_types = thrd <$> (x :| xs)
-   in TypeApp (-1) (buildSimpleType "Maybe") (TypeTuple (-1) t remaining_types)
--- The last thing should be a hashset of the argument's type
-buildDbFieldType _ [(_, _, x)] = TypeApp (-1) (buildSimpleType "HashSet") x
--- At any point, the moment we see a partially ordered type, just use a HashSet
--- and store everything remaining in a tuple
-buildDbFieldType _ ((Meet _ _, _, t) : x : xs) =
-  let remaining_types = thrd <$> (x :| xs)
-   in TypeApp
-        (-1)
-        (buildSimpleType "HashSet")
-        (TypeTuple (-1) t remaining_types)
--- Otherwise, just use a HashMap.
-buildDbFieldType _ ((Match, _, t) : xs) =
-  TypeApp
-    (-1)
-    (TypeApp (-1) (buildSimpleType "HashMap") t)
-    (buildDbFieldType False xs)
-
--- ** Empty Database
-
--- | Generates the definition of @emptyDb@.
---
--- @since 26.7
 codeGenEmptyDb :: RelationRepresentation -> Text
-codeGenEmptyDb r =
-  let header =
-        """
-        emptyDb :: Database
-        emptyDb = Database
-          { 
-        """
-      all_fields =
-        Map.toList r
-          <&> codeGenEmptyDbFields
-          & Text.intercalate "\n  , "
-   in Text.concat [header, all_fields, "\n  }"]
-
--- | Generates the field of an @emptyDb@.
---
--- @since 26.7
-codeGenEmptyDbFields
-  :: (Text, RelationRepresentationInfo)
-  -- ^ The 'Text' is the relation name, and the 'RelationRepresentationInfo'
-  -- is its information.
-  --
-  -- @since 26.7
-  -> Text
-codeGenEmptyDbFields (t, r) =
-  let field_name = dbFactSelector t
-   in Text.append field_name $
-        case r ^. database . types of
-          [] -> " = False"
-          ((LatticeMeet {}, _, _) : _) -> " = Nothing"
-          [_] -> " = HashSet.empty"
-          ((Meet _ _, _, _) : _) -> " = HashSet.empty"
-          _ -> " = HashMap.empty"
-
--- ** Entailment
-
--- | Generates the @|=@ function.
---
--- @since 26.7
-codeGenEntailment :: RelationRepresentation -> FixenPass CodeGenState Text
-codeGenEntailment rep = do
-  let ty_decl =
-        """
-        infix 0 |=
-
-        (|=) :: Database -> Fact -> Bool
-        """
-      all_patterns = Map.toList rep
-  all_patterns_code <- mapM codeGenEntailmentCase all_patterns
-  return $ Text.intercalate "\n" (ty_decl : all_patterns_code)
-
--- | Generates a case for @|=@.
---
--- @since 26.7
-codeGenEntailmentCase
-  :: (Text, RelationRepresentationInfo)
-  -- ^ The 'Text' is the name of the relation, and the 'RelationRepresentationInfo'
-  -- is its information.
-  -> FixenPass CodeGenState Text
-codeGenEntailmentCase (rel_name, rep_info)
-  | null db_ty = return header
-  | (LatticeMeet {}, _, _) : _ <- db_ty =
-      return header
-  | length steps_individual_code <= 1 =
-      return $ Text.concat (header : steps_individual_code)
-  | otherwise =
-      return $
-        Text.concat
-          [ header
-          , "fromMaybe False $ do\n        "
-          , Text.intercalate "\n        " (init steps_individual_code)
-          , -- put the return $ on the last guy! We do not put the return $ in the
-            -- steps function in case there is only one step to run; in that case,
-            -- there is no need to use return.
-            "\n        return $ "
-          , last steps_individual_code
-          ]
+codeGenEmptyDb layouts =
+  Hs.renderDecls
+    [ Hs.Signature (Hs.name "emptyDb") (Hs.typ "Database")
+    , Hs.Function
+        (Hs.name "emptyDb")
+        []
+        ( Hs.Record
+            (Hs.name "Database")
+            [(Hs.name (dbFactSelector rel), emptyIndex (_databaseTypes (_databaseRepresentation layout))) | (rel, layout) <- Map.toList layouts]
+        )
+    ]
   where
-    -- The database types
-    db_ty = rep_info ^. database . types
+    emptyIndex [] = Hs.var "False"
+    emptyIndex ((LatticeMeet {}, _, _) : _) = Hs.var "Nothing"
+    emptyIndex ((_, StoredAsHashMap, _) : _) = Hs.var "HashMap.empty"
+    emptyIndex _ = Hs.var "HashSet.empty"
 
-    -- The header of the pattern:
-    -- Either:
-    --   db |= MyRel = _factsMyRel db
-    -- if MyRel has no arguments (i.e., just a Bool), otherwise,
-    -- if MyRel only has lattice arguments
-    --   db |= (MyRel _v0 ...) =
-    --     fromMaybe False do
-    --       (_t0, ...) <- _factsMyRel db
-    --       return $ leq0 _v0 _t0 && leq1 _v1 _t1 && ...
-    -- otherwise:
-    --   db |= (MyRel _v0 _v1 ...) =
-    --     let db' = _factsMyRel db
-    --      in
-    header
-      | null db_ty = Text.concat ["db |= ", rel_name, " = ", dbFactSelector rel_name, " db"]
-      | ((LatticeMeet {}, _, _) : _) <- db_ty =
-          let leqs =
-                fmap
-                  ( \(l', _, _) -> case l' of
-                      Match -> "(==)" -- technically impossible, since we
-                      -- are in a set of partially ordered
-                      -- terms
-                      Meet x _ -> codeGenIdentifier x -- technically impossible
-                      -- since we are in lattice-only land
-                      LatticeMeet x _ _ -> codeGenIdentifier x
-                  )
-                  db_ty
-              idxed_leqs = zip [0 .. length leqs - 1] leqs
-              conds =
-                fmap
-                  (\(i, l) -> Text.intercalate " " [l, v i, t i])
-                  idxed_leqs
-              lhs_tup =
-                if length db_ty == 1
-                  then t 0
-                  else parenthesize (Text.intercalate ", " $ t <$> [0 .. length db_ty - 1])
-           in Text.concat
-                [ "db |= "
-                , case_pattern
-                , " =\n"
-                , "  fromMaybe False $ do\n"
-                , "    "
-                , lhs_tup
-                , " <- "
-                , dbFactSelector rel_name
-                , " db\n"
-                , "    return $ "
-                , Text.intercalate " && " conds
-                ]
-      | otherwise =
-          Text.concat
-            [ "db |= "
-            , case_pattern
-            , " =\n"
-            , "  let db' = "
-            , dbFactSelector rel_name
-            , " db\n"
-            , "   in "
-            ]
+-- | Fields in storage order, carrying their original fact argument positions.
+storageFields :: RelationRepresentationInfo -> [(Int, QueryType)]
+storageFields layout =
+  zip
+    (IntMap.elems (_extractionMap (_databaseRepresentation layout)))
+    [q | (q, _, _) <- _databaseTypes (_databaseRepresentation layout)]
 
-    -- The pattern of this case, e.g., (MyRel _v0 _v1).
-    case_pattern = parenthesize $ Text.intercalate " " (rel_name : case_vars)
+factPattern :: Text -> Int -> Hs.Pattern
+factPattern rel arity = Hs.PCon (Hs.name rel) [Hs.PVar (valueName i) | i <- [0 .. arity - 1]]
 
-    -- The variables of this case.
-    case_vars = v <$> [0 .. length db_ty - 1]
+valueName :: Int -> Hs.Name
+valueName = numberedName "_v"
 
-    -- Generates _v0, _v1, etc, for any i.
-    v :: Int -> Text
-    v = Text.append "_v" ∘ Text.show
+storedName :: Int -> Hs.Name
+storedName = numberedName "_t"
 
-    -- Generates _t0, _t1, etc, for any i.
-    t :: Int -> Text
-    t = Text.append "_t" ∘ Text.show
+value :: Int -> Hs.Expr
+value = Hs.Var . valueName
 
-    -- The extraction order is just the values of the extraction map, in that
-    -- order.
-    extraction_order = values $ rep_info ^. database . map
+stored :: Int -> Hs.Expr
+stored = Hs.Var . storedName
 
-    -- The extraction procedure is then specified by the extraction order and the
-    -- database types. Essentially, we have a list of i elements, where each
-    -- element has:
-    -- 1. An index j that corresponds to where the ith fact argument is in the
-    --    database
-    -- 2. The query type
-    -- 3. The type of the argument.
-    extraction_proc = zipWith (\x (y, _, z) -> (x, y, z)) extraction_order db_ty
+indexExpr :: Text -> Hs.Expr
+indexExpr rel = Hs.call (dbFactSelector rel) [Hs.var "db"]
 
-    -- The code for all the steps for determining entailment.
-    steps_individual_code = steps 0 extraction_proc
-
-    -- This function generates each individual step for determining entailment.
-    -- The idea is that we descend the database, matching on HashMap keys,
-    -- then further descend into the nested HashMap/HashSet.
-    --
-    -- Note that none of the code is indented. Indentation is handled in the
-    -- main function body.
-    steps :: Int -> [(Int, QueryType, Type)] -> [Text]
-    -- Case that doesn't happen anyway.
-    steps _ [] = []
-    -- We reached a HashSet of partially ordered stuff.
-    -- Just check if any of the elements in the HashSet subsume the corresponding
-    -- variables. It looks like
-    --   any (\(t0, t1, ...) -> leq4 v4 t0 && leq0 v0 t1 && ...) step{step_no}
-    steps step_no ls@((idx, Meet leq_function _, _) : _) =
-      let n = length ls -- how big is this tuple? is it standalone?
-          curr_db = getCurrDb step_no
-       in if n == 1
-            then -- HashSet (ty). Just look for anything inside that subsumes
-            -- the var
-              [ Text.concat
-                  ["any (", codeGenIdentifier leq_function, " ", v idx, ") ", curr_db]
-              ]
-            else -- HashSet (ty1, ty2, ...). Use `any` to look through stuff.
-            -- the idea is that we will use
-            --   any (\(t0, t1, ...) -> leq3 t0 v3 && leq2 t1 v2 ...)
-            -- where the v numbers are given in idx.
-              let -- just a series of variables _t0 to _t{n - 1}
-                  fn_params = t <$> [0 .. n - 1]
-                  -- the _v{x} variables
-                  remaining_vars = (\(i, _, _) -> v i) <$> ls
-                  remaining_vars_leq =
-                    fmap
-                      ( \(_, l', _) -> case l' of
-                          Match -> "(==)" -- technically impossible, since we
-                          -- are in a set of partially ordered
-                          -- terms
-                          Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ -> codeGenIdentifier x
-                      )
-                      ls
-                  -- now we build the \(t0, t1, ... ) -> function header
-                  fn_arg_tup = parenthesize $ Text.intercalate ", " fn_params
-                  fn_header = Text.concat ["\\", fn_arg_tup, " -> "]
-
-                  -- the components are just a series of conjunctions of leqs.
-                  fn_body_components =
-                    zipWith3
-                      ( \t_var v_var leq' ->
-                          parenthesize
-                            (Text.intercalate " " [leq', v_var, t_var])
-                      )
-                      fn_params
-                      remaining_vars
-                      remaining_vars_leq
-                  fn_body = Text.intercalate " && " fn_body_components
-
-                  -- now we finally have the function
-                  any_fn = parenthesize $ Text.concat [fn_header, fn_body]
-               in [Text.concat ["any ", any_fn, " ", curr_db]]
-    -- We reached a HashSet of partially ordered stuff, again. This is essentially
-    -- the same exact case as the one before.
-    -- Just check if any of the elements in the HashSet subsume the corresponding
-    -- variables. It looks like
-    --   any (\(t0, t1, ...) -> leq4 v4 t0 && leq0 v0 t1 && ...) step{step_no}
-    steps step_no ls@((idx, LatticeMeet leq_function _ _, _) : _) =
-      let n = length ls -- how big is this tuple? is it standalone?
-          curr_db = getCurrDb step_no
-       in if n == 1
-            then -- HashSet (ty). Just look for anything inside that subsumes
-            -- the var
-              [ Text.concat
-                  ["any (", codeGenIdentifier leq_function, " ", v idx, ") ", curr_db]
-              ]
-            else -- HashSet (ty1, ty2, ...). Use `any` to look through stuff.
-            -- the idea is that we will use
-            --   any (\(t0, t1, ...) -> leq3 t0 v3 && leq2 t1 v2 ...)
-            -- where the v numbers are given in idx.
-              let -- just a series of variables _t0 to _t{n - 1}
-                  fn_params = t <$> [0 .. n - 1]
-                  -- the _v{x} variables
-                  remaining_vars = (\(i, _, _) -> v i) <$> ls
-                  remaining_vars_leq =
-                    fmap
-                      ( \(_, l', _) -> case l' of
-                          Match -> "(==)" -- technically impossible, since we
-                          -- are in a set of partially ordered
-                          -- terms
-                          Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ -> codeGenIdentifier x
-                      )
-                      ls
-                  -- now we build the \(t0, t1, ... ) -> function header
-                  fn_arg_tup = parenthesize $ Text.intercalate ", " fn_params
-                  fn_header = Text.concat ["\\", fn_arg_tup, " -> "]
-
-                  -- the components are just a series of conjunctions of leqs.
-                  fn_body_components =
-                    zipWith3
-                      ( \t_var v_var leq' ->
-                          parenthesize
-                            (Text.intercalate " " [leq', v_var, t_var])
-                      )
-                      fn_params
-                      remaining_vars
-                      remaining_vars_leq
-                  fn_body = Text.intercalate " && " fn_body_components
-
-                  -- now we finally have the function
-                  any_fn = parenthesize $ Text.concat [fn_header, fn_body]
-               in [Text.concat ["any ", any_fn, " ", curr_db]]
-    -- HashSet of some discrete stuff. Just check element membership.
-    steps step_no [(idx, Match, _)] =
-      [Text.concat [v idx, " `HashSet.member` ", getCurrDb step_no]]
-    -- lookup from the hashmap and immediately destructure
-    steps step_no ((idx, Match, _) : xs@((_, LatticeMeet {}, _) : _)) =
-      let lhs_tup =
-            if length xs == 1
-              then t 0
-              else parenthesize (Text.intercalate ", " $ t <$> [0 .. length xs - 1])
-          curr_db = getCurrDb step_no
-          curr_step =
-            Text.concat
-              [lhs_tup, " <- ", curr_db, " HashMap.!? ", v idx]
-          idxes =
-            fmap
-              ( \(i, x, _) ->
-                  case x of
-                    Match -> (i, "==")
-                    Meet l _ -> (i, codeGenIdentifier l)
-                    LatticeMeet l _ _ -> (i, codeGenIdentifier l)
-              )
-              xs
-          conds =
-            fmap
-              ( \(tidx, (vidx, l)) ->
-                  Text.intercalate " " [l, v vidx, t tidx]
-              )
-              (zip [0 .. length xs] idxes)
-       in [curr_step, Text.intercalate " && " conds]
-    -- lookup from the hashmap
-    steps step_no ((idx, Match, _) : xs) =
-      let curr_db = getCurrDb step_no
-          curr_step =
-            Text.concat
-              [getCurrDb (step_no + 1), " <- ", curr_db, " HashMap.!? ", v idx]
-       in curr_step : steps (step_no + 1) xs
-
-    -- Finds out what the current map/set we have descended into is.
-    getCurrDb 0 = "db'" -- have not started descending
-    getCurrDb n = Text.append "step" (Text.show n) -- have already descended
-
--- ** Fact Insertion
-
--- | Generates the @insertToDb@ function. This function unconditionally inserts
--- facts into the database. It does not perform joins at all. The inserted
--- facts must be maximal, and never be subsumed by anything in the database.
---
--- @since 26.7
-codeGenInsert :: RelationRepresentation -> FixenPass CodeGenState Text
-codeGenInsert rep = do
-  let ty_decl =
-        """
-        insertToDb :: Database -> Fact -> Database
-        """
-      all_cases = Map.toList rep
-  all_cases_code <- mapM codeGenInsertCase all_cases
-  return $ Text.intercalate "\n" (ty_decl : all_cases_code)
-
--- Generates a case for the @insertToDb@ function.
---
--- @since 26.7
-codeGenInsertCase
-  :: (Text, RelationRepresentationInfo)
-  -- ^ The 'Text' is the relation's name
-  -> FixenPass CodeGenState Text
-codeGenInsertCase (rel_name, rep_info)
-  | null db_ty = return header
-  | only_lattices =
-      let fact_tup =
-            if length db_ty == 1
-              then v 0
-              else
-                parenthesize $
-                  Text.intercalate ", " $
-                    v <$> [0 .. length db_ty - 1]
-       in return $
-            Text.concat
-              [ "insertToDb db "
-              , case_pattern
-              , " = db { "
-              , dbFactSelector rel_name
-              , " = Just "
-              , fact_tup
-              , " }"
-              ]
-  | otherwise = return $ Text.concat [header, singleton_fact_code, new_mp_code]
+entailmentCase :: (Text, RelationRepresentationInfo) -> Hs.Decl
+entailmentCase (rel, layout) =
+  Hs.Function
+    (Hs.name "|=")
+    [Hs.pat "db", factPattern rel (length fields)]
+    (entails True 0 (indexExpr rel) fields)
   where
-    db_ty = rep_info ^. database . types
+    fields = storageFields layout
 
-    -- The header of the case. If the relation has no arguments, it is just
-    --   insertToDb db MyRel = Just db { _factsMyRel = True }
-    -- since the representation of the relation is just Bool.
-    -- Otherwise, it will be something like
-    --   insertToDb db (MyRel _v0 _v1 ...) =
-    --     let mp = _factsMyRel db
-    --         new_fact =
-    -- in which we will proceed to generate:
-    --   1. The fact database that stores the new fact only
-    --   2. The code that performs a union of this singleton map with one fact
-    --      and the current database.
-    header =
-      if null db_ty
-        then
-          Text.concat
-            [ "insertToDb db "
-            , rel_name
-            , " = db { "
-            , dbFactSelector rel_name
-            , " = True }"
-            ]
-        else
-          Text.concat
-            [ "insertToDb db "
-            , case_pattern
-            , " =\n"
-            , "  let mp = "
-            , dbFactSelector rel_name
-            , " db\n"
-            , "      new_fact = "
-            ]
-
-    only_lattices = case db_ty of
-      (LatticeMeet {}, _, _) : _ -> True
-      _ -> False
-
-    -- The pattern (MyRel _v0 _v1 ... _vn)
-    case_pattern = parenthesize $ Text.intercalate " " (rel_name : case_vars)
-
-    -- The variables of the pattern, _v0, _v1, ..., _vn
-    case_vars = v <$> [0 .. length db_ty - 1]
-    -- The order in which the fact arguments appear in the database
-    insertion_order = values (rep_info ^. database . map)
-
-    -- The sequence of steps for inserting the fact into the database
-    extraction_proc = zipWith (\x (y, _, z) -> (x, y, z)) insertion_order db_ty
-
-    -- Generates the singleton map/set containing the fact to be inserted
-    singleton_fact_code = singleton_steps extraction_proc
-
-    -- Individual steps for building the singleton map/set containing the fact
-    -- to be inserted
-    singleton_steps :: [(Int, QueryType, Type)] -> Text
-    -- no one cares since this never happens anyway
-    singleton_steps [] = ""
-    -- arrived at a sequence of partially ordered stuff. Put it in a
-    -- singleton HashSet as a tuple.
-    singleton_steps ls@((idx, Meet _ _, _) : _) =
-      if length ls == 1
-        then -- just a hashset
-          Text.concat ["HashSet.singleton ", v idx]
-        else
-          let remaining_vars = fmap (\(i, _, _) -> v i) ls
-              tuple = parenthesize $ Text.intercalate ", " remaining_vars
-           in Text.concat ["HashSet.singleton ", tuple]
-    -- arrived at a sequence of lattices. Put it in a tuple.
-    singleton_steps ls@((idx, LatticeMeet {}, _) : _) =
-      if length ls == 1
-        then v idx -- just the thing itself -- a hashset
-        else
-          let remaining_vars = fmap (\(i, _, _) -> v i) ls
-              tuple = parenthesize $ Text.intercalate ", " remaining_vars
-           in tuple
-    -- arrived at the rightmost thing. simply put it as a singleton in the hashset
-    singleton_steps [(idx, _, _)] = Text.concat ["HashSet.singleton ", v idx]
-    -- arrived at some discrete hashmap key.
-    singleton_steps ((idx, _, _) : xs) =
-      Text.concat ["HashMap.singleton ", v idx, " ", parenthesize (singleton_steps xs)]
-
-    -- The code that unions the singleton map/set with the existing database.
-    new_mp_code =
-      Text.concat
-        [ "\n      mp' = "
-        , insertionFn 0 extraction_proc
-        , "\n              new_fact"
-        , "\n              mp"
-        , "\n   in db { "
-        , dbFactSelector rel_name
-        , " = mp' }"
+entails :: Bool -> Int -> Hs.Expr -> [(Int, QueryType)] -> Hs.Expr
+entails _ _ index [] = index
+entails _ _ index [(i, Match)] = Hs.call "HashSet.member" [value i, index]
+entails _ depth index ((i, Match) : rest) =
+  let step = numberedName "step" depth
+      lookupValue = Hs.call "HashMap.lookup" [value i, index]
+   in Hs.call
+        "fromMaybe"
+        [ Hs.var "False"
+        , Hs.Do
+            [Hs.Bind (Hs.PVar step) lookupValue]
+            (Hs.call "return" [entails False (depth + 1) (Hs.Var step) rest])
         ]
+entails root _ index fields@((_, q) : _) =
+  let lhs = Hs.tuplePattern [Hs.PVar (storedName n) | n <- [0 .. length fields - 1]]
+      condition =
+        Hs.andExpr
+          [Hs.apps (Hs.Var (comparisonName kind)) [value i, stored n] | (n, (i, kind)) <- zip [0 ..] fields]
+   in case q of
+        Meet {} -> Hs.call "any" [Hs.Lambda (lhs :| []) condition, index]
+        LatticeMeet {} | root -> Hs.call "fromMaybe" [Hs.var "False", Hs.Do [Hs.Bind lhs index] (Hs.call "return" [condition])]
+        LatticeMeet {} -> Hs.Let (Hs.Binding lhs index :| []) condition
 
-    -- Generates the union function between the singleton map/set with the
-    -- existing fact database.
-    --
-    -- The first argument is the indentation of the current step
-    insertionFn :: Int -> [(Int, QueryType, Type)] -> Text
-    -- no one cares; this case never happens anyway!
-    insertionFn _ [] = ""
-    -- arrived at some partially ordered stuff. the insertion function looks
-    -- something like:
-    --   (\s1 s2 -> HashSet.union s1 (HashSet.filter (\... -> ...) s2))
-    -- where the filter function removes all the stuff in s2 that is strictly
-    -- subsumed by the new fact.
-    --
-    -- The fact that we actually have to take MLBs of partial ords
-    -- and joins of lattices, if they are present, is handled implicitly
-    -- since the inserted facts are already merge-complete.
-    insertionFn indent ls@((idx, Meet l _, _) : _) =
-      let n = length ls
-       in if n == 1
-            then
-              -- singleton. do a basic union, eliminating stuff in the original
-              -- database that the new fact strictly subsumes
-              -- consider deleting this branch
-              Text.concat
-                [ "(\\s1 s2 ->"
-                , indentation (indent + 2)
-                , "HashSet.union"
-                , indentation (indent + 3)
-                , "s1"
-                , indentation (indent + 3)
-                , "(HashSet.filter"
-                , indentation (indent + 4)
-                , "(\\_t -> not (_t /= "
-                , v idx
-                , " && "
-                , codeGenIdentifier l
-                , " _t "
-                , v idx
-                , "))"
-                , indentation (indent + 4)
-                , "s2))"
-                ]
-            else
-              -- tuple. Same thing as before, do a union and eliminate stuff in
-              -- the original database that the new fact strictly subsumes.
-              let db_vars = t <$> [0 .. n - 1]
-                  filter_fn_hd =
-                    Text.concat
-                      [ indentation (indent + 4)
-                      , "(\\"
-                      , parenthesize $ Text.intercalate ", " db_vars
-                      , " -> not ("
-                      ]
-                  remaining_vars = fmap (\(i, _, _) -> v i) ls
-                  remaining_vars_leq =
-                    fmap
-                      ( \(_, l', _) -> case l' of
-                          Match -> "(==)"
-                          Meet x _ -> codeGenIdentifier x
-                          LatticeMeet x _ _ -> codeGenIdentifier x
-                      )
-                      ls
-                  filter_fn_body_components =
-                    zipWith3
-                      (\t'' v' leq' -> Text.intercalate " " [t'', "/=", v', "&&", leq', t'', v'])
-                      db_vars
-                      remaining_vars
-                      remaining_vars_leq
-                  filter_fn_body = Text.intercalate " && " filter_fn_body_components
-               in -- now we have the filter function which allows us to perform
-                  -- the union
-                  Text.concat
-                    [ "(\\s1 s2 ->"
-                    , indentation (indent + 2)
-                    , "HashSet.union"
-                    , indentation (indent + 3)
-                    , "s1"
-                    , indentation (indent + 3)
-                    , "(HashSet.filter"
-                    , filter_fn_hd
-                    , filter_fn_body
-                    , "))"
-                    , indentation (indent + 4)
-                    , "s2))"
-                    ]
-    insertionFn _ ((_, LatticeMeet {}, _) : _) =
-      -- a lattice element will already be merge-complete and maximal, thus
-      -- there is no need to do a join here. We can directly replace the
-      -- entry with the inserted fact.
-      "const"
-    -- Rightmost discrete argument. Just union.
-    insertionFn _ [(_, Match, _)] = "HashSet.union"
-    -- HashMap key. Just use HashMap.unionWith
-    insertionFn indent (_ : xs) =
-      Text.concat
-        [ "HashMap.unionWith"
-        , indentation (indent + 1)
-        , parenthesize $ insertionFn (indent + 1) xs
-        ]
+insertionCase :: (Text, RelationRepresentationInfo) -> Hs.Decl
+insertionCase (rel, layout) =
+  Hs.Function
+    (Hs.name "insertToDb")
+    [Hs.pat "db", factPattern rel (length fields)]
+    (Hs.Update (Hs.var "db") [(Hs.name (dbFactSelector rel), updated)])
+  where
+    fields = storageFields layout
+    updated = case fields of
+      [] -> Hs.var "True"
+      (_, LatticeMeet {}) : _ -> Hs.call "Just" [Hs.tuple (value . fst <$> fields)]
+      _ ->
+        Hs.Let
+          (Hs.Binding (Hs.pat "new_fact") (singletonIndex fields) :| [])
+          (Hs.apps (insertionFunction fields) [Hs.var "new_fact", indexExpr rel])
 
-    -- Generates indentation for some code
-    indentation 0 = " "
-    indentation n = Text.cons '\n' $ Text.replicate (12 + (n * 2)) " "
+singletonIndex :: [(Int, QueryType)] -> Hs.Expr
+singletonIndex [] = Hs.var "True"
+singletonIndex fields@((_, Meet {}) : _) = Hs.call "HashSet.singleton" [Hs.tuple (value . fst <$> fields)]
+singletonIndex fields@((_, LatticeMeet {}) : _) = Hs.tuple (value . fst <$> fields)
+singletonIndex [(i, Match)] = Hs.call "HashSet.singleton" [value i]
+singletonIndex ((i, Match) : rest) = Hs.call "HashMap.singleton" [value i, singletonIndex rest]
 
-    -- Generates _v0, _v1, etc, for any i.
-    v :: Int -> Text
-    v = Text.append "_v" ∘ Text.show
+-- | Insert already merge-complete maximal facts. Preserve the existing
+-- component-wise strict-subsumption filter; joins belong in mergeContour.
+insertionFunction :: [(Int, QueryType)] -> Hs.Expr
+insertionFunction fields@((_, Meet {}) : _) =
+  let lhs = Hs.tuplePattern [Hs.PVar (storedName n) | n <- [0 .. length fields - 1]]
+      dominated =
+        Hs.andExpr $
+          concat
+            [[Hs.call "/=" [stored n, value i], Hs.apps (Hs.Var (comparisonName q)) [stored n, value i]] | (n, (i, q)) <- zip [0 ..] fields]
+      keep = Hs.Lambda (lhs :| []) (Hs.call "not" [dominated])
+   in Hs.Lambda
+        (Hs.pat "s1" :| [Hs.pat "s2"])
+        (Hs.call "HashSet.union" [Hs.var "s1", Hs.call "HashSet.filter" [keep, Hs.var "s2"]])
+insertionFunction ((_, LatticeMeet {}) : _) = Hs.var "const"
+insertionFunction [(_, Match)] = Hs.var "HashSet.union"
+insertionFunction ((_, Match) : rest) = Hs.call "HashMap.unionWith" [insertionFunction rest]
+insertionFunction [] = error "Fixen.CodeGen: empty insertion path"
 
-    -- Generates _t0, _t1, etc, for any i.
-    t :: Int -> Text
-    t = Text.append "_t" ∘ Text.show
-
--- | This function generates the @mergeContour@ function, which is used to
--- obtain all new facts created from lattice joins.
---
--- @since 26.7
 codeGenMergeContour :: RelationRepresentation -> Text
-codeGenMergeContour r =
-  let header = "mergeContour :: Fact -> Database -> [Fact]"
-      facts = Map.toList r
-   in Text.intercalate "\n" $ header : (codeGenMergeContourCase <$> facts)
+codeGenMergeContour layouts =
+  Hs.renderDecls
+    (signature "mergeContour" ["Fact", "Database"] (Hs.TyList (Hs.typ "Fact")) : (contourCase <$> Map.toList layouts))
 
--- | Generates a single case for @mergeContour@.
---
--- @since 26.7
-codeGenMergeContourCase
-  :: (Text, RelationRepresentationInfo)
-  -- ^ The 'Text' is the name of the relation, the 'RelationRepresentationInfo'
-  -- is its information.
-  -> Text
-codeGenMergeContourCase (t, r)
-  | no_lattice = Text.concat ["mergeContour f@", fact_pattern, " _ = [f]"]
+contourCase :: (Text, RelationRepresentationInfo) -> Hs.Decl
+contourCase (rel, layout)
+  | not (any (isLattice . snd) fields) =
+      Hs.Function
+        (Hs.name "mergeContour")
+        [Hs.PAs (Hs.name "f") (Hs.PCon (Hs.name rel) (replicate arity Hs.PWildcard)), Hs.PWildcard]
+        (Hs.List [Hs.var "f"])
+  | otherwise =
+      let (statements, suffix) = contourSteps True 0 (indexExpr rel) fields
+          refinements = zipWith refine [0 ..] suffix
+          replacements = IntMap.fromList [(i, Hs.Var (numberedName "joined" i)) | (i, q) <- suffix, isOrdered q]
+          result = Hs.call rel [IntMap.findWithDefault (value i) i replacements | i <- [0 .. arity - 1]]
+       in Hs.Function
+            (Hs.name "mergeContour")
+            [Hs.PAs (Hs.name "f") (factPattern rel arity), Hs.pat "db"]
+            (Hs.Infix (Hs.var "f") (Hs.name ":") (Hs.Do (statements ++ refinements) (Hs.call "return" [result])))
   where
-    fact_ty = r ^. fact . types <&> fst
-    fact_pattern = parenthesize $ Text.intercalate " " $ t : replicate (length fact_ty) "_"
-    no_lattice =
-      let ls = filter (\case LatticeMeet {} -> True; _ -> False) fact_ty
-       in null ls
-codeGenMergeContourCase (rel_name, r) =
-  Text.append header $ steps IntMap.empty extraction_proc
-  where
-    db_ty = r ^. database . types
-    fact_pattern = parenthesize $ Text.intercalate " " $ rel_name : (v <$> [0 .. length db_ty - 1])
-    insertion_order = values (r ^. database . map)
-    extraction_proc = zipWith (\x (y, _, z) -> (x, y, z)) insertion_order db_ty
-    header =
-      Text.concat
-        [ "mergeContour f@"
-        , fact_pattern
-        , " db =\n"
-        , "  let db' = "
-        , dbFactSelector rel_name
-        , " db\n"
-        , "   in f : do"
-        ]
-    v :: Int -> Text
-    v i = Text.concat ["v", Text.show i]
-    t :: Int -> Text
-    t i = Text.concat ["t", Text.show i]
-    v' :: Int -> Text
-    v' i = Text.concat ["v'", Text.show i]
-    steps :: IntMap Int -> [(Int, QueryType, Type)] -> Text
-    steps _ [] = ""
-    steps name_supply ls@((_, LatticeMeet {}, _) : _) =
-      -- check if this relation has only lattices by seeing if we have
-      -- ever descended the lattice before.
-      case name_supply IntMap.!? (-1) of
-        Nothing ->
-          -- We have never descended this relation before.
-          let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
-              rhs_bind = get_db name_supply
-              extractor = Text.concat ["\n        ", lhs_tup, " <- maybeToList ", rhs_bind]
-           in Text.append extractor $ step_set name_supply 0 ls
-        Just _ ->
-          -- We have already descended this relation at some point.
-          -- The lattice values are within a tuple.
-          let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
-              rhs_bind = get_db name_supply
-              extractor = Text.concat ["\n        let ", lhs_tup, " = ", rhs_bind]
-           in Text.append extractor $ step_set name_supply 0 ls
-    steps name_supply ls@((_, Meet _ _, _) : _) =
-      -- hashset. draw out everything.
-      let tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
-          res = Text.concat ["\n        ", tup, " <- HashSet.toList ", get_db name_supply]
-       in Text.concat [res, step_set name_supply 0 ls]
-    steps name_supply ((idx, Match, _) : ls@((_, LatticeMeet {}, _) : _)) =
-      -- draw out the tuple
-      let lhs_tup = if length ls == 1 then t 0 else parenthesize $ Text.intercalate ", " $ t <$> [0 .. length ls - 1]
-          rhs_bind = Text.concat ["maybeToList ", parenthesize (Text.intercalate " " [get_db name_supply, "HashMap.!?", v idx])]
-          extractor = Text.concat ["\n        ", lhs_tup, " <- ", rhs_bind]
-       in Text.append extractor $ step_set name_supply 0 ls
-    steps name_supply ((idx, Match, _) : ls) =
-      -- draw out the step
-      let step_no = case name_supply IntMap.!? (-1) of
-            Nothing -> 0
-            Just i -> i + 1
-          lhs_tup = Text.append "step" (Text.show step_no)
-          rhs_bind = Text.concat ["maybeToList ", parenthesize (Text.intercalate " " [get_db name_supply, "HashMap.!?", v idx])]
-          extractor = Text.concat ["\n        ", lhs_tup, " <- ", rhs_bind]
-       in Text.append extractor $ steps (IntMap.insert (-1) step_no name_supply) ls
-    get_db name_supply =
-      case name_supply IntMap.!? (-1) of
-        Nothing -> "db'"
-        Just n -> Text.concat ["step", Text.show n]
-    step_set :: IntMap Int -> Int -> [(Int, QueryType, Type)] -> Text
-    step_set name_supply _ [] =
-      let vs =
-            ( \i -> case name_supply IntMap.!? i of
-                Nothing -> v i
-                Just _ -> v' i
-            )
-              <$> [0 .. length db_ty - 1]
-          new_fact = Text.intercalate " " $ rel_name : vs
-       in Text.concat ["\n        return ", parenthesize new_fact]
-    step_set name_supply n ((idx, Match, _) : ls) =
-      let extractor = Text.append "\n        guard " $ Text.intercalate " " [t n, " == ", v idx]
-       in Text.append extractor $ step_set name_supply (n + 1) ls
-    step_set name_supply n ((idx, Meet _ m, _) : ls) =
-      let lhs_var = v' idx
-          rhs_bind = Text.intercalate " " [codeGenIdentifier m, t n, v idx]
-          extractor = Text.concat ["\n        ", lhs_var, " <- ", rhs_bind]
-       in Text.append extractor $ step_set (IntMap.insert idx 0 name_supply) (n + 1) ls
-    step_set name_supply n ((idx, LatticeMeet _ j _, _) : ls) =
-      let lhs_var = v' idx
-          rhs_bind = Text.intercalate " " [codeGenIdentifier j, t n, v idx]
-          extractor = Text.concat ["\n        let ", lhs_var, " = ", rhs_bind]
-       in Text.append extractor $ step_set (IntMap.insert idx 0 name_supply) (n + 1) ls
+    fields = storageFields layout
+    arity = length fields
+    refine n (i, q) = case q of
+      Match -> Hs.guardStmt (Hs.call "==" [stored n, value i])
+      Meet _ mlbs -> Hs.Bind (Hs.PVar (numberedName "joined" i)) (Hs.apps (Hs.Var (lowerName mlbs)) [stored n, value i])
+      LatticeMeet _ join _ -> Hs.LetStmt (Hs.PVar (numberedName "joined" i)) (Hs.apps (Hs.Var (lowerName join)) [stored n, value i])
+
+-- | Collect lookup statements and unpack the terminal ordered suffix.
+contourSteps :: Bool -> Int -> Hs.Expr -> [(Int, QueryType)] -> ([Hs.Stmt], [(Int, QueryType)])
+contourSteps _ depth index ((i, Match) : rest) =
+  let step = numberedName "step" depth
+      statement = Hs.Bind (Hs.PVar step) (Hs.call "maybeToList" [Hs.call "HashMap.lookup" [value i, index]])
+      (statements, suffix) = contourSteps False (depth + 1) (Hs.Var step) rest
+   in (statement : statements, suffix)
+contourSteps root _ index fields@((_, q) : _) =
+  let lhs = Hs.tuplePattern [Hs.PVar (storedName n) | n <- [0 .. length fields - 1]]
+      statement = case q of
+        Meet {} -> Hs.Bind lhs (Hs.call "HashSet.toList" [index])
+        LatticeMeet {} | root -> Hs.Bind lhs (Hs.call "maybeToList" [index])
+        LatticeMeet {} -> Hs.LetStmt lhs index
+   in ([statement], fields)
+contourSteps _ _ _ [] = error "Fixen.CodeGen: contour without ordered fields"
+
+isLattice :: QueryType -> Bool
+isLattice LatticeMeet {} = True
+isLattice _ = False
+
+isOrdered :: QueryType -> Bool
+isOrdered Match = False
+isOrdered _ = True

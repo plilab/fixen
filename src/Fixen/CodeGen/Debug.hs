@@ -9,13 +9,9 @@
 module Fixen.CodeGen.Debug (
   codeGenDebugImport,
   codeGenDebugDefinitions,
-  codeGenRuleActivation,
-  codeGenSolverAcceptance,
-  codeGenSolverRejection,
 ) where
 
 import Data.Text (Text, pack)
-import Data.Text qualified as Text
 import Fixen.CodeGen.Common
 
 -- | Generates the import required by runtime debug traces.
@@ -109,66 +105,3 @@ codeGenDebugDefinitions options
                ++ show accepted_facts
            """
   | otherwise = ""
-
--- | Generates a call to the runtime rule-activation logger.
-codeGenRuleActivation
-  :: CodeGenOptions
-  -> Maybe Int
-  -> Text
-  -> Text
-  -> Text
-codeGenRuleActivation options phase_number indentation rule_name
-  | codeGenDebug options =
-      Text.concat
-        [ indentation
-        , "debugRuleActivation fact "
-        , pack $ "(" ++ show phase_number ++ ") "
-        , haskellStringLiteral rule_name
-        , " rule_instance"
-        ]
-  | otherwise = ""
-
--- | Wraps a solver continuation with an accepted-fact debug trace.
-codeGenSolverAcceptance
-  :: CodeGenOptions
-  -> Text
-  -> Text
-  -> Text
-  -> Text
-  -> Text
-codeGenSolverAcceptance options phase candidate accepted_facts continuation
-  | codeGenDebug options =
-      Text.concat
-        [ "debugSolverAccepted "
-        , phase
-        , " "
-        , candidate
-        , " "
-        , accepted_facts
-        , " $ "
-        , continuation
-        ]
-  | otherwise = continuation
-
--- | Wraps a solver continuation with a rejected-fact debug trace.
-codeGenSolverRejection
-  :: CodeGenOptions
-  -> Text
-  -> Text
-  -> Text
-  -> Text
-codeGenSolverRejection options phase candidate continuation
-  | codeGenDebug options =
-      Text.concat
-        [ "debugSolverRejected "
-        , phase
-        , " "
-        , candidate
-        , " $ "
-        , continuation
-        ]
-  | otherwise = continuation
-
--- | Renders text as an escaped Haskell String literal.
-haskellStringLiteral :: Text -> Text
-haskellStringLiteral = Text.pack . show . Text.unpack

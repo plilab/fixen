@@ -62,6 +62,11 @@ library
     -- Import common warning flags.
     import:             warnings
     exposed-modules:    Fixen.CodeGen
+                      , Fixen.CodeGen.Haskell.Syntax
+                      , Fixen.CodeGen.Haskell.Bindings
+                      , Fixen.CodeGen.Haskell.Match
+                      , Fixen.CodeGen.Haskell.Query
+                      , Fixen.CodeGen.Haskell.Solver
                       , Fixen.CodeGen.Common
                       , Fixen.CodeGen.Database
                       , Fixen.CodeGen.Debug
