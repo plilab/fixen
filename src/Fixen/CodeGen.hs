@@ -2,12 +2,13 @@
 
 -- | Haskell code-generation entry point. Rule matching, queries and solver
 -- control flow live in separate modules; embedded Haskell stays opaque.
-module Fixen.CodeGen (codeGen) where
+module Fixen.CodeGen (codeGen, codeGenFor) where
 
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
+import Fixen.CodeGen.Cpp qualified as Cpp
 import Fixen.CodeGen.Database
 import Fixen.CodeGen.Debug (codeGenDebugDefinitions)
 import Fixen.CodeGen.Fact
@@ -19,10 +20,16 @@ import Fixen.CodeGen.Import
 import Fixen.CodeGen.ModuleDeclaration
 import Fixen.CodeGen.MultiPhase
 import Fixen.CodeGen.RuleInstance
+import Fixen.CodeGen.Target
 import Fixen.IR.AST
 import Fixen.IR.RelationRepresentation
 import Fixen.IR.RuleForest
 import Fixen.Monad
+
+-- | Backwards-compatible Haskell entry point.
+codeGenFor :: Target -> CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
+codeGenFor Haskell = codeGen
+codeGenFor Cpp = Cpp.codeGen
 
 codeGen :: CodeGenOptions -> NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
 codeGen options forests layouts program = do

@@ -547,7 +547,7 @@ warnNameShadowingAgainstExtern decl_name repr i env = do
             [Hint $ "change the name of this " ++ decl_name]
         ]
   against_prelude <-
-    if repr ∈ preludeTerms
+    if symbolHasHaskellPrelude env && repr ∈ preludeTerms
       then do
         pos' <- getPosition i
         return
@@ -575,8 +575,8 @@ warnAgainstPreludeCapitalized
   --
   -- @since 26.7
   -> NamedSymbolRule σ α
-warnAgainstPreludeCapitalized this_msg decl_type repr i _ =
-  if repr ∈ preludeTermsCons
+warnAgainstPreludeCapitalized this_msg decl_type repr i env =
+  if symbolHasHaskellPrelude env && repr ∈ preludeTermsCons
     then do
       pos <- getPosition i
       return
@@ -603,8 +603,8 @@ warnAgainstPreludeLowercase
   --
   -- @since 26.7
   -> NamedSymbolRule σ α
-warnAgainstPreludeLowercase this_msg decl_type repr i _ =
-  if repr ∈ preludeTerms
+warnAgainstPreludeLowercase this_msg decl_type repr i env =
+  if symbolHasHaskellPrelude env && repr ∈ preludeTerms
     then do
       pos <- getPosition i
       return

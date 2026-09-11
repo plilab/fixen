@@ -11,6 +11,7 @@
 -- @since 26.7
 module Fixen.SymbolSolver where
 
+import Data.Maybe (isNothing)
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -50,8 +51,9 @@ solveSymbols
   -- @since 26.7
   -> FixenPass σ SymbolEnv
 solveSymbols prog = do
+  let initialEnv = emptySymbolEnv {symbolHasHaskellPrelude = isNothing (programCppNamespace prog)}
   env_with_rels_and_pords <-
-    foldMWith initEnvWithPartialOrd (prog ^. partialOrdDeclarations) emptySymbolEnv
+    foldMWith initEnvWithPartialOrd (prog ^. partialOrdDeclarations) initialEnv
       >>= foldMWith initEnvWithLattice (prog ^. latticeDeclarations)
       >>= foldMWith initEnvWithRelation (prog ^. relationDeclarations)
   -- flush all errors, and continue. Now, we are certain that the relations and

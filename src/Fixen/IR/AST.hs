@@ -418,6 +418,20 @@ instance EqModuloNodeId Identifier where
 --   conclusion arguments. The type supports variables, application
 --   (function application), integer and string literals, tuples,
 --   lists, and the unit value.
+-- | C++ expression forms. Children are ordinary Expr nodes so variable
+-- discovery and substitution remain shared; member/type names are not variables.
+data CppForm
+  = CppLiteral Text
+  | CppCall
+  | CppMember Text
+  | CppIndex
+  | CppUnary Text
+  | CppBinary Text
+  | CppConditional
+  | CppConstruct Text
+  | CppCast Text
+  deriving (Eq, Show)
+
 data Expr
   = -- | A variable expression, referencing an identifier.
     --
@@ -507,6 +521,7 @@ data Expr
       -- ^ The 'NodeId'.
       --
       -- @since 26.7
+  | ExprCpp NodeId CppForm [Expr]
   deriving (Eq, Show)
 
 instance HasNodeId Expr NodeId where
@@ -519,6 +534,7 @@ instance HasNodeId Expr NodeId where
       __exprnodeId (ExprTuple u _ _) = u
       __exprnodeId (ExprList u _) = u
       __exprnodeId (ExprUnit u) = u
+      __exprnodeId (ExprCpp u _ _) = u
       __exprsetNodeId (ExprVar _ a) i = ExprVar i a
       __exprsetNodeId (ExprApp _ a b) i = ExprApp i a b
       __exprsetNodeId (ExprIntLit _ a) i = ExprIntLit i a
@@ -526,6 +542,7 @@ instance HasNodeId Expr NodeId where
       __exprsetNodeId (ExprTuple _ a b) i = ExprTuple i a b
       __exprsetNodeId (ExprList _ a) i = ExprList i a
       __exprsetNodeId (ExprUnit _) i = ExprUnit i
+      __exprsetNodeId (ExprCpp _ f xs) i = ExprCpp i f xs
 
 -- | 'Expr's are equal modulo 'NodeId's whenever their components are.
 --
@@ -538,6 +555,7 @@ instance EqModuloNodeId Expr where
   ExprTuple _ h t === ExprTuple _ h' t' = h ≅ h' ∧ t ≅ t'
   ExprList _ l === ExprList _ l' = l ≅ l'
   ExprUnit _ === ExprUnit _ = True
+  ExprCpp _ f xs === ExprCpp _ g ys = f == g && xs === ys
   _ === _ = False
 
 -- ** Types
@@ -641,6 +659,8 @@ data Type
       -- ^ The symbol/string value.
       --
       -- @since 26.7
+  | -- | A parsed, normalized C++ value type (not arbitrary source text).
+    TypeCpp NodeId Text
   deriving (Eq, Show)
 
 instance HasNodeId Type NodeId where
@@ -653,6 +673,7 @@ instance HasNodeId Type NodeId where
       __typegetnodeId (TypeUnit u) = u
       __typegetnodeId (TypeTuple u _ _) = u
       __typegetnodeId (TypeList u _) = u
+      __typegetnodeId (TypeCpp u _) = u
       __typesetNodeId (TypeName _ a) i = TypeName i a
       __typesetNodeId (TypeApp _ a b) i = TypeApp i a b
       __typesetNodeId (TypeNatLit _ a) i = TypeNatLit i a
@@ -660,6 +681,7 @@ instance HasNodeId Type NodeId where
       __typesetNodeId (TypeUnit _) i = TypeUnit i
       __typesetNodeId (TypeTuple _ a b) i = TypeTuple i a b
       __typesetNodeId (TypeList _ a) i = TypeList i a
+      __typesetNodeId (TypeCpp _ t) i = TypeCpp i t
 
 -- | 'Type's are equal modulo 'NodeId's whenever their components are.
 --
@@ -672,6 +694,7 @@ instance EqModuloNodeId Type where
   TypeTuple _ h t === TypeTuple _ h' t' = h ≅ h' ∧ t ≅ t'
   TypeList _ l === TypeList _ l' = l ≅ l'
   TypeUnit _ === TypeUnit _ = True
+  TypeCpp _ a === TypeCpp _ b = a == b
   _ === _ = False
 
 --------------------------------------------------------------------------------
@@ -1536,10 +1559,22 @@ instance HasMeet LatticeDeclaration Identifier where
 
 -------------------------------------------------------------------------------
 
+-- | Opaque C++ source. Preamble blocks precede the generated namespace;
+-- footer blocks follow it, allowing clients to define an executable entry point.
+data CppBlock = CppBlock
+  { cppBlockNodeId :: NodeId
+  , cppBlockFooter :: Bool
+  , cppBlockContents :: Text
+  }
+  deriving (Eq, Show)
+
+instance HasNodeId CppBlock NodeId where
+  nodeId = lens cppBlockNodeId (\s i -> s {cppBlockNodeId = i})
+
 -- | A complete Fixen program.
 --
 --   The 'Program' type contains all parts of a Fixen program, from the module
---   declaration through queries and phases.
+--   declaration through queries and phases, including opaque host code.
 --
 -- @since 26.7
 data Program = Program
@@ -1555,6 +1590,10 @@ data Program = Program
   -- ^ Embedded Haskell source code blocks.
   --
   -- @since 26.7
+  , programCppBlocks :: [CppBlock]
+  -- ^ Target-specific C++ preamble and footer blocks.
+  , programCppNamespace :: Maybe Text
+  -- ^ Nothing for Haskell; Just "" for global C++, or a C++ namespace name.
   , programIncludes :: [Include]
   -- ^ Included Fixen files.
   --
@@ -1674,6 +1713,19 @@ prettyExpr (ExprTuple _ f rs) =
     <> rparen
 prettyExpr (ExprList _ ls) = lbracket <> sep (punctuate comma (prettyExpr <$> ls)) <> rbracket
 prettyExpr (ExprUnit _) = lparen <> rparen
+prettyExpr (ExprCpp _ form xs) = prettyCppExpr form (prettyExpr <$> xs)
+
+prettyCppExpr :: CppForm -> [Doc ann] -> Doc ann
+prettyCppExpr (CppLiteral value) [] = pretty value
+prettyCppExpr CppCall (f : xs) = f <> tupled xs
+prettyCppExpr (CppMember member) [value] = parens value <> dot <> pretty member
+prettyCppExpr CppIndex [value, idx] = parens value <> brackets idx
+prettyCppExpr (CppUnary operatorName) [value] = parens (pretty operatorName <> value)
+prettyCppExpr (CppBinary operatorName) [a, b] = parens (a <+> pretty operatorName <+> b)
+prettyCppExpr CppConditional [c, a, b] = parens (c <+> "?" <+> a <+> colon <+> b)
+prettyCppExpr (CppConstruct t) xs = pretty t <> braces (hsep (punctuate comma xs))
+prettyCppExpr (CppCast t) [value] = "static_cast<" <> pretty t <> ">" <> parens value
+prettyCppExpr _ _ = error "invalid C++ expression arity"
 
 -- | Pretty-print an 'Assumption' (relation applied to variable names).
 --
@@ -1842,6 +1894,8 @@ prettyProgram
     { programModuleName = module_name
     , programImports = hs_imports
     , programHsBlocks = hs_blocks
+    , programCppBlocks = cpp_blocks
+    , programCppNamespace = cpp_namespace
     , programIncludes = p_includes
     , programRelationDeclarations = p_relations
     , programPartialOrdDeclarations = partial_ords
@@ -1850,12 +1904,15 @@ prettyProgram
     , programQueries = p_queries
     , programPhases = p_phases
     } =
-    let mod_doc =
-          annotate
-            (color Green <> bold)
-            ( "module"
-                <+> pretty (fullIdentifier (module_name ^. moduleName))
-            )
+    let mod_doc = case cpp_namespace of
+          Just "" -> annotate (color Green <> bold) "C++ global scope"
+          Just ns -> annotate (color Green <> bold) ("namespace" <+> pretty ns)
+          Nothing ->
+            annotate
+              (color Green <> bold)
+              ( "module"
+                  <+> pretty (fullIdentifier (module_name ^. moduleName))
+              )
 
         imports_doc =
           if Prelude.null hs_imports
@@ -1953,6 +2010,7 @@ prettyProgram
      in mod_doc
           <> imports_doc
           <> hs_blocks_doc
+          <> foldMap (\b -> line <> pretty (if cppBlockFooter b then ("cpp footer" :: Text) else "cpp") <> colon <> line <> pretty (cppBlockContents b)) cpp_blocks
           <> include_doc
           <> relations_doc
           <> pord_doc
@@ -2036,6 +2094,7 @@ prettyType (TypeApp _ l r) = lparen <> prettyType l <+> prettyType r <> rparen
 prettyType (TypeList _ t) = lbracket <> prettyType t <> rbracket
 prettyType (TypeTuple _ t ls) = encloseSep lparen rparen comma (prettyType <$> (t : NonEmpty.toList ls))
 prettyType (TypeUnit _) = lparen <> rparen
+prettyType (TypeCpp _ t) = pretty t
 prettyType (TypeNatLit _ i) = annotate (color Red) $ pretty i
 prettyType (TypeSymbolLit _ s) = annotate (color Yellow) $ pretty (show s)
 

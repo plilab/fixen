@@ -64,6 +64,7 @@ getAllTypeNamesList = Set.unions . fmap getAllTypeNames
 getAllExprNames :: Expr -> Set.Set SimpleIdentifier
 getAllExprNames (ExprVar _ (IdentifierSimpleIdentifier n)) = Set.singleton n
 getAllExprNames (ExprApp _ lhs rhs) = getAllExprNames lhs ∪ getAllExprNames rhs
+getAllExprNames (ExprCpp _ _ xs) = getAllExprNamesList xs
 getAllExprNames (ExprList _ t) = getAllExprNamesList t
 getAllExprNames (ExprTuple _ hd tl) = (getAllExprNames hd) ∪ (getAllExprNamesList (toList tl))
 getAllExprNames _ = Set.empty

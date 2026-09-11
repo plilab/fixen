@@ -32,7 +32,7 @@ import Control.Exception qualified as Exception
 import Control.Monad (when)
 import Control.Monad.State
 import Data.Set qualified as Set
-import Data.Text (pack, unpack)
+import Data.Text (Text, pack, unpack)
 import Error.Diagnose.Report
 import Fixen.Fields
 import Fixen.IR.AST
@@ -87,7 +87,11 @@ type ModuleSystemState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --
 -- @since 26.7
 getIncludes :: ModuleSystemState σ => Program -> FixenPass σ Program
-getIncludes in_program = do
+getIncludes = getIncludesWith parse
+
+-- | Included files use the same frontend as the root file.
+getIncludesWith :: ModuleSystemState σ => (FilePath -> Text -> FixenPass σ Program) -> Program -> FixenPass σ Program
+getIncludesWith parseFile in_program = do
   -- Step 1: Extract the canonical file path of the source file from the
   -- error-tracking file map. The parser records the file path for each
   -- parse result, so we can look it up here.
@@ -109,7 +113,7 @@ getIncludes in_program = do
     mapM (resolveIncludeToPath file_path_of_in_program) $
       programIncludes in_program
   -- Step 4: Enter the recursive processing loop.
-  result <- loop in_program visited_set in_program_includes
+  result <- loopWith parseFile in_program visited_set in_program_includes
   -- Step 5: Perform high-level structural checks on the final result.
   highLevelStructuralChecks result
 
@@ -181,17 +185,20 @@ loop
   -> [(FilePath, Include)]
   -- ^ The queue of file paths (and associated 'Include' declarations) to process
   -> FixenPass σ Program
-loop in_prog _ [] = return in_prog
-loop in_prog v ((p, i) : ps)
+loop = loopWith parse
+
+loopWith :: ModuleSystemState σ => (FilePath -> Text -> FixenPass σ Program) -> Program -> Set.Set FilePath -> [(FilePath, Include)] -> FixenPass σ Program
+loopWith _ in_prog _ [] = return in_prog
+loopWith parseFile in_prog v ((p, i) : ps)
   -- Already visited: skip this file to avoid cycles and duplicates.
-  | p `Set.member` v = loop in_prog v ps
+  | p `Set.member` v = loopWith parseFile in_prog v ps
   | otherwise = do
       -- Step 1: Read the file contents safely (with error handling).
       f <- safeReadFile p i
       case f of
         -- Read failed (file not found, permission error, etc.):
         -- mark as visited and continue with remaining includes.
-        Nothing -> loop in_prog (p `Set.insert` v) ps
+        Nothing -> loopWith parseFile in_prog (p `Set.insert` v) ps
         -- Read succeeded: proceed to parse and combine.
         Just c -> do
           -- Step 2: Record the file contents in the file map so the
@@ -199,11 +206,11 @@ loop in_prog v ((p, i) : ps)
           insertFileMap p c
           -- Step 3: Attempt to parse the file contents. If parsing
           -- fails, the error is accumulated and we continue.
-          parse_result <- fixenTry (parse p (pack c))
+          parse_result <- fixenTry (parseFile p (pack c))
           case parse_result of
             -- Parse failed: mark as visited and continue with remaining includes.
             Nothing ->
-              loop in_prog (p `Set.insert` v) ps
+              loopWith parseFile in_prog (p `Set.insert` v) ps
             -- Parse succeeded: combine the parsed program with the
             -- accumulated program, resolve its includes, and continue.
             Just parsed_prog -> do
@@ -214,7 +221,7 @@ loop in_prog v ((p, i) : ps)
               parsed_program_includes <- mapM (resolveIncludeToPath p) $ programIncludes parsed_prog
               -- Continue processing with the combined program and
               -- the expanded include queue.
-              loop new_prog (p `Set.insert` v) (parsed_program_includes ++ ps)
+              loopWith parseFile new_prog (p `Set.insert` v) (parsed_program_includes ++ ps)
 
 {- FOURMOLU_DISABLE -}
 -- | Merge two 'Program's into a single program.
@@ -267,7 +274,7 @@ combineProgram in_prog new_prog =
           (new_prog ^. imports)
       new_hs_blocks = new_prog ^. hsBlocks
       new_queries = new_prog ^. queries
-   in in_prog
+   in in_prog {programCppBlocks = programCppBlocks new_prog ++ programCppBlocks in_prog}
         & rules %~ (new_rules ++)
         & relationDeclarations %~ (new_rels ++)
         & partialOrdDeclarations %~ (new_partial_ords ++)

@@ -61,7 +61,9 @@ type NodeSet = IntSet
 --
 -- @since 26.7
 data SymbolEnv = SymbolEnv
-  { _relationMap :: NameMap RelationInfo
+  { symbolHasHaskellPrelude :: Bool
+  -- ^ Enable Haskell-specific name-shadowing diagnostics only for that frontend.
+  , _relationMap :: NameMap RelationInfo
   -- ^ Information about relation symbols
   --
   -- @since 26.7
@@ -100,7 +102,7 @@ data SymbolEnv = SymbolEnv
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasRelationInfos SymbolEnv (NameMap RelationInfo) where
   relationInfos = lens _relationMap (\s i -> s {_relationMap = i})
@@ -144,7 +146,7 @@ data RelationInfo = RelationInfo
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasDeclaration RelationInfo RelationDeclaration where
   declaration = lens _relationDeclaration (\s i -> s {_relationDeclaration = i})
@@ -157,13 +159,13 @@ instance HasMatchInfos RelationInfo [RelationArgMatchInfo] where
 -- @since 26.7
 data RelationArgMatchInfo = Unmatched | Matched
   deriving
-    (Show, Eq)
+    (Eq, Show)
 
 -- | Kind information about relation argument types.
 --
 -- @since 26.7
 data Kind = Discrete | PartiallyOrdered | Lattice
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | Information about rules.
 --
@@ -178,7 +180,7 @@ data RuleInfo = RuleInfo
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasDeclaration RuleInfo Rule where
   declaration = lens _ruleDeclaration (\s i -> s {_ruleDeclaration = i})
@@ -202,7 +204,7 @@ data RuleParameterInfo = RuleParameterInfo
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasType RuleParameterInfo TypeLattice where
   ty = lens _ruleParamType (\s i -> s {_ruleParamType = i})
@@ -233,7 +235,7 @@ data PriorityInfo = PriorityInfo
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasDeclaration PriorityInfo Priority where
   declaration = lens _priorityDeclaration (\s i -> s {_priorityDeclaration = i})
@@ -281,7 +283,7 @@ data TypeLattice
     --
     -- @since 26.7
     Bottom
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | Evidence of a term having a type.
 --
@@ -307,7 +309,7 @@ data TypeEvidence
       -- ^ The ith argument to the conclusion
       --
       -- @since 26.7
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | Information about the usage of a rule parameter
 --
@@ -335,7 +337,7 @@ data UsageInfo
     --
     -- @since 26.7
     UsedInConclusion
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | The types of states that contain a 'SymbolEnv'.
 --
@@ -348,6 +350,7 @@ isUsedInAssumption _ = False
 
 calculateRepresentativeFromType :: Type -> Name
 calculateRepresentativeFromType (TypeName _ i) = fullIdentifier i
+calculateRepresentativeFromType (TypeCpp _ t) = t
 calculateRepresentativeFromType (TypeApp _ l r) =
   concat
     [ "("
@@ -376,7 +379,8 @@ calculateRepresentativeFromType (TypeTuple _ hd tl) =
 emptySymbolEnv :: SymbolEnv
 emptySymbolEnv =
   SymbolEnv
-    { _relationMap = Map.empty
+    { symbolHasHaskellPrelude = True
+    , _relationMap = Map.empty
     , _relationParamKindMap = Map.empty
     , _partialOrdMap = Map.empty
     , _latticeMap = Map.empty

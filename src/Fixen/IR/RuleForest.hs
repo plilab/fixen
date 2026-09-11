@@ -73,6 +73,7 @@ import Data.Text (Text, unpack)
 import Data.Tree
 import Fixen.Fields
 import Fixen.IR.AST
+import Prettyprinter (pretty)
 
 --------------------------------------------------------------------------------
 
@@ -94,7 +95,7 @@ data RuleForest = RuleForest
   --
   -- @since 26.7
   }
-  deriving (Eq)
+  deriving Eq
 
 instance HasTrees RuleForest (Map Text (NonEmpty RuleTreeChoppedHead)) where
   trees = lens _ruleForestTrees (\s i -> s {_ruleForestTrees = i})
@@ -117,7 +118,7 @@ data RuleTreeChoppedHead = RuleTreeChoppedHead
   --
   -- @since 26.7
   }
-  deriving (Eq)
+  deriving Eq
 
 -- | A leaf in the rule forest. It represents a rule with all assumptions
 -- removed.
@@ -145,7 +146,7 @@ data RuleLeaf = RuleLeaf
   --
   -- @since 26.7
   }
-  deriving (Eq)
+  deriving Eq
 
 instance Show RuleLeaf where
   show = drawTree . leafToRoseTree
@@ -248,6 +249,7 @@ showExpr m (ExprApp _ l r) =
     , ")"
     ]
 showExpr _ (ExprUnit _) = "()"
+showExpr m (ExprCpp _ form xs) = show (prettyCppExpr form (pretty . showExpr m <$> xs))
 showExpr _ (ExprIntLit _ i) = show i
 showExpr _ (ExprStrLit _ i) = show i
 showExpr m (ExprList _ ls) =

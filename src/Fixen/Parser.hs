@@ -211,6 +211,7 @@ parseTopLevels =
           <|> (TLInclude <$> parseInclude)
           <|> (TLImport <$> parseImport)
           <|> (TLHsBlock <$> parseHaskellCodeBlock)
+          <|> (TLCppBlock <$> parseCppCodeBlock)
           <|> (TLPhases <$> parsePhases)
 
 -- | Represents a top-level declaration in a Fixen program.
@@ -241,6 +242,7 @@ data TopLevel
     --
     -- @since 26.7
     TLHsBlock HsBlock
+  | TLCppBlock CppBlock
   | -- | A @priority@ declaration defining ordering between rule instances
     --
     -- @since 26.7
@@ -282,6 +284,8 @@ partitionTopLevels mod_decl [] =
   return
     Program
       { programHsBlocks = []
+      , programCppBlocks = []
+      , programCppNamespace = Nothing
       , programPriorities = []
       , programQueries = []
       , programModuleName = mod_decl
@@ -322,6 +326,7 @@ partitionTopLevels mod_decl (x : xs) = do
             ]
             [Note "each program can only have one phase declaration"]
     TLHsBlock h -> return $ rest & hsBlocks %~ (h :)
+    TLCppBlock c -> return rest {programCppBlocks = c : programCppBlocks rest}
 
 --------------------------------------------------------------------------------
 
@@ -1318,3 +1323,16 @@ parseHaskellCodeBlock = inContext "inline Haskell" $ parsePositioned $ do
   -- Convert the character list to a Text chunk
   let pxy :: Proxy Text = Proxy
   return $ HsBlock i (P.tokensToChunk pxy code_contents)
+
+-- | C++ blocks are opaque, including preprocessing directives. Only the
+-- fence header is Fixen syntax. The Haskell frontend retains these ignored
+-- blocks for compatibility; the C++ frontend has its own lexical rules.
+parseCppCodeBlock :: ParserState σ => Parser σ CppBlock
+parseCppCodeBlock = inContext "inline C++" $ parsePositioned $ do
+  _ <- P.try $ L.nonIndented sc $ exactMatchNoLookahead "```cpp"
+  footer <- maybe False (const True) <$> P.optional (P.try (P.chunk " footer"))
+  _ <- P.takeWhileP Nothing (\c -> c == ' ' || c == '\t' || c == '\r')
+  _ <- P.single '\n'
+  code_contents <- P.manyTill P.anySingle (P.try (L.nonIndented (pure ()) (P.chunk "```")))
+  i <- getNewNodeId
+  pure (CppBlock i footer (Text.pack code_contents))

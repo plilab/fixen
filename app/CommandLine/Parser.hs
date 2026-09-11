@@ -16,6 +16,7 @@ import CommandLine.CommandLineArgs
 import Control.Monad (when)
 import Data.List
 import Data.Version (Version (versionBranch))
+import Fixen.CodeGen.Target (targetFromOutputPath)
 import Options.Applicative -- See: optparse-applicative package
 import Paths_fixen qualified as PF
 import System.Exit (ExitCode (..), exitWith)
@@ -23,7 +24,7 @@ import System.FilePath
 import System.IO (hPutStrLn, stderr)
 
 -- | This function obtains the command line arguments from the user. Currently,
--- the program only accepts two arguments, the output Haskell file (with -o or
+-- the required arguments are the output source file (with -o or
 -- --output) and the input Fixen file (positional argument). The file
 -- extensions are validated via 'validateOutFileExtension' and
 -- 'validateInFileExtension'. See Note: [Validating file extensions].
@@ -60,7 +61,7 @@ getCommandLineArgs = do
           ( long "output" -- --output or -o
               <> short 'o'
               <> metavar "FILENAME"
-              <> help "The output Haskell source file"
+              <> help "Select frontend and output: .hs for Haskell, .cpp/.cc/.cxx/.c++ for C++17"
           )
         <*> argument
           str
@@ -103,7 +104,7 @@ getCommandLineArgs = do
             )
         <*> ( switch
                 ( long "emit-debug-traces"
-                    <> help "Add debug traces in the Haskell source file"
+                    <> help "Add runtime debug traces in the generated source file"
                 )
             )
 
@@ -122,17 +123,13 @@ getCommandLineArgs = do
 --------------------------------------------------------------------------------
 
 -- | Validates that the out file path has a file extensions that matches what we
--- are expecting, which are Haskell source files. The program exits with an
+-- are expecting, which are Haskell or C++ source files. The program exits with an
 -- error message when the file extension is incorrect.
 validateOutFileExtension :: OutFilePath -> IO ()
-validateOutFileExtension out_file =
-  when (takeExtension out_file /= ".hs") $ do
-    hPutStrLn stderr $
-      "Invalid output source file: "
-        ++ out_file
-        ++ "\n                            "
-        ++ replicate (length out_file) '^'
-        ++ "\n  out file must be Haskell source file with .hs extension"
+validateOutFileExtension out_file = case targetFromOutputPath out_file of
+  Right _ -> pure ()
+  Left message -> do
+    hPutStrLn stderr ("Invalid output source file: " ++ out_file ++ "\n" ++ message)
     exitWith (ExitFailure 2)
 
 -- | Validates that the out file path has a file extensions that matches what we
@@ -161,13 +158,13 @@ validateInFileExtension in_file =
 
 -- | The program description that is displayed to the user in the help screen.
 fixenProgramDescription :: String
-fixenProgramDescription = "Generates Haskell source code from a Fixen program"
+fixenProgramDescription = "Generates Haskell or C++17 source code from a Fixen program"
 
 -- | The program header that is displayed to the user in the help screen.
 fixenProgramHeader :: String
 fixenProgramHeader =
   "fixen: A Fixed-Point-Oriented Programming (FPOP)"
-    ++ " language for generating work-queue algorithms in Haskell"
+    ++ " language for generating work-queue algorithms"
 
 -- | The version of this program
 fixenVersion :: String

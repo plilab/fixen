@@ -23,6 +23,7 @@ import Error.Diagnose (
 
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common (CodeGenOptions (..))
+import Fixen.CodeGen.Target (targetFromOutputPath)
 import Fixen.IR.AST
 import Fixen.IR.RuleForest
 import Fixen.Monad
@@ -80,7 +81,8 @@ main = do
   --     then defaultOutputOptionsDarkBg {outputOptionsCompact = True}
   --     else defaultOutputOptionsNoColor {outputOptionsCompact = True}
   let code_gen_options = (CodeGenOptions {codeGenDebug = emit_debug_trace, debugColor = color})
-  ast <- runFixenM $ pipeline code_gen_options in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
+  target <- either fail pure (targetFromOutputPath out_file_)
+  ast <- runFixenM $ pipelineFor target code_gen_options in_file in_file_contents (printDiagnostic stderr out_unicode (TabSize 4) out_style)
   case ast of
     Left d -> do
       printDiagnostic stderr out_unicode (TabSize 4) out_style d

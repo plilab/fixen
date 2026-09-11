@@ -1,0 +1,23 @@
+namespace Example::Graph;
+
+rel Edge: std::int64_t, std::int64_t
+rel Reach: std::int64_t
+rule seed:  |- Reach(startingVertex(0))
+rule step: Reach(a), Edge(a, b) |- Reach(b)
+query reachable: Reach(-)
+
+```cpp
+#include <cassert>
+inline std::int64_t startingVertex(std::int64_t x) { return x; }
+
+```
+
+```cpp footer
+int main() {
+  using namespace Example::Graph;
+  const auto db = solve({Edge{0, 1}, Edge{1, 2}, Edge{2, 0}});
+  assert(reachable(db).size() == 3);
+  std::cout << "Reached " << reachable(db).size() << " vertices\n";
+}
+
+```

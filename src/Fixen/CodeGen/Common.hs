@@ -40,6 +40,7 @@ lowerType (TypeTuple _ hd tl) = Hs.TyTuple (lowerType <$> hd : NonEmpty.toList t
 lowerType (TypeNatLit _ n) = Hs.TyInteger (toInteger n)
 lowerType (TypeSymbolLit _ s) = Hs.TyString s
 lowerType (TypeUnit _) = Hs.TyTuple []
+lowerType TypeCpp {} = error "C++ type passed to Haskell generator"
 
 codeGenExpr :: Expr -> Text
 codeGenExpr = Hs.renderExpr . lowerExpr
@@ -66,6 +67,7 @@ lowerExprWithNames names = go
     go (ExprIntLit _ n) = Hs.IntegerLit n
     go (ExprStrLit _ s) = Hs.StringLit s
     go (ExprUnit _) = Hs.Tuple []
+    go ExprCpp {} = error "C++ expression passed to Haskell generator"
 
 isOp :: Identifier -> Bool
 isOp i = all isValidOpChar (Text.unpack $ simpleIdentifier i)
