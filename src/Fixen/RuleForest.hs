@@ -120,6 +120,7 @@ getBranch r =
                     { _ruleLeafRuleId = r ^. nodeId
                     , _ruleLeafVariableMap = []
                     , _ruleLeafCondition = r ^. conditions
+                    , _ruleLeafPatterns = []
                     , _ruleLeafConclusion = r ^. conclusion
                     }
                 ]
@@ -164,7 +165,7 @@ getBranch r =
     destructureAssumption :: [Text] -> Assumption -> (Text, [Int], [Text])
     destructureAssumption var_mapping asm =
       let n = simpleIdentifier $ asm ^. name
-          a = simpleIdentifier <$> asm ^. args
+          a = simpleIdentifier <$> assumptionStorageArgs asm
           (idx, new_mapping) = foldl' bindNewVar ([], var_mapping) a
        in (n, reverse idx, new_mapping)
 
@@ -202,6 +203,7 @@ getBranch r =
                     , -- remember to reverse!
                       _ruleLeafVariableMap = reverse var_mapping
                     , _ruleLeafCondition = rul ^. conditions
+                    , _ruleLeafPatterns = ruleDestructuring r
                     , _ruleLeafConclusion = rul ^. conclusion
                     }
                 ]

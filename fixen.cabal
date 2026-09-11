@@ -72,6 +72,7 @@ library
                       , Fixen.CodeGen.Haskell.Syntax
                       , Fixen.CodeGen.Haskell.Bindings
                       , Fixen.CodeGen.Haskell.Match
+                      , Fixen.CodeGen.Haskell.Pattern
                       , Fixen.CodeGen.Haskell.Query
                       , Fixen.CodeGen.Haskell.Solver
                       , Fixen.CodeGen.Common
@@ -102,6 +103,7 @@ library
                       , Fixen.Parser.Cpp
                       , Fixen.Parser.Error
                       , Fixen.Parser.Expr
+                      , Fixen.Parser.Pattern
                       , Fixen.Parser.Token
                       , Fixen.Parser.Type
                       , Fixen.RelationRepresentation

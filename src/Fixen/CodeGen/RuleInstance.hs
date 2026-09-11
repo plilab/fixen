@@ -11,6 +11,7 @@ import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
+import Fixen.CodeGen.Haskell.Pattern (storedRulePatterns)
 import Fixen.CodeGen.Haskell.Syntax qualified as Hs
 import Fixen.Fields (args, assumptions, conclusion, declaration, lhs, map, name, nodeId, premise, rhs, rules, ty, (^.))
 import Fixen.IR.AST
@@ -37,7 +38,7 @@ ruleConstructor :: RuleInfo -> FixenPass CodeGenState (Maybe Hs.Constructor)
 ruleConstructor info
   | null (info ^. declaration . assumptions) = pure Nothing
   | otherwise = do
-      types <- mapM underlying (Map.elems (info ^. args))
+      types <- mapM underlying (Map.elems (Map.restrictKeys (info ^. args) (Map.keysSet (ruleStorageVariables (info ^. declaration)))))
       pure (Just (Hs.Constructor (Hs.name (codeGenRuleInstanceName (info ^. declaration))) types))
   where
     underlying argument = case argument ^. ty of
@@ -82,10 +83,10 @@ priorityCase info = do
   let (leftId, rightId) = info ^. rules
       conclusion' = info ^. declaration . conclusion
       patternFor rule instance' =
-        let bindings = Map.fromList [(simpleIdentifier k, simpleIdentifier v) | (k, v) <- Map.toList (instance' ^. map)]
+        let bindings = Map.fromList [(simpleIdentifier k, Hs.name (simpleIdentifier v)) | (k, v) <- Map.toList (instance' ^. map)]
          in Hs.PCon
               (Hs.name (codeGenRuleInstanceName (rule ^. declaration)))
-              [maybe Hs.PWildcard Hs.pat (Map.lookup parameter bindings) | parameter <- Map.keys (rule ^. args)]
+              (storedRulePatterns (rule ^. declaration) bindings)
   pure
     ( Hs.Function
         (Hs.name "<")
@@ -116,5 +117,5 @@ evaluateCase info =
       result = rule ^. conclusion
    in Hs.Function
         (Hs.name "evaluate")
-        [Hs.PCon (Hs.name (codeGenRuleInstanceName rule)) (Hs.pat <$> Map.keys (info ^. args))]
+        [Hs.PCon (Hs.name (codeGenRuleInstanceName rule)) (storedRulePatterns rule (Map.fromList [(n, Hs.name n) | n <- Map.keys (info ^. args)]))]
         (Hs.call (simpleIdentifier (result ^. name)) (lowerExpr <$> result ^. args))

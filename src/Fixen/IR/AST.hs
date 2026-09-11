@@ -28,6 +28,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text, append, cons, intercalate, unpack)
+import Data.Text qualified as Text
 import Fixen.Fields hiding (cons)
 import Fixen.Utils
 import GHC.Natural
@@ -824,11 +825,81 @@ pattern RelationDeclaration a b c = RelationLike a b c
 
 {-# COMPLETE RelationDeclaration #-}
 
--- | An assumption within a rule body. The arguments to the relation symbol in
--- assumptions are just variables, i.e., 'SimpleIdentifier's.
+-- | Haskell premise patterns. Constructor validity and captured host types are
+-- checked by GHC, not by Fixen. A variable named @_@ is a wildcard.
+data Pattern
+  = PatternVar SimpleIdentifier
+  | PatternCon NodeId Identifier [Pattern]
+  | PatternTuple NodeId [Pattern]
+  | PatternList NodeId [Pattern]
+  | PatternInt NodeId Integer
+  | PatternString NodeId Text
+  | PatternChar NodeId Char
+  deriving (Eq, Show)
+
+instance HasNodeId Pattern NodeId where
+  nodeId = lens get replace
+    where
+      get (PatternVar v) = v ^. nodeId
+      get (PatternCon i _ _) = i
+      get (PatternTuple i _) = i
+      get (PatternList i _) = i
+      get (PatternInt i _) = i
+      get (PatternString i _) = i
+      get (PatternChar i _) = i
+      replace (PatternVar v) i = PatternVar (v & nodeId .~ i)
+      replace (PatternCon _ c ps) i = PatternCon i c ps
+      replace (PatternTuple _ ps) i = PatternTuple i ps
+      replace (PatternList _ ps) i = PatternList i ps
+      replace (PatternInt _ n) i = PatternInt i n
+      replace (PatternString _ s) i = PatternString i s
+      replace (PatternChar _ c) i = PatternChar i c
+
+instance EqModuloNodeId Pattern where
+  PatternVar a === PatternVar b = a ≅ b
+  PatternCon _ c ps === PatternCon _ d qs = c ≅ d ∧ ps ≅ qs
+  PatternTuple _ ps === PatternTuple _ qs = ps ≅ qs
+  PatternList _ ps === PatternList _ qs = ps ≅ qs
+  PatternInt _ n === PatternInt _ m = n == m
+  PatternString _ s === PatternString _ t = s == t
+  PatternChar _ c === PatternChar _ d = c == d
+  _ === _ = False
+
+patternVariables :: Pattern -> [SimpleIdentifier]
+patternVariables (PatternVar v) = [v | simpleIdentifier v /= "_"]
+patternVariables (PatternCon _ _ ps) = concatMap patternVariables ps
+patternVariables (PatternTuple _ ps) = concatMap patternVariables ps
+patternVariables (PatternList _ ps) = concatMap patternVariables ps
+patternVariables _ = []
+
+isDestructuring :: Pattern -> Bool
+isDestructuring PatternVar {} = False
+isDestructuring _ = True
+
+-- | Retain whole patterned arguments in the match forest and queued instances.
+-- '$' cannot occur in a source variable, so these internal names cannot collide
+-- with user bindings. They are renamed or replaced by patterns in generated code.
+patternStorageVariable :: Pattern -> SimpleIdentifier
+patternStorageVariable (PatternVar v) = v
+patternStorageVariable p = SimpleIdentifier (p ^. nodeId) ("$pattern" <> Text.show (p ^. nodeId))
+
+assumptionStorageArgs :: Assumption -> [SimpleIdentifier]
+assumptionStorageArgs = fmap patternStorageVariable . relationLikeArgs
+
+-- | Whole arguments together with their patterns, in source order.
+ruleDestructuring :: Rule -> [(SimpleIdentifier, Pattern)]
+ruleDestructuring r =
+  [(patternStorageVariable p, p) | a <- ruleAssumptions r, p <- relationLikeArgs a, isDestructuring p]
+
+ruleStorageVariables :: Rule -> Map Text SimpleIdentifier
+ruleStorageVariables r =
+  Map.fromList
+    [(simpleIdentifier v, v) | a <- ruleAssumptions r, v <- assumptionStorageArgs a, simpleIdentifier v /= "_"]
+
+-- | An assumption within a rule body. C++ admits only variable patterns.
 --
 -- @since 26.7
-type Assumption = RelationLike SimpleIdentifier
+type Assumption = RelationLike Pattern
 
 -- | Constructor and destructor for 'Assumption's.
 --
@@ -844,7 +915,7 @@ pattern Assumption
   -- ^ The name of the relation symbol.
   --
   -- @since 26.7
-  -> [SimpleIdentifier]
+  -> [Pattern]
   -- ^ The arguments to the relation symbol.
   --
   -- @since 26.7
@@ -1736,7 +1807,22 @@ prettyCppExpr _ _ = error "invalid C++ expression arity"
 prettyAssumption :: Assumption -> Doc AnsiStyle
 prettyAssumption (Assumption _ n a) =
   annotate (color Red) (pretty (fullIdentifier n))
-    <+> sep [pretty (fullIdentifier a') | a' <- a]
+    <+> sep (prettyPattern <$> a)
+
+prettyPattern :: Pattern -> Doc AnsiStyle
+prettyPattern = \case
+  PatternVar v -> pretty (simpleIdentifier v)
+  PatternCon _ c [] -> prettyConstructorName c
+  PatternCon _ c ps -> parens (hsep (prettyConstructorName c : (prettyPattern <$> ps)))
+  PatternTuple _ ps -> tupled (prettyPattern <$> ps)
+  PatternList _ ps -> list (prettyPattern <$> ps)
+  PatternInt _ n -> if n < 0 then parens (pretty n) else pretty n
+  PatternString _ s -> pretty (show (Text.unpack s))
+  PatternChar _ c -> pretty (show c)
+  where
+    prettyConstructorName c =
+      let n = fullIdentifier c
+       in if Text.isPrefixOf ":" (simpleIdentifier c) then parens (pretty n) else pretty n
 
 -- | Pretty-print a 'Conclusion' (the |- part of a rule).
 --

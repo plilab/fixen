@@ -211,7 +211,7 @@ rule = parsePositioned $ do
 premise :: ParserState s => Parser s Hs.RulePremise
 premise =
   (Hs.RPCondition <$> parsePositioned (do _ <- word "if"; value <- expression; i <- getNewNodeId; pure (Condition i value)))
-    P.<|> (Hs.RPAssumption <$> relationApplication simple)
+    P.<|> (Hs.RPAssumption <$> relationApplication (PatternVar <$> simple))
 
 relationApplication :: ParserState s => Parser s a -> Parser s (RelationLike a)
 relationApplication arg = parsePositioned $ do

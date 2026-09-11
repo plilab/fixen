@@ -51,6 +51,7 @@ initEnvWithRule env r = do
   if rels_not_well_formed
     then return env -- ignore this rule
     else do
+      validateDestructuring env r
       -- get the rule parameters
       rule_parameters <- getRuleParameters r
       -- obtain usage information of the parameters
@@ -147,7 +148,7 @@ validateRelationsInRule =
               -- get all the arguments
               ^.. each . args
               -- convert them to identifiers
-              <&> fmap simpleIdentifier
+              <&> fmap (simpleIdentifier . patternStorageVariable)
               -- zip with the original assumptions (we want to throw errors on them)
               & zip (r ^. assumptions)
               -- keep only assumptions with all holes
@@ -235,7 +236,7 @@ getRuleParameters r = do
   let rule_parameters =
         case r ^. args of
           [] -> assumption_variables -- infer from rule
-          v -> v
+          v -> v ++ (fst <$> ruleDestructuring r)
       -- look for duplicate parameters (that happens when users
       -- specify bound variables and misspelled them probably)
       freq_map =
@@ -267,13 +268,7 @@ getRuleParameters r = do
     -- the variables in all the assumptions of this rule.
     assumption_variables :: [SimpleIdentifier]
     assumption_variables =
-      r
-        -- get the assumptions
-        ^. assumptions
-        -- get the relation parameters
-        ^.. each . args
-        -- concatenate them to get one giant list of simple identifiers
-        & Prelude.concat
+      allAssumptionVariables r
         -- get the unique ones
         & Data.List.nubBy (≅)
         -- eliminate holes
@@ -318,13 +313,11 @@ getParamUsageInfo r v =
       -> (Int, Assumption)
       -> [UsageInfo]
     getParamUsageInfoFromAssumption i (idx, Assumption _ _ arg) =
-      -- zip with the j's
-      zip [0 .. length arg - 1] arg
-        -- keep only those that are equivalent to i
-        & filter (\(_, a') -> a' ≅ i)
-        -- keep only the indices
-        <&> fst
-        <&> UsedInAssumption idx
+      concat
+        [ [UsedInAssumption idx j | patternStorageVariable p ≅ i]
+            ++ [UsedInPattern idx j k | isDestructuring p, (k, captured) <- zip [0 ..] (patternVariables p), captured ≅ i]
+        | (j, p) <- zip [0 ..] arg
+        ]
 
     getParamUsageInfoFromCondition :: SimpleIdentifier -> Condition -> [UsageInfo]
     getParamUsageInfoFromCondition i c =
@@ -387,8 +380,7 @@ checkFreeVarsInAssumptions
   -> FixenPass σ Bool
 checkFreeVarsInAssumptions r mp = do
   let fvs =
-        r ^. assumptions ^.. each . args
-          & concat
+        allAssumptionVariables r
           & filter (\i -> simpleIdentifier i ≠ "_" ∧ simpleIdentifier i ∉ mp)
   if (¬) (null fvs)
     then do
@@ -402,6 +394,53 @@ checkFreeVarsInAssumptions r mp = do
         ]
       return True
     else return False
+
+-- | Both whole stored arguments and captures bind rule parameters. The former
+-- have relation-declared types; the latter need not have a known host type.
+allAssumptionVariables :: Rule -> [SimpleIdentifier]
+allAssumptionVariables r =
+  concat
+    [ if isDestructuring p then patternStorageVariable p : patternVariables p else [patternStorageVariable p]
+    | a <- ruleAssumptions r
+    , p <- relationLikeArgs a
+    ]
+
+-- | Monotonicity checks deliberately do not inspect host constructors/types.
+-- Captures are forbidden in every ordered relation position, even underneath
+-- an expression in the conclusion, and regardless of premise ordering.
+validateDestructuring :: SymbolState σ => SymbolEnv -> Rule -> FixenPass σ ()
+validateDestructuring env r = do
+  forM_ (ruleAssumptions r) $ \a ->
+    forM_ (zip (relationLikeArgs a) (parameterTypes a)) $ \(p, t) -> when (ordered t) $ do
+      when (isDestructuring p) $ do
+        pos <- getPosition p
+        typePos <- getPosition t
+        accumErr
+          Nothing
+          "cannot destructure a partially ordered/lattice argument"
+          [(pos, This "pattern"), (typePos, Where "non-discrete argument type")]
+          [Note "destructuring is only allowed in discrete relation positions"]
+      rejectCaptures t (patternVariables p)
+  forM_ (zip (relationLikeArgs (ruleConclusion r)) (parameterTypes (ruleConclusion r))) $ \(e, t) ->
+    when (ordered t) (rejectCaptures t (Set.toList (getAllExprNames e)))
+  where
+    captures = Map.fromList [(simpleIdentifier v, v) | (_, p) <- ruleDestructuring r, v <- patternVariables p]
+    parameterTypes :: RelationLike a -> [Type]
+    parameterTypes a = relationParameterType <$> relationLikeArgs ((env ^. relationInfos) Map.! simpleIdentifier (relationLikeName a) ^. declaration)
+    ordered t =
+      let n = calculateRepresentativeFromType t
+       in Map.member n (env ^. partialOrdInfos) || Map.member n (env ^. latticeInfos)
+    rejectCaptures t vs = forM_ vs $ \v -> case Map.lookup (simpleIdentifier v) captures of
+      Nothing -> pure ()
+      Just capture -> do
+        pos <- getPosition v
+        capturePos <- getPosition capture
+        typePos <- getPosition t
+        accumErr
+          Nothing
+          "destructured variable in a partially ordered/lattice position"
+          [(pos, This "destructured variable"), (capturePos, Where "captured here"), (typePos, Where "non-discrete argument type")]
+          [Note "using a destructured variable in an ordered position may break monotonicity"]
 
 -- | Obtains the free variables of a rule given its parameters.
 --

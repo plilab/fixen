@@ -12,6 +12,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Fixen.CodeGen.Common
 import Fixen.CodeGen.Haskell.Bindings
+import Fixen.CodeGen.Haskell.Pattern (matchRulePatterns)
 import Fixen.CodeGen.Haskell.Syntax qualified as Hs
 import Fixen.CodeGen.RuleInstance (codeGenRuleInstanceName)
 import Fixen.IR.AST
@@ -179,11 +180,12 @@ leafBody options phase bindings leaf = do
   let rule = _ruleDeclaration (rules IntMap.! _ruleLeafRuleId leaf)
       ruleName' = codeGenRuleInstanceName rule
       variables = filter ((/= "_") . fst) (sort (zip (_ruleLeafVariableMap leaf) [0 ..]))
-      names = Map.fromList [(source, boundVariable i bindings) | (source, i) <- variables]
+      storedNames = Map.fromList [(source, boundVariable i bindings) | (source, i) <- variables]
+      (patternStatements, names) = matchRulePatterns (_ruleLeafRuleId leaf) (_ruleLeafPatterns leaf) storedNames
       guards = [Hs.guardStmt (lowerExprWithNames names (conditionExpr condition)) | condition <- _ruleLeafCondition leaf]
       instanceValue = Hs.call ruleName' [Hs.Var (boundVariable i bindings) | (_, i) <- variables]
       instanceBinding = Hs.LetStmt (Hs.pat "rule_instance") instanceValue
       phaseValue = maybe (Hs.var "Nothing") (\p -> Hs.call "Just" [Hs.IntegerLit (toInteger p)]) phase
       debug = [Hs.ExprStmt (Hs.call "debugRuleActivation" [Hs.var "fact", phaseValue, Hs.StringLit ruleName', Hs.var "rule_instance"]) | codeGenDebug options]
       result = maybe (Hs.var "rule_instance") (\p -> Hs.Tuple [Hs.var "rule_instance", Hs.Var (numberedName "Phase" p)]) phase
-  pure (Hs.Do (guards ++ [instanceBinding] ++ debug) (Hs.call "return" [result]))
+  pure (Hs.Do (patternStatements ++ guards ++ [instanceBinding] ++ debug) (Hs.call "return" [result]))

@@ -46,6 +46,7 @@ import Fixen.Monad
 import Fixen.Parser.Common
 import Fixen.Parser.Error
 import Fixen.Parser.Expr
+import Fixen.Parser.Pattern
 import Fixen.Parser.Token
 import Fixen.Parser.Type
 import Text.Megaparsec (eof)
@@ -694,17 +695,16 @@ parseConclusion = inContext "conclusion" $ parsePositioned $ do
   i <- getNewNodeId
   return $ Conclusion i header arguments
 
--- | Parses an assumption within a rule body: a relation name applied to
--- variable arguments.
+-- | Parses an assumption within a rule body: a relation name applied to atomic
+-- patterns. Constructor applications and infix patterns use parentheses.
 --
 -- @
 -- MyFact var1
 --  var2
 -- @
 --
--- The relation name must be capitalized (since relations are
--- constructor-like), and the arguments must be lowercase-starting
--- simple identifiers.
+-- The relation name must be capitalized. Bare variables and holes preserve
+-- their original syntax; compound arguments are parsed by 'parsePatternAtom'.
 --
 -- A 'try' is used here so that if the premise is actually a condition
 -- (starting with 'if'), we can backtrack and try 'parseCondition' instead.
@@ -720,9 +720,8 @@ parseAssumption = inContext "premise" $ parsePositioned $ do
       inContext "relation name" parseCapitalizedSimpleIdentifier
   -- Verify proper indentation before the arguments
   _ <- indented
-  -- Parse zero or more lowercase-starting simple identifiers as arguments.
-  -- This is the **only** place that holes are accepted.
-  arguments <- inContext "premise arguments" $ manyI' parseLowerFirstSimpleIdentifierOrHole
+  -- Holes are accepted here, including inside nested premise patterns.
+  arguments <- inContext "premise arguments" $ manyI' parsePatternAtom
   -- Allocate a fresh node ID and construct the Assumption AST node
   i <- getNewNodeId
   return $ Assumption i header arguments

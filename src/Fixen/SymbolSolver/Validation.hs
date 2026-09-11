@@ -17,6 +17,7 @@ import Control.Monad
 import Data.Bifunctor
 import Data.IntMap qualified as IntMap
 import Data.Map qualified as Map
+import Data.Text qualified as Text
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -453,7 +454,8 @@ warnUnusedRuleParameters env = do
             Map.filter
               ( \lv_info ->
                   let usage = lv_info ^. usageInfo
-                   in (all isUsedInAssumption usage) ∧ length usage < 2
+                      internal = Text.isPrefixOf (Text.pack "$pattern") (simpleIdentifier (lv_info ^. var))
+                   in not internal ∧ (all isUsedInAssumption usage) ∧ length usage < 2
               )
               bvs
           varsUsedInPriorities =

@@ -141,6 +141,9 @@ data RuleLeaf = RuleLeaf
   -- ^ The 'Condition's of this leaf.
   --
   -- @since 26.7
+  , _ruleLeafPatterns :: [(SimpleIdentifier, Pattern)]
+  -- ^ Whole-argument bindings and patterns to check before the conditions.
+  -- Pattern captures are leaf-local, not additional database index keys.
   , _ruleLeafConclusion :: Conclusion
   -- ^ The 'Conclusion' of this leaf.
   --
@@ -212,6 +215,7 @@ leafToRoseTree
     { _ruleLeafRuleId = rule_id
     , _ruleLeafVariableMap = mp
     , _ruleLeafCondition = conds
+    , _ruleLeafPatterns = patterns
     , _ruleLeafConclusion = conc
     } =
     let show_conds =
@@ -220,7 +224,16 @@ leafToRoseTree
             else intercalate ", " (showCond mp <$> conds) ++ " "
         showed_conc = showConc mp conc
         showed_rule_id = concat ["<rule ", show rule_id, "> "]
-     in Node (concat [show_conds, showed_rule_id, show mp, "\n", showed_conc]) []
+        show_patterns =
+          concat
+            [ "match "
+                ++ maybe (unpack (simpleIdentifier v)) showIntArg (elemIndex (simpleIdentifier v) mp)
+                ++ " with "
+                ++ show (prettyPattern p)
+                ++ "\n"
+            | (v, p) <- patterns
+            ]
+     in Node (concat [show_patterns, show_conds, showed_rule_id, show mp, "\n", showed_conc]) []
 
 showCond :: [Text] -> Condition -> String
 showCond m c =

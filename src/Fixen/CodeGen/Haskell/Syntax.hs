@@ -46,6 +46,9 @@ data Pattern
   | PTuple [Pattern]
   | PList [Pattern]
   | PAs Name Pattern
+  | PInteger Integer
+  | PString Text
+  | PChar Char
   deriving (Eq, Show)
 
 data Type
@@ -174,6 +177,9 @@ patternPrec p = \case
   PTuple ps -> tupled (prettyPattern <$> ps)
   PList ps -> list (prettyPattern <$> ps)
   PAs n pat' -> prettyName n <> "@" <> patternPrec 11 pat'
+  PInteger n -> parensIf (n < 0) (pretty n)
+  PString s -> prettyString s
+  PChar c -> pretty (show c)
 
 prettyType :: Type -> Doc ann
 prettyType = typePrec 0

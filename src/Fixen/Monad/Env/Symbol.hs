@@ -327,6 +327,10 @@ data UsageInfo
       -- ^ The jth argument to the assumption
       --
       -- @since 26.7
+  | -- | Bound inside a pattern, with no inference of the capture's host type.
+    -- Indices identify the assumption, argument, and variable occurrence in the
+    -- pattern. Distinct occurrences matter for repeated-variable equality.
+    UsedInPattern Int Int Int
   | -- | Used in one of the rule's conditions. At the moment, it is not
     -- necessary track which condition a variable is used in
     --
@@ -346,6 +350,7 @@ type WithSymbolEnv σ = σ :>: SymbolEnv
 
 isUsedInAssumption :: UsageInfo -> Bool
 isUsedInAssumption (UsedInAssumption _ _) = True
+isUsedInAssumption (UsedInPattern _ _ _) = True
 isUsedInAssumption _ = False
 
 calculateRepresentativeFromType :: Type -> Name
