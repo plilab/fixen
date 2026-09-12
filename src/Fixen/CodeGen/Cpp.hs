@@ -12,7 +12,7 @@ import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Error.Diagnose
-import Fixen.CodeGen.Common (CodeGenOptions (..), CodeGenState)
+import Fixen.CodeGen.Common (CodeGenOptions (..), CodeGenState, hasMultiConclusionSeeds)
 import Fixen.CodeGen.Cpp.Common
 import Fixen.CodeGen.Cpp.Database
 import Fixen.CodeGen.Cpp.Debug qualified as Debug
@@ -54,21 +54,28 @@ ruleInstances :: CodeGenOptions -> RelationRepresentation -> Gen [Doc ()]
 ruleInstances options layouts = do
   allRules <- fixenGetRuleInfo
   let rules = filter (not . null . ruleAssumptions . _ruleDeclaration . snd) (IM.toList allRules)
+      batchSeeds = hasMultiConclusionSeeds allRules
+      initial side = "std::holds_alternative<fx_Init>(" <> side <> ")" <> if batchSeeds then " || std::holds_alternative<fx_Seed>(" <> side <> ")" else mempty
   declarations <- mapM record rules
   evaluations <- mapM evaluate rules
   priorities <- fixenGetPriorities >>= mapM (priorityCase allRules) . IM.elems
   pure $
     ["struct fx_Init { Fact fact; };"]
+      ++ ["struct fx_Seed { std::vector<Fact> facts; };" | batchSeeds]
       ++ declarations
-      ++ [ "using fx_Instance =" <+> pretty (template "std::variant" ("fx_Init" : (ruleType . fst <$> rules))) <> semi
-         , block "struct fx_Candidate" (["fx_Instance instance;", "std::size_t phase;"] ++ ["std::optional<Fact> preview = std::nullopt;" | codeGenDebug options]) <> semi
+      ++ [ "using fx_Instance =" <+> pretty (template "std::variant" (["fx_Init"] ++ ["fx_Seed" | batchSeeds] ++ (ruleType . fst <$> rules))) <> semi
+         , block "struct fx_Candidate" (["fx_Instance instance;", "std::size_t phase;"] ++ ["std::optional<std::vector<Fact>> preview = std::nullopt;" | codeGenDebug options]) <> semi
          , block
-             "inline Fact fx_evaluate(const fx_Instance& instance)"
-             ("if (const auto* initial = std::get_if<fx_Init>(&instance)) return initial->fact;" : evaluations ++ ["throw std::logic_error(\"Invalid Fixen rule instance\");"])
+             "template<class Emit> inline void fx_evaluate(const fx_Instance& instance, Emit&& emit)"
+             ( ["if (const auto* initial = std::get_if<fx_Init>(&instance)) { emit(initial->fact); return; }"]
+                 ++ ["if (const auto* seed = std::get_if<fx_Seed>(&instance)) { for (const auto& fact : seed->facts) emit(fact); return; }" | batchSeeds]
+                 ++ evaluations
+                 ++ ["throw std::logic_error(\"Invalid Fixen rule instance\");"]
+             )
          , block
              "inline bool fx_lower(const fx_Instance& left, const fx_Instance& right)"
-             ( [ "if (std::holds_alternative<fx_Init>(left)) return false;"
-               , "if (std::holds_alternative<fx_Init>(right)) return true;"
+             ( [ "if (" <> initial "left" <> ") return false;"
+               , "if (" <> initial "right" <> ") return true;"
                ]
                  ++ priorities
                  ++ ["return false;"]
@@ -85,8 +92,12 @@ ruleInstances options layouts = do
       _ -> unsupported "Unresolved rule argument type in C++ generation."
     evaluate (i, info) = do
       let names = Map.fromList [(n, field (Name "(*value)") j) | (j, n) <- zip [0 ..] (Map.keys (_ruleBoundVars info))]
-      result <- conclusion layouts names (ruleConclusion (_ruleDeclaration info))
-      pure (block ("if ([[maybe_unused]] const auto* value = std::get_if<" <> pretty (ruleType i) <> ">(&instance))") [stmt (Return result)])
+      results <- mapM (conclusion layouts names) (ruleConclusion (_ruleDeclaration info))
+      pure
+        ( block
+            ("if ([[maybe_unused]] const auto* value = std::get_if<" <> pretty (ruleType i) <> ">(&instance))")
+            ([stmt (Statement (call "emit" [result])) | result <- NE.toList results] ++ ["return;"])
+        )
 
 priorityCase :: IM.IntMap RuleInfo -> PriorityInfo -> Gen (Doc ())
 priorityCase rules info = do
@@ -140,17 +151,21 @@ solver options count initial =
                       "while (!queue.empty())"
                       [ "const auto candidate = queue.top();"
                       , "queue.pop();"
-                      , if codeGenDebug options
-                          then "const auto fact = candidate.preview ? *candidate.preview : fx_evaluate(candidate.instance);"
-                          else "const auto fact = fx_evaluate(candidate.instance);"
                       , "const auto phase = (candidate.phase + 1) %" <+> pretty count <> semi
                       , if count == 1 then "auto& db = state;" else "auto& db = state.at(phase);"
-                      , block "if (entails(db, fact))" (["fx_debugRejected(fact, candidate.phase, phase);" | codeGenDebug options] ++ ["continue;"])
-                      , "auto contour = maximalContour(mergeContour(fact, db));"
-                      , "contour.erase(std::remove_if(contour.begin(), contour.end(), [&](const auto& f) { return entails(db, f); }), contour.end());"
-                      , "for (const auto& f : contour) insertToDb(db, f);"
-                      , if codeGenDebug options then "fx_debugAccepted(fact, contour, candidate.phase, phase);" else mempty
-                      , "for (const auto& f : contour) fx_step(db, f, phase, queue);"
+                      , block
+                          "const auto process = [&](const Fact& fact)"
+                          [ block "if (entails(db, fact))" (["fx_debugRejected(fact, candidate.phase, phase);" | codeGenDebug options] ++ ["return;"])
+                          , "auto contour = maximalContour(mergeContour(fact, db));"
+                          , "contour.erase(std::remove_if(contour.begin(), contour.end(), [&](const auto& f) { return entails(db, f); }), contour.end());"
+                          , "for (const auto& f : contour) insertToDb(db, f);"
+                          , if codeGenDebug options then "fx_debugAccepted(fact, contour, candidate.phase, phase);" else mempty
+                          , "for (const auto& f : contour) fx_step(db, f, phase, queue);"
+                          ]
+                          <> semi
+                      , if codeGenDebug options
+                          then "if (candidate.preview) { for (const auto& fact : *candidate.preview) process(fact); } else { fx_evaluate(candidate.instance, process); }"
+                          else "fx_evaluate(candidate.instance, process);"
                       ]
                   , "return state;"
                   ]

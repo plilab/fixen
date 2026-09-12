@@ -16,6 +16,11 @@ import Fixen.Utils
 
 type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 
+-- | Only multi-conclusion, premise-free rules need a retained fact batch.
+-- Ordinary firings retain their bindings and evaluate on dequeue as before.
+hasMultiConclusionSeeds :: Foldable f => f RuleInfo -> Bool
+hasMultiConclusionSeeds = any (\info -> let r = _ruleDeclaration info in null (ruleAssumptions r) && length (ruleConclusion r) > 1)
+
 data CodeGenOptions = CodeGenOptions
   { codeGenDebug :: Bool
   -- ^ Whether to emit runtime debug traces.

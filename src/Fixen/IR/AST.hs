@@ -985,8 +985,8 @@ data Rule = Rule
   -- ^ The conditions (expressions guarded by 'if').
   --
   -- @since 26.7
-  , ruleConclusion :: Conclusion
-  -- ^ The conclusion (a relation applied to expressions).
+  , ruleConclusion :: NonEmpty Conclusion
+  -- ^ One or more conclusions, processed in source order by one firing.
   --
   -- @since 26.7
   }
@@ -1020,7 +1020,7 @@ instance HasAssumptions Rule [Assumption] where
 instance HasConditions Rule [Condition] where
   conditions = lens ruleConditions (\s i -> s {ruleConditions = i})
 
-instance HasConclusion Rule Conclusion where
+instance HasConclusion Rule (NonEmpty Conclusion) where
   conclusion = lens ruleConclusion (\s i -> s {ruleConclusion = i})
 
 -- | A condition within a rule body.
@@ -1864,7 +1864,7 @@ prettyRule (Rule i n vars assumps conds concl) =
       vars_doc = "boundVars:" <+> sep [pretty (fullIdentifier v) | v <- vars]
       assump_doc = "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
       cond_doc = "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
-      concl_doc = "conclusion:" <> line <> indent 2 (prettyConclusion concl)
+      concl_doc = "conclusion:" <> line <> indent 2 (vsep (prettyConclusion <$> NonEmpty.toList concl))
    in (name_doc <+> ("(" <> pretty i <> ")"))
         <> line
         <> indent 2 vars_doc

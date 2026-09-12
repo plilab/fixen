@@ -187,9 +187,9 @@ events =
     std::cerr << out.str() << '\\n';
   }
   inline void fx_debugActivation(const Fact& premise, std::size_t phase, const char* rule, fx_Candidate& candidate) {
-    // Printing the concluded fact requires evaluation. Cache it so the solver
-    // does not run the user's conclusion function twice in a debug build.
-    candidate.preview.emplace(fx_evaluate(candidate.instance));
+    // Cache every conclusion so debug printing never causes reevaluation.
+    candidate.preview.emplace();
+    fx_evaluate(candidate.instance, [&](const Fact& fact) { candidate.preview->push_back(fact); });
     std::ostringstream out;
     std::string prefix = "[Fixen] [Step] ";
     if (fx_debugPhased) prefix += "[Phase " + std::to_string(phase) + "] ";
@@ -199,8 +199,19 @@ events =
     out << ", ";
     fx_debugPaint(out, "\\033[32m", "Rule ");
     fx_debugPaint(out, "\\033[31m", rule);
-    out << " activated, candidate: ";
-    fx_debugFact(out, *candidate.preview);
+    if (candidate.preview->size() == 1) {
+      out << " activated, candidate: ";
+      fx_debugFact(out, candidate.preview->front());
+    } else {
+      out << " activated, candidates: [";
+      bool first = true;
+      for (const auto& fact : *candidate.preview) {
+        if (!first) out << ',';
+        first = false;
+        fx_debugFact(out, fact);
+      }
+      out << ']';
+    }
     std::cerr << out.str() << '\\n';
   }
   """

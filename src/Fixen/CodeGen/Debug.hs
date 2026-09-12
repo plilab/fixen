@@ -76,8 +76,9 @@ codeGenDebugDefinitions options
                ++ ", "
                ++ applyGreen "Rule "
                ++ applyRed rule_name
-               ++ " activated, candidate: "
-               ++ show (evaluate rule_instance)
+               ++ case evaluate rule_instance of
+                    [fact] -> " activated, candidate: " ++ show fact
+                    facts -> " activated, candidates: " ++ show facts
 
            debugSolverPhase :: Maybe String -> String
            debugSolverPhase =

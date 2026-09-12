@@ -612,8 +612,8 @@ parseRule = inContext "rule" $ parsePositioned $ do
     return $ partitionPremises premises
   -- Parse the turnstile (@|-@ or @⊢@) with indentation checks
   _ <- indented *> turnstile *> indented
-  -- Parse the conclusion (capitalized fact name + expression arguments)
-  concl <- parseConclusion
+  -- Parse one or more conclusions, committing after each separator.
+  concl <- commaSepBy1' parseConclusion
   -- Allocate a fresh node ID and construct the Rule AST node
   i <- getNewNodeId
   return $ Rule i rule_name bound_vars asms conds concl

@@ -10,6 +10,7 @@ import Control.Monad.Combinators.Expr
 import Data.Char (isAlpha, isAlphaNum, isAscii, isUpper)
 import Data.List (nub)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -202,7 +203,7 @@ rule = parsePositioned $ do
   _ <- symbol ":"
   premises <- premise `P.sepBy` symbol ","
   turnstile
-  result <- conclusion
+  result <- NE.fromList <$> (conclusion `P.sepBy1` symbol ",")
   let (asms, conditions) = Hs.partitionPremises premises
       (name, params) = case names of [] -> (Nothing, []); n : ns -> (Just n, ns)
   i <- getNewNodeId

@@ -18,6 +18,7 @@ module Fixen.SymbolSolver.Rule where
 import Control.Lens
 import Control.Monad
 import Data.List
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Set qualified as Set
@@ -136,7 +137,7 @@ validateRelationsInRule =
           concl = r ^. conclusion
       -- check the existence and arities of the assumptions and the conclusion
       asm_rep <- mapM (\a -> relationExistsAndHasRightArity a "assumption" env) asms
-      concl_rep <- relationExistsAndHasRightArity concl "conclusion" env
+      concl_rep <- concat <$> mapM (\c -> relationExistsAndHasRightArity c "conclusion" env) concl
       -- return all the errors
       return $ concat $ concl_rep : asm_rep
 
@@ -298,7 +299,7 @@ getParamUsageInfo r v =
         cond
           <&> getParamUsageInfoFromCondition v
           & concat
-      conc_usage = getParamUsageInfoFromConclusion v conc
+      conc_usage = concatMap (getParamUsageInfoFromConclusion v) conc
    in -- combine everything together as usage information for this variable
       [asms_usage, cond_usage, conc_usage]
         & concat
@@ -421,8 +422,9 @@ validateDestructuring env r = do
           [(pos, This "pattern"), (typePos, Where "non-discrete argument type")]
           [Note "destructuring is only allowed in discrete relation positions"]
       rejectCaptures t (patternVariables p)
-  forM_ (zip (relationLikeArgs (ruleConclusion r)) (parameterTypes (ruleConclusion r))) $ \(e, t) ->
-    when (ordered t) (rejectCaptures t (Set.toList (getAllExprNames e)))
+  forM_ (ruleConclusion r) $ \c ->
+    forM_ (zip (relationLikeArgs c) (parameterTypes c)) $ \(e, t) ->
+      when (ordered t) (rejectCaptures t (Set.toList (getAllExprNames e)))
   where
     captures = Map.fromList [(simpleIdentifier v, v) | (_, p) <- ruleDestructuring r, v <- patternVariables p]
     parameterTypes :: RelationLike a -> [Type]
@@ -458,7 +460,7 @@ getFreeVars r mp =
           <&> Set.toList
           & concat
       conc =
-        r ^. conclusion . args
+        concatMap relationLikeArgs (r ^. conclusion)
           <&> getAllExprNames
           <&> Set.toList
           & concat
@@ -490,12 +492,16 @@ typeCheck env RuleInfo {_ruleDeclaration = the_rule, _ruleBoundVars = param_info
           <&> catMaybes -- eliminating non assumption uses
           <&> (fmap (mapIndicesToType env the_rule)) -- map each usage to a type
           -- Get everything in the conclusion that needs to be type-checked
-      conc_args = the_rule ^. conclusion . args
+      conc_args =
+        [ ((c, j), e)
+        | (c, conc) <- zip [0 ..] (NonEmpty.toList (the_rule ^. conclusion))
+        , (j, e) <- zip [0 ..] (relationLikeArgs conc)
+        ]
       conc_type_candidates =
-        zip [0 .. length conc_args] conc_args
+        conc_args
           & varsOnly -- Get only the arguments to conclusions that are vars
           & catMaybes
-          & Map.fromList
+          & Map.fromListWith (flip (++))
           <&> (fmap (mapIndicesToType env the_rule))
       type_candidates = Map.unionWith (++) asm_type_candidates conc_type_candidates
   -- Actually perform the type-checking
@@ -523,15 +529,14 @@ mapIndicesToType
   -- ^ The 'Rule'
   --
   -- @since 26.7
-  -> Either (Int, Int) Int
+  -> Either (Int, Int) (Int, Int)
   -- ^ The index.
   -- @Left (i, j)@ represents the occurrence of a variable in the
   -- \(i^\text{th}\) assumption and \(j^\text{th}\) argument;
-  -- @Right j@ represents the occurrence of a variable in the
-  -- \(j^\text{th}\) argument to the conclusion.
+  -- @Right (c, j)@ represents the occurrence in argument @j@ of conclusion @c@.
   --
   -- @since 26.7
-  -> (Either (Int, Int) Int, Type)
+  -> (Either (Int, Int) (Int, Int), Type)
 mapIndicesToType env r (Left (i, j)) =
   let rel_name =
         (r ^. assumptions) !! i
@@ -543,14 +548,14 @@ mapIndicesToType env r (Left (i, j)) =
         & (!! j)
         & (^. ty)
         & (Left (i, j),)
-mapIndicesToType env r (Right i) =
-  let rel_name = r ^. conclusion . name & simpleIdentifier
+mapIndicesToType env r (Right (c, i)) =
+  let rel_name = (NonEmpty.toList (r ^. conclusion) !! c) ^. name & simpleIdentifier
    in (env ^. relationInfos)
         & (Map.! rel_name)
         & (^. declaration . args)
         & (!! i)
         & (^. ty)
-        & (Right i,)
+        & (Right (c, i),)
 
 -- | Performs type checking on a variable.
 --
@@ -569,11 +574,10 @@ typeCheckVar
   -- ^ The name of the variable
   --
   -- @since 26.7
-  -> (Either (Int, Int) Int, Type)
+  -> (Either (Int, Int) (Int, Int), Type)
   -- ^ @(Left (i, j), t)@ represents the occurrence of a variable in the
   -- \(i^\text{th}\) assumption and \(j^\text{th}\) argument;
-  -- @(Right j, t)@ represents the occurrence of a variable in the
-  -- \(j^\text{th}\) argument to the conclusion. In both cases, @t@ is its
+  -- @(Right (c, j), t)@ represents argument @j@ of conclusion @c@. In both cases, @t@ is its
   -- supposed type.
   --
   -- @since 26.7
@@ -593,7 +597,7 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
       -- create the new type; the typing evidence depends on what occ is.
       let new_ty = case occ of
             Left (i, j) -> ActualType the_type (TypedViaAssumption i j)
-            Right j -> ActualType the_type (TypedViaConclusion j)
+            Right (c, j) -> ActualType the_type (TypedViaConclusion c j)
        in -- insert this new information into the current param_info
           return $ Map.insert var_name (curr_info & ty .~ new_ty) param_info
     ActualType t' evidence ->
@@ -607,8 +611,8 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
             Left (i, j) -> do
               let thing = (((the_rule ^. assumptions) !! i) ^. args) !! j
               getPosition thing
-            Right i -> do
-              let thing = (the_rule ^. conclusion . args) !! i
+            Right (c, i) -> do
+              let thing = relationLikeArgs (NonEmpty.toList (the_rule ^. conclusion) !! c) !! i
               getPosition thing
           -- we also need the position of the type declaration of this variable
           curr_ty_pos <- getPosition the_type
@@ -626,8 +630,8 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
                 , (curr_var_pos, This "this variable")
                 , (curr_ty_pos, Where "has this type")
                 ]
-            TypedViaConclusion i' -> do
-              let original_var = the_rule ^. conclusion . args & (!! i')
+            TypedViaConclusion c' i' -> do
+              let original_var = relationLikeArgs (NonEmpty.toList (the_rule ^. conclusion) !! c') !! i'
               original_var_pos <- getPosition original_var
               original_ty_pos <- getPosition t'
               return

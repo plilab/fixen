@@ -306,7 +306,9 @@ data TypeEvidence
     -- @since 26.7
     TypedViaConclusion
       Int
-      -- ^ The ith argument to the conclusion
+      -- ^ The conclusion index
+      Int
+      -- ^ The argument index within that conclusion
       --
       -- @since 26.7
   deriving (Eq, Show)

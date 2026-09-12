@@ -6,6 +6,7 @@ module Fixen.CodeGen.RuleInstance where
 
 import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -30,9 +31,10 @@ codeGenRuleInstanceDef :: FixenPass CodeGenState Text
 codeGenRuleInstanceDef = do
   ruleInfos <- fixenGetRuleInfo
   constructors <- catMaybes <$> mapM ruleConstructor (IntMap.elems ruleInfos)
+  let seeds = [Hs.Constructor (Hs.name "InitMany") [Hs.TyList (Hs.typ "Fact")] | hasMultiConclusionSeeds ruleInfos]
   pure $
     Hs.renderDecls
-      [Hs.Data (Hs.name "RuleInstance") (Hs.Constructor (Hs.name "Init") [Hs.typ "Fact"] :| constructors) [Hs.name "Show"]]
+      [Hs.Data (Hs.name "RuleInstance") (Hs.Constructor (Hs.name "Init") [Hs.typ "Fact"] :| (seeds ++ constructors)) [Hs.name "Show"]]
 
 ruleConstructor :: RuleInfo -> FixenPass CodeGenState (Maybe Hs.Constructor)
 ruleConstructor info
@@ -61,18 +63,19 @@ codeGenEqInstance =
 -- This is a Haskell backend decision, not a proposed cross-backend ordering.
 codeGenPriorities :: FixenPass CodeGenState Text
 codeGenPriorities = do
+  ruleInfos <- fixenGetRuleInfo
   priorities <- IntMap.elems <$> fixenGetPriorities
   cases <- mapM priorityCase priorities
-  let initial = Hs.PCon (Hs.name "Init") [Hs.PWildcard]
+  let initials = [Hs.PCon (Hs.name n) [Hs.PWildcard] | n <- "Init" : ["InitMany" | hasMultiConclusionSeeds ruleInfos]]
       comparison op a b result = Hs.Function (Hs.name op) [a, b] result
       methods =
         if null priorities
-          then [comparison "<=" Hs.PWildcard initial (Hs.var "True"), comparison "<=" Hs.PWildcard Hs.PWildcard (Hs.var "False")]
+          then [comparison "<=" Hs.PWildcard initial (Hs.var "True") | initial <- initials] ++ [comparison "<=" Hs.PWildcard Hs.PWildcard (Hs.var "False")]
           else
             [ comparison "<=" (Hs.pat "i") (Hs.pat "i'") (Hs.call "not" [Hs.call "<" [Hs.var "i'", Hs.var "i"]])
-            , comparison "<" initial initial (Hs.var "False")
-            , comparison "<" Hs.PWildcard initial (Hs.var "True")
             ]
+              ++ [comparison "<" a b (Hs.var "False") | a <- initials, b <- initials]
+              ++ [comparison "<" Hs.PWildcard initial (Hs.var "True") | initial <- initials]
               ++ cases
               ++ [comparison "<" Hs.PWildcard Hs.PWildcard (Hs.var "False")]
   pure (Hs.renderDecls [Hs.Instance (Hs.TyApp (Hs.typ "Ord") (Hs.typ "RuleInstance")) methods])
@@ -106,16 +109,17 @@ codeGenEvaluate = do
   let active = filter (not . null . (^. declaration . assumptions)) (IntMap.elems ruleInfos)
   pure $
     Hs.renderDecls $
-      [ Hs.Signature (Hs.name "evaluate") (Hs.functionType [Hs.typ "RuleInstance"] (Hs.typ "Fact"))
-      , Hs.Function (Hs.name "evaluate") [Hs.PCon (Hs.name "Init") [Hs.pat "f"]] (Hs.var "f")
+      [ Hs.Signature (Hs.name "evaluate") (Hs.functionType [Hs.typ "RuleInstance"] (Hs.TyList (Hs.typ "Fact")))
+      , Hs.Function (Hs.name "evaluate") [Hs.PCon (Hs.name "Init") [Hs.pat "f"]] (Hs.List [Hs.var "f"])
       ]
+        ++ [Hs.Function (Hs.name "evaluate") [Hs.PCon (Hs.name "InitMany") [Hs.pat "fs"]] (Hs.var "fs") | hasMultiConclusionSeeds ruleInfos]
         ++ (evaluateCase <$> active)
 
 evaluateCase :: RuleInfo -> Hs.Decl
 evaluateCase info =
   let rule = info ^. declaration
-      result = rule ^. conclusion
+      results = NonEmpty.toList (rule ^. conclusion)
    in Hs.Function
         (Hs.name "evaluate")
         [Hs.PCon (Hs.name (codeGenRuleInstanceName rule)) (storedRulePatterns rule (Map.fromList [(n, Hs.name n) | n <- Map.keys (info ^. args)]))]
-        (Hs.call (simpleIdentifier (result ^. name)) (lowerExpr <$> result ^. args))
+        (Hs.List [Hs.call (simpleIdentifier (result ^. name)) (lowerExpr <$> result ^. args) | result <- results])

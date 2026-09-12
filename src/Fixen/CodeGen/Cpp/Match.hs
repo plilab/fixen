@@ -106,8 +106,11 @@ seeds forests layouts =
   sequence
     [ do
         guards <- mapM (lowerExpr Map.empty Nothing . conditionExpr) (_ruleLeafCondition leaf)
-        fact <- conclusion layouts Map.empty (_ruleLeafConclusion leaf)
-        pure (If (andExpr guards) [enqueue p (Construct "fx_Init" [fact])])
+        facts <- mapM (conclusion layouts Map.empty) (_ruleLeafConclusion leaf)
+        let value = case NE.toList facts of
+              [fact] -> Construct "fx_Init" [fact]
+              fs -> Construct "fx_Seed" [Construct "std::vector<Fact>" fs]
+        pure (If (andExpr guards) [enqueue p value])
     | (p, forest) <- zip [0 ..] (NE.toList forests)
     , leaf <- _ruleForestLeaves forest
     ]
