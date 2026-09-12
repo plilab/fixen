@@ -16,7 +16,9 @@ import Control.Lens
 import Control.Monad
 import Data.Bifunctor
 import Data.IntMap qualified as IntMap
+import Data.IntSet qualified as IntSet
 import Data.Map qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Fixen.Fields
 import Fixen.IR.AST
@@ -420,7 +422,14 @@ validateAgainstQuery where_msg repr i env = do
 -- A rule parameter is considered unused if:
 --
 -- 1. It is not used in any condition or conclusion, __and__
--- 2. All instantiations of the parameter (in priority declarations) are unused
+-- 2. It is not needed to match repeated premise occurrences, __and__
+-- 3. All instantiations of the parameter (in priority declarations) are unused,
+--    __and__
+-- 4. No expanded rule sharing its source occurrence needs the parameter.
+--
+-- Rule-tree expansion preserves premise node IDs. Track uses by these IDs,
+-- not by variable spelling: replacing a shared occurrence with a hole affects
+-- every descendant, whereas unrelated rules may safely reuse the same name.
 --
 -- /Precondition/: Requires that everything in the program has been inserted
 -- into the 'SymbolEnv'.
@@ -434,7 +443,6 @@ warnUnusedRuleParameters
   -- @since 26.7
   -> FixenPass σ ()
 warnUnusedRuleParameters env = do
-  unused_rule_params <- getUnusedRuleParams
   when ((¬) (null unused_rule_params)) $ do
     pos <- mapM getPosition unused_rule_params
     accumWarn
@@ -443,36 +451,42 @@ warnUnusedRuleParameters env = do
       ((,This "rule parameter") <$> pos)
       [Hint "replace these with holes `_`"]
   where
-    getUnusedRuleParams = do
-      let rule_info = env ^. ruleInfos & IntMap.toList
-      ls <- mapM getUnusedRuleParamsOfRule rule_info
-      return $ concat ls
+    parameters =
+      [ (v, sourceVariables (info ^. declaration) v, unused rid k parameter)
+      | (rid, info) <- IntMap.toList (env ^. ruleInfos)
+      , (k, parameter) <- Map.toList (info ^. args)
+      , let v = parameter ^. var
+      ]
+    liveSources = IntSet.fromList [v ^. nodeId | (_, sources, False) <- parameters, v <- sources]
+    unused_rule_params =
+      IntMap.elems $
+        IntMap.fromList
+          [ (v ^. nodeId, v)
+          | (v, sources, True) <- parameters
+          , all (\s -> IntSet.notMember (s ^. nodeId) liveSources) sources
+          ]
 
-    getUnusedRuleParamsOfRule (rule_node_id, rule_info) = do
-      let bvs = rule_info ^. args
-          potentially_unused_bvs =
-            Map.filter
-              ( \lv_info ->
-                  let usage = lv_info ^. usageInfo
-                      internal = Text.isPrefixOf (Text.pack "$pattern") (simpleIdentifier (lv_info ^. var))
-                   in not internal ∧ (all isUsedInAssumption usage) ∧ length usage < 2
-              )
-              bvs
-          varsUsedInPriorities =
-            values (env ^. priorityInfos)
-              ^.. each . args
-              <&> Map.toList
-              & concat
-              <&> (\(k, (v, _)) -> (k, v))
-          unused_bvs =
-            Map.filterKeys
-              ( \k ->
-                  all
-                    (\(k', n) -> k ≠ k' ∨ n ≠ rule_node_id)
-                    varsUsedInPriorities
-              )
-              potentially_unused_bvs
-      return $ unused_bvs ^.. each . var
+    -- Include premise occurrences even when a leaf explicitly lists its own
+    -- parameter names (whose node IDs differ from the shared premise).
+    sourceVariables r v =
+      v : [s | a <- ruleAssumptions r, p <- relationLikeArgs a, s <- patternVariables p, s ≅ v]
+
+    unused rid k parameter =
+      let occurrences = parameter ^. usageInfo
+          internal = Text.isPrefixOf (Text.pack "$pattern") (simpleIdentifier (parameter ^. var))
+       in not internal && all isUsedInAssumption occurrences && length occurrences < 2 && Set.notMember (rid, k) varsUsedInPriorities
+
+    -- Priority-local names may differ from the rule parameter names. Follow
+    -- the substitution back to the parameter instead of comparing spellings.
+    varsUsedInPriorities =
+      Set.fromList
+        [ (rid, simpleIdentifier formal)
+        | p <- values (env ^. priorityInfos)
+        , let c = p ^. declaration . conclusion
+        , (rid, instance') <- [(p ^. lhs, c ^. lhs), (p ^. rhs, c ^. rhs)]
+        , (formal, local) <- Map.toList (ruleInstanceMap instance')
+        , Map.member (simpleIdentifier local) (p ^. args)
+        ]
 
 -- | Emits warnings whenever an external symbol is shadowed by some kind of
 -- bound variable (in rules and priorities).
