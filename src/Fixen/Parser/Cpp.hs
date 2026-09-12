@@ -17,7 +17,7 @@ import Data.Text qualified as T
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser qualified as Hs
-import Fixen.Parser.Common (Parser, ParserState, parsePositioned)
+import Fixen.Parser.Common (Parser, ParserState, layoutToken, parsePositioned, withDelimiters)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -32,10 +32,10 @@ space :: Parser s ()
 space = L.space C.space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
 
 lexeme :: Parser s a -> Parser s a
-lexeme = L.lexeme space
+lexeme p = L.lexeme space (layoutToken *> p)
 
 symbol :: Text -> Parser s Text
-symbol = L.symbol space
+symbol = lexeme . P.chunk
 
 word :: Text -> Parser s Text
 word text = lexeme (P.try (P.chunk text <* P.notFollowedBy (P.satisfy identContinue)))
@@ -77,8 +77,8 @@ ident = parsePositioned $ do
   pure (IdentifierSimpleIdentifier (SimpleIdentifier i name))
 
 parens, braces :: Parser s a -> Parser s a
-parens = P.between (symbol "(") (symbol ")")
-braces = P.between (symbol "{") (symbol "}")
+parens p = withDelimiters (P.between (symbol "(") (symbol ")") p)
+braces p = withDelimiters (P.between (symbol "{") (symbol "}") p)
 
 arguments :: Parser s a -> Parser s [a]
 arguments parser = parens (parser `P.sepBy` symbol ",")
@@ -102,6 +102,7 @@ topLevel :: ParserState s => Parser s Hs.TopLevel
 topLevel =
   P.choice
     [ Hs.TLRelation <$> relation
+    , Hs.TLRuleTree <$> Hs.parseRuleTreeWith space (void . word) (void . symbol) rule premise
     , Hs.TLRule <$> rule
     , Hs.TLPartialOrd <$> partialOrder
     , Hs.TLLattice <$> lattice
@@ -408,7 +409,7 @@ postfix :: ParserState s => Expr -> Parser s Expr
 postfix value =
   (do args <- arguments expression; node CppCall (value : args) >>= postfix)
     P.<|> (do _ <- symbol "."; name <- rawName; node (CppMember name) [value] >>= postfix)
-    P.<|> (do index <- P.between (symbol "[") (symbol "]") expression; node CppIndex [value, index] >>= postfix)
+    P.<|> (do index <- withDelimiters (P.between (symbol "[") (symbol "]") expression); node CppIndex [value, index] >>= postfix)
     P.<|> pure value
 
 atom :: ParserState s => Parser s Expr

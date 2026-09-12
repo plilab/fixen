@@ -35,11 +35,13 @@
 module Fixen.Parser.Common where
 
 import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.State.Strict
 import Data.Char
 import Data.List.NonEmpty
 import Data.Set qualified as Set
 import Data.Text
+import Data.Text qualified as Text
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -72,8 +74,8 @@ type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 
 -- | The parser type used by the Fixen parser.
 --
---   This is a Megaparsec parser ('P.ParsecT') layered on top of the 'State'
---   monad.
+--   A read-only, lexically scoped layout context wraps the Megaparsec parser
+--   ('P.ParsecT'), which is layered on top of the 'State' monad.
 --
 --   The parser type uses the custom 'FixenParseError' datatype. Internally,
 --   throughout parsing, all errors are represented using this custom datatype.
@@ -84,7 +86,43 @@ type ParserState σ = (WithPositionEnv σ, NodeIded σ, WithErrors σ)
 --   parsers in 'Fixen.Parser'.
 --
 -- @since 26.7
-type Parser σ = P.ParsecT FixenParseError Text (State σ)
+type Parser σ = ReaderT Layout (P.ParsecT FixenParseError Text (State σ))
+
+-- | Lexically scoped layout, restored automatically on return/backtracking.
+-- Outside a rule tree the historical frontend whitespace rules apply.
+data Layout = Layout
+  { layoutSource :: Text
+  , layoutFloor :: Maybe MPos.Pos
+  , layoutDelimited :: Bool
+  }
+
+withBranchLayout :: MPos.Pos -> Parser σ a -> Parser σ a
+withBranchLayout column = local (\ctx -> ctx {layoutFloor = Just column, layoutDelimited = False})
+
+withoutLayout :: Parser σ a -> Parser σ a
+withoutLayout = local (\ctx -> ctx {layoutFloor = Nothing})
+
+withDelimiters :: Parser σ a -> Parser σ a
+withDelimiters = local (\ctx -> ctx {layoutDelimited = True})
+
+-- | A structural pipe is a standalone, line-leading token, not '|-' or '||'.
+-- Consult the original input only at pipes; never split/reparse source lines.
+branchMarker :: Parser σ ()
+branchMarker = do
+  _ <- P.lookAhead (C.char '|' <* P.notFollowedBy (P.satisfy isValidOpChar))
+  offset <- P.getOffset
+  source <- asks layoutSource
+  let prefix = Text.takeWhileEnd (/= '\n') (Text.take offset source)
+  unless (Text.all (\c -> c == ' ' || c == '\t' || c == '\r') prefix) P.empty
+
+-- | Check before a token, never after its trailing whitespace: a sibling is
+-- a valid end of the preceding token, but not part of its expression.
+layoutToken :: Parser σ ()
+layoutToken = do
+  ctx <- ask
+  forM_ (layoutFloor ctx) $ \column -> do
+    void (L.indentGuard (pure ()) GT column)
+    unless (layoutDelimited ctx) (P.notFollowedBy branchMarker)
 
 --------------------------------------------------------------------------------
 
@@ -218,10 +256,16 @@ manyI
   -- @since 26.7
   -> Parser σ [α]
 manyI indent_check p = do
-  m <- P.observing (P.try $ indent_check *> p)
-  case m of
-    Left _ -> return []
-    Right e -> (:) e <$> manyI indent_check p
+  nested <- asks (maybe False (const True) . layoutFloor)
+  if nested
+    -- Delimiters/literals unambiguously start an item. Keep their errors,
+    -- while identifier/operator alternatives still need lexical backtracking.
+    then manyICommitted (∈ ("([\"'" :: String)) indent_check p
+    else do
+      m <- P.observing (P.try $ indent_check *> p)
+      case m of
+        Left _ -> return []
+        Right e -> (:) e <$> manyI indent_check p
 
 -- | 'manyI' without backtracking when the lookahead
 -- character meets a predicate.
@@ -305,7 +349,7 @@ betweenIndented
   -> Parser σ α
   -- ^ The parser of the contents between the delimiters
   -> Parser σ α
-betweenIndented open close punctuation_name indent_check p = do
+betweenIndented open close punctuation_name indent_check p = withDelimiters $ do
   start <- P.getOffset
   _ <- l $ exactMatchNoLookahead open
   r <- p
@@ -422,7 +466,11 @@ hsSpecialChars = "(),;[]`{}"
 --
 -- @since 26.7
 indented :: Parser σ MPos.Pos
-indented = indentedByMoreThan (MPos.mkPos 1)
+indented = do
+  sc
+  layoutToken
+  column <- asks (maybe (MPos.mkPos 1) id . layoutFloor)
+  indentedByMoreThan column
 
 -- | Ensure that the current position is indented by strictly more than
 -- the given amount (in columns).
@@ -490,7 +538,7 @@ lineCommentParser = P.try $ do
 --
 -- @since 26.7
 l :: Parser σ α -> Parser σ α
-l = L.lexeme sc
+l p = L.lexeme sc (layoutToken *> p)
 
 --------------------------------------------------------------------------------
 

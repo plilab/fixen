@@ -163,7 +163,7 @@ parseParenExpr indent_check =
     -- Verifies indentation, then delegates to parseNestedInfixExpr or parseExprApp.
     f = do
       -- Verify that the opening parenthesis is at the correct indentation level.
-      _ <- indented
+      _ <- indent_check
       -- Parse the content inside parentheses and capture the position of the
       -- entire (...) span.
       parsePositioned $ betweenParentheses indent_check item

@@ -992,6 +992,21 @@ data Rule = Rule
   }
   deriving (Eq, Show)
 
+-- | Source-level premise sharing. Expanded before symbol solving, so every
+-- leaf retains the ordinary rule semantics (including all assumption triggers).
+data RuleTree
+  = RuleBranch [Assumption] [Condition] (NonEmpty RuleTree)
+  | RuleTreeLeaf Rule
+  deriving (Eq, Show)
+
+expandRuleTree :: RuleTree -> [Rule]
+expandRuleTree = go [] []
+  where
+    go asms conds (RuleTreeLeaf r) =
+      [r {ruleAssumptions = asms ++ ruleAssumptions r, ruleConditions = conds ++ ruleConditions r}]
+    go asms conds (RuleBranch moreAsms moreConds branches) =
+      concatMap (go (asms ++ moreAsms) (conds ++ moreConds)) branches
+
 {- FOURMOLU_DISABLE -}
 -- | 'Rule's are equal modulo 'NodeId's whenever their components are.
 --

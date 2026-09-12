@@ -31,6 +31,7 @@ import Control.Applicative.Combinators (
   (<|>),
  )
 import Control.Monad
+import Control.Monad.Reader (runReaderT)
 import Control.Monad.State.Strict qualified as State
 import Data.Either
 import Data.List
@@ -133,7 +134,7 @@ fixenParse parser file_path file_contents = do
   -- Capture the current parser state (position env, node ID counter, errors)
   st <- State.get
   -- Run the Megaparsec parser with the given file path and contents
-  let e = P.runParserT parser file_path file_contents
+  let e = P.runParserT (runReaderT parser (Layout file_contents Nothing False)) file_path file_contents
   -- Extract the result and updated state from the parser monad stack
   let (r, st') = State.runState e st
   -- Restore the updated state (including position tracking and node IDs)
@@ -204,6 +205,7 @@ parseTopLevels =
       inContext "top-level declaration" $
         -- Try each declaration type in order; the first match wins
         (TLRelation <$> parseRelation)
+          <|> (TLRuleTree <$> parseRuleTree)
           <|> (TLRule <$> parseRule)
           <|> (TLPartialOrd <$> parsePartialOrd)
           <|> (TLLattice <$> parseLattice)
@@ -231,6 +233,7 @@ data TopLevel
     --
     -- @since 26.7
     TLRule Rule
+  | TLRuleTree RuleTree
   | -- | A @partial ord@ declaration defining a partial order on a type
     --
     -- @since 26.7
@@ -305,6 +308,7 @@ partitionTopLevels mod_decl (x : xs) = do
   case x of
     TLRelation r -> return $ rest & relationDeclarations %~ (r :)
     TLRule r -> return $ rest & rules %~ (r :)
+    TLRuleTree tree -> return $ rest & rules %~ (expandRuleTree tree ++)
     TLPartialOrd po -> return $ rest & partialOrdDeclarations %~ (po :)
     TLPriority p -> return $ rest & priorities %~ (p :)
     TLQuery q -> return $ rest & queries %~ (q :)
@@ -587,10 +591,16 @@ parseRelation = inContext "relation" $ parsePositioned $ do
 --
 -- @since 26.7
 parseRule :: ParserState σ => Parser σ Rule
-parseRule = inContext "rule" $ parsePositioned $ do
+parseRule = parsePositioned $ do
   -- Parse the 'rule' keyword (must not be indented)
   -- Definitely need 'try' here since rules are among many top-level alternatives
   _ <- P.try $ l $ L.nonIndented sc $ keyword "rule"
+  parseRuleBody
+
+-- | Also used after a nested leaf's 'rule' keyword. The enclosing tree
+-- supplies its pipe column through the scoped layout context.
+parseRuleBody :: ParserState σ => Parser σ Rule
+parseRuleBody = inContext "rule" $ parsePositioned $ do
   -- Verify proper indentation before the rule name
   _ <- indented
   -- Parse the optional rule name and bound variables (all lowercase identifiers)
@@ -617,6 +627,71 @@ parseRule = inContext "rule" $ parsePositioned $ do
   -- Allocate a fresh node ID and construct the Rule AST node
   i <- getNewNodeId
   return $ Rule i rule_name bound_vars asms conds concl
+
+parseRuleTree :: ParserState σ => Parser σ RuleTree
+parseRuleTree = parseRuleTreeWith sc (void . l . keyword) (void . l . exactMatchNoLookahead) (parsePositioned (P.try (l (keyword "rule")) *> parseRuleBody)) parsePremise
+
+-- | Shared structural grammar; only leaf/premise syntax and lexing differ
+-- between the Haskell and C++ frontends. A trailing header comma introduces
+-- a nonempty child group, rather than another premise.
+parseRuleTreeWith
+  :: ParserState σ
+  => Parser σ ()
+  -> (Text -> Parser σ ())
+  -> (Text -> Parser σ ())
+  -> Parser σ Rule
+  -> Parser σ RulePremise
+  -> Parser σ RuleTree
+parseRuleTreeWith whitespace word symbol leaf premiseParser = do
+  start <- P.getSourcePos
+  _ <- P.try (L.nonIndented whitespace (word "rules"))
+  withBranchLayout (P.sourceColumn start) $ do
+    symbol ":"
+    branch start
+  where
+    branch parent = do
+      premises <- header
+      branches <- withoutLayout (childGroup parent)
+      let (asms, conds) = partitionPremises premises
+      pure (RuleBranch asms conds branches)
+    header = do
+      p <- premiseParser
+      whitespace
+      symbol ","
+      next <- P.optional (P.try branchMarker)
+      case next of
+        Just () -> pure [p]
+        Nothing -> (p :) <$> header
+    childGroup parent = do
+      branchMarker P.<?> "a line-leading '|' starting a child branch"
+      first <- P.getSourcePos
+      unless (P.sourceLine first > P.sourceLine parent) (fail "a child branch must start on a new line")
+      let parentColumn = P.sourceColumn parent
+          column = P.sourceColumn first
+      when (column <= parentColumn) (fail "a child branch must be indented farther than its parent")
+      child <- childAt column
+      rest <- siblings parentColumn column
+      pure (child :| rest)
+    childAt column = do
+      start <- P.getSourcePos
+      branchMarker
+      void (C.char '|')
+      whitespace
+      withBranchLayout column $
+        (RuleTreeLeaf <$> leaf) <|> branch start
+    siblings parentColumn column = do
+      whitespace
+      next <- P.optional (P.try branchMarker)
+      case next of
+        Nothing -> pure []
+        Just () -> do
+          actual <- P.sourceColumn <$> P.getSourcePos
+          if actual == column
+            then (:) <$> childAt column <*> siblings parentColumn column
+            else
+              if actual <= parentColumn
+                then pure []
+                else fail ("expected a sibling branch at column " ++ show (P.unPos column) ++ "; found column " ++ show (P.unPos actual))
 
 -- | Represents a premise within a rule body.
 --
