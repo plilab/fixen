@@ -144,8 +144,8 @@ data RuleLeaf = RuleLeaf
   , _ruleLeafPatterns :: [(SimpleIdentifier, Pattern)]
   -- ^ Whole-argument bindings and patterns to check before the conditions.
   -- Pattern captures are leaf-local, not additional database index keys.
-  , _ruleLeafConclusion :: NonEmpty Conclusion
-  -- ^ The 'Conclusion' of this leaf.
+  , _ruleLeafConclusion :: ConclusionBody
+  -- ^ The conclusion-selection body of this leaf, evaluated as one firing.
   --
   -- @since 26.7
   }
@@ -222,7 +222,7 @@ leafToRoseTree
           if null conds
             then ""
             else intercalate ", " (showCond mp <$> conds) ++ " "
-        showed_conc = intercalate "\n" (showConc mp <$> NonEmpty.toList conc)
+        showed_conc = case conc of Emit cs -> intercalate "\n" (showConc mp <$> NonEmpty.toList cs); _ -> show (prettyConclusionBody conc)
         showed_rule_id = concat ["<rule ", show rule_id, "> "]
         show_patterns =
           concat

@@ -12,12 +12,13 @@ import Data.List (nub)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Parser qualified as Hs
-import Fixen.Parser.Common (Parser, ParserState, layoutToken, parsePositioned, withDelimiters)
+import Fixen.Parser.Common (Parser, ParserState, branchMarker, layoutToken, parsePositioned, withBranchLayout, withDelimiters)
 import Text.Megaparsec qualified as P
 import Text.Megaparsec.Char qualified as C
 import Text.Megaparsec.Char.Lexer qualified as L
@@ -204,11 +205,29 @@ rule = parsePositioned $ do
   _ <- symbol ":"
   premises <- premise `P.sepBy` symbol ","
   turnstile
-  result <- NE.fromList <$> (conclusion `P.sepBy1` symbol ",")
+  result <- conclusionBody
   let (asms, conditions) = Hs.partitionPremises premises
       (name, params) = case names of [] -> (Nothing, []); n : ns -> (Just n, ns)
   i <- getNewNodeId
   pure (Rule i name params asms conditions result)
+
+conclusionBody :: ParserState s => Parser s ConclusionBody
+conclusionBody = guarded P.<|> (Emit . NE.fromList <$> (conclusion `P.sepBy1` symbol ","))
+  where
+    guarded = do
+      start <- P.getSourcePos
+      _ <- word "if"
+      arms <- Hs.parseConditionalAlternatives space start arm
+      when (any (isNothing . fst) (NE.init arms)) (fail "otherwise must be the final conditional conclusion guard")
+      pure (GuardedConclusions arms)
+    arm column = do
+      branchMarker
+      void (C.char '|')
+      space
+      withBranchLayout column $ do
+        guard <- (word "otherwise" *> pure Nothing) P.<|> (Just <$> expression)
+        _ <- symbol "->"
+        (guard,) <$> conclusionBody
 
 premise :: ParserState s => Parser s Hs.RulePremise
 premise =

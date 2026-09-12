@@ -10,6 +10,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
 import Fixen.CodeGen.Common
 import Fixen.CodeGen.Haskell.Bindings (numberedName)
+import Fixen.CodeGen.Haskell.Conclusion (lowerConclusionBody)
 import Fixen.CodeGen.Haskell.Syntax qualified as Hs
 import Fixen.IR.AST
 import Fixen.IR.RuleForest
@@ -90,8 +91,9 @@ codeGenReSolve forests = do
         | phased = Hs.Tuple [fact, Hs.Var (numberedName "Phase" phase)]
         | otherwise = fact
       seed phase leaf =
-        let facts = [Hs.call (simpleIdentifier (relationLikeName c)) (lowerExpr <$> relationLikeArgs c) | c <- NonEmpty.toList (_ruleLeafConclusion leaf)]
-            instanceValue = case facts of [fact] -> Hs.call "Init" [fact]; _ -> Hs.call "InitMany" [Hs.List facts]
+        let instanceValue = case _ruleLeafConclusion leaf of
+              Emit (c :| []) -> Hs.call "Init" [Hs.call (simpleIdentifier (relationLikeName c)) (lowerExpr <$> relationLikeArgs c)]
+              body' -> Hs.call "InitMany" [lowerConclusionBody body']
             guards = Hs.guardStmt . lowerExpr . conditionExpr <$> _ruleLeafCondition leaf
          in Hs.Do guards (Hs.List [tag phase instanceValue])
   pure $

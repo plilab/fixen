@@ -719,7 +719,7 @@ parseRawString = do
 --
 -- @since 26.7
 parseRawInteger :: Parser σ Integer
-parseRawInteger = L.signed sc L.decimal -- optional sign followed by decimal digits
+parseRawInteger = L.signed (sc *> layoutToken) L.decimal -- the digits must stay inside the enclosing layout
 
 -- | Parses an unsigned natural number literal (no sign allowed).
 -- The result is an unannotated 'Natural' value.

@@ -37,6 +37,7 @@ import Data.Either
 import Data.List
 import Data.List.NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Maybe (isNothing)
 import Data.Proxy
 import Data.Set qualified as Set
 import Data.Text (Text, pack, unpack)
@@ -622,14 +623,64 @@ parseRuleBody = inContext "rule" $ parsePositioned $ do
     return $ partitionPremises premises
   -- Parse the turnstile (@|-@ or @⊢@) with indentation checks
   _ <- indented *> turnstile *> indented
-  -- Parse one or more conclusions, committing after each separator.
-  concl <- commaSepBy1' parseConclusion
+  -- Parse a nonempty batch or a first-match conditional conclusion body.
+  concl <- parseConclusionBody
   -- Allocate a fresh node ID and construct the Rule AST node
   i <- getNewNodeId
   return $ Rule i rule_name bound_vars asms conds concl
 
 parseRuleTree :: ParserState σ => Parser σ RuleTree
 parseRuleTree = parseRuleTreeWith sc (void . l . keyword) (void . l . exactMatchNoLookahead) (parsePositioned (P.try (l (keyword "rule")) *> parseRuleBody)) parsePremise
+
+parseConclusionBody :: ParserState σ => Parser σ ConclusionBody
+parseConclusionBody = caseBody <|> guardedBody <|> (Emit <$> commaSepBy1' parseConclusion)
+  where
+    caseBody = do
+      start <- P.getSourcePos
+      _ <- P.try (indented *> l (keyword "case"))
+      value <- parseExpr indented
+      _ <- indented *> l (keyword "of")
+      CaseConclusions value <$> parseConditionalAlternatives sc start caseArm
+    guardedBody = do
+      start <- P.getSourcePos
+      _ <- P.try (indented *> l (keyword "if"))
+      arms <- parseConditionalAlternatives sc start guardArm
+      when (any (isNothing . fst) (Data.List.init (toList arms))) (fail "otherwise must be the final conditional conclusion guard")
+      pure (GuardedConclusions arms)
+    caseArm column = do
+      p <- withBranchLayout (P.mkPos (P.unPos column - 1)) parsePattern
+      b <- withBranchLayout column (indented *> l (exactMatchNoLookahead "->") *> parseConclusionBody)
+      pure (p, b)
+    guardArm column = do
+      branchMarker
+      void (C.char '|')
+      sc
+      withBranchLayout column $ do
+        g <- (P.try (l (keyword "otherwise")) *> pure Nothing) <|> (Just <$> parseExpr indented)
+        _ <- indented *> l (exactMatchNoLookahead "->")
+        (g,) <$> parseConclusionBody
+
+-- | Shared layout for first-match conclusion alternatives in either frontend.
+parseConditionalAlternatives :: Parser σ () -> P.SourcePos -> (P.Pos -> Parser σ a) -> Parser σ (NonEmpty a)
+parseConditionalAlternatives whitespace start arm = withoutLayout $ do
+  whitespace
+  first <- P.getSourcePos
+  unless (P.sourceLine first > P.sourceLine start && P.sourceColumn first > P.sourceColumn start) (fail "conditional alternatives must start on a new line, indented beyond case/if")
+  let column = P.sourceColumn first
+  x <- arm column
+  xs <- rest column
+  pure (x :| xs)
+  where
+    rest column = do
+      whitespace
+      end <- P.atEnd
+      actual <- P.sourceColumn <$> P.getSourcePos
+      if end || actual < column
+        then pure []
+        else
+          if actual == column
+            then (:) <$> arm column <*> rest column
+            else fail ("expected a conditional alternative at column " ++ show (P.unPos column))
 
 -- | Shared structural grammar; only leaf/premise syntax and lexing differ
 -- between the Haskell and C++ frontends. A trailing header comma introduces

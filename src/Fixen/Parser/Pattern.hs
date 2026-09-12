@@ -4,7 +4,7 @@
 -- atomic; constructor applications and infix patterns must be parenthesized.
 -- Infix nesting is explicit (as in Fixen expressions), so foreign fixities do
 -- not need to be known by Fixen.
-module Fixen.Parser.Pattern (parsePatternAtom) where
+module Fixen.Parser.Pattern (parsePatternAtom, parsePattern) where
 
 import Control.Applicative (optional, (<|>))
 import Fixen.IR.AST

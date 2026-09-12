@@ -2,7 +2,7 @@
 
 -- | Pattern matching at activation and reconstruction from retained arguments.
 -- Captured values never need fields (or type annotations) of their own.
-module Fixen.CodeGen.Haskell.Pattern (matchRulePatterns, storedRulePatterns) where
+module Fixen.CodeGen.Haskell.Pattern (matchRulePatterns, storedRulePatterns, lowerPattern) where
 
 import Control.Monad.State.Strict
 import Data.Map.Strict qualified as Map

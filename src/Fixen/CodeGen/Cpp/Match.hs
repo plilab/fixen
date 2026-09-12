@@ -2,7 +2,7 @@
 
 -- | Lower the shared rule forest to C++ loops. Bindings own their values;
 -- database indexes are never mutated while a matching traversal is active.
-module Fixen.CodeGen.Cpp.Match (step, stepWithOptions, seeds) where
+module Fixen.CodeGen.Cpp.Match (step, stepWithOptions, seeds, conclusionBody) where
 
 import Data.IntMap.Strict qualified as IM
 import Data.List (sortOn)
@@ -101,16 +101,31 @@ matchFields incoming bindings depth ((i, q, value) : rest) continuation = do
 enqueue :: Int -> Expr -> Stmt
 enqueue p value = Statement (call "queue.push" [Construct "fx_Candidate" [value, Name (T.show p)]])
 
+-- | Select exactly one terminal batch. An empty nested selection must not
+-- fall through to another arm. The callback serves both firings and seeds.
+conclusionBody :: RelationRepresentation -> Map.Map T.Text Expr -> (NE.NonEmpty Expr -> [Stmt]) -> ConclusionBody -> Gen [Stmt]
+conclusionBody layouts names emitBatch = go
+  where
+    go (Emit cs) = emitBatch <$> mapM (conclusion layouts names) cs
+    go (CaseConclusions _ _) = unsupported "Case conclusions are currently supported only by the Haskell backend."
+    go (GuardedConclusions arms) = do
+      lowered <- mapM (\(g, b) -> (,) <$> traverse (lowerExpr names Nothing) g <*> go b) arms
+      pure (foldr select [] lowered)
+    select (Nothing, body) _ = body
+    select (Just guard, body) rest = [IfElse guard body rest]
+
 seeds :: NE.NonEmpty RuleForest -> RelationRepresentation -> Gen [Stmt]
 seeds forests layouts =
   sequence
     [ do
         guards <- mapM (lowerExpr Map.empty Nothing . conditionExpr) (_ruleLeafCondition leaf)
-        facts <- mapM (conclusion layouts Map.empty) (_ruleLeafConclusion leaf)
-        let value = case NE.toList facts of
-              [fact] -> Construct "fx_Init" [fact]
-              fs -> Construct "fx_Seed" [Construct "std::vector<Fact>" fs]
-        pure (If (andExpr guards) [enqueue p value])
+        let emitBatch facts =
+              let value = case NE.toList facts of
+                    [fact] -> Construct "fx_Init" [fact]
+                    fs -> Construct "fx_Seed" [Construct "std::vector<Fact>" fs]
+               in [enqueue p value]
+        body <- conclusionBody layouts Map.empty emitBatch (_ruleLeafConclusion leaf)
+        pure (If (andExpr guards) body)
     | (p, forest) <- zip [0 ..] (NE.toList forests)
     , leaf <- _ruleForestLeaves forest
     ]

@@ -24,6 +24,7 @@ data Stmt
   | Declare Text Text Expr
   | Return Expr
   | If Expr [Stmt]
+  | IfElse Expr [Stmt] [Stmt]
   | For Text Expr [Stmt]
   | Scope [Stmt]
   deriving (Eq, Show)
@@ -44,6 +45,7 @@ stmt (Statement e) = expr e <> semi
 stmt (Declare t n e) = "[[maybe_unused]]" <+> pretty t <+> pretty n <+> "=" <+> expr e <> semi
 stmt (Return e) = "return" <+> expr e <> semi
 stmt (If c ss) = block ("if" <+> condition c) (stmt <$> ss)
+stmt (IfElse c yes no) = block ("if" <+> condition c) (stmt <$> yes) <+> block "else" (stmt <$> no)
 stmt (For n xs ss) = block ("for" <+> parens ("[[maybe_unused]]" <+> pretty n <+> colon <+> expr xs)) (stmt <$> ss)
 stmt (Scope ss) = block mempty (stmt <$> ss)
 

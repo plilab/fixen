@@ -6,15 +6,15 @@ module Fixen.CodeGen.RuleInstance where
 
 import Data.IntMap.Strict qualified as IntMap
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Fixen.CodeGen.Common
+import Fixen.CodeGen.Haskell.Conclusion (lowerConclusionBody)
 import Fixen.CodeGen.Haskell.Pattern (storedRulePatterns)
 import Fixen.CodeGen.Haskell.Syntax qualified as Hs
-import Fixen.Fields (args, assumptions, conclusion, declaration, lhs, map, name, nodeId, premise, rhs, rules, ty, (^.))
+import Fixen.Fields (args, assumptions, conclusion, declaration, lhs, map, nodeId, premise, rhs, rules, ty, (^.))
 import Fixen.IR.AST
 import Fixen.Monad
 import Prelude hiding (map)
@@ -118,8 +118,7 @@ codeGenEvaluate = do
 evaluateCase :: RuleInfo -> Hs.Decl
 evaluateCase info =
   let rule = info ^. declaration
-      results = NonEmpty.toList (rule ^. conclusion)
    in Hs.Function
         (Hs.name "evaluate")
         [Hs.PCon (Hs.name (codeGenRuleInstanceName rule)) (storedRulePatterns rule (Map.fromList [(n, Hs.name n) | n <- Map.keys (info ^. args)]))]
-        (Hs.List [Hs.call (simpleIdentifier (result ^. name)) (lowerExpr <$> result ^. args) | result <- results])
+        (lowerConclusionBody (rule ^. conclusion))

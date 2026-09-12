@@ -27,6 +27,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text (Text, append, cons, intercalate, unpack)
 import Data.Text qualified as Text
 import Fixen.Fields hiding (cons)
@@ -953,6 +954,41 @@ pattern Conclusion a b c = RelationLike a b c
 
 {-# COMPLETE Conclusion #-}
 
+-- | One firing selects at most one terminal batch. Case bindings are local
+-- to an alternative; Nothing denotes the final 'otherwise' guard.
+data ConclusionBody
+  = Emit (NonEmpty Conclusion)
+  | CaseConclusions Expr (NonEmpty (Pattern, ConclusionBody))
+  | GuardedConclusions (NonEmpty (Maybe Expr, ConclusionBody))
+  deriving (Eq, Show)
+
+instance EqModuloNodeId ConclusionBody where
+  Emit xs === Emit ys = xs ≅ ys
+  CaseConclusions x xs === CaseConclusions y ys = x ≅ y && length xs == length ys && and (NonEmpty.zipWith (\(p, b) (q, c) -> p ≅ q && b ≅ c) xs ys)
+  GuardedConclusions xs === GuardedConclusions ys = length xs == length ys && and (NonEmpty.zipWith (\(p, b) (q, c) -> p ≅ q && b ≅ c) xs ys)
+  _ === _ = False
+
+-- | Stable depth-first indices for relation validation and type evidence.
+conclusionFacts :: ConclusionBody -> NonEmpty Conclusion
+conclusionFacts (Emit cs) = cs
+conclusionFacts (CaseConclusions _ arms) = arms >>= conclusionFacts . snd
+conclusionFacts (GuardedConclusions arms) = arms >>= conclusionFacts . snd
+
+-- | Scope metadata excludes branch locals from rule-parameter analysis.
+scopedConclusions :: ConclusionBody -> [(Set.Set Text, Conclusion)]
+scopedConclusions = go Set.empty
+  where
+    go bound (Emit cs) = [(bound, c) | c <- NonEmpty.toList cs]
+    go bound (CaseConclusions _ arms) = concatMap (\(p, b) -> go (bound <> Set.fromList (simpleIdentifier <$> patternVariables p)) b) arms
+    go bound (GuardedConclusions arms) = concatMap (go bound . snd) arms
+
+conclusionExpressions :: ConclusionBody -> [(Set.Set Text, Expr)]
+conclusionExpressions = go Set.empty
+  where
+    go bound (Emit cs) = [(bound, e) | c <- NonEmpty.toList cs, e <- relationLikeArgs c]
+    go bound (CaseConclusions e arms) = (bound, e) : concatMap (\(p, b) -> go (bound <> Set.fromList (simpleIdentifier <$> patternVariables p)) b) arms
+    go bound (GuardedConclusions arms) = concatMap (\(g, b) -> maybe [] (\e -> [(bound, e)]) g ++ go bound b) arms
+
 -- ** Rules
 
 -- | A rule declaration in the program.
@@ -985,8 +1021,8 @@ data Rule = Rule
   -- ^ The conditions (expressions guarded by 'if').
   --
   -- @since 26.7
-  , ruleConclusion :: NonEmpty Conclusion
-  -- ^ One or more conclusions, processed in source order by one firing.
+  , ruleConclusion :: ConclusionBody
+  -- ^ Selects a (possibly empty) batch, processed in source order by one firing.
   --
   -- @since 26.7
   }
@@ -1035,7 +1071,7 @@ instance HasAssumptions Rule [Assumption] where
 instance HasConditions Rule [Condition] where
   conditions = lens ruleConditions (\s i -> s {ruleConditions = i})
 
-instance HasConclusion Rule (NonEmpty Conclusion) where
+instance HasConclusion Rule ConclusionBody where
   conclusion = lens ruleConclusion (\s i -> s {ruleConclusion = i})
 
 -- | A condition within a rule body.
@@ -1871,6 +1907,13 @@ prettyCondition (Condition _ e) =
 --     conclusion:
 --       |- Dist@35 b (d + d')
 --   @
+prettyConclusionBody :: ConclusionBody -> Doc AnsiStyle
+prettyConclusionBody (Emit cs) = vsep (prettyConclusion <$> NonEmpty.toList cs)
+prettyConclusionBody (CaseConclusions e arms) =
+  "case" <+> prettyExpr e <+> "of" <> line <> indent 2 (vsep [prettyPattern p <+> "->" <> line <> indent 2 (prettyConclusionBody b) | (p, b) <- NonEmpty.toList arms])
+prettyConclusionBody (GuardedConclusions arms) =
+  "if" <> line <> indent 2 (vsep ["|" <+> maybe "otherwise" prettyExpr g <+> "->" <> line <> indent 2 (prettyConclusionBody b) | (g, b) <- NonEmpty.toList arms])
+
 prettyRule :: Rule -> Doc AnsiStyle
 prettyRule (Rule i n vars assumps conds concl) =
   let name_doc = case n of
@@ -1879,7 +1922,7 @@ prettyRule (Rule i n vars assumps conds concl) =
       vars_doc = "boundVars:" <+> sep [pretty (fullIdentifier v) | v <- vars]
       assump_doc = "assumptions:" <> line <> indent 2 (vsep (prettyAssumption <$> assumps))
       cond_doc = "conditions:" <> line <> indent 2 (vsep (prettyCondition <$> conds))
-      concl_doc = "conclusion:" <> line <> indent 2 (vsep (prettyConclusion <$> NonEmpty.toList concl))
+      concl_doc = "conclusion:" <> line <> indent 2 (prettyConclusionBody concl)
    in (name_doc <+> ("(" <> pretty i <> ")"))
         <> line
         <> indent 2 vars_doc

@@ -26,6 +26,7 @@ import Prettyprinter
 
 codeGen :: CodeGenOptions -> NE.NonEmpty RuleForest -> RelationRepresentation -> Program -> FixenPass CodeGenState Text
 codeGen options forests layouts program = do
+  forM_ (programRules program) (checkConclusions . ruleConclusion)
   namespace <- hostNameFromModule
   let reserved = ["Fact", "Database", "Interpretation", "Phase", "solve", "reSolve", "factLeq", "entails", "insertToDb", "mergeContour", "maximalContour"] ++ ["Phase" <> T.show p | p <- [0 .. NE.length forests - 1]]
       checkExport declaration n = do
@@ -45,6 +46,9 @@ codeGen options forests layouts program = do
   let scoped = if T.null namespace then generated else [block ("namespace" <+> pretty namespace) generated]
   pure (render ([pretty headers] ++ debugHeaders ++ blocks False ++ scoped ++ blocks True) <> "\n")
   where
+    checkConclusions (Emit _) = pure ()
+    checkConclusions (GuardedConclusions arms) = mapM_ (checkConclusions . snd) arms
+    checkConclusions (CaseConclusions _ _) = unsupported "Case conclusions are currently supported only by the Haskell backend."
     hostNameFromModule = case programCppNamespace program of
       Nothing -> pure ""
       Just "" -> pure ""
@@ -92,11 +96,11 @@ ruleInstances options layouts = do
       _ -> unsupported "Unresolved rule argument type in C++ generation."
     evaluate (i, info) = do
       let names = Map.fromList [(n, field (Name "(*value)") j) | (j, n) <- zip [0 ..] (Map.keys (_ruleBoundVars info))]
-      results <- mapM (conclusion layouts names) (ruleConclusion (_ruleDeclaration info))
+      body <- conclusionBody layouts names (fmap (Statement . call "emit" . (: [])) . NE.toList) (ruleConclusion (_ruleDeclaration info))
       pure
         ( block
             ("if ([[maybe_unused]] const auto* value = std::get_if<" <> pretty (ruleType i) <> ">(&instance))")
-            ([stmt (Statement (call "emit" [result])) | result <- NE.toList results] ++ ["return;"])
+            ((stmt <$> body) ++ ["return;"])
         )
 
 priorityCase :: IM.IntMap RuleInfo -> PriorityInfo -> Gen (Doc ())

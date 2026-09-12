@@ -16,10 +16,14 @@ import Fixen.Utils
 
 type CodeGenState = SymbolEnv :*: PositionEnv :*: NodeId :*: FixenErrors
 
--- | Only multi-conclusion, premise-free rules need a retained fact batch.
+-- | Multi-head and conditional premise-free rules need a retained fact batch.
+-- A conditional may select an empty batch even with only one written fact.
 -- Ordinary firings retain their bindings and evaluate on dequeue as before.
 hasMultiConclusionSeeds :: Foldable f => f RuleInfo -> Bool
-hasMultiConclusionSeeds = any (\info -> let r = _ruleDeclaration info in null (ruleAssumptions r) && length (ruleConclusion r) > 1)
+hasMultiConclusionSeeds = any (\info -> let r = _ruleDeclaration info in null (ruleAssumptions r) && needsBatch (ruleConclusion r))
+  where
+    needsBatch (Emit cs) = length cs > 1
+    needsBatch _ = True
 
 data CodeGenOptions = CodeGenOptions
   { codeGenDebug :: Bool

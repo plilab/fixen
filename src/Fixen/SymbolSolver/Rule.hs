@@ -85,6 +85,7 @@ initEnvWithRule env r = do
                   , _ruleBoundVars = lv_info
                   }
                   & typeCheck env
+              validateConditionalConclusions env rul_info
               env
                 -- insert the rule info
                 & ruleInfos . at (r ^. nodeId) ?~ rul_info
@@ -134,7 +135,7 @@ validateRelationsInRule =
   where
     matchRelationsArity r env = do
       let asms = r ^. assumptions
-          concl = r ^. conclusion
+          concl = conclusionFacts (r ^. conclusion)
       -- check the existence and arities of the assumptions and the conclusion
       asm_rep <- mapM (\a -> relationExistsAndHasRightArity a "assumption" env) asms
       concl_rep <- concat <$> mapM (\c -> relationExistsAndHasRightArity c "conclusion" env) concl
@@ -299,7 +300,7 @@ getParamUsageInfo r v =
         cond
           <&> getParamUsageInfoFromCondition v
           & concat
-      conc_usage = concatMap (getParamUsageInfoFromConclusion v) conc
+      conc_usage = [UsedInConclusion | any ((≅ v)) (outerConclusionVariables conc)]
    in -- combine everything together as usage information for this variable
       [asms_usage, cond_usage, conc_usage]
         & concat
@@ -325,16 +326,6 @@ getParamUsageInfo r v =
       let e = c ^. expr
           n = simpleIdentifier <$> (Set.toList $ getAllExprNames e)
        in if simpleIdentifier i ∈ n then [UsedInCondition] else []
-
-    getParamUsageInfoFromConclusion :: SimpleIdentifier -> Conclusion -> [UsageInfo]
-    getParamUsageInfoFromConclusion i c =
-      let names =
-            c ^. args
-              <&> getAllExprNames
-              & (⋃)
-              & Set.toList
-              <&> simpleIdentifier
-       in if simpleIdentifier i ∈ names then [UsedInConclusion] else []
 
 -- | Determines if there are any rule parameters that are not bound by an
 -- assumption in the rule. This happens particularly when users explicitly list
@@ -422,9 +413,9 @@ validateDestructuring env r = do
           [(pos, This "pattern"), (typePos, Where "non-discrete argument type")]
           [Note "destructuring is only allowed in discrete relation positions"]
       rejectCaptures t (patternVariables p)
-  forM_ (ruleConclusion r) $ \c ->
+  forM_ (scopedConclusions (ruleConclusion r)) $ \(bound, c) ->
     forM_ (zip (relationLikeArgs c) (parameterTypes c)) $ \(e, t) ->
-      when (ordered t) (rejectCaptures t (Set.toList (getAllExprNames e)))
+      when (ordered t) (rejectCaptures t (filter ((`Set.notMember` bound) . simpleIdentifier) (Set.toList (getAllExprNames e))))
   where
     captures = Map.fromList [(simpleIdentifier v, v) | (_, p) <- ruleDestructuring r, v <- patternVariables p]
     parameterTypes :: RelationLike a -> [Type]
@@ -444,6 +435,68 @@ validateDestructuring env r = do
           [(pos, This "destructured variable"), (capturePos, Where "captured here"), (typePos, Where "non-discrete argument type")]
           [Note "using a destructured variable in an ordered position may break monotonicity"]
 
+-- | Free identifiers of a conclusion body, excluding lexical case captures.
+outerConclusionVariables :: ConclusionBody -> [SimpleIdentifier]
+outerConclusionVariables body =
+  [v | (bound, e) <- conclusionExpressions body, v <- Set.toList (getAllExprNames e), Set.notMember (simpleIdentifier v) bound]
+
+-- | Case captures have lexical identities, not queued RuleParameterInfo.
+-- Check all alternatives (including unreachable ones) without conflating
+-- identically spelled captures in sibling or nested alternatives.
+validateConditionalConclusions :: SymbolState σ => SymbolEnv -> RuleInfo -> FixenPass σ ()
+validateConditionalConclusions env info = do
+  let r = _ruleDeclaration info
+      caseNames = Set.fromList (simpleIdentifier <$> caseBinders (ruleConclusion r))
+      premiseNames = Set.fromList (simpleIdentifier <$> allAssumptionVariables r)
+  forM_ (ruleArgs r) $ \v -> when (Set.member (simpleIdentifier v) caseNames && Set.notMember (simpleIdentifier v) premiseNames) $ do
+    p <- getPosition v
+    accumErr Nothing "case-bound variables cannot be rule parameters" [(p, This "case-local binding")] [Note "case variables are introduced during evaluation, not during premise matching"]
+  occurrences <- walk Map.empty (ruleConclusion (_ruleDeclaration info))
+  let byBinder = Map.fromListWith (++) [(simpleIdentifierNodeId binder, [(occurrence, t)]) | (binder, occurrence, t) <- occurrences]
+  forM_ (Map.elems byBinder) $ \occurrencesForBinder -> case occurrencesForBinder of
+    [] -> pure ()
+    (first, firstType) : rest -> forM_ rest $ \(other, otherType) -> unless (firstType ≅ otherType) $ do
+      p <- getPosition first
+      q <- getPosition other
+      accumErr Nothing "type mismatch" [(p, Where "another use of this case-bound variable"), (q, This "conflicting relation argument type")] []
+  where
+    caseBinders (Emit _) = []
+    caseBinders (GuardedConclusions arms) = concatMap (caseBinders . snd) arms
+    caseBinders (CaseConclusions _ arms) = concatMap (\(p, b) -> patternVariables p ++ caseBinders b) arms
+    ordered t =
+      let n = calculateRepresentativeFromType t
+       in Map.member n (env ^. partialOrdInfos) || Map.member n (env ^. latticeInfos)
+    walk locals (Emit cs) = fmap concat $ forM (NonEmpty.toList cs) $ \c -> do
+      let argumentTypes = relationParameterType <$> relationLikeArgs ((env ^. relationInfos) Map.! simpleIdentifier (relationLikeName c) ^. declaration)
+      fmap concat $ forM (zip (relationLikeArgs c) argumentTypes) $ \(e, t) -> do
+        forM_ (Set.toList (getAllExprNames e)) $ \v ->
+          forM_ (Map.lookup (simpleIdentifier v) locals) $ \binder -> when (ordered t) $ do
+            p <- getPosition v
+            q <- getPosition binder
+            accumErr Nothing "case-bound variable in a partially ordered/lattice position" [(p, This "case-bound variable"), (q, Where "captured here")] [Note "using a destructured variable in an ordered position may break monotonicity"]
+        pure $ case e of
+          ExprVar _ (IdentifierSimpleIdentifier v) | Just binder <- Map.lookup (simpleIdentifier v) locals -> [(binder, v, t)]
+          _ -> []
+    walk locals (GuardedConclusions arms) = concat <$> mapM (walk locals . snd) arms
+    walk locals (CaseConclusions e arms) = do
+      case e of
+        ExprVar _ (IdentifierSimpleIdentifier v)
+          | Map.notMember (simpleIdentifier v) locals
+          , Just parameter <- Map.lookup (simpleIdentifier v) (_ruleBoundVars info)
+          , ActualType t _ <- _ruleParamType parameter
+          , ordered t -> do
+              p <- getPosition e
+              q <- getPosition t
+              accumErr Nothing "cannot case-match a partially ordered/lattice value" [(p, This "case scrutinee"), (q, Where "non-discrete type")] [Note "case destructuring is restricted to discrete values"]
+        _ -> pure ()
+      fmap concat $ forM (NonEmpty.toList arms) $ \(p, b) -> do
+        let vs = patternVariables p
+            groups = Map.fromListWith (++) [(simpleIdentifier v, [v]) | v <- vs]
+        forM_ (filter ((> 1) . length) (Map.elems groups)) $ \duplicates -> do
+          positions <- mapM getPosition duplicates
+          accumErr Nothing "duplicate case pattern variable" [(pos, This "repeated binder") | pos <- positions] [Note "unlike premise patterns, case patterns must be linear"]
+        walk (Map.union (Map.fromList [(simpleIdentifier v, v) | v <- vs]) locals) b
+
 -- | Obtains the free variables of a rule given its parameters.
 --
 -- @since 26.7
@@ -459,11 +512,7 @@ getFreeVars r mp =
           <&> getAllExprNames
           <&> Set.toList
           & concat
-      conc =
-        concatMap relationLikeArgs (r ^. conclusion)
-          <&> getAllExprNames
-          <&> Set.toList
-          & concat
+      conc = outerConclusionVariables (r ^. conclusion)
       all_vars = conds ++ conc
    in all_vars
         & filter ((≠ "_") ∘ simpleIdentifier)
@@ -494,8 +543,9 @@ typeCheck env RuleInfo {_ruleDeclaration = the_rule, _ruleBoundVars = param_info
           -- Get everything in the conclusion that needs to be type-checked
       conc_args =
         [ ((c, j), e)
-        | (c, conc) <- zip [0 ..] (NonEmpty.toList (the_rule ^. conclusion))
+        | (c, (bound, conc)) <- zip [0 ..] (scopedConclusions (the_rule ^. conclusion))
         , (j, e) <- zip [0 ..] (relationLikeArgs conc)
+        , case e of ExprVar _ (IdentifierSimpleIdentifier v) -> Set.notMember (simpleIdentifier v) bound; _ -> True
         ]
       conc_type_candidates =
         conc_args
@@ -549,7 +599,7 @@ mapIndicesToType env r (Left (i, j)) =
         & (^. ty)
         & (Left (i, j),)
 mapIndicesToType env r (Right (c, i)) =
-  let rel_name = (NonEmpty.toList (r ^. conclusion) !! c) ^. name & simpleIdentifier
+  let rel_name = (NonEmpty.toList (conclusionFacts (r ^. conclusion)) !! c) ^. name & simpleIdentifier
    in (env ^. relationInfos)
         & (Map.! rel_name)
         & (^. declaration . args)
@@ -612,7 +662,7 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
               let thing = (((the_rule ^. assumptions) !! i) ^. args) !! j
               getPosition thing
             Right (c, i) -> do
-              let thing = relationLikeArgs (NonEmpty.toList (the_rule ^. conclusion) !! c) !! i
+              let thing = relationLikeArgs (NonEmpty.toList (conclusionFacts (the_rule ^. conclusion)) !! c) !! i
               getPosition thing
           -- we also need the position of the type declaration of this variable
           curr_ty_pos <- getPosition the_type
@@ -631,7 +681,7 @@ typeCheckVar the_rule param_info var_name (occ, the_type) = do
                 , (curr_ty_pos, Where "has this type")
                 ]
             TypedViaConclusion c' i' -> do
-              let original_var = relationLikeArgs (NonEmpty.toList (the_rule ^. conclusion) !! c') !! i'
+              let original_var = relationLikeArgs (NonEmpty.toList (conclusionFacts (the_rule ^. conclusion)) !! c') !! i'
               original_var_pos <- getPosition original_var
               original_ty_pos <- getPosition t'
               return

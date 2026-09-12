@@ -73,6 +73,7 @@ library
                       , Fixen.CodeGen.Haskell.Bindings
                       , Fixen.CodeGen.Haskell.Match
                       , Fixen.CodeGen.Haskell.Pattern
+                      , Fixen.CodeGen.Haskell.Conclusion
                       , Fixen.CodeGen.Haskell.Query
                       , Fixen.CodeGen.Haskell.Solver
                       , Fixen.CodeGen.Common
