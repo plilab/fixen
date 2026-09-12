@@ -54,7 +54,7 @@ initEnvWithPartialOrd env p = do
     extern_symbols = (⋃) [type_symb, leq_symb, mlb_symb]
     type_symb = getAllTypeNames $ partialOrdDeclarationType p
     leq_symb = getSimpleIdentifierFromIdentifier $ partialOrdDeclarationLeq p
-    mlb_symb = getSimpleIdentifierFromIdentifier $ partialOrdDeclarationMlbs p
+    mlb_symb = foldMap getSimpleIdentifierFromIdentifier $ partialOrdDeclarationMlbs p
     insertPartialOrdInfo e =
       -- do not insert if already exists
       case e ^. partialOrdInfos . at repr of

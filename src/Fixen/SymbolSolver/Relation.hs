@@ -12,6 +12,8 @@
 module Fixen.SymbolSolver.Relation where
 
 import Control.Lens
+import Control.Monad (forM)
+import Data.Maybe (isJust)
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -112,6 +114,7 @@ validateRelation = validate r
   where
     r =
       [ uniqueParamNames
+      , contourRefinements
       , againstOtherRelations
       , againstPartialOrd
       , againstLattice
@@ -119,6 +122,24 @@ validateRelation = validate r
       , againstPrelude
       , againstFixenCapitalized
       ]
+    -- Contour merging joins lattice fields and refines every partial-order
+    -- field with mlbs. This is independent of matching variables in rules.
+    contourRefinements rel env = do
+      let parameters = relationParameterType <$> relationLikeArgs rel
+          hasLattice = any (\t -> isJust (env ^. latticeInfos . at (calculateRepresentativeFromType t))) parameters
+      if not hasLattice
+        then pure []
+        else forM [(t, n) | t <- parameters, Just ("mlbs", n) <- [missingRefinement env t]] $ \(t, n) -> do
+          p <- getPosition t
+          q <- getPosition n
+          pure $
+            Err
+              Nothing
+              "missing mlbs for lattice contour merging"
+              [(p, This "partial-order argument in a relation with lattice arguments"), (q, Where "declaration without mlbs")]
+              [ Note "merging facts of a mixed partial-order/lattice relation requires mlbs, even without repeated premise variables"
+              , Hint "add mlbs = ... to this partial ord declaration"
+              ]
     uniqueParamNames =
       validateNamed
         (validateUniqueParamNames "relation parameter")
@@ -139,8 +160,7 @@ validateRelation = validate r
         )
     againstExtern =
       validateNamed
-        ( validateAgainstExtern "rel declaration" relationValidationErrorNotes
-        )
+        (validateAgainstExtern "rel declaration" relationValidationErrorNotes)
     againstPrelude =
       validateNamed (warnAgainstPreludeCapitalized "rel declaration" "rel declaration")
     againstFixenCapitalized =

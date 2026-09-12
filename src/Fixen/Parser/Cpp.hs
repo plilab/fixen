@@ -255,7 +255,7 @@ partialOrder = parsePositioned $ do
   _ <- word "where"
   t <- orderField "type" typeExpr
   leq <- orderField "leq" operation
-  mlbs <- orderField "mlbs" operation
+  mlbs <- P.optional (orderField "mlbs" operation)
   i <- getNewNodeId
   pure (PartialOrdDeclaration i name t leq mlbs)
 
@@ -267,7 +267,7 @@ lattice = parsePositioned $ do
   t <- orderField "type" typeExpr
   leq <- orderField "leq" operation
   join <- orderField "join" operation
-  meet <- orderField "meet" operation
+  meet <- P.optional (orderField "meet" operation)
   i <- getNewNodeId
   pure (LatticeDeclaration i name t leq join meet)
 
@@ -288,7 +288,7 @@ priority :: ParserState s => Parser s Priority
 priority = parsePositioned $ do
   _ <- word "priority"
   _ <- symbol ":"
-  condition <- expression
+  condition <- (P.try (P.lookAhead turnstile) *> node (CppLiteral "true") []) P.<|> expression
   turnstile
   result <- parsePositioned $ do
     left <- ruleInstance

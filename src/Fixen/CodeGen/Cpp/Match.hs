@@ -90,12 +90,12 @@ matchFields incoming bindings depth ((i, q, value) : rest) continuation = do
       Match -> do
         body <- matchFields incoming bindings depth rest continuation
         pure [If (Binary "==" previous value) body]
-      Meet _ mlbs -> do
-        f <- operation mlbs
+      Meet {} -> do
+        f <- operation (refinementOperation q)
         body <- recurse
         pure [For ("const auto& " <> local) (call f (if incoming then [previous, value] else [value, previous])) body]
-      LatticeMeet _ _ meet -> do
-        f <- operation meet
+      LatticeMeet {} -> do
+        f <- operation (refinementOperation q)
         (Declare "const auto" local (call f (if incoming then [previous, value] else [value, previous])) :) <$> recurse
 
 enqueue :: Int -> Expr -> Stmt

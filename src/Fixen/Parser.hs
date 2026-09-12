@@ -895,10 +895,10 @@ parseCondition = inContext "boolean condition" $ parsePositioned $ do
 --
 -- * The base type (@type@ field)
 -- * The less-than-or-equal function (@leq@ field)
--- * The maximal lower bounds function (@mlbs@ field)
+-- * An optional maximal lower bounds function (@mlbs@ field)
 --
 -- The @partial@ keyword must not be indented. The @where@
--- block contains exactly the three fields above, in that order.
+-- block contains the fields above in that order; @mlbs@ may be omitted.
 --
 -- @since 26.7
 parsePartialOrd :: ParserState σ => Parser σ PartialOrdDeclaration
@@ -921,11 +921,11 @@ parsePartialOrd = inContext "partial order" $ parsePositioned $ do
   -- Verify proper indentation before the fields
   level <- indented
   let block_indent = indentedByMoreThan level
-  -- Parse the three required fields: type, leq, mlbs
+  -- Parse required type/leq and optional mlbs, in that order.
   -- Each field must be indented relative to the 'partial ord' line
   type_expr <- parsePartialOrdField "type" level (parseType block_indent)
   leq_func <- parsePartialOrdField "leq" level (parseNonInfixTermIdentifier indented)
-  mlbs_func <- parsePartialOrdField "mlbs" level (parseNonInfixTermIdentifier indented)
+  mlbs_func <- parseOptionalOrderField "mlbs" level (parseNonInfixTermIdentifier indented)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
   i <- getNewNodeId
   return $ PartialOrdDeclaration i pord_name type_expr leq_func mlbs_func
@@ -966,6 +966,14 @@ parsePartialOrdField fieldName level valueParser = do
   -- Parse the value (type expression, identifier, etc.)
   valueParser
 
+-- | Only absence of the field is optional: once its keyword is present,
+-- malformed or empty values must remain syntax errors.
+parseOptionalOrderField :: ParserState σ => Text -> P.Pos -> Parser σ a -> Parser σ (Maybe a)
+parseOptionalOrderField fieldName level valueParser =
+  P.optional $ do
+    _ <- P.try (P.lookAhead (indentedByExactly level *> keyword fieldName))
+    parsePartialOrdField fieldName level valueParser
+
 -- | Parses a lattice declaration:
 --
 -- @
@@ -982,10 +990,10 @@ parsePartialOrdField fieldName level valueParser = do
 -- * The base type (@type@ field)
 -- * The less-than-or-equal function (@leq@ field)
 -- * The join function (@join@ field)
--- * The meet function (@meet@ field)
+-- * An optional meet function (@meet@ field)
 --
 -- The @lat@ keyword must not be indented. The @where@
--- block contains exactly the three fields above, in that order.
+-- block contains the fields above in that order; @meet@ may be omitted.
 --
 -- @since 26.7
 parseLattice :: ParserState σ => Parser σ LatticeDeclaration
@@ -1004,12 +1012,12 @@ parseLattice = inContext "lattice" $ parsePositioned $ do
   -- Verify proper indentation before the fields
   level <- indented
   let indented_level = indentedByMoreThan level
-  -- Parse the three required fields: type, leq, mlbs
+  -- Parse required type/leq/join and optional meet, in that order.
   -- Each field must be indented relative to the 'partial ord' line
   type_expr <- parsePartialOrdField "type" level (parseType indented_level)
   leq_func <- parsePartialOrdField "leq" level (parseNonInfixTermIdentifier indented_level)
   join_func <- parsePartialOrdField "join" level (parseNonInfixTermIdentifier indented_level)
-  meet_func <- parsePartialOrdField "meet" level (parseNonInfixTermIdentifier indented_level)
+  meet_func <- parseOptionalOrderField "meet" level (parseNonInfixTermIdentifier indented_level)
   -- Allocate a fresh node ID and construct the PartialOrdDeclaration AST node
   i <- getNewNodeId
   return $ LatticeDeclaration i pord_name type_expr leq_func join_func meet_func
@@ -1027,7 +1035,7 @@ parseLattice = inContext "lattice" $ parsePositioned $ do
 --
 -- 1. The @priority@ keyword (must not be indented)
 -- 2. A colon separator
--- 3. A premise expression (left side of the turnstile)
+-- 3. An optional premise expression (defaults to True)
 -- 4. A turnstile (@|-@ or @⊢@)
 -- 5. A priority conclusion (two rule instances connected by @<=@ or @⊏@)
 --
@@ -1037,14 +1045,23 @@ parseLattice = inContext "lattice" $ parsePositioned $ do
 --
 -- @since 26.7
 parsePriority :: ParserState σ => Parser σ Priority
-parsePriority = inContext "lattice" $ parsePositioned $ do
+parsePriority = inContext "priority" $ parsePositioned $ do
   -- Parse the 'priority' keyword (must not be indented)
   -- Need 'try' since priority is among many top-level alternatives
   _ <- P.try $ l $ L.nonIndented sc $ keyword "priority"
   -- Parse the colon separator with indentation checks
   _ <- indented *> keyword ":" *> indented
-  -- Parse the premise expression (left side of the turnstile)
-  prem <- parseExpr indented
+  -- Only a turnstile denotes an omitted premise; malformed expressions must
+  -- still fail. Anchor the synthesized literal's source position there.
+  prem <-
+    ( P.try (P.lookAhead turnstile)
+        *> parsePositioned
+          ( do
+              literal <- parsePositioned (SimpleIdentifier <$> getNewNodeId <*> pure "True")
+              ExprVar <$> getNewNodeId <*> pure (IdentifierSimpleIdentifier literal)
+          )
+    )
+      <|> parseExpr indented
   -- Parse the turnstile with indentation checks
   _ <- indented *> turnstile *> indented
   -- Parse the priority conclusion (two rule instances with ordering)

@@ -60,7 +60,7 @@ data RelationRepresentationInfo = RelationRepresentationInfo
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasDatabase RelationRepresentationInfo Database where
   database = lens _databaseRepresentation (\s i -> s {_databaseRepresentation = i})
@@ -103,7 +103,7 @@ data Database = Database
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasTypes Database [(QueryType, StoreType, Type)] where
   types = lens _databaseTypes (\s i -> s {_databaseTypes = i})
@@ -136,7 +136,7 @@ data Fact = Fact
   --
   -- @since 26.7
   }
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 instance HasTypes Fact [(QueryType, Type)] where
   types = lens _factTypes (\s i -> s {_factTypes = i})
@@ -148,7 +148,7 @@ instance HasMap Fact (IntMap Int) where
 --
 -- @since 26.7
 data StoreType = StoredAsHashMap | StoredAsHashSet | StoredAsSingleton
-  deriving (Show, Eq)
+  deriving (Eq, Show)
 
 -- | Describes how you would match against an argument.
 --
@@ -166,8 +166,8 @@ data QueryType
     Meet
       Identifier
       -- ^ The leq function
-      Identifier
-      -- ^ The mlbs function
+      (Maybe Identifier)
+      -- ^ Optional mlbs function
   | -- | Partially ordered in a lattice, i.e., set lookup guarded by leq, or
     -- matched via meet function
     --
@@ -177,6 +177,14 @@ data QueryType
       -- ^ The leq function
       Identifier
       -- ^ The join function
-      Identifier
-      -- ^ The meet function
-  deriving (Show, Eq)
+      (Maybe Identifier)
+      -- ^ Optional meet function
+  deriving (Eq, Show)
+
+-- | Retrieve a refinement operation at a use site. Symbol solving guarantees
+-- its presence for repeated premise variables and mixed PO/lattice contours.
+-- Merely storing or querying an ordered argument does not require it.
+refinementOperation :: QueryType -> Identifier
+refinementOperation (Meet _ (Just operation)) = operation
+refinementOperation (LatticeMeet _ _ (Just operation)) = operation
+refinementOperation _ = error "Fixen.CodeGen: refinement operation not validated by symbol solver"

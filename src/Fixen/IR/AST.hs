@@ -1584,8 +1584,9 @@ data PartialOrdDeclaration = PartialOrdDeclaration
   -- ^ The less-than-or-equal comparison function.
   --
   -- @since 26.7
-  , partialOrdDeclarationMlbs :: Identifier
-  -- ^ The maximal lower bounds function.
+  , partialOrdDeclarationMlbs :: Maybe Identifier
+  -- ^ Optional maximal lower bounds function; required for unification and
+  -- for contour merging in relations that also have lattice arguments.
   --
   -- @since 26.7
   }
@@ -1603,7 +1604,7 @@ instance HasType PartialOrdDeclaration Type where
 instance HasLeq PartialOrdDeclaration Identifier where
   leq = lens partialOrdDeclarationLeq (\s i -> s {partialOrdDeclarationLeq = i})
 
-instance HasMLBs PartialOrdDeclaration Identifier where
+instance HasMLBs PartialOrdDeclaration (Maybe Identifier) where
   mlbs = lens partialOrdDeclarationMlbs (\s i -> s {partialOrdDeclarationMlbs = i})
 
 -- ** Lattice Declarations
@@ -1650,8 +1651,8 @@ data LatticeDeclaration = LatticeDeclaration
   -- ^ The join function.
   --
   -- @since 26.7
-  , latticeDeclarationMeet :: Identifier
-  -- ^ The meet function.
+  , latticeDeclarationMeet :: Maybe Identifier
+  -- ^ Optional meet function; required for premise variable unification.
   --
   -- @since 26.7
   }
@@ -1672,7 +1673,7 @@ instance HasLeq LatticeDeclaration Identifier where
 instance HasJoin LatticeDeclaration Identifier where
   join = lens latticeDeclarationJoin (\s i -> s {latticeDeclarationJoin = i})
 
-instance HasMeet LatticeDeclaration Identifier where
+instance HasMeet LatticeDeclaration (Maybe Identifier) where
   meet = lens latticeDeclarationMeet (\s i -> s {latticeDeclarationMeet = i})
 
 -------------------------------------------------------------------------------
@@ -2307,9 +2308,7 @@ prettyPartialOrd (PartialOrdDeclaration p n t l m) =
           <> line
           -- \| Render the less-than-or-equal (⊑) function in red+bold.
           <> (annotate (color Yellow) "(⊑)  " <> colon <+> (annotate (color Red <> bold) $ pretty (fullIdentifier l)))
-          <> line
-          -- \| Render the mlbs function name in red+bold.
-          <> annotate (color Yellow) "mlbs "
-          <> colon
-          <+> (annotate (color Red <> bold) $ pretty (fullIdentifier m))
+          <> foldMap
+            (\operation -> line <> annotate (color Yellow) "mlbs " <> colon <+> (annotate (color Red <> bold) $ pretty (fullIdentifier operation)))
+            m
       )

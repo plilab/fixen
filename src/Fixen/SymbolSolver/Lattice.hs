@@ -43,7 +43,7 @@ initEnvWithLattice env p = do
     type_symb = getAllTypeNames $ latticeDeclarationType p
     leq_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationLeq p
     join_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationJoin p
-    meet_symb = getSimpleIdentifierFromIdentifier $ latticeDeclarationMeet p
+    meet_symb = foldMap getSimpleIdentifierFromIdentifier $ latticeDeclarationMeet p
     insertLatticeInfo e =
       -- do not insert if already exists
       case e ^. latticeInfos . at repr of

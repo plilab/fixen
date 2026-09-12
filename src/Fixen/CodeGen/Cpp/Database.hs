@@ -153,7 +153,10 @@ relationOperations (n, layout) = do
   entailment <- scanRows "fx_scan" layout storage bound $ \old -> do
     conditions <- sequence [comparison q (field (Name "f") i) (old Map.! i) | (i, (q, _)) <- numbered]
     pure [If (andExpr conditions) [Return (Name "true")]]
-  contour <- scanRows "fx_scan" layout storage bound $ \old -> mergeFields old numbered []
+  contour <-
+    if any (isLattice . fst . snd) numbered
+      then scanRows "fx_scan" layout storage bound $ \old -> mergeFields old numbered []
+      else pure []
   insertBody <- insertFields storage (storageLayout layout)
   let typed arg = "const " <> n <> "& " <> arg
       leq = function "inline bool" "fx_leq" [typed "a", typed "b"] [Return (andExpr comparisons)]
@@ -168,7 +171,7 @@ relationOperations (n, layout) = do
       merge =
         function "inline std::vector<Fact>" "fx_contour" [typed "f", "const Database& db"] $
           [Declare "std::vector<Fact>" "result" (Construct "std::vector<Fact>" [Name "f"])]
-            ++ (if any (isLattice . fst . snd) numbered then contour else [])
+            ++ contour
             ++ [Return (Name "result")]
   pure [leq, entails, insertion, merge]
   where
@@ -204,8 +207,8 @@ relationOperations (n, layout) = do
         Match -> do
           body <- mergeFields old rest (incoming : values)
           pure [If (Binary "==" incoming stored) body]
-        Meet _ mlbs -> do
-          f <- operation mlbs
+        Meet {} -> do
+          f <- operation (refinementOperation q)
           body <- mergeFields old rest (Name joined : values)
           pure [For ("const auto& " <> joined) (call f [stored, incoming]) body]
         LatticeMeet _ join _ -> do

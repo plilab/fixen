@@ -11,8 +11,11 @@
 -- @since 26.7
 module Fixen.SymbolSolver.Common where
 
+import Control.Lens
 import Data.List.NonEmpty
+import Data.Maybe (isNothing)
 import Data.Set qualified as Set
+import Fixen.Fields (latticeInfos, partialOrdInfos)
 import Fixen.IR.AST
 import Fixen.Monad
 import Fixen.Utils
@@ -32,6 +35,20 @@ import Fixen.Utils
 --
 -- @since 26.7
 type SymbolState σ = (WithPositionEnv σ, WithErrors σ) -- PositionEnv :*: NodeId :*: FixenErrors
+
+-- | The missing operation and its declaration name, if an ordered type has
+-- no refinement operation. Discrete types do not require one.
+missingRefinement :: SymbolEnv -> Type -> Maybe (String, SimpleIdentifier)
+missingRefinement env t
+  | Just p <- env ^. partialOrdInfos . at representative
+  , isNothing (partialOrdDeclarationMlbs p) =
+      Just ("mlbs", partialOrdDeclarationName p)
+  | Just l <- env ^. latticeInfos . at representative
+  , isNothing (latticeDeclarationMeet l) =
+      Just ("meet", latticeDeclarationName l)
+  | otherwise = Nothing
+  where
+    representative = calculateRepresentativeFromType t
 
 --------------------------------------------------------------------------------
 

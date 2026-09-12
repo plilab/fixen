@@ -206,7 +206,7 @@ contourCase (rel, layout)
     arity = length fields
     refine n (i, q) = case q of
       Match -> Hs.guardStmt (Hs.call "==" [stored n, value i])
-      Meet _ mlbs -> Hs.Bind (Hs.PVar (numberedName "joined" i)) (Hs.apps (Hs.Var (lowerName mlbs)) [stored n, value i])
+      Meet {} -> Hs.Bind (Hs.PVar (numberedName "joined" i)) (Hs.apps (Hs.Var (lowerName (refinementOperation q))) [stored n, value i])
       LatticeMeet _ join _ -> Hs.LetStmt (Hs.PVar (numberedName "joined" i)) (Hs.apps (Hs.Var (lowerName join)) [stored n, value i])
 
 -- | Collect lookup statements and unpack the terminal ordered suffix.

@@ -22,6 +22,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe
 import Data.Set qualified as Set
+import Data.Text (unpack)
 import Fixen.Fields
 import Fixen.IR.AST
 import Fixen.Monad
@@ -86,6 +87,7 @@ initEnvWithRule env r = do
                   }
                   & typeCheck env
               validateConditionalConclusions env rul_info
+              validateRefinementOperations env rul_info
               env
                 -- insert the rule info
                 & ruleInfos . at (r ^. nodeId) ?~ rul_info
@@ -108,6 +110,34 @@ initEnvWithRule env r = do
 -- * Helpers
 
 --------------------------------------------------------------------------------
+
+-- | Repeated premise variables (including repeats within one fact) require
+-- refinement. Uses in conditions, conclusions and separate rules do not.
+validateRefinementOperations :: SymbolState σ => SymbolEnv -> RuleInfo -> FixenPass σ ()
+validateRefinementOperations env info =
+  forM_ (Map.toList (_ruleBoundVars info)) $ \(variable, parameter) -> do
+    let occurrences = [(i, j) | UsedInAssumption i j <- parameter ^. usageInfo]
+        required =
+          nubBy
+            (\(_, a) (_, b) -> a ≅ b)
+            [ missing
+            | occurrence <- occurrences
+            , let (_, t) = mapIndicesToType env r (Left occurrence)
+            , Just missing <- [missingRefinement env t]
+            ]
+    when (length occurrences > 1) $
+      forM_ required $ \(field, declarationName) -> do
+        positions <- mapM (\(i, j) -> getPosition (relationLikeArgs (ruleAssumptions r !! i) !! j)) occurrences
+        declarationPos <- getPosition declarationName
+        accumErr
+          Nothing
+          ("missing " ++ field ++ " for premise unification")
+          ([(p, This ("repeated variable " ++ unpack variable)) | p <- positions] ++ [(declarationPos, Where ("declaration without " ++ field))])
+          [ Note "repeated premise variables require an ordered refinement operation, even within a single relation application"
+          , Hint ("add " ++ field ++ " = ... to the declaration of " ++ unpack (simpleIdentifier declarationName))
+          ]
+  where
+    r = _ruleDeclaration info
 
 -- | Performs validation on a rule. The rules are:
 --

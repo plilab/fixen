@@ -93,8 +93,8 @@ matchValue queryType i incoming bindings = case lookupVariable i bindings of
   Nothing -> let (n, next) = bindVariable i bindings in (Hs.LetStmt (Hs.PVar n) incoming, next)
   Just old -> case queryType of
     Match -> (Hs.guardStmt (Hs.call "==" [Hs.Var old, incoming]), bindings)
-    Meet _ mlbs -> refined Hs.Bind mlbs old
-    LatticeMeet _ _ meet -> refined Hs.LetStmt meet old
+    Meet {} -> refined Hs.Bind (refinementOperation queryType) old
+    LatticeMeet {} -> refined Hs.LetStmt (refinementOperation queryType) old
   where
     refined makeStmt operation old =
       let (n, next) = bindVariable i bindings
@@ -168,8 +168,8 @@ refineSuffix bindings (entry : fields) = case entry of
         -- Stored values are the first argument here, matching the existing
         -- ordered-index traversal (head matching uses the opposite order).
         statement = case q of
-          Meet _ mlbs -> Hs.Bind (Hs.PVar n) (Hs.apps (Hs.Var (lowerName mlbs)) [Hs.Var incoming, Hs.Var old])
-          LatticeMeet _ _ meet -> Hs.LetStmt (Hs.PVar n) (Hs.apps (Hs.Var (lowerName meet)) [Hs.Var incoming, Hs.Var old])
+          Meet {} -> Hs.Bind (Hs.PVar n) (Hs.apps (Hs.Var (lowerName (refinementOperation q))) [Hs.Var incoming, Hs.Var old])
+          LatticeMeet {} -> Hs.LetStmt (Hs.PVar n) (Hs.apps (Hs.Var (lowerName (refinementOperation q))) [Hs.Var incoming, Hs.Var old])
           Match -> error "Fixen.CodeGen: discrete field after ordered field"
         (rest, final) = refineSuffix next fields
      in (statement : rest, final)
