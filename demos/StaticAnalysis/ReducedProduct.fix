@@ -16,17 +16,6 @@ phases: [
   ]
 
 ```hs
-reduceInterval :: HashMap String Parity -> HashMap String Interval -> HashMap String Interval
-reduceInterval st st' = HashMap.mapWithKey enrich st' where
-    enrich :: String -> Interval -> Interval
-    enrich k interval = case st HashMap.!? k of
-      Nothing -> IBot
-      Just evenness -> case (evenness, interval) of
-         (IsEven, Pair (lo, hi)) -> Pair (if odd lo then lo + 1 else lo, if odd hi then hi - 1 else hi)
-         (IsOdd, Pair (lo, hi)) -> Pair (if even lo then lo + 1 else lo, if even hi then hi - 1 else hi)
-         (ParityBot, _) -> IBot
-         (_, i) -> i
-
 instance NFData Database where
   rnf (Database a b c d e f) = rnf (a, b, c, d, e, f)
 
