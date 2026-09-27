@@ -187,5 +187,5 @@ leafBody options phase bindings leaf = do
       instanceBinding = Hs.LetStmt (Hs.pat "rule_instance") instanceValue
       phaseValue = maybe (Hs.var "Nothing") (\p -> Hs.call "Just" [Hs.IntegerLit (toInteger p)]) phase
       debug = [Hs.ExprStmt (Hs.call "debugRuleActivation" [Hs.var "fact", phaseValue, Hs.StringLit ruleName', Hs.var "rule_instance"]) | codeGenDebug options]
-      result = maybe (Hs.var "rule_instance") (\p -> Hs.Tuple [Hs.var "rule_instance", Hs.Var (numberedName "Phase" p)]) phase
+      result = maybe (Hs.var "rule_instance") (\p -> Hs.call "Kont" [Hs.Tuple [Hs.var "rule_instance", Hs.Var (numberedName "Phase" p)]]) phase
   pure (Hs.Do (patternStatements ++ guards ++ [instanceBinding] ++ debug) (Hs.call "return" [result]))

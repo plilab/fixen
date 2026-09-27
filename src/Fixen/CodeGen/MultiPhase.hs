@@ -61,10 +61,10 @@ phaseDeclarations count =
            )
        , Hs.Signature
            (Hs.name "evaluatePhased")
-           (Hs.TyArrow (Hs.TyTuple [Hs.typ "RuleInstance", Hs.typ "Phase"]) (Hs.TyTuple [Hs.TyList (Hs.typ "Fact"), Hs.typ "Phase"]))
+           (Hs.TyArrow (Hs.typ "Kont") (Hs.TyTuple [Hs.TyList (Hs.typ "Fact"), Hs.typ "Phase"]))
        , Hs.Function
            (Hs.name "evaluatePhased")
-           [Hs.PTuple [Hs.pat "r", Hs.pat "p"]]
+           [Hs.PCon (Hs.name "Kont") [Hs.PTuple [Hs.pat "r", Hs.pat "p"]]]
            (Hs.Tuple [Hs.call "evaluate" [Hs.var "r"], Hs.call "nextPhase" [Hs.var "p"]])
        ]
   where

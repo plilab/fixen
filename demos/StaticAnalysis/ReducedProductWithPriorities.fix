@@ -3,69 +3,86 @@ module ReducedProduct.FixenWithPriorities where
 
 include "ReducedProduct"
 
--- exchanged rules come first
-priority:
-  True |- assignInitP { } < reducedExchangeP { }
-priority:
-  True |- branchInitP { } < reducedExchangeP { }
-priority:
-  True |- varInitP { } < reducedExchangeP { }
-priority:
-  True |- assignInitI { } < reducedExchangeP { }
-priority:
-  True |- branchInitI { } < reducedExchangeP { }
-priority:
-  True |- varInitI { } < reducedExchangeP { }
-priority:
-  True |- assignInitP { } < reducedExchangeI { }
-priority:
-  True |- branchInitP { } < reducedExchangeI { }
-priority:
-  True |- varInitP { } < reducedExchangeI { }
-priority:
-  True |- assignInitI { } < reducedExchangeI { }
-priority:
-  True |- branchInitI { } < reducedExchangeI { }
-priority:
-  True |- varInitI { } < reducedExchangeI { }
 
--- followed by init rules
 priority:
-  True |- assignStepI { } < assignInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < assignStepI { __l__ = __l__' }
 priority:
-  True |- branchTrueI { } < assignInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < assignStepP { __l__ = __l__' }
 priority:
-  True |- branchFalseI { } < assignInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
-  True |- assignStepI { } < branchInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
-  True |- branchTrueI { } < branchInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
 priority:
-  True |- branchFalseI { } < branchInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 priority:
-  True |- assignStepI { } < varInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < varInitI { __l__ = __l__' }
 priority:
-  True |- branchTrueI { } < varInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < varInitP { __l__ = __l__' }
 priority:
-  True |- branchFalseI { } < varInitI { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < assignInitI { __l__ = __l__' }
 priority:
-  True |- assignStepP { } < assignInitP { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < assignInitP { __l__ = __l__' }
 priority:
-  True |- branchTrueP { } < assignInitP { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchInitI { __l__ = __l__' }
 priority:
-  True |- branchFalseP { } < assignInitP { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < branchInitP { __l__ = __l__' }
 priority:
-  True |- assignStepP { } < branchInitP { }
+    __l__ > __l__' |-
+      reducedExchange { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+
+
 priority:
-  True |- branchTrueP { } < branchInitP { }
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
 priority:
-  True |- branchFalseP { } < branchInitP { }
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
 priority:
-  True |- assignStepP { } < varInitP { }
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
 priority:
-  True |- branchTrueP { } < varInitP { }
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
 priority:
-  True |- branchFalseP { } < varInitP { }
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < reducedExchange { __l__ = __l__' }
+
+
 
 -- among transfer functions, order by label
 priority:
@@ -79,6 +96,33 @@ priority:
       branchFalseI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < assignStepI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
       assignStepI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
@@ -86,6 +130,33 @@ priority:
 priority:
     __l__ > __l__' |-
       branchFalseI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchTrueI { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
       assignStepI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
@@ -97,6 +168,44 @@ priority:
       branchFalseI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchFalseI { __l__ = __l__' }
+
+-- among transfer functions, order by label
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
       assignStepP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
@@ -104,6 +213,33 @@ priority:
 priority:
     __l__ > __l__' |-
       branchFalseP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < assignStepP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
       assignStepP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
@@ -115,6 +251,33 @@ priority:
       branchFalseP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchTrueP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
       assignStepP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 priority:
     __l__ > __l__' |-
@@ -122,8 +285,251 @@ priority:
 priority:
     __l__ > __l__' |-
       branchFalseP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchFalseP { __l__ = __l__' }
 
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < assignInitP { __l__ = __l__' }
+
+
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < assignInitI { __l__ = __l__' }
+
+
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < varInitP { __l__ = __l__' }
+
+
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < varInitI { __l__ = __l__' }
+
+
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchInitP { __l__ = __l__' }
+
+priority:
+    __l__ > __l__' |-
+      assignStepI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignStepP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchTrueP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchFalseP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitI { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      assignInitP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      branchInitP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
+priority:
+    __l__ > __l__' |-
+      varInitP { __l__ = __l__ } < branchInitI { __l__ = __l__' }
 phases: [
     * -- everything else
-    , {reducedExchangeP, reducedExchangeI }
+    , {reducedExchange }
   ]

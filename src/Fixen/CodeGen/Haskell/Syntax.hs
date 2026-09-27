@@ -78,6 +78,7 @@ data Decl
   | Function Name [Pattern] Expr
   | Binding Pattern Expr
   | Data Name (NonEmpty Constructor) [Name]
+  | Newtype Name Constructor [Name]
   | TypeAlias Name Type
   | Instance Type [Decl]
   deriving (Eq, Show)
@@ -216,6 +217,12 @@ prettyDecl = \case
       <+> prettyName n
       <+> "="
       <+> align (concatWith (\a b -> a <> line <> "|" <+> b) (prettyConstructor <$> NonEmpty.toList cs))
+      <> if null derives then mempty else space <> "deriving" <+> tupled (prettyName <$> derives)
+  Newtype n c derives ->
+    "newtype"
+      <+> prettyName n
+      <+> "="
+      <+> prettyConstructor c
       <> if null derives then mempty else space <> "deriving" <+> tupled (prettyName <$> derives)
   TypeAlias n t -> "type" <+> prettyName n <+> "=" <+> prettyType t
   Instance t ds -> "instance" <+> prettyType t <+> "where" <+> block (prettyDecl <$> ds)

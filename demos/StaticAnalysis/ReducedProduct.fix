@@ -5,17 +5,14 @@ include "Parity"
 include "Interval"
 
 -- For the time being, we focus only on intervals
-rule reducedExchangeP : StateBeforeP __l__ __st__
-                     |- StateBeforeP __l__ __st__
-
 -- returns refined interval information from parities
-rule reducedExchangeI : StateBeforeP __l__ __st__, StateBeforeI __l__ __st__' 
-                     |- StateBeforeI __l__ (reduceInterval __st__ __st__') 
+rule reducedExchange : StateBeforeP __l__ __st__, StateBeforeI __l__ __st__' 
+                     |- StateBeforeP __l__ __st__, StateBeforeI __l__ (reduceInterval __st__ __st__') 
 
 -- The important bit
 phases: [
     * -- everything else
-    , { reducedExchangeP, reducedExchangeI }
+    , { reducedExchange }
   ]
 
 ```hs

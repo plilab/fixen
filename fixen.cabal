@@ -239,6 +239,8 @@ benchmark reduced-product
       ReducedProduct.Hand
     , ReducedProduct.FixenNoPriorities
     , ReducedProduct.FixenWithPriorities
+    , ReducedProduct.Custom
+    , ReducedProduct.CustomN
     , ReducedProduct.CEval1K
     , ReducedProduct.CEval2K
     , ReducedProduct.CEval4K

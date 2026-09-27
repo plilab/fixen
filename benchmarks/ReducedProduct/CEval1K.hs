@@ -1,5 +1,7 @@
 module ReducedProduct.CEval1K where
 
+import ReducedProduct.Custom qualified as C
+import ReducedProduct.CustomN qualified as CN
 import ReducedProduct.FixenNoPriorities qualified as NP
 import ReducedProduct.FixenWithPriorities qualified as WP
 import ReducedProduct.Hand qualified as H
@@ -4881,4 +4883,3256 @@ withPrioritiesTest =
   , WP.Seq 905 906
   , WP.Seq 905 906
   , WP.Var 906 "PROG_END"
+  ]
+
+customTest :: [C.Fact]
+customTest =
+  [ C.Var 0 "_PyEval_EvalFrameDefault"
+  , C.Seq 0 1
+  , C.Var 1 "tstate"
+  , C.Seq 1 2
+  , C.Var 2 "frame"
+  , C.Seq 2 3
+  , C.Var 3 "throwflag"
+  , C.Seq 3 4
+  , C.Var 4 "opcode"
+  , C.Seq 4 5
+  , C.Var 5 "oparg"
+  , C.Seq 5 6
+  , C.Var 6 "entry"
+  , C.Seq 6 7
+  , C.Branch 7 (C.Eq (C.Num 0) (C.Num 1)) 9 10
+  , C.Assign 9 "return" (C.Num 0)
+  , C.Seq 9 11
+  , C.Var 10 "NOP_10"
+  , C.Seq 10 11
+  , C.Var 11 "IF_ELSE_FOOTER"
+  , C.Var 12 "next_instr"
+  , C.Seq 12 13
+  , C.Var 13 "stack_pointer"
+  , C.Seq 13 14
+  , C.Assign 14 "undefed" (C.Num 0)
+  , C.Seq 14 15
+  , C.Assign 15 "undefed" (C.Num 0)
+  , C.Seq 15 16
+  , C.Assign 16 "undefed" (C.Num 0)
+  , C.Seq 16 17
+  , C.Assign 17 "undefed" (C.Num 0)
+  , C.Seq 17 18
+  , C.Assign 18 "undefed" (C.Num 0)
+  , C.Seq 18 19
+  , C.Assign 19 "undefed" (C.Num 0)
+  , C.Seq 19 20
+  , C.Assign 20 "undefed" (C.Num 0)
+  , C.Seq 20 21
+  , C.Assign 21 "undefed" (C.Num 0)
+  , C.Seq 21 22
+  , C.Assign 22 "undefed" (C.Num 0)
+  , C.Seq 22 23
+  , C.Assign 23 "undefed" (C.Num 0)
+  , C.Seq 23 24
+  , C.Assign 24 "undefed" (C.Num 0)
+  , C.Seq 24 25
+  , C.Branch 25 (C.Eq (C.Id "throwflag") (C.Num 1)) 27 33
+  , C.Branch 27 (C.Eq (C.Num 0) (C.Num 1)) 29 29
+  , C.Seq 28 899
+  , C.Seq 28 30
+  , C.Var 29 "NOP_29"
+  , C.Seq 29 30
+  , C.Var 30 "IF_ELSE_FOOTER"
+  , C.Assign 31 "next_instr" (C.Num 0)
+  , C.Seq 31 32
+  , C.Assign 32 "stack_pointer" (C.Num 0)
+  , C.Seq 32 33
+  , C.Seq 32 814
+  , C.Seq 32 34
+  , C.Var 33 "NOP_33"
+  , C.Seq 33 34
+  , C.Var 34 "IF_ELSE_FOOTER"
+  , C.Seq 34 883
+  , C.Var 35 "__CLABEL_dispatch_opcode"
+  , C.Seq 35 36
+  , C.Branch 36 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 38 87
+  , C.Var 38 "NOP_38"
+  , C.Var 39 "__CLABEL_TARGET_BINARY_OP"
+  , C.Seq 39 40
+  , C.Assign 40 "undefed" (C.Num 0)
+  , C.Seq 40 41
+  , C.Assign 41 "next_instr" (C.Num 0)
+  , C.Seq 41 42
+  , C.Var 42 "__CLABEL_PREDICTED_BINARY_OP"
+  , C.Seq 42 43
+  , C.Var 43 "NOP_43"
+  , C.Var 44 "this_instr"
+  , C.Seq 44 45
+  , C.Var 45 "lhs"
+  , C.Seq 45 46
+  , C.Var 46 "rhs"
+  , C.Seq 46 47
+  , C.Var 47 "res"
+  , C.Seq 47 48
+  , C.Assign 48 "rhs" (C.Num 0)
+  , C.Seq 48 49
+  , C.Assign 49 "lhs" (C.Num 0)
+  , C.Seq 49 50
+  , C.Var 50 "counter"
+  , C.Seq 50 51
+  , C.Branch 51 (C.Eq (C.Num 0) (C.Num 1)) 53 56
+  , C.Assign 53 "next_instr" (C.Num 0)
+  , C.Seq 53 54
+  , C.Assign 54 "stack_pointer" (C.Num 0)
+  , C.Seq 54 55
+  , C.Assign 55 "opcode" (C.Num 0)
+  , C.Seq 55 56
+  , C.Seq 55 35
+  , C.Seq 55 57
+  , C.Var 56 "NOP_56"
+  , C.Seq 56 57
+  , C.Var 57 "IF_ELSE_FOOTER"
+  , C.Assign 58 "undefed" (C.Num 0)
+  , C.Seq 58 59
+  , C.Branch 59 (C.Eq (C.Num 0) (C.Num 1)) 60 61
+  , C.Assign 60 "undefed" (C.Num 0)
+  , C.Seq 60 59
+  , C.Var 61 "LOOP_FOOTER"
+  , C.Seq 61 62
+  , C.Var 62 "lhs_o"
+  , C.Seq 62 63
+  , C.Var 63 "rhs_o"
+  , C.Seq 63 64
+  , C.Var 64 "res_o"
+  , C.Seq 64 65
+  , C.Assign 65 "stack_pointer" (C.Num 0)
+  , C.Seq 65 66
+  , C.Branch 66 (C.Eq (C.Plus (C.Id "res_o") (C.Num 0)) (C.Num 1)) 68 68
+  , C.Seq 67 814
+  , C.Seq 67 69
+  , C.Var 68 "NOP_68"
+  , C.Seq 68 69
+  , C.Var 69 "IF_ELSE_FOOTER"
+  , C.Assign 70 "res" (C.Num 0)
+  , C.Seq 70 71
+  , C.Var 71 "tmp"
+  , C.Seq 71 72
+  , C.Assign 72 "lhs" (C.Num 0)
+  , C.Seq 72 73
+  , C.Assign 73 "undefed" (C.Num 0)
+  , C.Seq 73 74
+  , C.Assign 74 "tmp" (C.Num 0)
+  , C.Seq 74 75
+  , C.Assign 75 "rhs" (C.Num 0)
+  , C.Seq 75 76
+  , C.Assign 76 "undefed" (C.Num 0)
+  , C.Seq 76 77
+  , C.Assign 77 "stack_pointer" (C.Num 0)
+  , C.Seq 77 78
+  , C.Assign 78 "stack_pointer" (C.Num 0)
+  , C.Seq 78 79
+  , C.Var 79 "word"
+  , C.Seq 79 80
+  , C.Assign 80 "opcode" (C.Num 0)
+  , C.Seq 80 81
+  , C.Assign 81 "oparg" (C.Num 0)
+  , C.Seq 81 82
+  , C.Branch 82 (C.Eq (C.Num 0) (C.Num 1)) 83 86
+  , C.Var 83 "word"
+  , C.Seq 83 84
+  , C.Assign 84 "opcode" (C.Num 0)
+  , C.Seq 84 85
+  , C.Assign 85 "oparg" (C.Num 0)
+  , C.Seq 85 86
+  , C.Seq 85 82
+  , C.Var 86 "LOOP_FOOTER"
+  , C.Seq 86 87
+  , C.Seq 86 35
+  , C.Branch 87 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 89 129
+  , C.Var 89 "NOP_89"
+  , C.Var 90 "__CLABEL_TARGET_BINARY_OP_ADD_FLOAT"
+  , C.Seq 90 91
+  , C.Var 91 "this_instr"
+  , C.Seq 91 92
+  , C.Assign 92 "undefed" (C.Num 0)
+  , C.Seq 92 93
+  , C.Assign 93 "next_instr" (C.Num 0)
+  , C.Seq 93 94
+  , C.Var 94 "value"
+  , C.Seq 94 95
+  , C.Var 95 "left"
+  , C.Seq 95 96
+  , C.Var 96 "right"
+  , C.Seq 96 97
+  , C.Var 97 "res"
+  , C.Seq 97 98
+  , C.Assign 98 "value" (C.Num 0)
+  , C.Seq 98 99
+  , C.Var 99 "value_o"
+  , C.Seq 99 100
+  , C.Branch 100 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 102 102
+  , C.Seq 101 42
+  , C.Seq 101 103
+  , C.Var 102 "NOP_102"
+  , C.Seq 102 103
+  , C.Var 103 "IF_ELSE_FOOTER"
+  , C.Assign 104 "left" (C.Num 0)
+  , C.Seq 104 105
+  , C.Var 105 "left_o"
+  , C.Seq 105 106
+  , C.Branch 106 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 108 108
+  , C.Seq 107 42
+  , C.Seq 107 109
+  , C.Var 108 "NOP_108"
+  , C.Seq 108 109
+  , C.Var 109 "IF_ELSE_FOOTER"
+  , C.Assign 110 "right" (C.Num 0)
+  , C.Seq 110 111
+  , C.Var 111 "left_o"
+  , C.Seq 111 112
+  , C.Var 112 "right_o"
+  , C.Seq 112 113
+  , C.Var 113 "dres"
+  , C.Seq 113 114
+  , C.Assign 114 "res" (C.Num 0)
+  , C.Seq 114 115
+  , C.Branch 115 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 117 117
+  , C.Seq 116 810
+  , C.Seq 116 118
+  , C.Var 117 "NOP_117"
+  , C.Seq 117 118
+  , C.Var 118 "IF_ELSE_FOOTER"
+  , C.Assign 119 "undefed" (C.Num 0)
+  , C.Seq 119 120
+  , C.Assign 120 "stack_pointer" (C.Num 0)
+  , C.Seq 120 121
+  , C.Var 121 "word"
+  , C.Seq 121 122
+  , C.Assign 122 "opcode" (C.Num 0)
+  , C.Seq 122 123
+  , C.Assign 123 "oparg" (C.Num 0)
+  , C.Seq 123 124
+  , C.Branch 124 (C.Eq (C.Num 0) (C.Num 1)) 125 128
+  , C.Var 125 "word"
+  , C.Seq 125 126
+  , C.Assign 126 "opcode" (C.Num 0)
+  , C.Seq 126 127
+  , C.Assign 127 "oparg" (C.Num 0)
+  , C.Seq 127 128
+  , C.Seq 127 124
+  , C.Var 128 "LOOP_FOOTER"
+  , C.Seq 128 129
+  , C.Seq 128 35
+  , C.Branch 129 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 131 170
+  , C.Var 131 "NOP_131"
+  , C.Var 132 "__CLABEL_TARGET_BINARY_OP_ADD_INT"
+  , C.Seq 132 133
+  , C.Var 133 "this_instr"
+  , C.Seq 133 134
+  , C.Assign 134 "undefed" (C.Num 0)
+  , C.Seq 134 135
+  , C.Assign 135 "next_instr" (C.Num 0)
+  , C.Seq 135 136
+  , C.Var 136 "value"
+  , C.Seq 136 137
+  , C.Var 137 "left"
+  , C.Seq 137 138
+  , C.Var 138 "right"
+  , C.Seq 138 139
+  , C.Var 139 "res"
+  , C.Seq 139 140
+  , C.Assign 140 "value" (C.Num 0)
+  , C.Seq 140 141
+  , C.Var 141 "value_o"
+  , C.Seq 141 142
+  , C.Branch 142 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 144 144
+  , C.Seq 143 42
+  , C.Seq 143 145
+  , C.Var 144 "NOP_144"
+  , C.Seq 144 145
+  , C.Var 145 "IF_ELSE_FOOTER"
+  , C.Assign 146 "left" (C.Num 0)
+  , C.Seq 146 147
+  , C.Var 147 "left_o"
+  , C.Seq 147 148
+  , C.Branch 148 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 150 150
+  , C.Seq 149 42
+  , C.Seq 149 151
+  , C.Var 150 "NOP_150"
+  , C.Seq 150 151
+  , C.Var 151 "IF_ELSE_FOOTER"
+  , C.Assign 152 "right" (C.Num 0)
+  , C.Seq 152 153
+  , C.Var 153 "left_o"
+  , C.Seq 153 154
+  , C.Var 154 "right_o"
+  , C.Seq 154 155
+  , C.Assign 155 "res" (C.Num 0)
+  , C.Seq 155 156
+  , C.Branch 156 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 158 158
+  , C.Seq 157 42
+  , C.Seq 157 159
+  , C.Var 158 "NOP_158"
+  , C.Seq 158 159
+  , C.Var 159 "IF_ELSE_FOOTER"
+  , C.Assign 160 "undefed" (C.Num 0)
+  , C.Seq 160 161
+  , C.Assign 161 "stack_pointer" (C.Num 0)
+  , C.Seq 161 162
+  , C.Var 162 "word"
+  , C.Seq 162 163
+  , C.Assign 163 "opcode" (C.Num 0)
+  , C.Seq 163 164
+  , C.Assign 164 "oparg" (C.Num 0)
+  , C.Seq 164 165
+  , C.Branch 165 (C.Eq (C.Num 0) (C.Num 1)) 166 169
+  , C.Var 166 "word"
+  , C.Seq 166 167
+  , C.Assign 167 "opcode" (C.Num 0)
+  , C.Seq 167 168
+  , C.Assign 168 "oparg" (C.Num 0)
+  , C.Seq 168 169
+  , C.Seq 168 165
+  , C.Var 169 "LOOP_FOOTER"
+  , C.Seq 169 170
+  , C.Seq 169 35
+  , C.Branch 170 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 172 214
+  , C.Var 172 "NOP_172"
+  , C.Var 173 "__CLABEL_TARGET_BINARY_OP_ADD_UNICODE"
+  , C.Seq 173 174
+  , C.Var 174 "this_instr"
+  , C.Seq 174 175
+  , C.Assign 175 "undefed" (C.Num 0)
+  , C.Seq 175 176
+  , C.Assign 176 "next_instr" (C.Num 0)
+  , C.Seq 176 177
+  , C.Var 177 "value"
+  , C.Seq 177 178
+  , C.Var 178 "nos"
+  , C.Seq 178 179
+  , C.Var 179 "left"
+  , C.Seq 179 180
+  , C.Var 180 "right"
+  , C.Seq 180 181
+  , C.Var 181 "res"
+  , C.Seq 181 182
+  , C.Assign 182 "value" (C.Num 0)
+  , C.Seq 182 183
+  , C.Var 183 "value_o"
+  , C.Seq 183 184
+  , C.Branch 184 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyUnicode_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 186 186
+  , C.Seq 185 42
+  , C.Seq 185 187
+  , C.Var 186 "NOP_186"
+  , C.Seq 186 187
+  , C.Var 187 "IF_ELSE_FOOTER"
+  , C.Assign 188 "nos" (C.Num 0)
+  , C.Seq 188 189
+  , C.Var 189 "o"
+  , C.Seq 189 190
+  , C.Branch 190 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyUnicode_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 192 192
+  , C.Seq 191 42
+  , C.Seq 191 193
+  , C.Var 192 "NOP_192"
+  , C.Seq 192 193
+  , C.Var 193 "IF_ELSE_FOOTER"
+  , C.Assign 194 "right" (C.Num 0)
+  , C.Seq 194 195
+  , C.Assign 195 "left" (C.Num 0)
+  , C.Seq 195 196
+  , C.Var 196 "left_o"
+  , C.Seq 196 197
+  , C.Var 197 "right_o"
+  , C.Seq 197 198
+  , C.Var 198 "res_o"
+  , C.Seq 198 199
+  , C.Branch 199 (C.Eq (C.Plus (C.Id "res_o") (C.Num 0)) (C.Num 1)) 201 201
+  , C.Seq 200 810
+  , C.Seq 200 202
+  , C.Var 201 "NOP_201"
+  , C.Seq 201 202
+  , C.Var 202 "IF_ELSE_FOOTER"
+  , C.Assign 203 "res" (C.Num 0)
+  , C.Seq 203 204
+  , C.Assign 204 "undefed" (C.Num 0)
+  , C.Seq 204 205
+  , C.Assign 205 "stack_pointer" (C.Num 0)
+  , C.Seq 205 206
+  , C.Var 206 "word"
+  , C.Seq 206 207
+  , C.Assign 207 "opcode" (C.Num 0)
+  , C.Seq 207 208
+  , C.Assign 208 "oparg" (C.Num 0)
+  , C.Seq 208 209
+  , C.Branch 209 (C.Eq (C.Num 0) (C.Num 1)) 210 213
+  , C.Var 210 "word"
+  , C.Seq 210 211
+  , C.Assign 211 "opcode" (C.Num 0)
+  , C.Seq 211 212
+  , C.Assign 212 "oparg" (C.Num 0)
+  , C.Seq 212 213
+  , C.Seq 212 209
+  , C.Var 213 "LOOP_FOOTER"
+  , C.Seq 213 214
+  , C.Seq 213 35
+  , C.Branch 214 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 216 260
+  , C.Var 216 "NOP_216"
+  , C.Var 217 "__CLABEL_TARGET_BINARY_OP_EXTEND"
+  , C.Seq 217 218
+  , C.Var 218 "this_instr"
+  , C.Seq 218 219
+  , C.Assign 219 "undefed" (C.Num 0)
+  , C.Seq 219 220
+  , C.Assign 220 "next_instr" (C.Num 0)
+  , C.Seq 220 221
+  , C.Var 221 "left"
+  , C.Seq 221 222
+  , C.Var 222 "right"
+  , C.Seq 222 223
+  , C.Var 223 "res"
+  , C.Seq 223 224
+  , C.Assign 224 "right" (C.Num 0)
+  , C.Seq 224 225
+  , C.Assign 225 "left" (C.Num 0)
+  , C.Seq 225 226
+  , C.Var 226 "descr"
+  , C.Seq 226 227
+  , C.Var 227 "left_o"
+  , C.Seq 227 228
+  , C.Var 228 "right_o"
+  , C.Seq 228 229
+  , C.Var 229 "d"
+  , C.Seq 229 230
+  , C.Var 230 "res"
+  , C.Seq 230 231
+  , C.Assign 231 "stack_pointer" (C.Num 0)
+  , C.Seq 231 232
+  , C.Branch 232 (C.Eq (C.Plus (C.Id "res") (C.Num 0)) (C.Num 1)) 234 234
+  , C.Seq 233 42
+  , C.Seq 233 235
+  , C.Var 234 "NOP_234"
+  , C.Seq 234 235
+  , C.Var 235 "IF_ELSE_FOOTER"
+  , C.Var 236 "descr"
+  , C.Seq 236 237
+  , C.Var 237 "left_o"
+  , C.Seq 237 238
+  , C.Var 238 "right_o"
+  , C.Seq 238 239
+  , C.Var 239 "d"
+  , C.Seq 239 240
+  , C.Var 240 "res_o"
+  , C.Seq 240 241
+  , C.Var 241 "tmp"
+  , C.Seq 241 242
+  , C.Assign 242 "right" (C.Num 0)
+  , C.Seq 242 243
+  , C.Assign 243 "undefed" (C.Num 0)
+  , C.Seq 243 244
+  , C.Assign 244 "tmp" (C.Num 0)
+  , C.Seq 244 245
+  , C.Assign 245 "left" (C.Num 0)
+  , C.Seq 245 246
+  , C.Assign 246 "undefed" (C.Num 0)
+  , C.Seq 246 247
+  , C.Assign 247 "stack_pointer" (C.Num 0)
+  , C.Seq 247 248
+  , C.Assign 248 "stack_pointer" (C.Num 0)
+  , C.Seq 248 249
+  , C.Assign 249 "res" (C.Num 0)
+  , C.Seq 249 250
+  , C.Assign 250 "undefed" (C.Num 0)
+  , C.Seq 250 251
+  , C.Assign 251 "stack_pointer" (C.Num 0)
+  , C.Seq 251 252
+  , C.Var 252 "word"
+  , C.Seq 252 253
+  , C.Assign 253 "opcode" (C.Num 0)
+  , C.Seq 253 254
+  , C.Assign 254 "oparg" (C.Num 0)
+  , C.Seq 254 255
+  , C.Branch 255 (C.Eq (C.Num 0) (C.Num 1)) 256 259
+  , C.Var 256 "word"
+  , C.Seq 256 257
+  , C.Assign 257 "opcode" (C.Num 0)
+  , C.Seq 257 258
+  , C.Assign 258 "oparg" (C.Num 0)
+  , C.Seq 258 259
+  , C.Seq 258 255
+  , C.Var 259 "LOOP_FOOTER"
+  , C.Seq 259 260
+  , C.Seq 259 35
+  , C.Branch 260 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 262 354
+  , C.Var 262 "NOP_262"
+  , C.Var 263 "__CLABEL_TARGET_BINARY_OP_INPLACE_ADD_UNICODE"
+  , C.Seq 263 264
+  , C.Var 264 "this_instr"
+  , C.Seq 264 265
+  , C.Assign 265 "undefed" (C.Num 0)
+  , C.Seq 265 266
+  , C.Assign 266 "next_instr" (C.Num 0)
+  , C.Seq 266 267
+  , C.Var 267 "value"
+  , C.Seq 267 268
+  , C.Var 268 "nos"
+  , C.Seq 268 269
+  , C.Var 269 "left"
+  , C.Seq 269 270
+  , C.Var 270 "right"
+  , C.Seq 270 271
+  , C.Assign 271 "value" (C.Num 0)
+  , C.Seq 271 272
+  , C.Var 272 "value_o"
+  , C.Seq 272 273
+  , C.Branch 273 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyUnicode_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 275 275
+  , C.Seq 274 42
+  , C.Seq 274 276
+  , C.Var 275 "NOP_275"
+  , C.Seq 275 276
+  , C.Var 276 "IF_ELSE_FOOTER"
+  , C.Assign 277 "nos" (C.Num 0)
+  , C.Seq 277 278
+  , C.Var 278 "o"
+  , C.Seq 278 279
+  , C.Branch 279 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyUnicode_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 281 281
+  , C.Seq 280 42
+  , C.Seq 280 282
+  , C.Var 281 "NOP_281"
+  , C.Seq 281 282
+  , C.Var 282 "IF_ELSE_FOOTER"
+  , C.Assign 283 "right" (C.Num 0)
+  , C.Seq 283 284
+  , C.Assign 284 "left" (C.Num 0)
+  , C.Seq 284 285
+  , C.Var 285 "left_o"
+  , C.Seq 285 286
+  , C.Var 286 "next_oparg"
+  , C.Seq 286 287
+  , C.Assign 287 "next_oparg" (C.Num 0)
+  , C.Seq 287 288
+  , C.Var 288 "target_local"
+  , C.Seq 288 289
+  , C.Branch 289 (C.Eq (C.Plus (C.Num 0) (C.Id "left_o")) (C.Num 1)) 291 291
+  , C.Seq 290 42
+  , C.Seq 290 292
+  , C.Var 291 "NOP_291"
+  , C.Seq 291 292
+  , C.Var 292 "IF_ELSE_FOOTER"
+  , C.Var 293 "temp"
+  , C.Seq 293 294
+  , C.Var 294 "right_o"
+  , C.Seq 294 295
+  , C.Assign 295 "stack_pointer" (C.Num 0)
+  , C.Seq 295 296
+  , C.Assign 296 "stack_pointer" (C.Num 0)
+  , C.Seq 296 297
+  , C.Assign 297 "undefed" (C.Num 0)
+  , C.Seq 297 298
+  , C.Var 298 "op"
+  , C.Seq 298 299
+  , C.Branch 299 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Num 0)) (C.Num 0)) (C.Num 1)) 301 316
+  , C.Var 301 "tracer"
+  , C.Seq 301 302
+  , C.Branch 302 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 304 305
+  , C.Var 304 "data"
+  , C.Seq 304 305
+  , C.Seq 304 306
+  , C.Var 305 "NOP_305"
+  , C.Seq 305 306
+  , C.Var 306 "IF_ELSE_FOOTER"
+  , C.Branch 307 (C.Eq (C.Num 0) (C.Num 1)) 308 314
+  , C.Var 308 "tracer"
+  , C.Seq 308 309
+  , C.Branch 309 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 311 312
+  , C.Var 311 "data"
+  , C.Seq 311 312
+  , C.Seq 311 313
+  , C.Var 312 "NOP_312"
+  , C.Seq 312 313
+  , C.Var 313 "IF_ELSE_FOOTER"
+  , C.Seq 313 307
+  , C.Var 314 "LOOP_FOOTER"
+  , C.Seq 314 315
+  , C.Var 315 "dealloc"
+  , C.Seq 315 316
+  , C.Seq 315 317
+  , C.Var 316 "NOP_316"
+  , C.Seq 316 317
+  , C.Var 317 "IF_ELSE_FOOTER"
+  , C.Branch 318 (C.Eq (C.Num 0) (C.Num 1)) 319 339
+  , C.Var 319 "op"
+  , C.Seq 319 320
+  , C.Branch 320 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Num 0)) (C.Num 0)) (C.Num 1)) 322 337
+  , C.Var 322 "tracer"
+  , C.Seq 322 323
+  , C.Branch 323 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 325 326
+  , C.Var 325 "data"
+  , C.Seq 325 326
+  , C.Seq 325 327
+  , C.Var 326 "NOP_326"
+  , C.Seq 326 327
+  , C.Var 327 "IF_ELSE_FOOTER"
+  , C.Branch 328 (C.Eq (C.Num 0) (C.Num 1)) 329 335
+  , C.Var 329 "tracer"
+  , C.Seq 329 330
+  , C.Branch 330 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 332 333
+  , C.Var 332 "data"
+  , C.Seq 332 333
+  , C.Seq 332 334
+  , C.Var 333 "NOP_333"
+  , C.Seq 333 334
+  , C.Var 334 "IF_ELSE_FOOTER"
+  , C.Seq 334 328
+  , C.Var 335 "LOOP_FOOTER"
+  , C.Seq 335 336
+  , C.Var 336 "dealloc"
+  , C.Seq 336 337
+  , C.Seq 336 338
+  , C.Var 337 "NOP_337"
+  , C.Seq 337 338
+  , C.Var 338 "IF_ELSE_FOOTER"
+  , C.Seq 338 318
+  , C.Var 339 "LOOP_FOOTER"
+  , C.Seq 339 340
+  , C.Assign 340 "stack_pointer" (C.Num 0)
+  , C.Seq 340 341
+  , C.Branch 341 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 343 343
+  , C.Seq 342 814
+  , C.Seq 342 344
+  , C.Var 343 "NOP_343"
+  , C.Seq 343 344
+  , C.Var 344 "IF_ELSE_FOOTER"
+  , C.Assign 345 "next_instr" (C.Num 0)
+  , C.Seq 345 346
+  , C.Var 346 "word"
+  , C.Seq 346 347
+  , C.Assign 347 "opcode" (C.Num 0)
+  , C.Seq 347 348
+  , C.Assign 348 "oparg" (C.Num 0)
+  , C.Seq 348 349
+  , C.Branch 349 (C.Eq (C.Num 0) (C.Num 1)) 350 353
+  , C.Var 350 "word"
+  , C.Seq 350 351
+  , C.Assign 351 "opcode" (C.Num 0)
+  , C.Seq 351 352
+  , C.Assign 352 "oparg" (C.Num 0)
+  , C.Seq 352 353
+  , C.Seq 352 349
+  , C.Var 353 "LOOP_FOOTER"
+  , C.Seq 353 354
+  , C.Seq 353 35
+  , C.Branch 354 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 356 396
+  , C.Var 356 "NOP_356"
+  , C.Var 357 "__CLABEL_TARGET_BINARY_OP_MULTIPLY_FLOAT"
+  , C.Seq 357 358
+  , C.Var 358 "this_instr"
+  , C.Seq 358 359
+  , C.Assign 359 "undefed" (C.Num 0)
+  , C.Seq 359 360
+  , C.Assign 360 "next_instr" (C.Num 0)
+  , C.Seq 360 361
+  , C.Var 361 "value"
+  , C.Seq 361 362
+  , C.Var 362 "left"
+  , C.Seq 362 363
+  , C.Var 363 "right"
+  , C.Seq 363 364
+  , C.Var 364 "res"
+  , C.Seq 364 365
+  , C.Assign 365 "value" (C.Num 0)
+  , C.Seq 365 366
+  , C.Var 366 "value_o"
+  , C.Seq 366 367
+  , C.Branch 367 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 369 369
+  , C.Seq 368 42
+  , C.Seq 368 370
+  , C.Var 369 "NOP_369"
+  , C.Seq 369 370
+  , C.Var 370 "IF_ELSE_FOOTER"
+  , C.Assign 371 "left" (C.Num 0)
+  , C.Seq 371 372
+  , C.Var 372 "left_o"
+  , C.Seq 372 373
+  , C.Branch 373 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 375 375
+  , C.Seq 374 42
+  , C.Seq 374 376
+  , C.Var 375 "NOP_375"
+  , C.Seq 375 376
+  , C.Var 376 "IF_ELSE_FOOTER"
+  , C.Assign 377 "right" (C.Num 0)
+  , C.Seq 377 378
+  , C.Var 378 "left_o"
+  , C.Seq 378 379
+  , C.Var 379 "right_o"
+  , C.Seq 379 380
+  , C.Var 380 "dres"
+  , C.Seq 380 381
+  , C.Assign 381 "res" (C.Num 0)
+  , C.Seq 381 382
+  , C.Branch 382 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 384 384
+  , C.Seq 383 810
+  , C.Seq 383 385
+  , C.Var 384 "NOP_384"
+  , C.Seq 384 385
+  , C.Var 385 "IF_ELSE_FOOTER"
+  , C.Assign 386 "undefed" (C.Num 0)
+  , C.Seq 386 387
+  , C.Assign 387 "stack_pointer" (C.Num 0)
+  , C.Seq 387 388
+  , C.Var 388 "word"
+  , C.Seq 388 389
+  , C.Assign 389 "opcode" (C.Num 0)
+  , C.Seq 389 390
+  , C.Assign 390 "oparg" (C.Num 0)
+  , C.Seq 390 391
+  , C.Branch 391 (C.Eq (C.Num 0) (C.Num 1)) 392 395
+  , C.Var 392 "word"
+  , C.Seq 392 393
+  , C.Assign 393 "opcode" (C.Num 0)
+  , C.Seq 393 394
+  , C.Assign 394 "oparg" (C.Num 0)
+  , C.Seq 394 395
+  , C.Seq 394 391
+  , C.Var 395 "LOOP_FOOTER"
+  , C.Seq 395 396
+  , C.Seq 395 35
+  , C.Branch 396 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 398 437
+  , C.Var 398 "NOP_398"
+  , C.Var 399 "__CLABEL_TARGET_BINARY_OP_MULTIPLY_INT"
+  , C.Seq 399 400
+  , C.Var 400 "this_instr"
+  , C.Seq 400 401
+  , C.Assign 401 "undefed" (C.Num 0)
+  , C.Seq 401 402
+  , C.Assign 402 "next_instr" (C.Num 0)
+  , C.Seq 402 403
+  , C.Var 403 "value"
+  , C.Seq 403 404
+  , C.Var 404 "left"
+  , C.Seq 404 405
+  , C.Var 405 "right"
+  , C.Seq 405 406
+  , C.Var 406 "res"
+  , C.Seq 406 407
+  , C.Assign 407 "value" (C.Num 0)
+  , C.Seq 407 408
+  , C.Var 408 "value_o"
+  , C.Seq 408 409
+  , C.Branch 409 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 411 411
+  , C.Seq 410 42
+  , C.Seq 410 412
+  , C.Var 411 "NOP_411"
+  , C.Seq 411 412
+  , C.Var 412 "IF_ELSE_FOOTER"
+  , C.Assign 413 "left" (C.Num 0)
+  , C.Seq 413 414
+  , C.Var 414 "left_o"
+  , C.Seq 414 415
+  , C.Branch 415 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 417 417
+  , C.Seq 416 42
+  , C.Seq 416 418
+  , C.Var 417 "NOP_417"
+  , C.Seq 417 418
+  , C.Var 418 "IF_ELSE_FOOTER"
+  , C.Assign 419 "right" (C.Num 0)
+  , C.Seq 419 420
+  , C.Var 420 "left_o"
+  , C.Seq 420 421
+  , C.Var 421 "right_o"
+  , C.Seq 421 422
+  , C.Assign 422 "res" (C.Num 0)
+  , C.Seq 422 423
+  , C.Branch 423 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 425 425
+  , C.Seq 424 42
+  , C.Seq 424 426
+  , C.Var 425 "NOP_425"
+  , C.Seq 425 426
+  , C.Var 426 "IF_ELSE_FOOTER"
+  , C.Assign 427 "undefed" (C.Num 0)
+  , C.Seq 427 428
+  , C.Assign 428 "stack_pointer" (C.Num 0)
+  , C.Seq 428 429
+  , C.Var 429 "word"
+  , C.Seq 429 430
+  , C.Assign 430 "opcode" (C.Num 0)
+  , C.Seq 430 431
+  , C.Assign 431 "oparg" (C.Num 0)
+  , C.Seq 431 432
+  , C.Branch 432 (C.Eq (C.Num 0) (C.Num 1)) 433 436
+  , C.Var 433 "word"
+  , C.Seq 433 434
+  , C.Assign 434 "opcode" (C.Num 0)
+  , C.Seq 434 435
+  , C.Assign 435 "oparg" (C.Num 0)
+  , C.Seq 435 436
+  , C.Seq 435 432
+  , C.Var 436 "LOOP_FOOTER"
+  , C.Seq 436 437
+  , C.Seq 436 35
+  , C.Branch 437 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 439 489
+  , C.Var 439 "NOP_439"
+  , C.Var 440 "__CLABEL_TARGET_BINARY_OP_SUBSCR_DICT"
+  , C.Seq 440 441
+  , C.Var 441 "this_instr"
+  , C.Seq 441 442
+  , C.Assign 442 "undefed" (C.Num 0)
+  , C.Seq 442 443
+  , C.Assign 443 "next_instr" (C.Num 0)
+  , C.Seq 443 444
+  , C.Var 444 "nos"
+  , C.Seq 444 445
+  , C.Var 445 "dict_st"
+  , C.Seq 445 446
+  , C.Var 446 "sub_st"
+  , C.Seq 446 447
+  , C.Var 447 "res"
+  , C.Seq 447 448
+  , C.Assign 448 "nos" (C.Num 0)
+  , C.Seq 448 449
+  , C.Var 449 "o"
+  , C.Seq 449 450
+  , C.Branch 450 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyDict_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 452 452
+  , C.Seq 451 42
+  , C.Seq 451 453
+  , C.Var 452 "NOP_452"
+  , C.Seq 452 453
+  , C.Var 453 "IF_ELSE_FOOTER"
+  , C.Assign 454 "sub_st" (C.Num 0)
+  , C.Seq 454 455
+  , C.Assign 455 "dict_st" (C.Num 0)
+  , C.Seq 455 456
+  , C.Var 456 "sub"
+  , C.Seq 456 457
+  , C.Var 457 "dict"
+  , C.Seq 457 458
+  , C.Var 458 "res_o"
+  , C.Seq 458 459
+  , C.Var 459 "rc"
+  , C.Seq 459 460
+  , C.Assign 460 "stack_pointer" (C.Num 0)
+  , C.Seq 460 461
+  , C.Branch 461 (C.Eq (C.Plus (C.Id "rc") (C.Num 0)) (C.Num 1)) 463 464
+  , C.Assign 463 "stack_pointer" (C.Num 0)
+  , C.Seq 463 465
+  , C.Var 464 "NOP_464"
+  , C.Seq 464 465
+  , C.Var 465 "IF_ELSE_FOOTER"
+  , C.Var 466 "tmp"
+  , C.Seq 466 467
+  , C.Assign 467 "sub_st" (C.Num 0)
+  , C.Seq 467 468
+  , C.Assign 468 "undefed" (C.Num 0)
+  , C.Seq 468 469
+  , C.Assign 469 "tmp" (C.Num 0)
+  , C.Seq 469 470
+  , C.Assign 470 "dict_st" (C.Num 0)
+  , C.Seq 470 471
+  , C.Assign 471 "undefed" (C.Num 0)
+  , C.Seq 471 472
+  , C.Assign 472 "stack_pointer" (C.Num 0)
+  , C.Seq 472 473
+  , C.Assign 473 "stack_pointer" (C.Num 0)
+  , C.Seq 473 474
+  , C.Branch 474 (C.Eq (C.Plus (C.Id "rc") (C.Num 0)) (C.Num 1)) 476 476
+  , C.Seq 475 814
+  , C.Seq 475 477
+  , C.Var 476 "NOP_476"
+  , C.Seq 476 477
+  , C.Var 477 "IF_ELSE_FOOTER"
+  , C.Assign 478 "res" (C.Num 0)
+  , C.Seq 478 479
+  , C.Assign 479 "undefed" (C.Num 0)
+  , C.Seq 479 480
+  , C.Assign 480 "stack_pointer" (C.Num 0)
+  , C.Seq 480 481
+  , C.Var 481 "word"
+  , C.Seq 481 482
+  , C.Assign 482 "opcode" (C.Num 0)
+  , C.Seq 482 483
+  , C.Assign 483 "oparg" (C.Num 0)
+  , C.Seq 483 484
+  , C.Branch 484 (C.Eq (C.Num 0) (C.Num 1)) 485 488
+  , C.Var 485 "word"
+  , C.Seq 485 486
+  , C.Assign 486 "opcode" (C.Num 0)
+  , C.Seq 486 487
+  , C.Assign 487 "oparg" (C.Num 0)
+  , C.Seq 487 488
+  , C.Seq 487 484
+  , C.Var 488 "LOOP_FOOTER"
+  , C.Seq 488 489
+  , C.Seq 488 35
+  , C.Branch 489 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 491 549
+  , C.Var 491 "NOP_491"
+  , C.Var 492 "__CLABEL_TARGET_BINARY_OP_SUBSCR_GETITEM"
+  , C.Seq 492 493
+  , C.Var 493 "this_instr"
+  , C.Seq 493 494
+  , C.Assign 494 "undefed" (C.Num 0)
+  , C.Seq 494 495
+  , C.Assign 495 "next_instr" (C.Num 0)
+  , C.Seq 495 496
+  , C.Var 496 "container"
+  , C.Seq 496 497
+  , C.Var 497 "getitem"
+  , C.Seq 497 498
+  , C.Var 498 "sub"
+  , C.Seq 498 499
+  , C.Var 499 "new_frame"
+  , C.Seq 499 500
+  , C.Branch 500 (C.Eq (C.Num 0) (C.Num 1)) 502 502
+  , C.Seq 501 42
+  , C.Seq 501 503
+  , C.Var 502 "NOP_502"
+  , C.Seq 502 503
+  , C.Var 503 "IF_ELSE_FOOTER"
+  , C.Assign 504 "container" (C.Num 0)
+  , C.Seq 504 505
+  , C.Var 505 "tp"
+  , C.Seq 505 506
+  , C.Branch 506 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 508 508
+  , C.Seq 507 42
+  , C.Seq 507 509
+  , C.Var 508 "NOP_508"
+  , C.Seq 508 509
+  , C.Var 509 "IF_ELSE_FOOTER"
+  , C.Var 510 "ht"
+  , C.Seq 510 511
+  , C.Var 511 "getitem_o"
+  , C.Seq 511 512
+  , C.Branch 512 (C.Eq (C.Plus (C.Id "getitem_o") (C.Num 0)) (C.Num 1)) 514 514
+  , C.Seq 513 42
+  , C.Seq 513 515
+  , C.Var 514 "NOP_514"
+  , C.Seq 514 515
+  , C.Var 515 "IF_ELSE_FOOTER"
+  , C.Var 516 "cached_version"
+  , C.Seq 516 517
+  , C.Branch 517 (C.Eq (C.Plus (C.Num 0) (C.Id "cached_version")) (C.Num 1)) 519 519
+  , C.Seq 518 42
+  , C.Seq 518 520
+  , C.Var 519 "NOP_519"
+  , C.Seq 519 520
+  , C.Var 520 "IF_ELSE_FOOTER"
+  , C.Var 521 "code"
+  , C.Seq 521 522
+  , C.Branch 522 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 524 524
+  , C.Seq 523 42
+  , C.Seq 523 525
+  , C.Var 524 "NOP_524"
+  , C.Seq 524 525
+  , C.Var 525 "IF_ELSE_FOOTER"
+  , C.Assign 526 "getitem" (C.Num 0)
+  , C.Seq 526 527
+  , C.Assign 527 "sub" (C.Num 0)
+  , C.Seq 527 528
+  , C.Var 528 "pushed_frame"
+  , C.Seq 528 529
+  , C.Assign 529 "undefed" (C.Num 0)
+  , C.Seq 529 530
+  , C.Assign 530 "undefed" (C.Num 0)
+  , C.Seq 530 531
+  , C.Assign 531 "undefed" (C.Num 0)
+  , C.Seq 531 532
+  , C.Assign 532 "new_frame" (C.Num 0)
+  , C.Seq 532 533
+  , C.Var 533 "temp"
+  , C.Seq 533 534
+  , C.Assign 534 "stack_pointer" (C.Num 0)
+  , C.Seq 534 535
+  , C.Assign 535 "frame" (C.Num 0)
+  , C.Seq 535 536
+  , C.Assign 536 "stack_pointer" (C.Num 0)
+  , C.Seq 536 537
+  , C.Assign 537 "next_instr" (C.Num 0)
+  , C.Seq 537 538
+  , C.Branch 538 (C.Eq (C.Num 0) (C.Num 1)) 539 540
+  , C.Assign 539 "next_instr" (C.Num 0)
+  , C.Seq 539 538
+  , C.Var 540 "LOOP_FOOTER"
+  , C.Seq 540 541
+  , C.Var 541 "word"
+  , C.Seq 541 542
+  , C.Assign 542 "opcode" (C.Num 0)
+  , C.Seq 542 543
+  , C.Assign 543 "oparg" (C.Num 0)
+  , C.Seq 543 544
+  , C.Branch 544 (C.Eq (C.Num 0) (C.Num 1)) 545 548
+  , C.Var 545 "word"
+  , C.Seq 545 546
+  , C.Assign 546 "opcode" (C.Num 0)
+  , C.Seq 546 547
+  , C.Assign 547 "oparg" (C.Num 0)
+  , C.Seq 547 548
+  , C.Seq 547 544
+  , C.Var 548 "LOOP_FOOTER"
+  , C.Seq 548 549
+  , C.Seq 548 35
+  , C.Branch 549 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 551 604
+  , C.Var 551 "NOP_551"
+  , C.Var 552 "__CLABEL_TARGET_BINARY_OP_SUBSCR_LIST_INT"
+  , C.Seq 552 553
+  , C.Var 553 "this_instr"
+  , C.Seq 553 554
+  , C.Assign 554 "undefed" (C.Num 0)
+  , C.Seq 554 555
+  , C.Assign 555 "next_instr" (C.Num 0)
+  , C.Seq 555 556
+  , C.Var 556 "value"
+  , C.Seq 556 557
+  , C.Var 557 "nos"
+  , C.Seq 557 558
+  , C.Var 558 "list_st"
+  , C.Seq 558 559
+  , C.Var 559 "sub_st"
+  , C.Seq 559 560
+  , C.Var 560 "res"
+  , C.Seq 560 561
+  , C.Assign 561 "value" (C.Num 0)
+  , C.Seq 561 562
+  , C.Var 562 "value_o"
+  , C.Seq 562 563
+  , C.Branch 563 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 565 565
+  , C.Seq 564 42
+  , C.Seq 564 566
+  , C.Var 565 "NOP_565"
+  , C.Seq 565 566
+  , C.Var 566 "IF_ELSE_FOOTER"
+  , C.Assign 567 "nos" (C.Num 0)
+  , C.Seq 567 568
+  , C.Var 568 "o"
+  , C.Seq 568 569
+  , C.Branch 569 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyList_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 571 571
+  , C.Seq 570 42
+  , C.Seq 570 572
+  , C.Var 571 "NOP_571"
+  , C.Seq 571 572
+  , C.Var 572 "IF_ELSE_FOOTER"
+  , C.Assign 573 "sub_st" (C.Num 0)
+  , C.Seq 573 574
+  , C.Assign 574 "list_st" (C.Num 0)
+  , C.Seq 574 575
+  , C.Var 575 "sub"
+  , C.Seq 575 576
+  , C.Var 576 "list"
+  , C.Seq 576 577
+  , C.Branch 577 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 579 579
+  , C.Seq 578 42
+  , C.Seq 578 580
+  , C.Var 579 "NOP_579"
+  , C.Seq 579 580
+  , C.Var 580 "IF_ELSE_FOOTER"
+  , C.Var 581 "index"
+  , C.Seq 581 582
+  , C.Branch 582 (C.Eq (C.Plus (C.Id "index") (C.Num 0)) (C.Num 1)) 584 584
+  , C.Seq 583 42
+  , C.Seq 583 585
+  , C.Var 584 "NOP_584"
+  , C.Seq 584 585
+  , C.Var 585 "IF_ELSE_FOOTER"
+  , C.Var 586 "res_o"
+  , C.Seq 586 587
+  , C.Assign 587 "res" (C.Num 0)
+  , C.Seq 587 588
+  , C.Var 588 "tmp"
+  , C.Seq 588 589
+  , C.Assign 589 "list_st" (C.Num 0)
+  , C.Seq 589 590
+  , C.Assign 590 "undefed" (C.Num 0)
+  , C.Seq 590 591
+  , C.Assign 591 "tmp" (C.Num 0)
+  , C.Seq 591 592
+  , C.Assign 592 "sub_st" (C.Num 0)
+  , C.Seq 592 593
+  , C.Assign 593 "undefed" (C.Num 0)
+  , C.Seq 593 594
+  , C.Assign 594 "stack_pointer" (C.Num 0)
+  , C.Seq 594 595
+  , C.Assign 595 "stack_pointer" (C.Num 0)
+  , C.Seq 595 596
+  , C.Var 596 "word"
+  , C.Seq 596 597
+  , C.Assign 597 "opcode" (C.Num 0)
+  , C.Seq 597 598
+  , C.Assign 598 "oparg" (C.Num 0)
+  , C.Seq 598 599
+  , C.Branch 599 (C.Eq (C.Num 0) (C.Num 1)) 600 603
+  , C.Var 600 "word"
+  , C.Seq 600 601
+  , C.Assign 601 "opcode" (C.Num 0)
+  , C.Seq 601 602
+  , C.Assign 602 "oparg" (C.Num 0)
+  , C.Seq 602 603
+  , C.Seq 602 599
+  , C.Var 603 "LOOP_FOOTER"
+  , C.Seq 603 604
+  , C.Seq 603 35
+  , C.Branch 604 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 606 657
+  , C.Var 606 "NOP_606"
+  , C.Var 607 "__CLABEL_TARGET_BINARY_OP_SUBSCR_LIST_SLICE"
+  , C.Seq 607 608
+  , C.Var 608 "this_instr"
+  , C.Seq 608 609
+  , C.Assign 609 "undefed" (C.Num 0)
+  , C.Seq 609 610
+  , C.Assign 610 "next_instr" (C.Num 0)
+  , C.Seq 610 611
+  , C.Var 611 "tos"
+  , C.Seq 611 612
+  , C.Var 612 "nos"
+  , C.Seq 612 613
+  , C.Var 613 "list_st"
+  , C.Seq 613 614
+  , C.Var 614 "sub_st"
+  , C.Seq 614 615
+  , C.Var 615 "res"
+  , C.Seq 615 616
+  , C.Assign 616 "tos" (C.Num 0)
+  , C.Seq 616 617
+  , C.Var 617 "o"
+  , C.Seq 617 618
+  , C.Branch 618 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PySlice_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 620 620
+  , C.Seq 619 42
+  , C.Seq 619 621
+  , C.Var 620 "NOP_620"
+  , C.Seq 620 621
+  , C.Var 621 "IF_ELSE_FOOTER"
+  , C.Assign 622 "nos" (C.Num 0)
+  , C.Seq 622 623
+  , C.Var 623 "o"
+  , C.Seq 623 624
+  , C.Branch 624 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyList_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 626 626
+  , C.Seq 625 42
+  , C.Seq 625 627
+  , C.Var 626 "NOP_626"
+  , C.Seq 626 627
+  , C.Var 627 "IF_ELSE_FOOTER"
+  , C.Assign 628 "sub_st" (C.Num 0)
+  , C.Seq 628 629
+  , C.Assign 629 "list_st" (C.Num 0)
+  , C.Seq 629 630
+  , C.Var 630 "sub"
+  , C.Seq 630 631
+  , C.Var 631 "list"
+  , C.Seq 631 632
+  , C.Var 632 "res_o"
+  , C.Seq 632 633
+  , C.Assign 633 "stack_pointer" (C.Num 0)
+  , C.Seq 633 634
+  , C.Var 634 "tmp"
+  , C.Seq 634 635
+  , C.Assign 635 "sub_st" (C.Num 0)
+  , C.Seq 635 636
+  , C.Assign 636 "undefed" (C.Num 0)
+  , C.Seq 636 637
+  , C.Assign 637 "tmp" (C.Num 0)
+  , C.Seq 637 638
+  , C.Assign 638 "list_st" (C.Num 0)
+  , C.Seq 638 639
+  , C.Assign 639 "undefed" (C.Num 0)
+  , C.Seq 639 640
+  , C.Assign 640 "stack_pointer" (C.Num 0)
+  , C.Seq 640 641
+  , C.Assign 641 "stack_pointer" (C.Num 0)
+  , C.Seq 641 642
+  , C.Branch 642 (C.Eq (C.Plus (C.Id "res_o") (C.Num 0)) (C.Num 1)) 644 644
+  , C.Seq 643 814
+  , C.Seq 643 645
+  , C.Var 644 "NOP_644"
+  , C.Seq 644 645
+  , C.Var 645 "IF_ELSE_FOOTER"
+  , C.Assign 646 "res" (C.Num 0)
+  , C.Seq 646 647
+  , C.Assign 647 "undefed" (C.Num 0)
+  , C.Seq 647 648
+  , C.Assign 648 "stack_pointer" (C.Num 0)
+  , C.Seq 648 649
+  , C.Var 649 "word"
+  , C.Seq 649 650
+  , C.Assign 650 "opcode" (C.Num 0)
+  , C.Seq 650 651
+  , C.Assign 651 "oparg" (C.Num 0)
+  , C.Seq 651 652
+  , C.Branch 652 (C.Eq (C.Num 0) (C.Num 1)) 653 656
+  , C.Var 653 "word"
+  , C.Seq 653 654
+  , C.Assign 654 "opcode" (C.Num 0)
+  , C.Seq 654 655
+  , C.Assign 655 "oparg" (C.Num 0)
+  , C.Seq 655 656
+  , C.Seq 655 652
+  , C.Var 656 "LOOP_FOOTER"
+  , C.Seq 656 657
+  , C.Seq 656 35
+  , C.Branch 657 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 659 713
+  , C.Var 659 "NOP_659"
+  , C.Var 660 "__CLABEL_TARGET_BINARY_OP_SUBSCR_STR_INT"
+  , C.Seq 660 661
+  , C.Var 661 "this_instr"
+  , C.Seq 661 662
+  , C.Assign 662 "undefed" (C.Num 0)
+  , C.Seq 662 663
+  , C.Assign 663 "next_instr" (C.Num 0)
+  , C.Seq 663 664
+  , C.Var 664 "value"
+  , C.Seq 664 665
+  , C.Var 665 "nos"
+  , C.Seq 665 666
+  , C.Var 666 "str_st"
+  , C.Seq 666 667
+  , C.Var 667 "sub_st"
+  , C.Seq 667 668
+  , C.Var 668 "res"
+  , C.Seq 668 669
+  , C.Assign 669 "value" (C.Num 0)
+  , C.Seq 669 670
+  , C.Var 670 "value_o"
+  , C.Seq 670 671
+  , C.Branch 671 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 673 673
+  , C.Seq 672 42
+  , C.Seq 672 674
+  , C.Var 673 "NOP_673"
+  , C.Seq 673 674
+  , C.Var 674 "IF_ELSE_FOOTER"
+  , C.Assign 675 "nos" (C.Num 0)
+  , C.Seq 675 676
+  , C.Var 676 "o"
+  , C.Seq 676 677
+  , C.Branch 677 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyUnicode_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 679 679
+  , C.Seq 678 42
+  , C.Seq 678 680
+  , C.Var 679 "NOP_679"
+  , C.Seq 679 680
+  , C.Var 680 "IF_ELSE_FOOTER"
+  , C.Assign 681 "sub_st" (C.Num 0)
+  , C.Seq 681 682
+  , C.Assign 682 "str_st" (C.Num 0)
+  , C.Seq 682 683
+  , C.Var 683 "sub"
+  , C.Seq 683 684
+  , C.Var 684 "str"
+  , C.Seq 684 685
+  , C.Branch 685 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 687 687
+  , C.Seq 686 42
+  , C.Seq 686 688
+  , C.Var 687 "NOP_687"
+  , C.Seq 687 688
+  , C.Var 688 "IF_ELSE_FOOTER"
+  , C.Var 689 "index"
+  , C.Seq 689 690
+  , C.Branch 690 (C.Eq (C.Plus (C.Num 0) (C.Id "index")) (C.Num 1)) 692 692
+  , C.Seq 691 42
+  , C.Seq 691 693
+  , C.Var 692 "NOP_692"
+  , C.Seq 692 693
+  , C.Var 693 "IF_ELSE_FOOTER"
+  , C.Var 694 "c"
+  , C.Seq 694 695
+  , C.Branch 695 (C.Eq (C.Plus (C.Plus (C.Plus (C.Num 0) (C.Num 0)) (C.Plus (C.Num 0) (C.Num 0))) (C.Id "c")) (C.Num 1)) 697 697
+  , C.Seq 696 42
+  , C.Seq 696 698
+  , C.Var 697 "NOP_697"
+  , C.Seq 697 698
+  , C.Var 698 "IF_ELSE_FOOTER"
+  , C.Var 699 "res_o"
+  , C.Seq 699 700
+  , C.Assign 700 "stack_pointer" (C.Num 0)
+  , C.Seq 700 701
+  , C.Assign 701 "stack_pointer" (C.Num 0)
+  , C.Seq 701 702
+  , C.Assign 702 "res" (C.Num 0)
+  , C.Seq 702 703
+  , C.Assign 703 "undefed" (C.Num 0)
+  , C.Seq 703 704
+  , C.Assign 704 "stack_pointer" (C.Num 0)
+  , C.Seq 704 705
+  , C.Var 705 "word"
+  , C.Seq 705 706
+  , C.Assign 706 "opcode" (C.Num 0)
+  , C.Seq 706 707
+  , C.Assign 707 "oparg" (C.Num 0)
+  , C.Seq 707 708
+  , C.Branch 708 (C.Eq (C.Num 0) (C.Num 1)) 709 712
+  , C.Var 709 "word"
+  , C.Seq 709 710
+  , C.Assign 710 "opcode" (C.Num 0)
+  , C.Seq 710 711
+  , C.Assign 711 "oparg" (C.Num 0)
+  , C.Seq 711 712
+  , C.Seq 711 708
+  , C.Var 712 "LOOP_FOOTER"
+  , C.Seq 712 713
+  , C.Seq 712 35
+  , C.Branch 713 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 715 765
+  , C.Var 715 "NOP_715"
+  , C.Var 716 "__CLABEL_TARGET_BINARY_OP_SUBSCR_TUPLE_INT"
+  , C.Seq 716 717
+  , C.Var 717 "this_instr"
+  , C.Seq 717 718
+  , C.Assign 718 "undefed" (C.Num 0)
+  , C.Seq 718 719
+  , C.Assign 719 "next_instr" (C.Num 0)
+  , C.Seq 719 720
+  , C.Var 720 "value"
+  , C.Seq 720 721
+  , C.Var 721 "nos"
+  , C.Seq 721 722
+  , C.Var 722 "tuple_st"
+  , C.Seq 722 723
+  , C.Var 723 "sub_st"
+  , C.Seq 723 724
+  , C.Var 724 "res"
+  , C.Seq 724 725
+  , C.Assign 725 "value" (C.Num 0)
+  , C.Seq 725 726
+  , C.Var 726 "value_o"
+  , C.Seq 726 727
+  , C.Branch 727 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 729 729
+  , C.Seq 728 42
+  , C.Seq 728 730
+  , C.Var 729 "NOP_729"
+  , C.Seq 729 730
+  , C.Var 730 "IF_ELSE_FOOTER"
+  , C.Assign 731 "nos" (C.Num 0)
+  , C.Seq 731 732
+  , C.Var 732 "o"
+  , C.Seq 732 733
+  , C.Branch 733 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyTuple_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 735 735
+  , C.Seq 734 42
+  , C.Seq 734 736
+  , C.Var 735 "NOP_735"
+  , C.Seq 735 736
+  , C.Var 736 "IF_ELSE_FOOTER"
+  , C.Assign 737 "sub_st" (C.Num 0)
+  , C.Seq 737 738
+  , C.Assign 738 "tuple_st" (C.Num 0)
+  , C.Seq 738 739
+  , C.Var 739 "sub"
+  , C.Seq 739 740
+  , C.Var 740 "tuple"
+  , C.Seq 740 741
+  , C.Branch 741 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 743 743
+  , C.Seq 742 42
+  , C.Seq 742 744
+  , C.Var 743 "NOP_743"
+  , C.Seq 743 744
+  , C.Var 744 "IF_ELSE_FOOTER"
+  , C.Var 745 "index"
+  , C.Seq 745 746
+  , C.Branch 746 (C.Eq (C.Plus (C.Id "index") (C.Num 0)) (C.Num 1)) 748 748
+  , C.Seq 747 42
+  , C.Seq 747 749
+  , C.Var 748 "NOP_748"
+  , C.Seq 748 749
+  , C.Var 749 "IF_ELSE_FOOTER"
+  , C.Var 750 "res_o"
+  , C.Seq 750 751
+  , C.Assign 751 "res" (C.Num 0)
+  , C.Seq 751 752
+  , C.Assign 752 "stack_pointer" (C.Num 0)
+  , C.Seq 752 753
+  , C.Var 753 "tmp"
+  , C.Seq 753 754
+  , C.Assign 754 "tuple_st" (C.Num 0)
+  , C.Seq 754 755
+  , C.Assign 755 "undefed" (C.Num 0)
+  , C.Seq 755 756
+  , C.Assign 756 "stack_pointer" (C.Num 0)
+  , C.Seq 756 757
+  , C.Var 757 "word"
+  , C.Seq 757 758
+  , C.Assign 758 "opcode" (C.Num 0)
+  , C.Seq 758 759
+  , C.Assign 759 "oparg" (C.Num 0)
+  , C.Seq 759 760
+  , C.Branch 760 (C.Eq (C.Num 0) (C.Num 1)) 761 764
+  , C.Var 761 "word"
+  , C.Seq 761 762
+  , C.Assign 762 "opcode" (C.Num 0)
+  , C.Seq 762 763
+  , C.Assign 763 "oparg" (C.Num 0)
+  , C.Seq 763 764
+  , C.Seq 763 760
+  , C.Var 764 "LOOP_FOOTER"
+  , C.Seq 764 765
+  , C.Seq 764 35
+  , C.Branch 765 (C.Eq (C.Plus (C.Id "opcode") (C.Num 0)) (C.Num 1)) 767 807
+  , C.Var 767 "NOP_767"
+  , C.Var 768 "__CLABEL_TARGET_BINARY_OP_SUBTRACT_FLOAT"
+  , C.Seq 768 769
+  , C.Var 769 "this_instr"
+  , C.Seq 769 770
+  , C.Assign 770 "undefed" (C.Num 0)
+  , C.Seq 770 771
+  , C.Assign 771 "next_instr" (C.Num 0)
+  , C.Seq 771 772
+  , C.Var 772 "value"
+  , C.Seq 772 773
+  , C.Var 773 "left"
+  , C.Seq 773 774
+  , C.Var 774 "right"
+  , C.Seq 774 775
+  , C.Var 775 "res"
+  , C.Seq 775 776
+  , C.Assign 776 "value" (C.Num 0)
+  , C.Seq 776 777
+  , C.Var 777 "value_o"
+  , C.Seq 777 778
+  , C.Branch 778 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 780 780
+  , C.Seq 779 42
+  , C.Seq 779 781
+  , C.Var 780 "NOP_780"
+  , C.Seq 780 781
+  , C.Var 781 "IF_ELSE_FOOTER"
+  , C.Assign 782 "left" (C.Num 0)
+  , C.Seq 782 783
+  , C.Var 783 "left_o"
+  , C.Seq 783 784
+  , C.Branch 784 (C.Eq (C.Plus (C.Plus (C.Num 0) (C.Plus (C.Id "PyFloat_Type") (C.Num 0))) (C.Num 0)) (C.Num 1)) 786 786
+  , C.Seq 785 42
+  , C.Seq 785 787
+  , C.Var 786 "NOP_786"
+  , C.Seq 786 787
+  , C.Var 787 "IF_ELSE_FOOTER"
+  , C.Assign 788 "right" (C.Num 0)
+  , C.Seq 788 789
+  , C.Var 789 "left_o"
+  , C.Seq 789 790
+  , C.Var 790 "right_o"
+  , C.Seq 790 791
+  , C.Var 791 "dres"
+  , C.Seq 791 792
+  , C.Assign 792 "res" (C.Num 0)
+  , C.Seq 792 793
+  , C.Branch 793 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 795 795
+  , C.Seq 794 810
+  , C.Seq 794 796
+  , C.Var 795 "NOP_795"
+  , C.Seq 795 796
+  , C.Var 796 "IF_ELSE_FOOTER"
+  , C.Assign 797 "undefed" (C.Num 0)
+  , C.Seq 797 798
+  , C.Assign 798 "stack_pointer" (C.Num 0)
+  , C.Seq 798 799
+  , C.Var 799 "word"
+  , C.Seq 799 800
+  , C.Assign 800 "opcode" (C.Num 0)
+  , C.Seq 800 801
+  , C.Assign 801 "oparg" (C.Num 0)
+  , C.Seq 801 802
+  , C.Branch 802 (C.Eq (C.Num 0) (C.Num 1)) 803 806
+  , C.Var 803 "word"
+  , C.Seq 803 804
+  , C.Assign 804 "opcode" (C.Num 0)
+  , C.Seq 804 805
+  , C.Assign 805 "oparg" (C.Num 0)
+  , C.Seq 805 806
+  , C.Seq 805 802
+  , C.Var 806 "LOOP_FOOTER"
+  , C.Seq 806 807
+  , C.Seq 806 35
+  , C.Var 807 "NOP_807"
+  , C.Seq 807 808
+  , C.Var 808 "__CLABEL_CODEGEN_SWITCH_EXIT_0"
+  , C.Seq 808 809
+  , C.Var 809 "NOP_809"
+  , C.Var 810 "__CLABEL_pop_2_error"
+  , C.Seq 810 811
+  , C.Assign 811 "stack_pointer" (C.Num 0)
+  , C.Seq 811 812
+  , C.Seq 811 814
+  , C.Var 812 "__CLABEL_pop_1_error"
+  , C.Seq 812 813
+  , C.Assign 813 "stack_pointer" (C.Num 0)
+  , C.Seq 813 814
+  , C.Seq 813 814
+  , C.Var 814 "__CLABEL_error"
+  , C.Seq 814 815
+  , C.Branch 815 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 817 818
+  , C.Assign 817 "stack_pointer" (C.Num 0)
+  , C.Seq 817 819
+  , C.Var 818 "NOP_818"
+  , C.Seq 818 819
+  , C.Var 819 "IF_ELSE_FOOTER"
+  , C.Branch 820 (C.Eq (C.Plus (C.Num 0) (C.Num 0)) (C.Num 1)) 822 829
+  , C.Var 822 "f"
+  , C.Seq 822 823
+  , C.Assign 823 "stack_pointer" (C.Num 0)
+  , C.Seq 823 824
+  , C.Branch 824 (C.Eq (C.Plus (C.Id "f") (C.Num 0)) (C.Num 1)) 826 827
+  , C.Assign 826 "stack_pointer" (C.Num 0)
+  , C.Seq 826 828
+  , C.Var 827 "NOP_827"
+  , C.Seq 827 828
+  , C.Var 828 "IF_ELSE_FOOTER"
+  , C.Seq 828 830
+  , C.Var 829 "NOP_829"
+  , C.Seq 829 830
+  , C.Var 830 "IF_ELSE_FOOTER"
+  , C.Seq 830 831
+  , C.Var 831 "__CLABEL_exception_unwind"
+  , C.Seq 831 832
+  , C.Var 832 "offset"
+  , C.Seq 832 833
+  , C.Var 833 "level"
+  , C.Seq 833 834
+  , C.Var 834 "handler"
+  , C.Seq 834 835
+  , C.Var 835 "lasti"
+  , C.Seq 835 836
+  , C.Var 836 "handled"
+  , C.Seq 836 837
+  , C.Branch 837 (C.Eq (C.Plus (C.Id "handled") (C.Num 0)) (C.Num 1)) 839 843
+  , C.Var 839 "stackbase"
+  , C.Seq 839 840
+  , C.Branch 840 (C.Eq (C.Plus (C.Num 0) (C.Id "stackbase")) (C.Num 1)) 841 842
+  , C.Var 841 "ref"
+  , C.Seq 841 842
+  , C.Seq 841 840
+  , C.Var 842 "LOOP_FOOTER"
+  , C.Seq 842 843
+  , C.Seq 842 871
+  , C.Seq 842 844
+  , C.Var 843 "NOP_843"
+  , C.Seq 843 844
+  , C.Var 844 "IF_ELSE_FOOTER"
+  , C.Var 845 "new_top"
+  , C.Seq 845 846
+  , C.Branch 846 (C.Eq (C.Plus (C.Num 0) (C.Id "new_top")) (C.Num 1)) 847 848
+  , C.Var 847 "ref"
+  , C.Seq 847 848
+  , C.Seq 847 846
+  , C.Var 848 "LOOP_FOOTER"
+  , C.Seq 848 849
+  , C.Branch 849 (C.Eq (C.Id "lasti") (C.Num 1)) 851 853
+  , C.Var 851 "frame_lasti"
+  , C.Seq 851 852
+  , C.Var 852 "lasti"
+  , C.Seq 852 853
+  , C.Seq 852 854
+  , C.Var 853 "NOP_853"
+  , C.Seq 853 854
+  , C.Var 854 "IF_ELSE_FOOTER"
+  , C.Var 855 "exc"
+  , C.Seq 855 856
+  , C.Assign 856 "next_instr" (C.Num 0)
+  , C.Seq 856 857
+  , C.Var 857 "err"
+  , C.Seq 857 858
+  , C.Branch 858 (C.Eq (C.Plus (C.Id "err") (C.Num 0)) (C.Num 1)) 860 860
+  , C.Seq 859 831
+  , C.Seq 859 861
+  , C.Var 860 "NOP_860"
+  , C.Seq 860 861
+  , C.Var 861 "IF_ELSE_FOOTER"
+  , C.Assign 862 "stack_pointer" (C.Num 0)
+  , C.Seq 862 863
+  , C.Var 863 "word"
+  , C.Seq 863 864
+  , C.Assign 864 "opcode" (C.Num 0)
+  , C.Seq 864 865
+  , C.Assign 865 "oparg" (C.Num 0)
+  , C.Seq 865 866
+  , C.Branch 866 (C.Eq (C.Num 0) (C.Num 1)) 867 870
+  , C.Var 867 "word"
+  , C.Seq 867 868
+  , C.Assign 868 "opcode" (C.Num 0)
+  , C.Seq 868 869
+  , C.Assign 869 "oparg" (C.Num 0)
+  , C.Seq 869 870
+  , C.Seq 869 866
+  , C.Var 870 "LOOP_FOOTER"
+  , C.Seq 870 871
+  , C.Seq 870 35
+  , C.Var 871 "__CLABEL_exit_unwind"
+  , C.Seq 871 872
+  , C.Var 872 "dying"
+  , C.Seq 872 873
+  , C.Assign 873 "frame" (C.Num 0)
+  , C.Seq 873 874
+  , C.Assign 874 "undefed" (C.Num 0)
+  , C.Seq 874 875
+  , C.Branch 875 (C.Eq (C.Plus (C.Num 0) (C.Id "FRAME_OWNED_BY_INTERPRETER")) (C.Num 1)) 877 879
+  , C.Assign 877 "undefed" (C.Num 0)
+  , C.Seq 877 878
+  , C.Assign 878 "return" (C.Num 0)
+  , C.Seq 878 879
+  , C.Seq 878 880
+  , C.Var 879 "NOP_879"
+  , C.Seq 879 880
+  , C.Var 880 "IF_ELSE_FOOTER"
+  , C.Assign 881 "next_instr" (C.Num 0)
+  , C.Seq 881 882
+  , C.Assign 882 "stack_pointer" (C.Num 0)
+  , C.Seq 882 883
+  , C.Seq 882 814
+  , C.Var 883 "__CLABEL_start_frame"
+  , C.Seq 883 884
+  , C.Var 884 "too_deep"
+  , C.Seq 884 885
+  , C.Branch 885 (C.Eq (C.Id "too_deep") (C.Num 1)) 887 887
+  , C.Seq 886 871
+  , C.Seq 886 888
+  , C.Var 887 "NOP_887"
+  , C.Seq 887 888
+  , C.Var 888 "IF_ELSE_FOOTER"
+  , C.Assign 889 "next_instr" (C.Num 0)
+  , C.Seq 889 890
+  , C.Assign 890 "stack_pointer" (C.Num 0)
+  , C.Seq 890 891
+  , C.Var 891 "word"
+  , C.Seq 891 892
+  , C.Assign 892 "opcode" (C.Num 0)
+  , C.Seq 892 893
+  , C.Assign 893 "oparg" (C.Num 0)
+  , C.Seq 893 894
+  , C.Branch 894 (C.Eq (C.Num 0) (C.Num 1)) 895 898
+  , C.Var 895 "word"
+  , C.Seq 895 896
+  , C.Assign 896 "opcode" (C.Num 0)
+  , C.Seq 896 897
+  , C.Assign 897 "oparg" (C.Num 0)
+  , C.Seq 897 898
+  , C.Seq 897 894
+  , C.Var 898 "LOOP_FOOTER"
+  , C.Seq 898 899
+  , C.Seq 898 35
+  , C.Var 899 "__CLABEL_early_exit"
+  , C.Seq 899 900
+  , C.Var 900 "NOP_900"
+  , C.Var 901 "dying"
+  , C.Seq 901 902
+  , C.Assign 902 "frame" (C.Num 0)
+  , C.Seq 902 903
+  , C.Assign 903 "undefed" (C.Num 0)
+  , C.Seq 903 904
+  , C.Assign 904 "undefed" (C.Num 0)
+  , C.Seq 904 905
+  , C.Assign 905 "return" (C.Num 0)
+  , C.Seq 905 906
+  , C.Seq 905 906
+  , C.Var 906 "PROG_END"
+  ]
+
+customNTest :: [CN.Fact]
+customNTest =
+  [ CN.Var 0 "_PyEval_EvalFrameDefault"
+  , CN.Seq 0 1
+  , CN.Var 1 "tstate"
+  , CN.Seq 1 2
+  , CN.Var 2 "frame"
+  , CN.Seq 2 3
+  , CN.Var 3 "throwflag"
+  , CN.Seq 3 4
+  , CN.Var 4 "opcode"
+  , CN.Seq 4 5
+  , CN.Var 5 "oparg"
+  , CN.Seq 5 6
+  , CN.Var 6 "entry"
+  , CN.Seq 6 7
+  , CN.Branch 7 (CN.Eq (CN.Num 0) (CN.Num 1)) 9 10
+  , CN.Assign 9 "return" (CN.Num 0)
+  , CN.Seq 9 11
+  , CN.Var 10 "NOP_10"
+  , CN.Seq 10 11
+  , CN.Var 11 "IF_ELSE_FOOTER"
+  , CN.Var 12 "next_instr"
+  , CN.Seq 12 13
+  , CN.Var 13 "stack_pointer"
+  , CN.Seq 13 14
+  , CN.Assign 14 "undefed" (CN.Num 0)
+  , CN.Seq 14 15
+  , CN.Assign 15 "undefed" (CN.Num 0)
+  , CN.Seq 15 16
+  , CN.Assign 16 "undefed" (CN.Num 0)
+  , CN.Seq 16 17
+  , CN.Assign 17 "undefed" (CN.Num 0)
+  , CN.Seq 17 18
+  , CN.Assign 18 "undefed" (CN.Num 0)
+  , CN.Seq 18 19
+  , CN.Assign 19 "undefed" (CN.Num 0)
+  , CN.Seq 19 20
+  , CN.Assign 20 "undefed" (CN.Num 0)
+  , CN.Seq 20 21
+  , CN.Assign 21 "undefed" (CN.Num 0)
+  , CN.Seq 21 22
+  , CN.Assign 22 "undefed" (CN.Num 0)
+  , CN.Seq 22 23
+  , CN.Assign 23 "undefed" (CN.Num 0)
+  , CN.Seq 23 24
+  , CN.Assign 24 "undefed" (CN.Num 0)
+  , CN.Seq 24 25
+  , CN.Branch 25 (CN.Eq (CN.Id "throwflag") (CN.Num 1)) 27 33
+  , CN.Branch 27 (CN.Eq (CN.Num 0) (CN.Num 1)) 29 29
+  , CN.Seq 28 899
+  , CN.Seq 28 30
+  , CN.Var 29 "NOP_29"
+  , CN.Seq 29 30
+  , CN.Var 30 "IF_ELSE_FOOTER"
+  , CN.Assign 31 "next_instr" (CN.Num 0)
+  , CN.Seq 31 32
+  , CN.Assign 32 "stack_pointer" (CN.Num 0)
+  , CN.Seq 32 33
+  , CN.Seq 32 814
+  , CN.Seq 32 34
+  , CN.Var 33 "NOP_33"
+  , CN.Seq 33 34
+  , CN.Var 34 "IF_ELSE_FOOTER"
+  , CN.Seq 34 883
+  , CN.Var 35 "__CLABEL_dispatch_opcode"
+  , CN.Seq 35 36
+  , CN.Branch 36 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 38 87
+  , CN.Var 38 "NOP_38"
+  , CN.Var 39 "__CLABEL_TARGET_BINARY_OP"
+  , CN.Seq 39 40
+  , CN.Assign 40 "undefed" (CN.Num 0)
+  , CN.Seq 40 41
+  , CN.Assign 41 "next_instr" (CN.Num 0)
+  , CN.Seq 41 42
+  , CN.Var 42 "__CLABEL_PREDICTED_BINARY_OP"
+  , CN.Seq 42 43
+  , CN.Var 43 "NOP_43"
+  , CN.Var 44 "this_instr"
+  , CN.Seq 44 45
+  , CN.Var 45 "lhs"
+  , CN.Seq 45 46
+  , CN.Var 46 "rhs"
+  , CN.Seq 46 47
+  , CN.Var 47 "res"
+  , CN.Seq 47 48
+  , CN.Assign 48 "rhs" (CN.Num 0)
+  , CN.Seq 48 49
+  , CN.Assign 49 "lhs" (CN.Num 0)
+  , CN.Seq 49 50
+  , CN.Var 50 "counter"
+  , CN.Seq 50 51
+  , CN.Branch 51 (CN.Eq (CN.Num 0) (CN.Num 1)) 53 56
+  , CN.Assign 53 "next_instr" (CN.Num 0)
+  , CN.Seq 53 54
+  , CN.Assign 54 "stack_pointer" (CN.Num 0)
+  , CN.Seq 54 55
+  , CN.Assign 55 "opcode" (CN.Num 0)
+  , CN.Seq 55 56
+  , CN.Seq 55 35
+  , CN.Seq 55 57
+  , CN.Var 56 "NOP_56"
+  , CN.Seq 56 57
+  , CN.Var 57 "IF_ELSE_FOOTER"
+  , CN.Assign 58 "undefed" (CN.Num 0)
+  , CN.Seq 58 59
+  , CN.Branch 59 (CN.Eq (CN.Num 0) (CN.Num 1)) 60 61
+  , CN.Assign 60 "undefed" (CN.Num 0)
+  , CN.Seq 60 59
+  , CN.Var 61 "LOOP_FOOTER"
+  , CN.Seq 61 62
+  , CN.Var 62 "lhs_o"
+  , CN.Seq 62 63
+  , CN.Var 63 "rhs_o"
+  , CN.Seq 63 64
+  , CN.Var 64 "res_o"
+  , CN.Seq 64 65
+  , CN.Assign 65 "stack_pointer" (CN.Num 0)
+  , CN.Seq 65 66
+  , CN.Branch 66 (CN.Eq (CN.Plus (CN.Id "res_o") (CN.Num 0)) (CN.Num 1)) 68 68
+  , CN.Seq 67 814
+  , CN.Seq 67 69
+  , CN.Var 68 "NOP_68"
+  , CN.Seq 68 69
+  , CN.Var 69 "IF_ELSE_FOOTER"
+  , CN.Assign 70 "res" (CN.Num 0)
+  , CN.Seq 70 71
+  , CN.Var 71 "tmp"
+  , CN.Seq 71 72
+  , CN.Assign 72 "lhs" (CN.Num 0)
+  , CN.Seq 72 73
+  , CN.Assign 73 "undefed" (CN.Num 0)
+  , CN.Seq 73 74
+  , CN.Assign 74 "tmp" (CN.Num 0)
+  , CN.Seq 74 75
+  , CN.Assign 75 "rhs" (CN.Num 0)
+  , CN.Seq 75 76
+  , CN.Assign 76 "undefed" (CN.Num 0)
+  , CN.Seq 76 77
+  , CN.Assign 77 "stack_pointer" (CN.Num 0)
+  , CN.Seq 77 78
+  , CN.Assign 78 "stack_pointer" (CN.Num 0)
+  , CN.Seq 78 79
+  , CN.Var 79 "word"
+  , CN.Seq 79 80
+  , CN.Assign 80 "opcode" (CN.Num 0)
+  , CN.Seq 80 81
+  , CN.Assign 81 "oparg" (CN.Num 0)
+  , CN.Seq 81 82
+  , CN.Branch 82 (CN.Eq (CN.Num 0) (CN.Num 1)) 83 86
+  , CN.Var 83 "word"
+  , CN.Seq 83 84
+  , CN.Assign 84 "opcode" (CN.Num 0)
+  , CN.Seq 84 85
+  , CN.Assign 85 "oparg" (CN.Num 0)
+  , CN.Seq 85 86
+  , CN.Seq 85 82
+  , CN.Var 86 "LOOP_FOOTER"
+  , CN.Seq 86 87
+  , CN.Seq 86 35
+  , CN.Branch 87 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 89 129
+  , CN.Var 89 "NOP_89"
+  , CN.Var 90 "__CLABEL_TARGET_BINARY_OP_ADD_FLOAT"
+  , CN.Seq 90 91
+  , CN.Var 91 "this_instr"
+  , CN.Seq 91 92
+  , CN.Assign 92 "undefed" (CN.Num 0)
+  , CN.Seq 92 93
+  , CN.Assign 93 "next_instr" (CN.Num 0)
+  , CN.Seq 93 94
+  , CN.Var 94 "value"
+  , CN.Seq 94 95
+  , CN.Var 95 "left"
+  , CN.Seq 95 96
+  , CN.Var 96 "right"
+  , CN.Seq 96 97
+  , CN.Var 97 "res"
+  , CN.Seq 97 98
+  , CN.Assign 98 "value" (CN.Num 0)
+  , CN.Seq 98 99
+  , CN.Var 99 "value_o"
+  , CN.Seq 99 100
+  , CN.Branch 100 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 102 102
+  , CN.Seq 101 42
+  , CN.Seq 101 103
+  , CN.Var 102 "NOP_102"
+  , CN.Seq 102 103
+  , CN.Var 103 "IF_ELSE_FOOTER"
+  , CN.Assign 104 "left" (CN.Num 0)
+  , CN.Seq 104 105
+  , CN.Var 105 "left_o"
+  , CN.Seq 105 106
+  , CN.Branch 106 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 108 108
+  , CN.Seq 107 42
+  , CN.Seq 107 109
+  , CN.Var 108 "NOP_108"
+  , CN.Seq 108 109
+  , CN.Var 109 "IF_ELSE_FOOTER"
+  , CN.Assign 110 "right" (CN.Num 0)
+  , CN.Seq 110 111
+  , CN.Var 111 "left_o"
+  , CN.Seq 111 112
+  , CN.Var 112 "right_o"
+  , CN.Seq 112 113
+  , CN.Var 113 "dres"
+  , CN.Seq 113 114
+  , CN.Assign 114 "res" (CN.Num 0)
+  , CN.Seq 114 115
+  , CN.Branch 115 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 117 117
+  , CN.Seq 116 810
+  , CN.Seq 116 118
+  , CN.Var 117 "NOP_117"
+  , CN.Seq 117 118
+  , CN.Var 118 "IF_ELSE_FOOTER"
+  , CN.Assign 119 "undefed" (CN.Num 0)
+  , CN.Seq 119 120
+  , CN.Assign 120 "stack_pointer" (CN.Num 0)
+  , CN.Seq 120 121
+  , CN.Var 121 "word"
+  , CN.Seq 121 122
+  , CN.Assign 122 "opcode" (CN.Num 0)
+  , CN.Seq 122 123
+  , CN.Assign 123 "oparg" (CN.Num 0)
+  , CN.Seq 123 124
+  , CN.Branch 124 (CN.Eq (CN.Num 0) (CN.Num 1)) 125 128
+  , CN.Var 125 "word"
+  , CN.Seq 125 126
+  , CN.Assign 126 "opcode" (CN.Num 0)
+  , CN.Seq 126 127
+  , CN.Assign 127 "oparg" (CN.Num 0)
+  , CN.Seq 127 128
+  , CN.Seq 127 124
+  , CN.Var 128 "LOOP_FOOTER"
+  , CN.Seq 128 129
+  , CN.Seq 128 35
+  , CN.Branch 129 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 131 170
+  , CN.Var 131 "NOP_131"
+  , CN.Var 132 "__CLABEL_TARGET_BINARY_OP_ADD_INT"
+  , CN.Seq 132 133
+  , CN.Var 133 "this_instr"
+  , CN.Seq 133 134
+  , CN.Assign 134 "undefed" (CN.Num 0)
+  , CN.Seq 134 135
+  , CN.Assign 135 "next_instr" (CN.Num 0)
+  , CN.Seq 135 136
+  , CN.Var 136 "value"
+  , CN.Seq 136 137
+  , CN.Var 137 "left"
+  , CN.Seq 137 138
+  , CN.Var 138 "right"
+  , CN.Seq 138 139
+  , CN.Var 139 "res"
+  , CN.Seq 139 140
+  , CN.Assign 140 "value" (CN.Num 0)
+  , CN.Seq 140 141
+  , CN.Var 141 "value_o"
+  , CN.Seq 141 142
+  , CN.Branch 142 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 144 144
+  , CN.Seq 143 42
+  , CN.Seq 143 145
+  , CN.Var 144 "NOP_144"
+  , CN.Seq 144 145
+  , CN.Var 145 "IF_ELSE_FOOTER"
+  , CN.Assign 146 "left" (CN.Num 0)
+  , CN.Seq 146 147
+  , CN.Var 147 "left_o"
+  , CN.Seq 147 148
+  , CN.Branch 148 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 150 150
+  , CN.Seq 149 42
+  , CN.Seq 149 151
+  , CN.Var 150 "NOP_150"
+  , CN.Seq 150 151
+  , CN.Var 151 "IF_ELSE_FOOTER"
+  , CN.Assign 152 "right" (CN.Num 0)
+  , CN.Seq 152 153
+  , CN.Var 153 "left_o"
+  , CN.Seq 153 154
+  , CN.Var 154 "right_o"
+  , CN.Seq 154 155
+  , CN.Assign 155 "res" (CN.Num 0)
+  , CN.Seq 155 156
+  , CN.Branch 156 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 158 158
+  , CN.Seq 157 42
+  , CN.Seq 157 159
+  , CN.Var 158 "NOP_158"
+  , CN.Seq 158 159
+  , CN.Var 159 "IF_ELSE_FOOTER"
+  , CN.Assign 160 "undefed" (CN.Num 0)
+  , CN.Seq 160 161
+  , CN.Assign 161 "stack_pointer" (CN.Num 0)
+  , CN.Seq 161 162
+  , CN.Var 162 "word"
+  , CN.Seq 162 163
+  , CN.Assign 163 "opcode" (CN.Num 0)
+  , CN.Seq 163 164
+  , CN.Assign 164 "oparg" (CN.Num 0)
+  , CN.Seq 164 165
+  , CN.Branch 165 (CN.Eq (CN.Num 0) (CN.Num 1)) 166 169
+  , CN.Var 166 "word"
+  , CN.Seq 166 167
+  , CN.Assign 167 "opcode" (CN.Num 0)
+  , CN.Seq 167 168
+  , CN.Assign 168 "oparg" (CN.Num 0)
+  , CN.Seq 168 169
+  , CN.Seq 168 165
+  , CN.Var 169 "LOOP_FOOTER"
+  , CN.Seq 169 170
+  , CN.Seq 169 35
+  , CN.Branch 170 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 172 214
+  , CN.Var 172 "NOP_172"
+  , CN.Var 173 "__CLABEL_TARGET_BINARY_OP_ADD_UNICODE"
+  , CN.Seq 173 174
+  , CN.Var 174 "this_instr"
+  , CN.Seq 174 175
+  , CN.Assign 175 "undefed" (CN.Num 0)
+  , CN.Seq 175 176
+  , CN.Assign 176 "next_instr" (CN.Num 0)
+  , CN.Seq 176 177
+  , CN.Var 177 "value"
+  , CN.Seq 177 178
+  , CN.Var 178 "nos"
+  , CN.Seq 178 179
+  , CN.Var 179 "left"
+  , CN.Seq 179 180
+  , CN.Var 180 "right"
+  , CN.Seq 180 181
+  , CN.Var 181 "res"
+  , CN.Seq 181 182
+  , CN.Assign 182 "value" (CN.Num 0)
+  , CN.Seq 182 183
+  , CN.Var 183 "value_o"
+  , CN.Seq 183 184
+  , CN.Branch 184 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyUnicode_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 186 186
+  , CN.Seq 185 42
+  , CN.Seq 185 187
+  , CN.Var 186 "NOP_186"
+  , CN.Seq 186 187
+  , CN.Var 187 "IF_ELSE_FOOTER"
+  , CN.Assign 188 "nos" (CN.Num 0)
+  , CN.Seq 188 189
+  , CN.Var 189 "o"
+  , CN.Seq 189 190
+  , CN.Branch 190 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyUnicode_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 192 192
+  , CN.Seq 191 42
+  , CN.Seq 191 193
+  , CN.Var 192 "NOP_192"
+  , CN.Seq 192 193
+  , CN.Var 193 "IF_ELSE_FOOTER"
+  , CN.Assign 194 "right" (CN.Num 0)
+  , CN.Seq 194 195
+  , CN.Assign 195 "left" (CN.Num 0)
+  , CN.Seq 195 196
+  , CN.Var 196 "left_o"
+  , CN.Seq 196 197
+  , CN.Var 197 "right_o"
+  , CN.Seq 197 198
+  , CN.Var 198 "res_o"
+  , CN.Seq 198 199
+  , CN.Branch 199 (CN.Eq (CN.Plus (CN.Id "res_o") (CN.Num 0)) (CN.Num 1)) 201 201
+  , CN.Seq 200 810
+  , CN.Seq 200 202
+  , CN.Var 201 "NOP_201"
+  , CN.Seq 201 202
+  , CN.Var 202 "IF_ELSE_FOOTER"
+  , CN.Assign 203 "res" (CN.Num 0)
+  , CN.Seq 203 204
+  , CN.Assign 204 "undefed" (CN.Num 0)
+  , CN.Seq 204 205
+  , CN.Assign 205 "stack_pointer" (CN.Num 0)
+  , CN.Seq 205 206
+  , CN.Var 206 "word"
+  , CN.Seq 206 207
+  , CN.Assign 207 "opcode" (CN.Num 0)
+  , CN.Seq 207 208
+  , CN.Assign 208 "oparg" (CN.Num 0)
+  , CN.Seq 208 209
+  , CN.Branch 209 (CN.Eq (CN.Num 0) (CN.Num 1)) 210 213
+  , CN.Var 210 "word"
+  , CN.Seq 210 211
+  , CN.Assign 211 "opcode" (CN.Num 0)
+  , CN.Seq 211 212
+  , CN.Assign 212 "oparg" (CN.Num 0)
+  , CN.Seq 212 213
+  , CN.Seq 212 209
+  , CN.Var 213 "LOOP_FOOTER"
+  , CN.Seq 213 214
+  , CN.Seq 213 35
+  , CN.Branch 214 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 216 260
+  , CN.Var 216 "NOP_216"
+  , CN.Var 217 "__CLABEL_TARGET_BINARY_OP_EXTEND"
+  , CN.Seq 217 218
+  , CN.Var 218 "this_instr"
+  , CN.Seq 218 219
+  , CN.Assign 219 "undefed" (CN.Num 0)
+  , CN.Seq 219 220
+  , CN.Assign 220 "next_instr" (CN.Num 0)
+  , CN.Seq 220 221
+  , CN.Var 221 "left"
+  , CN.Seq 221 222
+  , CN.Var 222 "right"
+  , CN.Seq 222 223
+  , CN.Var 223 "res"
+  , CN.Seq 223 224
+  , CN.Assign 224 "right" (CN.Num 0)
+  , CN.Seq 224 225
+  , CN.Assign 225 "left" (CN.Num 0)
+  , CN.Seq 225 226
+  , CN.Var 226 "descr"
+  , CN.Seq 226 227
+  , CN.Var 227 "left_o"
+  , CN.Seq 227 228
+  , CN.Var 228 "right_o"
+  , CN.Seq 228 229
+  , CN.Var 229 "d"
+  , CN.Seq 229 230
+  , CN.Var 230 "res"
+  , CN.Seq 230 231
+  , CN.Assign 231 "stack_pointer" (CN.Num 0)
+  , CN.Seq 231 232
+  , CN.Branch 232 (CN.Eq (CN.Plus (CN.Id "res") (CN.Num 0)) (CN.Num 1)) 234 234
+  , CN.Seq 233 42
+  , CN.Seq 233 235
+  , CN.Var 234 "NOP_234"
+  , CN.Seq 234 235
+  , CN.Var 235 "IF_ELSE_FOOTER"
+  , CN.Var 236 "descr"
+  , CN.Seq 236 237
+  , CN.Var 237 "left_o"
+  , CN.Seq 237 238
+  , CN.Var 238 "right_o"
+  , CN.Seq 238 239
+  , CN.Var 239 "d"
+  , CN.Seq 239 240
+  , CN.Var 240 "res_o"
+  , CN.Seq 240 241
+  , CN.Var 241 "tmp"
+  , CN.Seq 241 242
+  , CN.Assign 242 "right" (CN.Num 0)
+  , CN.Seq 242 243
+  , CN.Assign 243 "undefed" (CN.Num 0)
+  , CN.Seq 243 244
+  , CN.Assign 244 "tmp" (CN.Num 0)
+  , CN.Seq 244 245
+  , CN.Assign 245 "left" (CN.Num 0)
+  , CN.Seq 245 246
+  , CN.Assign 246 "undefed" (CN.Num 0)
+  , CN.Seq 246 247
+  , CN.Assign 247 "stack_pointer" (CN.Num 0)
+  , CN.Seq 247 248
+  , CN.Assign 248 "stack_pointer" (CN.Num 0)
+  , CN.Seq 248 249
+  , CN.Assign 249 "res" (CN.Num 0)
+  , CN.Seq 249 250
+  , CN.Assign 250 "undefed" (CN.Num 0)
+  , CN.Seq 250 251
+  , CN.Assign 251 "stack_pointer" (CN.Num 0)
+  , CN.Seq 251 252
+  , CN.Var 252 "word"
+  , CN.Seq 252 253
+  , CN.Assign 253 "opcode" (CN.Num 0)
+  , CN.Seq 253 254
+  , CN.Assign 254 "oparg" (CN.Num 0)
+  , CN.Seq 254 255
+  , CN.Branch 255 (CN.Eq (CN.Num 0) (CN.Num 1)) 256 259
+  , CN.Var 256 "word"
+  , CN.Seq 256 257
+  , CN.Assign 257 "opcode" (CN.Num 0)
+  , CN.Seq 257 258
+  , CN.Assign 258 "oparg" (CN.Num 0)
+  , CN.Seq 258 259
+  , CN.Seq 258 255
+  , CN.Var 259 "LOOP_FOOTER"
+  , CN.Seq 259 260
+  , CN.Seq 259 35
+  , CN.Branch 260 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 262 354
+  , CN.Var 262 "NOP_262"
+  , CN.Var 263 "__CLABEL_TARGET_BINARY_OP_INPLACE_ADD_UNICODE"
+  , CN.Seq 263 264
+  , CN.Var 264 "this_instr"
+  , CN.Seq 264 265
+  , CN.Assign 265 "undefed" (CN.Num 0)
+  , CN.Seq 265 266
+  , CN.Assign 266 "next_instr" (CN.Num 0)
+  , CN.Seq 266 267
+  , CN.Var 267 "value"
+  , CN.Seq 267 268
+  , CN.Var 268 "nos"
+  , CN.Seq 268 269
+  , CN.Var 269 "left"
+  , CN.Seq 269 270
+  , CN.Var 270 "right"
+  , CN.Seq 270 271
+  , CN.Assign 271 "value" (CN.Num 0)
+  , CN.Seq 271 272
+  , CN.Var 272 "value_o"
+  , CN.Seq 272 273
+  , CN.Branch 273 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyUnicode_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 275 275
+  , CN.Seq 274 42
+  , CN.Seq 274 276
+  , CN.Var 275 "NOP_275"
+  , CN.Seq 275 276
+  , CN.Var 276 "IF_ELSE_FOOTER"
+  , CN.Assign 277 "nos" (CN.Num 0)
+  , CN.Seq 277 278
+  , CN.Var 278 "o"
+  , CN.Seq 278 279
+  , CN.Branch 279 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyUnicode_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 281 281
+  , CN.Seq 280 42
+  , CN.Seq 280 282
+  , CN.Var 281 "NOP_281"
+  , CN.Seq 281 282
+  , CN.Var 282 "IF_ELSE_FOOTER"
+  , CN.Assign 283 "right" (CN.Num 0)
+  , CN.Seq 283 284
+  , CN.Assign 284 "left" (CN.Num 0)
+  , CN.Seq 284 285
+  , CN.Var 285 "left_o"
+  , CN.Seq 285 286
+  , CN.Var 286 "next_oparg"
+  , CN.Seq 286 287
+  , CN.Assign 287 "next_oparg" (CN.Num 0)
+  , CN.Seq 287 288
+  , CN.Var 288 "target_local"
+  , CN.Seq 288 289
+  , CN.Branch 289 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "left_o")) (CN.Num 1)) 291 291
+  , CN.Seq 290 42
+  , CN.Seq 290 292
+  , CN.Var 291 "NOP_291"
+  , CN.Seq 291 292
+  , CN.Var 292 "IF_ELSE_FOOTER"
+  , CN.Var 293 "temp"
+  , CN.Seq 293 294
+  , CN.Var 294 "right_o"
+  , CN.Seq 294 295
+  , CN.Assign 295 "stack_pointer" (CN.Num 0)
+  , CN.Seq 295 296
+  , CN.Assign 296 "stack_pointer" (CN.Num 0)
+  , CN.Seq 296 297
+  , CN.Assign 297 "undefed" (CN.Num 0)
+  , CN.Seq 297 298
+  , CN.Var 298 "op"
+  , CN.Seq 298 299
+  , CN.Branch 299 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 0)) (CN.Num 1)) 301 316
+  , CN.Var 301 "tracer"
+  , CN.Seq 301 302
+  , CN.Branch 302 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 304 305
+  , CN.Var 304 "data"
+  , CN.Seq 304 305
+  , CN.Seq 304 306
+  , CN.Var 305 "NOP_305"
+  , CN.Seq 305 306
+  , CN.Var 306 "IF_ELSE_FOOTER"
+  , CN.Branch 307 (CN.Eq (CN.Num 0) (CN.Num 1)) 308 314
+  , CN.Var 308 "tracer"
+  , CN.Seq 308 309
+  , CN.Branch 309 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 311 312
+  , CN.Var 311 "data"
+  , CN.Seq 311 312
+  , CN.Seq 311 313
+  , CN.Var 312 "NOP_312"
+  , CN.Seq 312 313
+  , CN.Var 313 "IF_ELSE_FOOTER"
+  , CN.Seq 313 307
+  , CN.Var 314 "LOOP_FOOTER"
+  , CN.Seq 314 315
+  , CN.Var 315 "dealloc"
+  , CN.Seq 315 316
+  , CN.Seq 315 317
+  , CN.Var 316 "NOP_316"
+  , CN.Seq 316 317
+  , CN.Var 317 "IF_ELSE_FOOTER"
+  , CN.Branch 318 (CN.Eq (CN.Num 0) (CN.Num 1)) 319 339
+  , CN.Var 319 "op"
+  , CN.Seq 319 320
+  , CN.Branch 320 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 0)) (CN.Num 1)) 322 337
+  , CN.Var 322 "tracer"
+  , CN.Seq 322 323
+  , CN.Branch 323 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 325 326
+  , CN.Var 325 "data"
+  , CN.Seq 325 326
+  , CN.Seq 325 327
+  , CN.Var 326 "NOP_326"
+  , CN.Seq 326 327
+  , CN.Var 327 "IF_ELSE_FOOTER"
+  , CN.Branch 328 (CN.Eq (CN.Num 0) (CN.Num 1)) 329 335
+  , CN.Var 329 "tracer"
+  , CN.Seq 329 330
+  , CN.Branch 330 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 332 333
+  , CN.Var 332 "data"
+  , CN.Seq 332 333
+  , CN.Seq 332 334
+  , CN.Var 333 "NOP_333"
+  , CN.Seq 333 334
+  , CN.Var 334 "IF_ELSE_FOOTER"
+  , CN.Seq 334 328
+  , CN.Var 335 "LOOP_FOOTER"
+  , CN.Seq 335 336
+  , CN.Var 336 "dealloc"
+  , CN.Seq 336 337
+  , CN.Seq 336 338
+  , CN.Var 337 "NOP_337"
+  , CN.Seq 337 338
+  , CN.Var 338 "IF_ELSE_FOOTER"
+  , CN.Seq 338 318
+  , CN.Var 339 "LOOP_FOOTER"
+  , CN.Seq 339 340
+  , CN.Assign 340 "stack_pointer" (CN.Num 0)
+  , CN.Seq 340 341
+  , CN.Branch 341 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 343 343
+  , CN.Seq 342 814
+  , CN.Seq 342 344
+  , CN.Var 343 "NOP_343"
+  , CN.Seq 343 344
+  , CN.Var 344 "IF_ELSE_FOOTER"
+  , CN.Assign 345 "next_instr" (CN.Num 0)
+  , CN.Seq 345 346
+  , CN.Var 346 "word"
+  , CN.Seq 346 347
+  , CN.Assign 347 "opcode" (CN.Num 0)
+  , CN.Seq 347 348
+  , CN.Assign 348 "oparg" (CN.Num 0)
+  , CN.Seq 348 349
+  , CN.Branch 349 (CN.Eq (CN.Num 0) (CN.Num 1)) 350 353
+  , CN.Var 350 "word"
+  , CN.Seq 350 351
+  , CN.Assign 351 "opcode" (CN.Num 0)
+  , CN.Seq 351 352
+  , CN.Assign 352 "oparg" (CN.Num 0)
+  , CN.Seq 352 353
+  , CN.Seq 352 349
+  , CN.Var 353 "LOOP_FOOTER"
+  , CN.Seq 353 354
+  , CN.Seq 353 35
+  , CN.Branch 354 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 356 396
+  , CN.Var 356 "NOP_356"
+  , CN.Var 357 "__CLABEL_TARGET_BINARY_OP_MULTIPLY_FLOAT"
+  , CN.Seq 357 358
+  , CN.Var 358 "this_instr"
+  , CN.Seq 358 359
+  , CN.Assign 359 "undefed" (CN.Num 0)
+  , CN.Seq 359 360
+  , CN.Assign 360 "next_instr" (CN.Num 0)
+  , CN.Seq 360 361
+  , CN.Var 361 "value"
+  , CN.Seq 361 362
+  , CN.Var 362 "left"
+  , CN.Seq 362 363
+  , CN.Var 363 "right"
+  , CN.Seq 363 364
+  , CN.Var 364 "res"
+  , CN.Seq 364 365
+  , CN.Assign 365 "value" (CN.Num 0)
+  , CN.Seq 365 366
+  , CN.Var 366 "value_o"
+  , CN.Seq 366 367
+  , CN.Branch 367 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 369 369
+  , CN.Seq 368 42
+  , CN.Seq 368 370
+  , CN.Var 369 "NOP_369"
+  , CN.Seq 369 370
+  , CN.Var 370 "IF_ELSE_FOOTER"
+  , CN.Assign 371 "left" (CN.Num 0)
+  , CN.Seq 371 372
+  , CN.Var 372 "left_o"
+  , CN.Seq 372 373
+  , CN.Branch 373 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 375 375
+  , CN.Seq 374 42
+  , CN.Seq 374 376
+  , CN.Var 375 "NOP_375"
+  , CN.Seq 375 376
+  , CN.Var 376 "IF_ELSE_FOOTER"
+  , CN.Assign 377 "right" (CN.Num 0)
+  , CN.Seq 377 378
+  , CN.Var 378 "left_o"
+  , CN.Seq 378 379
+  , CN.Var 379 "right_o"
+  , CN.Seq 379 380
+  , CN.Var 380 "dres"
+  , CN.Seq 380 381
+  , CN.Assign 381 "res" (CN.Num 0)
+  , CN.Seq 381 382
+  , CN.Branch 382 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 384 384
+  , CN.Seq 383 810
+  , CN.Seq 383 385
+  , CN.Var 384 "NOP_384"
+  , CN.Seq 384 385
+  , CN.Var 385 "IF_ELSE_FOOTER"
+  , CN.Assign 386 "undefed" (CN.Num 0)
+  , CN.Seq 386 387
+  , CN.Assign 387 "stack_pointer" (CN.Num 0)
+  , CN.Seq 387 388
+  , CN.Var 388 "word"
+  , CN.Seq 388 389
+  , CN.Assign 389 "opcode" (CN.Num 0)
+  , CN.Seq 389 390
+  , CN.Assign 390 "oparg" (CN.Num 0)
+  , CN.Seq 390 391
+  , CN.Branch 391 (CN.Eq (CN.Num 0) (CN.Num 1)) 392 395
+  , CN.Var 392 "word"
+  , CN.Seq 392 393
+  , CN.Assign 393 "opcode" (CN.Num 0)
+  , CN.Seq 393 394
+  , CN.Assign 394 "oparg" (CN.Num 0)
+  , CN.Seq 394 395
+  , CN.Seq 394 391
+  , CN.Var 395 "LOOP_FOOTER"
+  , CN.Seq 395 396
+  , CN.Seq 395 35
+  , CN.Branch 396 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 398 437
+  , CN.Var 398 "NOP_398"
+  , CN.Var 399 "__CLABEL_TARGET_BINARY_OP_MULTIPLY_INT"
+  , CN.Seq 399 400
+  , CN.Var 400 "this_instr"
+  , CN.Seq 400 401
+  , CN.Assign 401 "undefed" (CN.Num 0)
+  , CN.Seq 401 402
+  , CN.Assign 402 "next_instr" (CN.Num 0)
+  , CN.Seq 402 403
+  , CN.Var 403 "value"
+  , CN.Seq 403 404
+  , CN.Var 404 "left"
+  , CN.Seq 404 405
+  , CN.Var 405 "right"
+  , CN.Seq 405 406
+  , CN.Var 406 "res"
+  , CN.Seq 406 407
+  , CN.Assign 407 "value" (CN.Num 0)
+  , CN.Seq 407 408
+  , CN.Var 408 "value_o"
+  , CN.Seq 408 409
+  , CN.Branch 409 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 411 411
+  , CN.Seq 410 42
+  , CN.Seq 410 412
+  , CN.Var 411 "NOP_411"
+  , CN.Seq 411 412
+  , CN.Var 412 "IF_ELSE_FOOTER"
+  , CN.Assign 413 "left" (CN.Num 0)
+  , CN.Seq 413 414
+  , CN.Var 414 "left_o"
+  , CN.Seq 414 415
+  , CN.Branch 415 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 417 417
+  , CN.Seq 416 42
+  , CN.Seq 416 418
+  , CN.Var 417 "NOP_417"
+  , CN.Seq 417 418
+  , CN.Var 418 "IF_ELSE_FOOTER"
+  , CN.Assign 419 "right" (CN.Num 0)
+  , CN.Seq 419 420
+  , CN.Var 420 "left_o"
+  , CN.Seq 420 421
+  , CN.Var 421 "right_o"
+  , CN.Seq 421 422
+  , CN.Assign 422 "res" (CN.Num 0)
+  , CN.Seq 422 423
+  , CN.Branch 423 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 425 425
+  , CN.Seq 424 42
+  , CN.Seq 424 426
+  , CN.Var 425 "NOP_425"
+  , CN.Seq 425 426
+  , CN.Var 426 "IF_ELSE_FOOTER"
+  , CN.Assign 427 "undefed" (CN.Num 0)
+  , CN.Seq 427 428
+  , CN.Assign 428 "stack_pointer" (CN.Num 0)
+  , CN.Seq 428 429
+  , CN.Var 429 "word"
+  , CN.Seq 429 430
+  , CN.Assign 430 "opcode" (CN.Num 0)
+  , CN.Seq 430 431
+  , CN.Assign 431 "oparg" (CN.Num 0)
+  , CN.Seq 431 432
+  , CN.Branch 432 (CN.Eq (CN.Num 0) (CN.Num 1)) 433 436
+  , CN.Var 433 "word"
+  , CN.Seq 433 434
+  , CN.Assign 434 "opcode" (CN.Num 0)
+  , CN.Seq 434 435
+  , CN.Assign 435 "oparg" (CN.Num 0)
+  , CN.Seq 435 436
+  , CN.Seq 435 432
+  , CN.Var 436 "LOOP_FOOTER"
+  , CN.Seq 436 437
+  , CN.Seq 436 35
+  , CN.Branch 437 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 439 489
+  , CN.Var 439 "NOP_439"
+  , CN.Var 440 "__CLABEL_TARGET_BINARY_OP_SUBSCR_DICT"
+  , CN.Seq 440 441
+  , CN.Var 441 "this_instr"
+  , CN.Seq 441 442
+  , CN.Assign 442 "undefed" (CN.Num 0)
+  , CN.Seq 442 443
+  , CN.Assign 443 "next_instr" (CN.Num 0)
+  , CN.Seq 443 444
+  , CN.Var 444 "nos"
+  , CN.Seq 444 445
+  , CN.Var 445 "dict_st"
+  , CN.Seq 445 446
+  , CN.Var 446 "sub_st"
+  , CN.Seq 446 447
+  , CN.Var 447 "res"
+  , CN.Seq 447 448
+  , CN.Assign 448 "nos" (CN.Num 0)
+  , CN.Seq 448 449
+  , CN.Var 449 "o"
+  , CN.Seq 449 450
+  , CN.Branch 450 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyDict_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 452 452
+  , CN.Seq 451 42
+  , CN.Seq 451 453
+  , CN.Var 452 "NOP_452"
+  , CN.Seq 452 453
+  , CN.Var 453 "IF_ELSE_FOOTER"
+  , CN.Assign 454 "sub_st" (CN.Num 0)
+  , CN.Seq 454 455
+  , CN.Assign 455 "dict_st" (CN.Num 0)
+  , CN.Seq 455 456
+  , CN.Var 456 "sub"
+  , CN.Seq 456 457
+  , CN.Var 457 "dict"
+  , CN.Seq 457 458
+  , CN.Var 458 "res_o"
+  , CN.Seq 458 459
+  , CN.Var 459 "rc"
+  , CN.Seq 459 460
+  , CN.Assign 460 "stack_pointer" (CN.Num 0)
+  , CN.Seq 460 461
+  , CN.Branch 461 (CN.Eq (CN.Plus (CN.Id "rc") (CN.Num 0)) (CN.Num 1)) 463 464
+  , CN.Assign 463 "stack_pointer" (CN.Num 0)
+  , CN.Seq 463 465
+  , CN.Var 464 "NOP_464"
+  , CN.Seq 464 465
+  , CN.Var 465 "IF_ELSE_FOOTER"
+  , CN.Var 466 "tmp"
+  , CN.Seq 466 467
+  , CN.Assign 467 "sub_st" (CN.Num 0)
+  , CN.Seq 467 468
+  , CN.Assign 468 "undefed" (CN.Num 0)
+  , CN.Seq 468 469
+  , CN.Assign 469 "tmp" (CN.Num 0)
+  , CN.Seq 469 470
+  , CN.Assign 470 "dict_st" (CN.Num 0)
+  , CN.Seq 470 471
+  , CN.Assign 471 "undefed" (CN.Num 0)
+  , CN.Seq 471 472
+  , CN.Assign 472 "stack_pointer" (CN.Num 0)
+  , CN.Seq 472 473
+  , CN.Assign 473 "stack_pointer" (CN.Num 0)
+  , CN.Seq 473 474
+  , CN.Branch 474 (CN.Eq (CN.Plus (CN.Id "rc") (CN.Num 0)) (CN.Num 1)) 476 476
+  , CN.Seq 475 814
+  , CN.Seq 475 477
+  , CN.Var 476 "NOP_476"
+  , CN.Seq 476 477
+  , CN.Var 477 "IF_ELSE_FOOTER"
+  , CN.Assign 478 "res" (CN.Num 0)
+  , CN.Seq 478 479
+  , CN.Assign 479 "undefed" (CN.Num 0)
+  , CN.Seq 479 480
+  , CN.Assign 480 "stack_pointer" (CN.Num 0)
+  , CN.Seq 480 481
+  , CN.Var 481 "word"
+  , CN.Seq 481 482
+  , CN.Assign 482 "opcode" (CN.Num 0)
+  , CN.Seq 482 483
+  , CN.Assign 483 "oparg" (CN.Num 0)
+  , CN.Seq 483 484
+  , CN.Branch 484 (CN.Eq (CN.Num 0) (CN.Num 1)) 485 488
+  , CN.Var 485 "word"
+  , CN.Seq 485 486
+  , CN.Assign 486 "opcode" (CN.Num 0)
+  , CN.Seq 486 487
+  , CN.Assign 487 "oparg" (CN.Num 0)
+  , CN.Seq 487 488
+  , CN.Seq 487 484
+  , CN.Var 488 "LOOP_FOOTER"
+  , CN.Seq 488 489
+  , CN.Seq 488 35
+  , CN.Branch 489 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 491 549
+  , CN.Var 491 "NOP_491"
+  , CN.Var 492 "__CLABEL_TARGET_BINARY_OP_SUBSCR_GETITEM"
+  , CN.Seq 492 493
+  , CN.Var 493 "this_instr"
+  , CN.Seq 493 494
+  , CN.Assign 494 "undefed" (CN.Num 0)
+  , CN.Seq 494 495
+  , CN.Assign 495 "next_instr" (CN.Num 0)
+  , CN.Seq 495 496
+  , CN.Var 496 "container"
+  , CN.Seq 496 497
+  , CN.Var 497 "getitem"
+  , CN.Seq 497 498
+  , CN.Var 498 "sub"
+  , CN.Seq 498 499
+  , CN.Var 499 "new_frame"
+  , CN.Seq 499 500
+  , CN.Branch 500 (CN.Eq (CN.Num 0) (CN.Num 1)) 502 502
+  , CN.Seq 501 42
+  , CN.Seq 501 503
+  , CN.Var 502 "NOP_502"
+  , CN.Seq 502 503
+  , CN.Var 503 "IF_ELSE_FOOTER"
+  , CN.Assign 504 "container" (CN.Num 0)
+  , CN.Seq 504 505
+  , CN.Var 505 "tp"
+  , CN.Seq 505 506
+  , CN.Branch 506 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 508 508
+  , CN.Seq 507 42
+  , CN.Seq 507 509
+  , CN.Var 508 "NOP_508"
+  , CN.Seq 508 509
+  , CN.Var 509 "IF_ELSE_FOOTER"
+  , CN.Var 510 "ht"
+  , CN.Seq 510 511
+  , CN.Var 511 "getitem_o"
+  , CN.Seq 511 512
+  , CN.Branch 512 (CN.Eq (CN.Plus (CN.Id "getitem_o") (CN.Num 0)) (CN.Num 1)) 514 514
+  , CN.Seq 513 42
+  , CN.Seq 513 515
+  , CN.Var 514 "NOP_514"
+  , CN.Seq 514 515
+  , CN.Var 515 "IF_ELSE_FOOTER"
+  , CN.Var 516 "cached_version"
+  , CN.Seq 516 517
+  , CN.Branch 517 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "cached_version")) (CN.Num 1)) 519 519
+  , CN.Seq 518 42
+  , CN.Seq 518 520
+  , CN.Var 519 "NOP_519"
+  , CN.Seq 519 520
+  , CN.Var 520 "IF_ELSE_FOOTER"
+  , CN.Var 521 "code"
+  , CN.Seq 521 522
+  , CN.Branch 522 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 524 524
+  , CN.Seq 523 42
+  , CN.Seq 523 525
+  , CN.Var 524 "NOP_524"
+  , CN.Seq 524 525
+  , CN.Var 525 "IF_ELSE_FOOTER"
+  , CN.Assign 526 "getitem" (CN.Num 0)
+  , CN.Seq 526 527
+  , CN.Assign 527 "sub" (CN.Num 0)
+  , CN.Seq 527 528
+  , CN.Var 528 "pushed_frame"
+  , CN.Seq 528 529
+  , CN.Assign 529 "undefed" (CN.Num 0)
+  , CN.Seq 529 530
+  , CN.Assign 530 "undefed" (CN.Num 0)
+  , CN.Seq 530 531
+  , CN.Assign 531 "undefed" (CN.Num 0)
+  , CN.Seq 531 532
+  , CN.Assign 532 "new_frame" (CN.Num 0)
+  , CN.Seq 532 533
+  , CN.Var 533 "temp"
+  , CN.Seq 533 534
+  , CN.Assign 534 "stack_pointer" (CN.Num 0)
+  , CN.Seq 534 535
+  , CN.Assign 535 "frame" (CN.Num 0)
+  , CN.Seq 535 536
+  , CN.Assign 536 "stack_pointer" (CN.Num 0)
+  , CN.Seq 536 537
+  , CN.Assign 537 "next_instr" (CN.Num 0)
+  , CN.Seq 537 538
+  , CN.Branch 538 (CN.Eq (CN.Num 0) (CN.Num 1)) 539 540
+  , CN.Assign 539 "next_instr" (CN.Num 0)
+  , CN.Seq 539 538
+  , CN.Var 540 "LOOP_FOOTER"
+  , CN.Seq 540 541
+  , CN.Var 541 "word"
+  , CN.Seq 541 542
+  , CN.Assign 542 "opcode" (CN.Num 0)
+  , CN.Seq 542 543
+  , CN.Assign 543 "oparg" (CN.Num 0)
+  , CN.Seq 543 544
+  , CN.Branch 544 (CN.Eq (CN.Num 0) (CN.Num 1)) 545 548
+  , CN.Var 545 "word"
+  , CN.Seq 545 546
+  , CN.Assign 546 "opcode" (CN.Num 0)
+  , CN.Seq 546 547
+  , CN.Assign 547 "oparg" (CN.Num 0)
+  , CN.Seq 547 548
+  , CN.Seq 547 544
+  , CN.Var 548 "LOOP_FOOTER"
+  , CN.Seq 548 549
+  , CN.Seq 548 35
+  , CN.Branch 549 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 551 604
+  , CN.Var 551 "NOP_551"
+  , CN.Var 552 "__CLABEL_TARGET_BINARY_OP_SUBSCR_LIST_INT"
+  , CN.Seq 552 553
+  , CN.Var 553 "this_instr"
+  , CN.Seq 553 554
+  , CN.Assign 554 "undefed" (CN.Num 0)
+  , CN.Seq 554 555
+  , CN.Assign 555 "next_instr" (CN.Num 0)
+  , CN.Seq 555 556
+  , CN.Var 556 "value"
+  , CN.Seq 556 557
+  , CN.Var 557 "nos"
+  , CN.Seq 557 558
+  , CN.Var 558 "list_st"
+  , CN.Seq 558 559
+  , CN.Var 559 "sub_st"
+  , CN.Seq 559 560
+  , CN.Var 560 "res"
+  , CN.Seq 560 561
+  , CN.Assign 561 "value" (CN.Num 0)
+  , CN.Seq 561 562
+  , CN.Var 562 "value_o"
+  , CN.Seq 562 563
+  , CN.Branch 563 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 565 565
+  , CN.Seq 564 42
+  , CN.Seq 564 566
+  , CN.Var 565 "NOP_565"
+  , CN.Seq 565 566
+  , CN.Var 566 "IF_ELSE_FOOTER"
+  , CN.Assign 567 "nos" (CN.Num 0)
+  , CN.Seq 567 568
+  , CN.Var 568 "o"
+  , CN.Seq 568 569
+  , CN.Branch 569 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyList_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 571 571
+  , CN.Seq 570 42
+  , CN.Seq 570 572
+  , CN.Var 571 "NOP_571"
+  , CN.Seq 571 572
+  , CN.Var 572 "IF_ELSE_FOOTER"
+  , CN.Assign 573 "sub_st" (CN.Num 0)
+  , CN.Seq 573 574
+  , CN.Assign 574 "list_st" (CN.Num 0)
+  , CN.Seq 574 575
+  , CN.Var 575 "sub"
+  , CN.Seq 575 576
+  , CN.Var 576 "list"
+  , CN.Seq 576 577
+  , CN.Branch 577 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 579 579
+  , CN.Seq 578 42
+  , CN.Seq 578 580
+  , CN.Var 579 "NOP_579"
+  , CN.Seq 579 580
+  , CN.Var 580 "IF_ELSE_FOOTER"
+  , CN.Var 581 "index"
+  , CN.Seq 581 582
+  , CN.Branch 582 (CN.Eq (CN.Plus (CN.Id "index") (CN.Num 0)) (CN.Num 1)) 584 584
+  , CN.Seq 583 42
+  , CN.Seq 583 585
+  , CN.Var 584 "NOP_584"
+  , CN.Seq 584 585
+  , CN.Var 585 "IF_ELSE_FOOTER"
+  , CN.Var 586 "res_o"
+  , CN.Seq 586 587
+  , CN.Assign 587 "res" (CN.Num 0)
+  , CN.Seq 587 588
+  , CN.Var 588 "tmp"
+  , CN.Seq 588 589
+  , CN.Assign 589 "list_st" (CN.Num 0)
+  , CN.Seq 589 590
+  , CN.Assign 590 "undefed" (CN.Num 0)
+  , CN.Seq 590 591
+  , CN.Assign 591 "tmp" (CN.Num 0)
+  , CN.Seq 591 592
+  , CN.Assign 592 "sub_st" (CN.Num 0)
+  , CN.Seq 592 593
+  , CN.Assign 593 "undefed" (CN.Num 0)
+  , CN.Seq 593 594
+  , CN.Assign 594 "stack_pointer" (CN.Num 0)
+  , CN.Seq 594 595
+  , CN.Assign 595 "stack_pointer" (CN.Num 0)
+  , CN.Seq 595 596
+  , CN.Var 596 "word"
+  , CN.Seq 596 597
+  , CN.Assign 597 "opcode" (CN.Num 0)
+  , CN.Seq 597 598
+  , CN.Assign 598 "oparg" (CN.Num 0)
+  , CN.Seq 598 599
+  , CN.Branch 599 (CN.Eq (CN.Num 0) (CN.Num 1)) 600 603
+  , CN.Var 600 "word"
+  , CN.Seq 600 601
+  , CN.Assign 601 "opcode" (CN.Num 0)
+  , CN.Seq 601 602
+  , CN.Assign 602 "oparg" (CN.Num 0)
+  , CN.Seq 602 603
+  , CN.Seq 602 599
+  , CN.Var 603 "LOOP_FOOTER"
+  , CN.Seq 603 604
+  , CN.Seq 603 35
+  , CN.Branch 604 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 606 657
+  , CN.Var 606 "NOP_606"
+  , CN.Var 607 "__CLABEL_TARGET_BINARY_OP_SUBSCR_LIST_SLICE"
+  , CN.Seq 607 608
+  , CN.Var 608 "this_instr"
+  , CN.Seq 608 609
+  , CN.Assign 609 "undefed" (CN.Num 0)
+  , CN.Seq 609 610
+  , CN.Assign 610 "next_instr" (CN.Num 0)
+  , CN.Seq 610 611
+  , CN.Var 611 "tos"
+  , CN.Seq 611 612
+  , CN.Var 612 "nos"
+  , CN.Seq 612 613
+  , CN.Var 613 "list_st"
+  , CN.Seq 613 614
+  , CN.Var 614 "sub_st"
+  , CN.Seq 614 615
+  , CN.Var 615 "res"
+  , CN.Seq 615 616
+  , CN.Assign 616 "tos" (CN.Num 0)
+  , CN.Seq 616 617
+  , CN.Var 617 "o"
+  , CN.Seq 617 618
+  , CN.Branch 618 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PySlice_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 620 620
+  , CN.Seq 619 42
+  , CN.Seq 619 621
+  , CN.Var 620 "NOP_620"
+  , CN.Seq 620 621
+  , CN.Var 621 "IF_ELSE_FOOTER"
+  , CN.Assign 622 "nos" (CN.Num 0)
+  , CN.Seq 622 623
+  , CN.Var 623 "o"
+  , CN.Seq 623 624
+  , CN.Branch 624 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyList_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 626 626
+  , CN.Seq 625 42
+  , CN.Seq 625 627
+  , CN.Var 626 "NOP_626"
+  , CN.Seq 626 627
+  , CN.Var 627 "IF_ELSE_FOOTER"
+  , CN.Assign 628 "sub_st" (CN.Num 0)
+  , CN.Seq 628 629
+  , CN.Assign 629 "list_st" (CN.Num 0)
+  , CN.Seq 629 630
+  , CN.Var 630 "sub"
+  , CN.Seq 630 631
+  , CN.Var 631 "list"
+  , CN.Seq 631 632
+  , CN.Var 632 "res_o"
+  , CN.Seq 632 633
+  , CN.Assign 633 "stack_pointer" (CN.Num 0)
+  , CN.Seq 633 634
+  , CN.Var 634 "tmp"
+  , CN.Seq 634 635
+  , CN.Assign 635 "sub_st" (CN.Num 0)
+  , CN.Seq 635 636
+  , CN.Assign 636 "undefed" (CN.Num 0)
+  , CN.Seq 636 637
+  , CN.Assign 637 "tmp" (CN.Num 0)
+  , CN.Seq 637 638
+  , CN.Assign 638 "list_st" (CN.Num 0)
+  , CN.Seq 638 639
+  , CN.Assign 639 "undefed" (CN.Num 0)
+  , CN.Seq 639 640
+  , CN.Assign 640 "stack_pointer" (CN.Num 0)
+  , CN.Seq 640 641
+  , CN.Assign 641 "stack_pointer" (CN.Num 0)
+  , CN.Seq 641 642
+  , CN.Branch 642 (CN.Eq (CN.Plus (CN.Id "res_o") (CN.Num 0)) (CN.Num 1)) 644 644
+  , CN.Seq 643 814
+  , CN.Seq 643 645
+  , CN.Var 644 "NOP_644"
+  , CN.Seq 644 645
+  , CN.Var 645 "IF_ELSE_FOOTER"
+  , CN.Assign 646 "res" (CN.Num 0)
+  , CN.Seq 646 647
+  , CN.Assign 647 "undefed" (CN.Num 0)
+  , CN.Seq 647 648
+  , CN.Assign 648 "stack_pointer" (CN.Num 0)
+  , CN.Seq 648 649
+  , CN.Var 649 "word"
+  , CN.Seq 649 650
+  , CN.Assign 650 "opcode" (CN.Num 0)
+  , CN.Seq 650 651
+  , CN.Assign 651 "oparg" (CN.Num 0)
+  , CN.Seq 651 652
+  , CN.Branch 652 (CN.Eq (CN.Num 0) (CN.Num 1)) 653 656
+  , CN.Var 653 "word"
+  , CN.Seq 653 654
+  , CN.Assign 654 "opcode" (CN.Num 0)
+  , CN.Seq 654 655
+  , CN.Assign 655 "oparg" (CN.Num 0)
+  , CN.Seq 655 656
+  , CN.Seq 655 652
+  , CN.Var 656 "LOOP_FOOTER"
+  , CN.Seq 656 657
+  , CN.Seq 656 35
+  , CN.Branch 657 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 659 713
+  , CN.Var 659 "NOP_659"
+  , CN.Var 660 "__CLABEL_TARGET_BINARY_OP_SUBSCR_STR_INT"
+  , CN.Seq 660 661
+  , CN.Var 661 "this_instr"
+  , CN.Seq 661 662
+  , CN.Assign 662 "undefed" (CN.Num 0)
+  , CN.Seq 662 663
+  , CN.Assign 663 "next_instr" (CN.Num 0)
+  , CN.Seq 663 664
+  , CN.Var 664 "value"
+  , CN.Seq 664 665
+  , CN.Var 665 "nos"
+  , CN.Seq 665 666
+  , CN.Var 666 "str_st"
+  , CN.Seq 666 667
+  , CN.Var 667 "sub_st"
+  , CN.Seq 667 668
+  , CN.Var 668 "res"
+  , CN.Seq 668 669
+  , CN.Assign 669 "value" (CN.Num 0)
+  , CN.Seq 669 670
+  , CN.Var 670 "value_o"
+  , CN.Seq 670 671
+  , CN.Branch 671 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 673 673
+  , CN.Seq 672 42
+  , CN.Seq 672 674
+  , CN.Var 673 "NOP_673"
+  , CN.Seq 673 674
+  , CN.Var 674 "IF_ELSE_FOOTER"
+  , CN.Assign 675 "nos" (CN.Num 0)
+  , CN.Seq 675 676
+  , CN.Var 676 "o"
+  , CN.Seq 676 677
+  , CN.Branch 677 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyUnicode_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 679 679
+  , CN.Seq 678 42
+  , CN.Seq 678 680
+  , CN.Var 679 "NOP_679"
+  , CN.Seq 679 680
+  , CN.Var 680 "IF_ELSE_FOOTER"
+  , CN.Assign 681 "sub_st" (CN.Num 0)
+  , CN.Seq 681 682
+  , CN.Assign 682 "str_st" (CN.Num 0)
+  , CN.Seq 682 683
+  , CN.Var 683 "sub"
+  , CN.Seq 683 684
+  , CN.Var 684 "str"
+  , CN.Seq 684 685
+  , CN.Branch 685 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 687 687
+  , CN.Seq 686 42
+  , CN.Seq 686 688
+  , CN.Var 687 "NOP_687"
+  , CN.Seq 687 688
+  , CN.Var 688 "IF_ELSE_FOOTER"
+  , CN.Var 689 "index"
+  , CN.Seq 689 690
+  , CN.Branch 690 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "index")) (CN.Num 1)) 692 692
+  , CN.Seq 691 42
+  , CN.Seq 691 693
+  , CN.Var 692 "NOP_692"
+  , CN.Seq 692 693
+  , CN.Var 693 "IF_ELSE_FOOTER"
+  , CN.Var 694 "c"
+  , CN.Seq 694 695
+  , CN.Branch 695 (CN.Eq (CN.Plus (CN.Plus (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Plus (CN.Num 0) (CN.Num 0))) (CN.Id "c")) (CN.Num 1)) 697 697
+  , CN.Seq 696 42
+  , CN.Seq 696 698
+  , CN.Var 697 "NOP_697"
+  , CN.Seq 697 698
+  , CN.Var 698 "IF_ELSE_FOOTER"
+  , CN.Var 699 "res_o"
+  , CN.Seq 699 700
+  , CN.Assign 700 "stack_pointer" (CN.Num 0)
+  , CN.Seq 700 701
+  , CN.Assign 701 "stack_pointer" (CN.Num 0)
+  , CN.Seq 701 702
+  , CN.Assign 702 "res" (CN.Num 0)
+  , CN.Seq 702 703
+  , CN.Assign 703 "undefed" (CN.Num 0)
+  , CN.Seq 703 704
+  , CN.Assign 704 "stack_pointer" (CN.Num 0)
+  , CN.Seq 704 705
+  , CN.Var 705 "word"
+  , CN.Seq 705 706
+  , CN.Assign 706 "opcode" (CN.Num 0)
+  , CN.Seq 706 707
+  , CN.Assign 707 "oparg" (CN.Num 0)
+  , CN.Seq 707 708
+  , CN.Branch 708 (CN.Eq (CN.Num 0) (CN.Num 1)) 709 712
+  , CN.Var 709 "word"
+  , CN.Seq 709 710
+  , CN.Assign 710 "opcode" (CN.Num 0)
+  , CN.Seq 710 711
+  , CN.Assign 711 "oparg" (CN.Num 0)
+  , CN.Seq 711 712
+  , CN.Seq 711 708
+  , CN.Var 712 "LOOP_FOOTER"
+  , CN.Seq 712 713
+  , CN.Seq 712 35
+  , CN.Branch 713 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 715 765
+  , CN.Var 715 "NOP_715"
+  , CN.Var 716 "__CLABEL_TARGET_BINARY_OP_SUBSCR_TUPLE_INT"
+  , CN.Seq 716 717
+  , CN.Var 717 "this_instr"
+  , CN.Seq 717 718
+  , CN.Assign 718 "undefed" (CN.Num 0)
+  , CN.Seq 718 719
+  , CN.Assign 719 "next_instr" (CN.Num 0)
+  , CN.Seq 719 720
+  , CN.Var 720 "value"
+  , CN.Seq 720 721
+  , CN.Var 721 "nos"
+  , CN.Seq 721 722
+  , CN.Var 722 "tuple_st"
+  , CN.Seq 722 723
+  , CN.Var 723 "sub_st"
+  , CN.Seq 723 724
+  , CN.Var 724 "res"
+  , CN.Seq 724 725
+  , CN.Assign 725 "value" (CN.Num 0)
+  , CN.Seq 725 726
+  , CN.Var 726 "value_o"
+  , CN.Seq 726 727
+  , CN.Branch 727 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 729 729
+  , CN.Seq 728 42
+  , CN.Seq 728 730
+  , CN.Var 729 "NOP_729"
+  , CN.Seq 729 730
+  , CN.Var 730 "IF_ELSE_FOOTER"
+  , CN.Assign 731 "nos" (CN.Num 0)
+  , CN.Seq 731 732
+  , CN.Var 732 "o"
+  , CN.Seq 732 733
+  , CN.Branch 733 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyTuple_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 735 735
+  , CN.Seq 734 42
+  , CN.Seq 734 736
+  , CN.Var 735 "NOP_735"
+  , CN.Seq 735 736
+  , CN.Var 736 "IF_ELSE_FOOTER"
+  , CN.Assign 737 "sub_st" (CN.Num 0)
+  , CN.Seq 737 738
+  , CN.Assign 738 "tuple_st" (CN.Num 0)
+  , CN.Seq 738 739
+  , CN.Var 739 "sub"
+  , CN.Seq 739 740
+  , CN.Var 740 "tuple"
+  , CN.Seq 740 741
+  , CN.Branch 741 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 743 743
+  , CN.Seq 742 42
+  , CN.Seq 742 744
+  , CN.Var 743 "NOP_743"
+  , CN.Seq 743 744
+  , CN.Var 744 "IF_ELSE_FOOTER"
+  , CN.Var 745 "index"
+  , CN.Seq 745 746
+  , CN.Branch 746 (CN.Eq (CN.Plus (CN.Id "index") (CN.Num 0)) (CN.Num 1)) 748 748
+  , CN.Seq 747 42
+  , CN.Seq 747 749
+  , CN.Var 748 "NOP_748"
+  , CN.Seq 748 749
+  , CN.Var 749 "IF_ELSE_FOOTER"
+  , CN.Var 750 "res_o"
+  , CN.Seq 750 751
+  , CN.Assign 751 "res" (CN.Num 0)
+  , CN.Seq 751 752
+  , CN.Assign 752 "stack_pointer" (CN.Num 0)
+  , CN.Seq 752 753
+  , CN.Var 753 "tmp"
+  , CN.Seq 753 754
+  , CN.Assign 754 "tuple_st" (CN.Num 0)
+  , CN.Seq 754 755
+  , CN.Assign 755 "undefed" (CN.Num 0)
+  , CN.Seq 755 756
+  , CN.Assign 756 "stack_pointer" (CN.Num 0)
+  , CN.Seq 756 757
+  , CN.Var 757 "word"
+  , CN.Seq 757 758
+  , CN.Assign 758 "opcode" (CN.Num 0)
+  , CN.Seq 758 759
+  , CN.Assign 759 "oparg" (CN.Num 0)
+  , CN.Seq 759 760
+  , CN.Branch 760 (CN.Eq (CN.Num 0) (CN.Num 1)) 761 764
+  , CN.Var 761 "word"
+  , CN.Seq 761 762
+  , CN.Assign 762 "opcode" (CN.Num 0)
+  , CN.Seq 762 763
+  , CN.Assign 763 "oparg" (CN.Num 0)
+  , CN.Seq 763 764
+  , CN.Seq 763 760
+  , CN.Var 764 "LOOP_FOOTER"
+  , CN.Seq 764 765
+  , CN.Seq 764 35
+  , CN.Branch 765 (CN.Eq (CN.Plus (CN.Id "opcode") (CN.Num 0)) (CN.Num 1)) 767 807
+  , CN.Var 767 "NOP_767"
+  , CN.Var 768 "__CLABEL_TARGET_BINARY_OP_SUBTRACT_FLOAT"
+  , CN.Seq 768 769
+  , CN.Var 769 "this_instr"
+  , CN.Seq 769 770
+  , CN.Assign 770 "undefed" (CN.Num 0)
+  , CN.Seq 770 771
+  , CN.Assign 771 "next_instr" (CN.Num 0)
+  , CN.Seq 771 772
+  , CN.Var 772 "value"
+  , CN.Seq 772 773
+  , CN.Var 773 "left"
+  , CN.Seq 773 774
+  , CN.Var 774 "right"
+  , CN.Seq 774 775
+  , CN.Var 775 "res"
+  , CN.Seq 775 776
+  , CN.Assign 776 "value" (CN.Num 0)
+  , CN.Seq 776 777
+  , CN.Var 777 "value_o"
+  , CN.Seq 777 778
+  , CN.Branch 778 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 780 780
+  , CN.Seq 779 42
+  , CN.Seq 779 781
+  , CN.Var 780 "NOP_780"
+  , CN.Seq 780 781
+  , CN.Var 781 "IF_ELSE_FOOTER"
+  , CN.Assign 782 "left" (CN.Num 0)
+  , CN.Seq 782 783
+  , CN.Var 783 "left_o"
+  , CN.Seq 783 784
+  , CN.Branch 784 (CN.Eq (CN.Plus (CN.Plus (CN.Num 0) (CN.Plus (CN.Id "PyFloat_Type") (CN.Num 0))) (CN.Num 0)) (CN.Num 1)) 786 786
+  , CN.Seq 785 42
+  , CN.Seq 785 787
+  , CN.Var 786 "NOP_786"
+  , CN.Seq 786 787
+  , CN.Var 787 "IF_ELSE_FOOTER"
+  , CN.Assign 788 "right" (CN.Num 0)
+  , CN.Seq 788 789
+  , CN.Var 789 "left_o"
+  , CN.Seq 789 790
+  , CN.Var 790 "right_o"
+  , CN.Seq 790 791
+  , CN.Var 791 "dres"
+  , CN.Seq 791 792
+  , CN.Assign 792 "res" (CN.Num 0)
+  , CN.Seq 792 793
+  , CN.Branch 793 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 795 795
+  , CN.Seq 794 810
+  , CN.Seq 794 796
+  , CN.Var 795 "NOP_795"
+  , CN.Seq 795 796
+  , CN.Var 796 "IF_ELSE_FOOTER"
+  , CN.Assign 797 "undefed" (CN.Num 0)
+  , CN.Seq 797 798
+  , CN.Assign 798 "stack_pointer" (CN.Num 0)
+  , CN.Seq 798 799
+  , CN.Var 799 "word"
+  , CN.Seq 799 800
+  , CN.Assign 800 "opcode" (CN.Num 0)
+  , CN.Seq 800 801
+  , CN.Assign 801 "oparg" (CN.Num 0)
+  , CN.Seq 801 802
+  , CN.Branch 802 (CN.Eq (CN.Num 0) (CN.Num 1)) 803 806
+  , CN.Var 803 "word"
+  , CN.Seq 803 804
+  , CN.Assign 804 "opcode" (CN.Num 0)
+  , CN.Seq 804 805
+  , CN.Assign 805 "oparg" (CN.Num 0)
+  , CN.Seq 805 806
+  , CN.Seq 805 802
+  , CN.Var 806 "LOOP_FOOTER"
+  , CN.Seq 806 807
+  , CN.Seq 806 35
+  , CN.Var 807 "NOP_807"
+  , CN.Seq 807 808
+  , CN.Var 808 "__CLABEL_CODEGEN_SWITCH_EXIT_0"
+  , CN.Seq 808 809
+  , CN.Var 809 "NOP_809"
+  , CN.Var 810 "__CLABEL_pop_2_error"
+  , CN.Seq 810 811
+  , CN.Assign 811 "stack_pointer" (CN.Num 0)
+  , CN.Seq 811 812
+  , CN.Seq 811 814
+  , CN.Var 812 "__CLABEL_pop_1_error"
+  , CN.Seq 812 813
+  , CN.Assign 813 "stack_pointer" (CN.Num 0)
+  , CN.Seq 813 814
+  , CN.Seq 813 814
+  , CN.Var 814 "__CLABEL_error"
+  , CN.Seq 814 815
+  , CN.Branch 815 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 817 818
+  , CN.Assign 817 "stack_pointer" (CN.Num 0)
+  , CN.Seq 817 819
+  , CN.Var 818 "NOP_818"
+  , CN.Seq 818 819
+  , CN.Var 819 "IF_ELSE_FOOTER"
+  , CN.Branch 820 (CN.Eq (CN.Plus (CN.Num 0) (CN.Num 0)) (CN.Num 1)) 822 829
+  , CN.Var 822 "f"
+  , CN.Seq 822 823
+  , CN.Assign 823 "stack_pointer" (CN.Num 0)
+  , CN.Seq 823 824
+  , CN.Branch 824 (CN.Eq (CN.Plus (CN.Id "f") (CN.Num 0)) (CN.Num 1)) 826 827
+  , CN.Assign 826 "stack_pointer" (CN.Num 0)
+  , CN.Seq 826 828
+  , CN.Var 827 "NOP_827"
+  , CN.Seq 827 828
+  , CN.Var 828 "IF_ELSE_FOOTER"
+  , CN.Seq 828 830
+  , CN.Var 829 "NOP_829"
+  , CN.Seq 829 830
+  , CN.Var 830 "IF_ELSE_FOOTER"
+  , CN.Seq 830 831
+  , CN.Var 831 "__CLABEL_exception_unwind"
+  , CN.Seq 831 832
+  , CN.Var 832 "offset"
+  , CN.Seq 832 833
+  , CN.Var 833 "level"
+  , CN.Seq 833 834
+  , CN.Var 834 "handler"
+  , CN.Seq 834 835
+  , CN.Var 835 "lasti"
+  , CN.Seq 835 836
+  , CN.Var 836 "handled"
+  , CN.Seq 836 837
+  , CN.Branch 837 (CN.Eq (CN.Plus (CN.Id "handled") (CN.Num 0)) (CN.Num 1)) 839 843
+  , CN.Var 839 "stackbase"
+  , CN.Seq 839 840
+  , CN.Branch 840 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "stackbase")) (CN.Num 1)) 841 842
+  , CN.Var 841 "ref"
+  , CN.Seq 841 842
+  , CN.Seq 841 840
+  , CN.Var 842 "LOOP_FOOTER"
+  , CN.Seq 842 843
+  , CN.Seq 842 871
+  , CN.Seq 842 844
+  , CN.Var 843 "NOP_843"
+  , CN.Seq 843 844
+  , CN.Var 844 "IF_ELSE_FOOTER"
+  , CN.Var 845 "new_top"
+  , CN.Seq 845 846
+  , CN.Branch 846 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "new_top")) (CN.Num 1)) 847 848
+  , CN.Var 847 "ref"
+  , CN.Seq 847 848
+  , CN.Seq 847 846
+  , CN.Var 848 "LOOP_FOOTER"
+  , CN.Seq 848 849
+  , CN.Branch 849 (CN.Eq (CN.Id "lasti") (CN.Num 1)) 851 853
+  , CN.Var 851 "frame_lasti"
+  , CN.Seq 851 852
+  , CN.Var 852 "lasti"
+  , CN.Seq 852 853
+  , CN.Seq 852 854
+  , CN.Var 853 "NOP_853"
+  , CN.Seq 853 854
+  , CN.Var 854 "IF_ELSE_FOOTER"
+  , CN.Var 855 "exc"
+  , CN.Seq 855 856
+  , CN.Assign 856 "next_instr" (CN.Num 0)
+  , CN.Seq 856 857
+  , CN.Var 857 "err"
+  , CN.Seq 857 858
+  , CN.Branch 858 (CN.Eq (CN.Plus (CN.Id "err") (CN.Num 0)) (CN.Num 1)) 860 860
+  , CN.Seq 859 831
+  , CN.Seq 859 861
+  , CN.Var 860 "NOP_860"
+  , CN.Seq 860 861
+  , CN.Var 861 "IF_ELSE_FOOTER"
+  , CN.Assign 862 "stack_pointer" (CN.Num 0)
+  , CN.Seq 862 863
+  , CN.Var 863 "word"
+  , CN.Seq 863 864
+  , CN.Assign 864 "opcode" (CN.Num 0)
+  , CN.Seq 864 865
+  , CN.Assign 865 "oparg" (CN.Num 0)
+  , CN.Seq 865 866
+  , CN.Branch 866 (CN.Eq (CN.Num 0) (CN.Num 1)) 867 870
+  , CN.Var 867 "word"
+  , CN.Seq 867 868
+  , CN.Assign 868 "opcode" (CN.Num 0)
+  , CN.Seq 868 869
+  , CN.Assign 869 "oparg" (CN.Num 0)
+  , CN.Seq 869 870
+  , CN.Seq 869 866
+  , CN.Var 870 "LOOP_FOOTER"
+  , CN.Seq 870 871
+  , CN.Seq 870 35
+  , CN.Var 871 "__CLABEL_exit_unwind"
+  , CN.Seq 871 872
+  , CN.Var 872 "dying"
+  , CN.Seq 872 873
+  , CN.Assign 873 "frame" (CN.Num 0)
+  , CN.Seq 873 874
+  , CN.Assign 874 "undefed" (CN.Num 0)
+  , CN.Seq 874 875
+  , CN.Branch 875 (CN.Eq (CN.Plus (CN.Num 0) (CN.Id "FRAME_OWNED_BY_INTERPRETER")) (CN.Num 1)) 877 879
+  , CN.Assign 877 "undefed" (CN.Num 0)
+  , CN.Seq 877 878
+  , CN.Assign 878 "return" (CN.Num 0)
+  , CN.Seq 878 879
+  , CN.Seq 878 880
+  , CN.Var 879 "NOP_879"
+  , CN.Seq 879 880
+  , CN.Var 880 "IF_ELSE_FOOTER"
+  , CN.Assign 881 "next_instr" (CN.Num 0)
+  , CN.Seq 881 882
+  , CN.Assign 882 "stack_pointer" (CN.Num 0)
+  , CN.Seq 882 883
+  , CN.Seq 882 814
+  , CN.Var 883 "__CLABEL_start_frame"
+  , CN.Seq 883 884
+  , CN.Var 884 "too_deep"
+  , CN.Seq 884 885
+  , CN.Branch 885 (CN.Eq (CN.Id "too_deep") (CN.Num 1)) 887 887
+  , CN.Seq 886 871
+  , CN.Seq 886 888
+  , CN.Var 887 "NOP_887"
+  , CN.Seq 887 888
+  , CN.Var 888 "IF_ELSE_FOOTER"
+  , CN.Assign 889 "next_instr" (CN.Num 0)
+  , CN.Seq 889 890
+  , CN.Assign 890 "stack_pointer" (CN.Num 0)
+  , CN.Seq 890 891
+  , CN.Var 891 "word"
+  , CN.Seq 891 892
+  , CN.Assign 892 "opcode" (CN.Num 0)
+  , CN.Seq 892 893
+  , CN.Assign 893 "oparg" (CN.Num 0)
+  , CN.Seq 893 894
+  , CN.Branch 894 (CN.Eq (CN.Num 0) (CN.Num 1)) 895 898
+  , CN.Var 895 "word"
+  , CN.Seq 895 896
+  , CN.Assign 896 "opcode" (CN.Num 0)
+  , CN.Seq 896 897
+  , CN.Assign 897 "oparg" (CN.Num 0)
+  , CN.Seq 897 898
+  , CN.Seq 897 894
+  , CN.Var 898 "LOOP_FOOTER"
+  , CN.Seq 898 899
+  , CN.Seq 898 35
+  , CN.Var 899 "__CLABEL_early_exit"
+  , CN.Seq 899 900
+  , CN.Var 900 "NOP_900"
+  , CN.Var 901 "dying"
+  , CN.Seq 901 902
+  , CN.Assign 902 "frame" (CN.Num 0)
+  , CN.Seq 902 903
+  , CN.Assign 903 "undefed" (CN.Num 0)
+  , CN.Seq 903 904
+  , CN.Assign 904 "undefed" (CN.Num 0)
+  , CN.Seq 904 905
+  , CN.Assign 905 "return" (CN.Num 0)
+  , CN.Seq 905 906
+  , CN.Seq 905 906
+  , CN.Var 906 "PROG_END"
   ]

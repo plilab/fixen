@@ -100,8 +100,19 @@ priorityCase info = do
 codeGenQueueDef :: FixenPass CodeGenState Text
 codeGenQueueDef = do
   phases <- fixenGetPhases
-  let element = if length phases == 1 then Hs.typ "RuleInstance" else Hs.TyTuple [Hs.typ "RuleInstance", Hs.typ "Phase"]
-  pure (Hs.renderDecls [Hs.TypeAlias (Hs.name "Queue") (Hs.TyApp (Hs.typ "Q.MaxQueue") element)])
+  let phased = length phases > 1
+      element = Hs.typ (if phased then "Kont" else "RuleInstance")
+      -- The phase is routing metadata, not part of a queue entry's priority.
+      -- Forward each operator directly instead of using tuple/default Ord
+      -- comparisons, which can repeatedly invoke RuleInstance comparisons.
+      kont n = Hs.PCon (Hs.name "Kont") [Hs.PTuple [Hs.pat n, Hs.PWildcard]]
+      forward op = Hs.Function (Hs.name op) [kont "x", kont "y"] (Hs.call op [Hs.var "x", Hs.var "y"])
+      declarations =
+        [ Hs.Newtype (Hs.name "Kont") (Hs.Constructor (Hs.name "Kont") [Hs.TyTuple [Hs.typ "RuleInstance", Hs.typ "Phase"]]) []
+        , Hs.Instance (Hs.TyApp (Hs.typ "Eq") (Hs.typ "Kont")) (forward <$> ["==", "/="])
+        , Hs.Instance (Hs.TyApp (Hs.typ "Ord") (Hs.typ "Kont")) (forward <$> ["<", "<=", ">", ">=", "compare"])
+        ]
+  pure (Hs.renderDecls ([Hs.TypeAlias (Hs.name "Queue") (Hs.TyApp (Hs.typ "Q.MaxQueue") element)] ++ [d | phased, d <- declarations]))
 
 codeGenEvaluate :: FixenPass CodeGenState Text
 codeGenEvaluate = do

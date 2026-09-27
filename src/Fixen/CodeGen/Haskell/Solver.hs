@@ -26,9 +26,8 @@ codeGenLoopAndSolve options = do
       evaluation =
         if phased
           then
-            [ bind "source_phase" (Hs.call "snd" [Hs.var "p"])
-            , Hs.Binding (Hs.PTuple [Hs.pat "fs", Hs.pat "target_phase"]) (Hs.call "evaluatePhased" [Hs.var "p"])
-            ]
+            [Hs.Binding (Hs.PCon (Hs.name "Kont") [Hs.PTuple [Hs.PWildcard, Hs.pat "source_phase"]]) (Hs.var "p") | codeGenDebug options]
+              ++ [Hs.Binding (Hs.PTuple [Hs.pat "fs", Hs.pat "target_phase"]) (Hs.call "evaluatePhased" [Hs.var "p"])]
           else [bind "fs" (Hs.call "evaluate" [Hs.var "p"])]
       phaseValue =
         if phased
@@ -53,7 +52,8 @@ codeGenLoopAndSolve options = do
       accepted = Hs.Let (NonEmpty.fromList insertions) (traceCall "debugSolverAccepted" [phaseValue, Hs.var "f", Hs.var "new_facts"] continuation)
       processFact = Hs.If (Hs.call "|=" [Hs.var "db", Hs.var "f"]) rejected accepted
       processBody = if phased then Hs.Let (bind "db" (Hs.call "selectDb" [Hs.var "i", Hs.var "target_phase"]) :| []) processFact else processFact
-      phaseArgs = if phased then ["source_phase", "target_phase"] else []
+      -- Only debug traces need the source phase; processing uses the target.
+      phaseArgs = if phased then ["source_phase" | codeGenDebug options] ++ ["target_phase"] else []
       batch = Hs.call "foldl'" [Hs.call "_fixenProcessConclusion" (Hs.var <$> phaseArgs), accumulator, Hs.var "fs"]
       process =
         Hs.Let
@@ -88,7 +88,7 @@ codeGenReSolve forests = do
       queue = Hs.call "Q.fromList" [Hs.call "concat" [Hs.List (initial : seeds)]]
       body = Hs.Let (Hs.Binding (Hs.pat "q") queue :| []) (Hs.call "loop" [Hs.var "q", Hs.var stateName])
       tag phase fact
-        | phased = Hs.Tuple [fact, Hs.Var (numberedName "Phase" phase)]
+        | phased = Hs.call "Kont" [Hs.Tuple [fact, Hs.Var (numberedName "Phase" phase)]]
         | otherwise = fact
       seed phase leaf =
         let instanceValue = case _ruleLeafConclusion leaf of
