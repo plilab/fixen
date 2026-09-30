@@ -39,6 +39,8 @@ for n, v, e in graph_stats_csv[1:]:
 hand = []
 no_priorities = []
 with_priorities = []
+no_phase_no_priorities = []
+no_phase_with_priorities = []
 
 for i in time_data[1:]:
     suite, t = i[0], i[1]
@@ -54,10 +56,16 @@ for i in time_data[1:]:
         no_priorities.append((e, float(t)))
     elif program == "Fixen (With Priorities)":
         with_priorities.append((e, float(t)))
+    elif program == "Fixen (Custom)":
+        no_phase_no_priorities.append((e, float(t)))
+    elif program == "Fixen (CustomN)":
+        no_phase_with_priorities.append((e, float(t)))
 
 hand = sorted(hand)
 no_priorities = sorted(no_priorities)
 with_priorities = sorted(with_priorities)
+no_phase_no_priorities = sorted(no_phase_no_priorities)
+no_phase_with_priorities = sorted(no_phase_with_priorities)
 
 ################################################################################
 # fonts for chart
@@ -109,15 +117,31 @@ ax.plot(
     color="#179299",
     markersize=4,
 )
+ax.plot(
+    [i[0] for i in no_phase_no_priorities],
+    [i[1] for i in no_phase_no_priorities],
+    "-v",
+    label="Fixen (Custom, No Priorities)",
+    color="#2c418f",
+    markersize=4,
+)
+ax.plot(
+    [i[0] for i in no_phase_with_priorities],
+    [i[1] for i in no_phase_with_priorities],
+    "-^",
+    label="Fixen (Custom, With Priorities)",
+    color="#a43085",
+    markersize=4,
+)
 
 # reference curves
 x1 = np.linspace(1, 20_000, 100)
 
-y1 = (x1 / 480_000) ** 1.21  # linear
-y2 = (x1 / 124_000) ** 1.13  # quadratic
+y1 = (x1 / 430_000) ** 1.23  # linear
+y2 = (x1 / 94_000) ** 1.13  # quadratic
 # y3 = x1**1.53 / 50_000_000  # x^1.53
 # y4 = x1**1.26 / 45_000_000  # x^1.26
-ax.plot(x1, y1, "-.", label="$O(|E|^{1.21})$", color="#d20f39", linewidth=1)
+ax.plot(x1, y1, "-.", label="$O(|E|^{1.23})$", color="#d20f39", linewidth=1)
 ax.plot(
     x1,
     y2,
@@ -176,12 +200,15 @@ with open("benchmarks/charts/reduced-product-table.tex", "w+") as f:
 # get the statistics
 np_stats = []
 wp_stats = []
+wpnp_stats = []
 for i in range(len(hand)):
     h = hand[i][1]
     n = no_priorities[i][1]
     w = with_priorities[i][1]
+    ww = no_phase_with_priorities[i][1]
     np_stats.append(n / h)
     wp_stats.append(w / h)
+    wpnp_stats.append(w / ww)
 
 np_avg = round(sum(np_stats) / len(np_stats), 1)
 np_max = round(max(np_stats), 1)
@@ -191,6 +218,8 @@ speedup_avg = round(wp_avg / np_avg, 1)
 speedup_max = round(
     max(with_priorities[i][1] / no_priorities[i][1] for i in range(len(hand))), 1
 )
+wpnp_avg = round(sum(wpnp_stats) / len(wpnp_stats), 1)
+wpnp_max = round(max(wpnp_stats), 1)
 
 # Write the commands
 stats = f"""\\def\\reducedproductnoprioritiesavg{{{np_avg}\\times}}
@@ -199,6 +228,8 @@ stats = f"""\\def\\reducedproductnoprioritiesavg{{{np_avg}\\times}}
 \\def\\reducedproductwithprioritiesmax{{{wp_max}\\times}}
 \\def\\reducedproductslowdownavg{{{speedup_avg}\\times}}
 \\def\\reducedproductslowdownmax{{{speedup_max}\\times}}
+\\def\\phaseoverheadavg{{{wpnp_avg}\\times}}
+\\def\\phaseoverheadmax{{{wpnp_max}\\times}}
 """
 
 with open("benchmarks/charts/reduced-product-statistics.tex", "w+") as f:

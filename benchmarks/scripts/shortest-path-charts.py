@@ -50,7 +50,7 @@ for i in time_data[1:]:
         no_priorities.append((e, float(t)))
     elif program == "Fixen (With Priorities)":
         with_priorities.append((e, float(t)))
-
+# add in the timeout benchmarks for no_priorities
 hand = sorted(hand)
 no_priorities = sorted(no_priorities)
 with_priorities = sorted(with_priorities)
@@ -107,12 +107,12 @@ ax.plot(
 )
 
 # reference curves
-x1 = np.linspace(1, 2_000_000, 10000)
+x1 = np.linspace(1, 20_000_000, 10000)
 
 y1 = x1 / 8_000_000  # linear
 y2 = x1**2 / 800_000_000  # quadratic
-y3 = x1**1.53 / 50_000_000  # x^1.53
-y4 = x1**1.26 / 45_000_000  # x^1.26
+y3 = x1**1.58 / 50_000_000  # x^1.58
+y4 = x1**1.27 / 45_000_000  # x^1.26
 # ax.plot(x1, y1, "-", label="$O(|E|)$", color="#aa8888", linewidth=1)
 # ax.plot(
 #     x1,
@@ -126,7 +126,7 @@ ax.plot(
     x1,
     y3,
     ":",
-    label=r"$O(|E|^{1.53})$",
+    label=r"$O(|E|^{1.58})$",
     color="#40a02b",
     linewidth=1,
 )
@@ -134,7 +134,7 @@ ax.plot(
     x1,
     y4,
     "-.",
-    label=r"$O(|E|^{1.26})$",
+    label=r"$O(|E|^{1.27})$",
     color="#d20f39",
     linewidth=1,
 )
@@ -142,8 +142,8 @@ ax.plot(
 plt.grid()
 
 # Axis limits
-plt.xlim(200, 2_000_000)
-plt.ylim((0.00001, 100))
+plt.xlim(200, 20_000_000)
+plt.ylim((0.00001, 5000))
 
 # Set axis tick fonts
 for label in ax.get_xticklabels():
@@ -191,9 +191,10 @@ np_stats = []
 wp_stats = []
 for i in range(len(hand)):
     h = hand[i][1]
-    n = no_priorities[i][1]
     w = with_priorities[i][1]
-    np_stats.append(n / h)
+    if i < len(no_priorities):
+        n = no_priorities[i][1]
+        np_stats.append(n / h)
     wp_stats.append(w / h)
 
 np_avg = round(sum(np_stats) / len(np_stats), 1)
@@ -202,7 +203,8 @@ wp_avg = round(sum(wp_stats) / len(wp_stats), 1)
 wp_max = round(max(wp_stats), 1)
 speedup_avg = round(np_avg / wp_avg, 1)
 speedup_max = round(
-    max(no_priorities[i][1] / with_priorities[i][1] for i in range(len(hand))), 1
+    max(no_priorities[i][1] / with_priorities[i][1] for i in range(len(no_priorities))),
+    1,
 )
 
 # Write the commands
