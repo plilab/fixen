@@ -60,7 +60,7 @@ for g in plots:
         plots[g][p] = sorted(plots[g][p])
 
 ################################################################################
-# fonts for chart
+# f nts for chart
 ################################################################################
 lin_biolinum = Path(
     mpl.get_data_path(), "/usr/share/fonts/ttf-linux-libertine/LinBiolinum_Rah.ttf"
@@ -184,6 +184,99 @@ for g in plots:
             f"benchmarks/charts/pareto-legend.svg", bbox_inches="tight", pad_inches=0
         )
         generate_legend = False
+
+
+### Data for the geometric mean plot
+programs = {k for g in plots for k in plots[g]}
+geom_mean = {k: {} for k in programs}
+for g in plots:
+    for p in plots[g]:
+        for e, t in plots[g][p]:
+            ee = e // 1000 * 1000
+            if ee not in geom_mean[p]:
+                geom_mean[p][ee] = []
+            geom_mean[p][ee].append(t)
+for p in geom_mean:
+    for e in geom_mean[p]:
+        # mult all
+        res = 1
+        for t in geom_mean[p][e]:
+            res *= t
+        geom_mean[p][e] = res ** (1 / len(geom_mean[p][e]))
+
+gm = {}
+for p in geom_mean:
+    if p not in gm:
+        gm[p] = []
+    for e in geom_mean[p]:
+        gm[p].append((e, geom_mean[p][e]))
+
+### Plot the geometric mean
+fig, ax = plt.subplots(figsize=(5, 2.5))
+ax.set_xscale("log")
+ax.set_yscale("log")
+
+ax.set_xlabel("Number of Edges", font=lin_biolinum)
+ax.set_ylabel("Time (s)", font=lin_biolinum)
+
+# Plot the points
+ax.plot(
+    [i[0] for i in gm["Hand"]],
+    [i[1] for i in gm["Hand"]],
+    "-o",
+    label="Hand",
+    color="#8839ef",
+    markersize=3,
+)
+ax.plot(
+    [i[0] for i in gm["Fixen (No Priorities)"]],
+    [i[1] for i in gm["Fixen (No Priorities)"]],
+    "-s",
+    label="Fixen (No Priorities)",
+    color="#a13c3c",
+    markersize=3,
+)
+ax.plot(
+    [i[0] for i in gm["Fixen (With Priorities)"]],
+    [i[1] for i in gm["Fixen (With Priorities)"]],
+    "-x",
+    label="Fixen (With Priorities)",
+    color="#179299",
+    markersize=4,
+)
+
+
+y1 = x1 / 4_000_000  # linear
+y2 = (x1 / 7_000) ** 3  # quadratic
+y3 = (x1 / 35_000) ** 2
+ax.plot(x1, y1, "-.", label=r"$O(|E|)$", color="#d20f39", linewidth=1)
+ax.plot(x1, y2, ":", label=r"$O(|E|^3)$", color="#40a02b", linewidth=1)
+ax.plot(x1, y3, "--", label=r"$O(|E|^2)$", color="#7b7a00", linewidth=1)
+
+plt.grid()
+
+# Axis limits
+plt.xlim(800, 100_000)
+plt.ylim((0.0001, 100))
+
+# Set axis tick fonts
+for label in ax.get_xticklabels():
+    label.set_fontproperties(lin_libertine)
+for label in ax.get_yticklabels():
+    label.set_fontproperties(lin_libertine)
+
+plt.legend(loc="upper left", prop=lin_libertine)
+# plt.show()
+# exit(0)
+# if g != "CTR":
+#     break
+
+# Write the chart
+plt.savefig(
+    f"benchmarks/charts/pareto-geom-mean.svg", bbox_inches="tight", pad_inches=0
+)
+plt.close(fig)
+
 
 # Legend-only figure
 

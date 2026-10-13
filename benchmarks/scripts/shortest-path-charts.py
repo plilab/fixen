@@ -72,7 +72,7 @@ lin_libertine.set_math_fontfamily("cm")
 ################################################################################
 
 # (7, 3) is the size of the plot.
-fig, ax = plt.subplots(figsize=(6, 2.5))
+fig, ax = plt.subplots(figsize=(5, 2.5))
 # use log scale for both axes
 ax.set_xscale("log")
 ax.set_yscale("log")
