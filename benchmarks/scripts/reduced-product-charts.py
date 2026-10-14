@@ -61,6 +61,7 @@ for i in time_data[1:]:
     elif program == "Fixen (CustomN)":
         no_phase_with_priorities.append((e, float(t)))
 
+
 hand = sorted(hand)
 no_priorities = sorted(no_priorities)
 with_priorities = sorted(with_priorities)
@@ -105,7 +106,7 @@ ax.plot(
     [i[0] for i in no_priorities],
     [i[1] for i in no_priorities],
     "-s",
-    label="Fixen (No Priorities)",
+    label="With Phases, No Priorities",
     color="#a13c3c",
     markersize=3,
 )
@@ -113,7 +114,7 @@ ax.plot(
     [i[0] for i in with_priorities],
     [i[1] for i in with_priorities],
     "-x",
-    label="Fixen (With Priorities)",
+    label="With Phases, With Priorities",
     color="#179299",
     markersize=4,
 )
@@ -121,7 +122,7 @@ ax.plot(
     [i[0] for i in no_phase_no_priorities],
     [i[1] for i in no_phase_no_priorities],
     "-v",
-    label="Fixen (Custom, No Priorities)",
+    label="No Phases, No Priorities",
     color="#2c418f",
     markersize=4,
 )
@@ -129,7 +130,7 @@ ax.plot(
     [i[0] for i in no_phase_with_priorities],
     [i[1] for i in no_phase_with_priorities],
     "-^",
-    label="Fixen (Custom, With Priorities)",
+    label="No Phases, With Priorities",
     color="#a43085",
     markersize=4,
 )
@@ -201,36 +202,85 @@ with open("benchmarks/charts/reduced-product-table.tex", "w+") as f:
 np_stats = []
 wp_stats = []
 wpnp_stats = []
+npnp_stats = []
+
+pvnpwp = []
+pvnpnp = []
+
+no_p_npvswp = []
+p_npvswp = []
+
 for i in range(len(hand)):
     h = hand[i][1]
     n = no_priorities[i][1]
     w = with_priorities[i][1]
     ww = no_phase_with_priorities[i][1]
+    wn = no_phase_no_priorities[i][1]
     np_stats.append(n / h)
     wp_stats.append(w / h)
-    wpnp_stats.append(w / ww)
+    wpnp_stats.append(ww / h)
+    npnp_stats.append(wn / h)
+    pvnpwp.append(w / ww)
+    pvnpnp.append(n / wn)
+    no_p_npvswp.append(wn / ww)
+    p_npvswp.append(n / w)
 
-np_avg = round(sum(np_stats) / len(np_stats), 1)
-np_max = round(max(np_stats), 1)
-wp_avg = round(sum(wp_stats) / len(wp_stats), 1)
-wp_max = round(max(wp_stats), 1)
-speedup_avg = round(wp_avg / np_avg, 1)
-speedup_max = round(
-    max(with_priorities[i][1] / no_priorities[i][1] for i in range(len(hand))), 1
-)
-wpnp_avg = round(sum(wpnp_stats) / len(wpnp_stats), 1)
-wpnp_max = round(max(wpnp_stats), 1)
 
-# Write the commands
-stats = f"""\\def\\reducedproductnoprioritiesavg{{{np_avg}\\times}}
-\\def\\reducedproductwithprioritiesavg{{{wp_avg}\\times}}
-\\def\\reducedproductnoprioritiesmax{{{np_max}\\times}}
-\\def\\reducedproductwithprioritiesmax{{{wp_max}\\times}}
-\\def\\reducedproductslowdownavg{{{speedup_avg}\\times}}
-\\def\\reducedproductslowdownmax{{{speedup_max}\\times}}
-\\def\\phaseoverheadavg{{{wpnp_avg}\\times}}
-\\def\\phaseoverheadmax{{{wpnp_max}\\times}}
+# rq1: wpnp / hand
+rq1_avg = round(sum(wpnp_stats) / len(wpnp_stats), 1)
+rq1_max = round(max(wpnp_stats), 1)
+# rq1.5: wp / hand
+rq15_avg = round(sum(wp_stats) / len(wp_stats), 1)
+rq15_max = round(max(wp_stats), 1)
+
+# rq2: npnp / wpnp, np / wp
+rq2_avg = round(sum(no_p_npvswp) / len(no_p_npvswp), 1)
+rq2_max = round(max(no_p_npvswp), 1)
+rq25_avg = round(sum(p_npvswp) / len(p_npvswp), 1)
+rq25_max = round(max(p_npvswp), 1)
+
+# rq3: wpnp / npnp, wp / np
+rq3_avg = round(sum(pvnpnp) / len(pvnpnp), 1)
+rq3_max = round(max(pvnpnp), 1)
+rq35_avg = round(sum(pvnpwp) / len(pvnpwp), 1)
+rq35_max = round(max(pvnpwp), 1)
+
+stats = f"""
+\\def\\rprqoneavg{{{rq1_avg}\\times}}
+\\def\\rprqonemax{{{rq1_max}\\times}}
+\\def\\rprqonefiveavg{{{rq15_avg}\\times}}
+\\def\\rprqonefivemax{{{rq15_max}\\times}}
+\\def\\rprqtwoavg{{{rq2_avg}\\times}}
+\\def\\rprqtwomax{{{rq2_max}\\times}}
+\\def\\rprqtwofiveavg{{{rq25_avg}\\times}}
+\\def\\rprqtwofivemax{{{rq25_max}\\times}}
+\\def\\rprqthreeavg{{{rq3_avg}\\times}}
+\\def\\rprqthreemax{{{rq3_max}\\times}}
+\\def\\rprqthreefiveavg{{{rq35_avg}\\times}}
+\\def\\rprqthreefivemax{{{rq35_max}\\times}}
 """
+
+# np_avg = round(sum(np_stats) / len(np_stats), 1)
+# np_max = round(max(np_stats), 1)
+# wp_avg = round(sum(wp_stats) / len(wp_stats), 1)
+# wp_max = round(max(wp_stats), 1)
+# speedup_avg = round(wp_avg / np_avg, 1)
+# speedup_max = round(
+#     max(with_priorities[i][1] / no_priorities[i][1] for i in range(len(hand))), 1
+# )
+# wpnp_avg = round(sum(wpnp_stats) / len(wpnp_stats), 1)
+# wpnp_max = round(max(wpnp_stats), 1)
+#
+# # Write the commands
+# stats = f"""\\def\\reducedproductnoprioritiesavg{{{np_avg}\\times}}
+# \\def\\reducedproductwithprioritiesavg{{{wp_avg}\\times}}
+# \\def\\reducedproductnoprioritiesmax{{{np_max}\\times}}
+# \\def\\reducedproductwithprioritiesmax{{{wp_max}\\times}}
+# \\def\\reducedproductslowdownavg{{{speedup_avg}\\times}}
+# \\def\\reducedproductslowdownmax{{{speedup_max}\\times}}
+# \\def\\phaseoverheadavg{{{wpnp_avg}\\times}}
+# \\def\\phaseoverheadmax{{{wpnp_max}\\times}}
+# """
 
 with open("benchmarks/charts/reduced-product-statistics.tex", "w+") as f:
     f.write(stats)

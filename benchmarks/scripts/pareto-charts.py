@@ -30,18 +30,30 @@ with open("pareto-graph-stats.csv") as f:
 # make the graph stats as something to query
 ################################################################################
 graph_stats = {}
+res_tab = {}
 for n, v, e in graph_stats_csv[1:]:
     name, number = n.split("-")
     number = int(number)
     if name not in graph_stats:
         graph_stats[name] = {}
     graph_stats[name][number] = int(e)
+    if number != 7:
+        continue
+    if name not in res_tab:
+        res_tab[name] = {}
+    res_tab[name]["|V|"] = int(v)
+    res_tab[name]["|E|"] = int(e)
 
 
 ################################################################################
 # Getting the points in the plot
 ################################################################################
 plots = {}
+name_map = {
+    "Fixen (No Priorities)": "No Priorities",
+    "Fixen (With Priorities)": "With Priorities",
+    "Hand": "Hand",
+}
 
 for i in time_data[1:]:
     suite, t = i[0], i[1]
@@ -54,10 +66,26 @@ for i in time_data[1:]:
     if program not in plots[graph_name]:
         plots[graph_name][program] = []
     plots[graph_name][program].append((e, float(t)))
+    program = name_map[program]
+    if graph_number == 7:
+        res_tab[graph_name][program] = float(t)
 
 for g in plots:
     for p in plots[g]:
         plots[g][p] = sorted(plots[g][p])
+
+out_tab = [["Graph", "|V|", "|E|", "Hand", "No Priorities", "With Priorities"]]
+for g in res_tab:
+    out_tab.append(
+        [
+            g,
+            res_tab[g]["|V|"],
+            res_tab[g]["|E|"],
+            res_tab[g]["Hand"],
+            res_tab[g]["No Priorities"],
+            res_tab[g]["With Priorities"],
+        ]
+    )
 
 ################################################################################
 # f nts for chart
@@ -77,6 +105,13 @@ lin_libertine.set_math_fontfamily("cm")
 
 # Go back to the main dir
 os.chdir(cwd)
+
+
+# write the table
+with open("benchmarks/results/pareto-overall.csv", "w+") as f:
+    w = csv.writer(f)
+    w.writerows(out_tab)
+
 
 # reference curves
 x1 = np.linspace(1, 100_000, 10000)
@@ -126,7 +161,7 @@ for g in plots:
         [i[0] for i in no_priorities],
         [i[1] for i in no_priorities],
         "-s",
-        label="Fixen (No Priorities)",
+        label="No Priorities",
         color="#a13c3c",
         markersize=3,
     )
@@ -134,7 +169,7 @@ for g in plots:
         [i[0] for i in with_priorities],
         [i[1] for i in with_priorities],
         "-x",
-        label="Fixen (With Priorities)",
+        label="With Priorities",
         color="#179299",
         markersize=4,
     )
@@ -232,7 +267,7 @@ ax.plot(
     [i[0] for i in gm["Fixen (No Priorities)"]],
     [i[1] for i in gm["Fixen (No Priorities)"]],
     "-s",
-    label="Fixen (No Priorities)",
+    label="No Priorities",
     color="#a13c3c",
     markersize=3,
 )
@@ -240,7 +275,7 @@ ax.plot(
     [i[0] for i in gm["Fixen (With Priorities)"]],
     [i[1] for i in gm["Fixen (With Priorities)"]],
     "-x",
-    label="Fixen (With Priorities)",
+    label="With Priorities",
     color="#179299",
     markersize=4,
 )

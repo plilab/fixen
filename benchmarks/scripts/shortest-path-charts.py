@@ -93,7 +93,7 @@ ax.plot(
     [i[0] for i in no_priorities],
     [i[1] for i in no_priorities],
     "-s",
-    label="Fixen (No Priorities)",
+    label="No Priorities",
     color="#a13c3c",
     markersize=3,
 )
@@ -101,7 +101,7 @@ ax.plot(
     [i[0] for i in with_priorities],
     [i[1] for i in with_priorities],
     "-x",
-    label="Fixen (With Priorities)",
+    label="With Priorities",
     color="#179299",
     markersize=4,
 )
