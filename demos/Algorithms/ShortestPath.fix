@@ -1,0 +1,51 @@
+module Algorithms.ShortestPath where
+
+import Numeric.Natural
+
+```hs
+type Vertex = String
+boolImpl :: Bool -> Bool -> Bool
+boolImpl x y = y || not x
+boolOr :: Bool -> Bool -> Bool
+boolOr x y = x || y 
+boolAnd :: Bool -> Bool -> Bool
+boolAnd x y = x && y
+```
+
+lat Dist where
+  type = Natural
+  leq = (>=)
+  join = min
+  meet = max
+
+lat DistRev where
+  type = Natural
+  leq = (<=)
+  join = max
+  meet = min
+
+rel Edge: Vertex, Vertex
+rel DistToBFS: Vertex, Dist
+rel DistToDFS: Vertex, DistRev
+rel DistTopsort: Vertex, Dist
+rel Dummy: Vertex, Bool
+
+rule addDistBFS: DistToBFS a d, Edge a b |- DistToBFS b (d + 1)
+rule addDistDFS: DistToDFS a d, Edge a b |- DistToDFS b (d + 1)
+rule addEdgeTopsort: DistTopsort a d, Edge a b |- DistTopsort b (d + 1)
+rule relaxEdgeTopsort: DistTopsort a d1, DistTopsort b d2, Edge b a, if d2 > d1 |- DistTopsort b d1
+rule enableBFS: Dummy a False |- DistToBFS a 0
+
+priority: |- enableBFS {} < addDistBFS {}
+
+priority: d1 > d2
+          |- addDistBFS { d = d1 } < addDistBFS { d = d2 }
+
+priority: d1 < d2
+          |- addDistDFS { d = d1 } < addDistDFS { d = d2 }
+
+
+query distancesBFS: DistToBFS - -
+query distancesDFS: DistToDFS - -
+query distTopsort: DistTopsort - -
+query edge: Edge - -

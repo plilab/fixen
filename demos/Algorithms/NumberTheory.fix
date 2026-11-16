@@ -1,0 +1,25 @@
+module Algorithms.NumberTheory where
+
+import Numeric.Natural
+
+lat Dist where
+  type = Natural
+  leq = (>=)
+  join = min
+  meet = max
+
+lat DistRev where
+  type = Natural
+  leq = (<=)
+  join = max
+  meet = min
+
+rule findDiv: Check m, Div a b, if ((a * (b + 1)) <= m) |- Div a (b + 1)
+rule defComp: Div a b |- Comp (a * b)
+
+rel Check: Natural
+rel Div: Natural, DistRev
+rel Comp: Natural
+
+query dispdiv: Div - -
+query comp: Comp -

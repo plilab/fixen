@@ -1,0 +1,127 @@
+module Algorithms.DynamicProgramming where
+
+import Numeric.Natural
+import Data.Array
+import Data.Ix (rangeSize)
+import Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as B
+import Data.Hashable (Hashable (..))
+
+```hs
+len :: ByteString -> Natural
+len = fromIntegral . B.length
+
+charAt :: ByteString -> Natural -> Char
+charAt s i = B.index s (fromIntegral i)
+
+lenArr :: Array Natural b -> Natural
+lenArr = fromIntegral . rangeSize . bounds
+
+-- Hashes only the bounds (O(1)); Eq on the elements resolves collisions.
+instance (Ix a, Hashable a, Eq b) => Hashable (Array a b) where
+    hashWithSalt salt arr = salt `hashWithSalt` bounds arr
+```
+
+lat Dist where
+  type = Natural
+  leq = (>=)
+  join = min
+  meet = max
+
+lat DistRev where
+  type = Natural
+  leq = (<=)
+  join = max
+  meet = min
+
+rel Items: Natural, Natural
+rel Weights: Natural, DistRev
+rel MaxW: Natural
+
+rel SubseqAns: Natural, Natural, DistRev
+rel StringA: ByteString
+rel StringB: ByteString
+
+rel Arr: Array Natural Natural
+rel MinAns: Natural, Natural
+rel MinCand: Natural, Natural
+
+rel Str: ByteString
+rel PrefAns: Natural, Natural
+rel PrefCand: Natural, Natural
+rel PrefZero: Natural
+
+rule addItem: MaxW w, Items a b, Weights x y, if ((a + x) <= w) |- Weights (x + a) (b + y) 
+
+rule subseqProgressLeft: StringA s
+  , SubseqAns x y d
+  , if (x < (len s)) |- SubseqAns (x + 1) y d  
+rule subseqProgressRight: StringB t
+  , SubseqAns x y d
+  , if (y < (len t)) |- SubseqAns x (y + 1) d
+rule subseqProgressBoth: StringA s
+  , StringB t
+  , SubseqAns x y d
+  , if (((x < (len s)) && (y < (len t))) && ((charAt s x) == (charAt t y))) 
+  |- SubseqAns (x + 1) (y + 1) (d + 1)  
+
+rule propagateMinLarge: Arr arr, MinCand idx idx1, MinAns idx1 idx2, if ((arr ! idx) <= (arr ! idx1)) |- MinCand idx idx2
+rule propagateMinSmall: Arr arr, MinCand idx idx1, if ((arr ! idx) > (arr ! idx1)) |- MinAns idx idx1
+
+rule prefNext: Str s, PrefAns idx val, if val > 0, if ((idx + 1) < (len s)) |- PrefCand (idx + 1) (val - 1)
+rule prefNextZero: Str s, PrefAns idx val, if ((idx + 1) < (len s)), if (val == 0) |- PrefZero (idx + 1)
+rule prefZero0: Str s, PrefZero idx, if ((charAt s idx) /= (charAt s 0)) |- PrefAns idx 0
+rule prefZero1: Str s, PrefZero idx, if ((charAt s idx) == (charAt s 0)) |- PrefAns idx 1
+rule propagatePrefMatch: Str s, PrefCand idx val, if ((charAt s idx) == (charAt s (val + 1))) |- PrefAns idx (val + 2)
+rule propagatePrefDec: Str s, PrefCand idx idx1, PrefAns idx1 val, if ((charAt s idx) /= (charAt s (idx1 + 1))), if val > 0 |- PrefCand idx (val - 1)
+rule propagatePrefDecZero: Str s, PrefCand idx idx1, PrefAns idx1 val, if ((charAt s idx) /= (charAt s (idx1 + 1))), if (val == 0) |- PrefZero idx
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressLeft { x = x2, y = y2} < 
+    subseqProgressLeft { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressRight { x = x2, y = y2} < 
+    subseqProgressLeft { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressBoth { x = x2, y = y2} < 
+    subseqProgressLeft { x = x1, y = y1}
+
+--potential feature
+--priority: measure (x1 + y1) |- 
+--    , subseqProgressLeft { x = x1, y = y1 }
+--    , subseqProgressRight { x = x1, y = y1 }
+--    , subseqProgressBoth { x = x1, y = y1 }
+
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressLeft { x = x2, y = y2} < 
+    subseqProgressRight { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressRight { x = x2, y = y2} < 
+    subseqProgressRight { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressBoth { x = x2, y = y2} < 
+    subseqProgressRight { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressLeft { x = x2, y = y2} < 
+    subseqProgressBoth { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressRight { x = x2, y = y2} < 
+    subseqProgressBoth { x = x1, y = y1}
+
+priority: (x1 + y1) < (x2 + y2) |- 
+    subseqProgressBoth { x = x2, y = y2} < 
+    subseqProgressBoth { x = x1, y = y1}
+
+query weights: Weights - -
+query subsAns: SubseqAns - - -
+query prevMinAns: MinAns - -
+query prevMinCand: MinCand - -
+query prefCand: PrefCand - -
+query prefAns: PrefAns - -

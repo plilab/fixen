@@ -1,0 +1,15 @@
+module Algorithms.DistributedProtocol where
+
+import Numeric.Natural
+
+rel Node: Natural
+rel Messages: Natural, Natural
+rel Next: Natural, Natural 
+rel Leader: Natural
+
+rule send: Messages s t, Next s p, if (s < t) |- Messages p t
+rule elect: Messages s s |- Leader s
+rule sendOwn: Next s p |- Messages p s
+
+query leader: Leader -
+query msg: Messages - -
